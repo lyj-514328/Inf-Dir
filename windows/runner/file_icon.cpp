@@ -66,7 +66,29 @@ unsigned char* GetIconPngByIndexW(int iconIndex, int* outSize) {
     HICON hIcon = ImageList_GetIcon(hil, iconIndex, ILD_NORMAL);
     if (!hIcon) return nullptr;
 
-    Gdiplus::Bitmap bmp(hIcon);
+    // Get icon dimensions
+    ICONINFO ii = {};
+    if (!GetIconInfo(hIcon, &ii)) {
+        DestroyIcon(hIcon);
+        return nullptr;
+    }
+    BITMAP bm = {};
+    GetObject(ii.hbmColor, sizeof(bm), &bm);
+    int w = bm.bmWidth;
+    int h = bm.bmHeight;
+    if (ii.hbmColor) DeleteObject(ii.hbmColor);
+    if (ii.hbmMask) DeleteObject(ii.hbmMask);
+    if (w <= 0 || h <= 0) { w = 16; h = 16; }
+
+    // Draw icon onto a 32-bit ARGB bitmap for correct alpha
+    Gdiplus::Bitmap bmp(w, h, PixelFormat32bppARGB);
+    {
+        Gdiplus::Graphics graphics(&bmp);
+        graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
+        HDC hdc = graphics.GetHDC();
+        DrawIconEx(hdc, 0, 0, hIcon, w, h, 0, nullptr, DI_NORMAL);
+        graphics.ReleaseHDC(hdc);
+    }
     DestroyIcon(hIcon);
 
     IStream* stm = nullptr;
