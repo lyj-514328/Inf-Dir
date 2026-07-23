@@ -6,6 +6,8 @@ class FileListView extends StatelessWidget {
   final Set<String> selectedPaths;
   final ValueChanged<String> onSingleTap;
   final ValueChanged<String> onDoubleTap;
+  final Function(String path, Offset globalPosition)? onItemRightClick;
+  final Function(Offset globalPosition)? onEmptyRightClick;
   final bool loading;
 
   const FileListView({
@@ -14,6 +16,8 @@ class FileListView extends StatelessWidget {
     required this.selectedPaths,
     required this.onSingleTap,
     required this.onDoubleTap,
+    this.onItemRightClick,
+    this.onEmptyRightClick,
     required this.loading,
   });
 
@@ -34,27 +38,35 @@ class FileListView extends StatelessWidget {
         _ColumnHeader(),
         Container(height: 1, color: const Color(0xFFD0D0D0)),
         Expanded(
-          child: entries.isEmpty
-              ? const Center(
-                  child: Text(
-                    '空文件夹',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onSecondaryTapUp: (details) {
+              onEmptyRightClick?.call(details.globalPosition);
+            },
+            child: entries.isEmpty
+                ? const Center(
+                    child: Text(
+                      '空文件夹',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: entries.length,
+                    itemExtent: 22,
+                    padding: EdgeInsets.zero,
+                    itemBuilder: (context, index) {
+                      final entry = entries[index];
+                      return _FileRow(
+                        entry: entry,
+                        isSelected: selectedPaths.contains(entry.path),
+                        onSingleTap: () => onSingleTap(entry.path),
+                        onDoubleTap: () => onDoubleTap(entry.path),
+                        onRightClick: (pos) =>
+                            onItemRightClick?.call(entry.path, pos),
+                      );
+                    },
                   ),
-                )
-              : ListView.builder(
-                  itemCount: entries.length,
-                  itemExtent: 22,
-                  padding: EdgeInsets.zero,
-                  itemBuilder: (context, index) {
-                    final entry = entries[index];
-                    return _FileRow(
-                      entry: entry,
-                      isSelected: selectedPaths.contains(entry.path),
-                      onSingleTap: () => onSingleTap(entry.path),
-                      onDoubleTap: () => onDoubleTap(entry.path),
-                    );
-                  },
-                ),
+          ),
         ),
       ],
     );
@@ -111,12 +123,14 @@ class _FileRow extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onSingleTap;
   final VoidCallback onDoubleTap;
+  final ValueChanged<Offset>? onRightClick;
 
   const _FileRow({
     required this.entry,
     required this.isSelected,
     required this.onSingleTap,
     required this.onDoubleTap,
+    this.onRightClick,
   });
 
   @override
@@ -129,6 +143,7 @@ class _FileRow extends StatelessWidget {
     return GestureDetector(
       onTap: onSingleTap,
       onDoubleTap: onDoubleTap,
+      onSecondaryTapUp: (details) => onRightClick?.call(details.globalPosition),
       child: Container(
         color: bgColor,
         padding: const EdgeInsets.symmetric(horizontal: 4),
