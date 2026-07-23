@@ -1,0 +1,18 @@
+[submodule "ai_refs/win32"]
+	path = ai_refs/win32
+	url = https://github.com/halildurmus/win32.git
+[submodule "ai_refs/salamander"]
+	path = ai_refs/salamander
+	url = https://github.com/OpenSalamander/salamander.git
+[submodule "ai_refs/files"]
+	path = ai_refs/files
+	url = https://github.com/files-community/Files.git
+[submodule "ai_refs/doublecmd"]
+	path = ai_refs/doublecmd
+	url = https://github.com/doublecmd/doublecmd.git
+[submodule "ai_refs/i3"]
+	path = ai_refs/i3
+	url = https://github.com/i3/i3.git
+[submodule "ai_refs/mq-dir"]
+	path = ai_refs/mq-dir
+	url = https://github.com/h5nam/mq-dir.git
