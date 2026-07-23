@@ -297,8 +297,7 @@ class _FileIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconIndex = IconService.getIconIndex(path, isDirectory);
-    final png = IconService.getIconPng(iconIndex);
+    final png = IconService.getFileIconPng(path, isDirectory, 32);
 
     if (png != null) {
       return SizedBox(
@@ -308,7 +307,6 @@ class _FileIcon extends StatelessWidget {
       );
     }
 
-    // Fallback to Material icons
     return Icon(
       isDirectory ? Icons.folder : Icons.insert_drive_file,
       size: 16,

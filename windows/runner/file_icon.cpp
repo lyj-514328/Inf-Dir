@@ -1,6 +1,6 @@
 #include "file_icon.h"
 #include <shlobj.h>
-#include <commctrl.h>
+#include <shobjidl.h>
 #include <objbase.h>
 #include <gdiplus.h>
 
@@ -42,63 +42,81 @@ static bool EnsureGdiplus() {
 // -- Public API -------------------------------------------------------
 
 extern "C" __declspec(dllexport)
-int GetFileIconIndexW(const wchar_t* path, DWORD fileAttributes) {
-    SHFILEINFOW sfi = {};
-    HIMAGELIST hil = (HIMAGELIST)SHGetFileInfoW(
-        path, fileAttributes, &sfi, sizeof(sfi),
-        SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
-    return hil ? sfi.iIcon : -1;
-}
-
-extern "C" __declspec(dllexport)
-unsigned char* GetIconPngByIndexW(int iconIndex, int* outSize) {
-    if (iconIndex < 0 || !outSize) return nullptr;
+unsigned char* GetFileIconPngW(const wchar_t* path, int size, int* outSize) {
+    if (!path || !outSize || size <= 0) return nullptr;
     *outSize = 0;
     if (!EnsureGdiplus()) return nullptr;
 
-    // Obtain the system small-image-list handle
-    SHFILEINFOW sfi = {};
-    HIMAGELIST hil = (HIMAGELIST)SHGetFileInfoW(
-        L".txt", 0, &sfi, sizeof(sfi),
-        SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES);
-    if (!hil) return nullptr;
+    // Ensure COM is initialized on this thread
+    bool comInitialized = false;
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if (FAILED(hr)) return nullptr;
+    comInitialized = (hr == S_OK);
 
-    HICON hIcon = ImageList_GetIcon(hil, iconIndex, ILD_NORMAL);
-    if (!hIcon) return nullptr;
-
-    // Get icon dimensions
-    ICONINFO ii = {};
-    if (!GetIconInfo(hIcon, &ii)) {
-        DestroyIcon(hIcon);
+    // Create IShellItem and query IShellItemImageFactory
+    IShellItemImageFactory* factory = nullptr;
+    hr = SHCreateItemFromParsingName(path, nullptr, IID_IShellItemImageFactory, (void**)&factory);
+    if (FAILED(hr) || !factory) {
+        if (comInitialized) CoUninitialize();
         return nullptr;
     }
-    BITMAP bm = {};
-    GetObject(ii.hbmColor, sizeof(bm), &bm);
-    int w = bm.bmWidth;
-    int h = bm.bmHeight;
-    if (ii.hbmColor) DeleteObject(ii.hbmColor);
-    if (ii.hbmMask) DeleteObject(ii.hbmMask);
-    if (w <= 0 || h <= 0) { w = 16; h = 16; }
 
-    // Draw icon onto a 32-bit ARGB bitmap for correct alpha
-    Gdiplus::Bitmap bmp(w, h, PixelFormat32bppARGB);
-    {
-        Gdiplus::Graphics graphics(&bmp);
-        graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
-        HDC hdc = graphics.GetHDC();
-        DrawIconEx(hdc, 0, 0, hIcon, w, h, 0, nullptr, DI_NORMAL);
-        graphics.ReleaseHDC(hdc);
+    // Get HBITMAP at requested size (icon-only, no thumbnail)
+    HBITMAP hBitmap = nullptr;
+    hr = factory->GetImage({size, size}, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK, &hBitmap);
+    factory->Release();
+    if (FAILED(hr) || !hBitmap) {
+        if (comInitialized) CoUninitialize();
+        return nullptr;
     }
-    DestroyIcon(hIcon);
 
+    // Get bitmap info
+    BITMAP bm = {};
+    if (!GetObject(hBitmap, sizeof(bm), &bm) || bm.bmWidth <= 0 || bm.bmHeight <= 0) {
+        DeleteObject(hBitmap);
+        if (comInitialized) CoUninitialize();
+        return nullptr;
+    }
+
+    // Flip rows: HBITMAP is bottom-up, GDI+ Bitmap expects top-down
+    int rowBytes = abs(bm.bmWidthBytes);
+    int height = bm.bmHeight;
+    int width = bm.bmWidth;
+    BYTE* flippedBits = (BYTE*)malloc(rowBytes * height);
+    if (!flippedBits) {
+        DeleteObject(hBitmap);
+        if (comInitialized) CoUninitialize();
+        return nullptr;
+    }
+
+    BYTE* srcBits = (BYTE*)bm.bmBits;
+    for (int y = 0; y < height; y++) {
+        memcpy(flippedBits + (height - 1 - y) * rowBytes,
+               srcBits + y * rowBytes,
+               rowBytes);
+    }
+
+    // Create GDI+ bitmap from the flipped 32-bit ARGB pixel data
+    Gdiplus::Bitmap bmp(width, height, rowBytes, PixelFormat32bppARGB, flippedBits);
+
+    // Save to PNG via IStream
     IStream* stm = nullptr;
-    if (CreateStreamOnHGlobal(nullptr, TRUE, &stm) != S_OK) return nullptr;
+    if (CreateStreamOnHGlobal(nullptr, TRUE, &stm) != S_OK) {
+        free(flippedBits);
+        DeleteObject(hBitmap);
+        if (comInitialized) CoUninitialize();
+        return nullptr;
+    }
 
     if (bmp.Save(stm, &g_pngClsid) != Gdiplus::Ok) {
         stm->Release();
+        free(flippedBits);
+        DeleteObject(hBitmap);
+        if (comInitialized) CoUninitialize();
         return nullptr;
     }
 
+    // Read stream data into CoTaskMem-allocated buffer
     HGLOBAL hg = nullptr;
     GetHGlobalFromStream(stm, &hg);
     SIZE_T sz = GlobalSize(hg);
@@ -112,6 +130,9 @@ unsigned char* GetIconPngByIndexW(int iconIndex, int* outSize) {
 
     GlobalUnlock(hg);
     stm->Release();
+    free(flippedBits);
+    DeleteObject(hBitmap);
+    if (comInitialized) CoUninitialize();
     return buf;
 }
 
