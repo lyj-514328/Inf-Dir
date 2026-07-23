@@ -3,6 +3,8 @@ import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
 import '../services/file_service.dart';
 
+enum SortColumn { name, dateModified, type, size }
+
 class TabInfo {
   String path;
   String label;
@@ -18,6 +20,8 @@ class PaneController extends ChangeNotifier {
   int _activeTabIndex = 0;
   final Set<String> _selectedPaths = {};
   bool _loading = false;
+  SortColumn _sortColumn = SortColumn.name;
+  bool _sortAscending = true;
 
   PaneController(String initialPath) : _currentPath = initialPath {
     _tabs.add(TabInfo(path: initialPath, label: _pathLabel(initialPath)));
@@ -39,6 +43,8 @@ class PaneController extends ChangeNotifier {
   Set<String> get selectedPaths => _selectedPaths;
   int get entryCount => _entries.length;
   int get selectedCount => _selectedPaths.length;
+  SortColumn get sortColumn => _sortColumn;
+  bool get sortAscending => _sortAscending;
 
   String _pathLabel(String path) {
     if (path.length <= 3) return path;
@@ -49,9 +55,39 @@ class PaneController extends ChangeNotifier {
     _loading = true;
     notifyListeners();
     _entries = await FileService.listDirectory(path);
+    _applySort();
     _loading = false;
     _selectedPaths.clear();
     notifyListeners();
+  }
+
+  void sortBy(SortColumn column) {
+    if (_sortColumn == column) {
+      _sortAscending = !_sortAscending;
+    } else {
+      _sortColumn = column;
+      _sortAscending = true;
+    }
+    _applySort();
+    notifyListeners();
+  }
+
+  void _applySort() {
+    _entries.sort((a, b) {
+      if (a.isDirectory != b.isDirectory) return a.isDirectory ? -1 : 1;
+      int cmp;
+      switch (_sortColumn) {
+        case SortColumn.name:
+          cmp = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        case SortColumn.dateModified:
+          cmp = a.modified.compareTo(b.modified);
+        case SortColumn.type:
+          cmp = a.type.toLowerCase().compareTo(b.type.toLowerCase());
+        case SortColumn.size:
+          cmp = a.size.compareTo(b.size);
+      }
+      return _sortAscending ? cmp : -cmp;
+    });
   }
 
   Future<void> navigateTo(String path, {bool addToHistory = true}) async {

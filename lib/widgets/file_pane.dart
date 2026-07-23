@@ -143,6 +143,9 @@ class _PaneContent extends StatelessWidget {
               entries: controller.entries,
               selectedPaths: controller.selectedPaths,
               loading: controller.isLoading,
+              sortColumn: controller.sortColumn,
+              sortAscending: controller.sortAscending,
+              onSort: controller.sortBy,
               onSingleTap: (path) => controller.toggleSelection(path),
               onDoubleTap: (path) =>
                   _handleDoubleTap(context, controller, path),
