@@ -5,24 +5,11 @@ import '../models/file_entry.dart';
 import '../state/app_state.dart';
 import '../state/pane_controller.dart';
 import '../services/file_service.dart';
+import '../services/shell_context_menu.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
 import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
-
-enum _CtxAction {
-  open,
-  openInNewTab,
-  copyPath,
-  cut,
-  copy,
-  paste,
-  delete,
-  rename,
-  newFolder,
-  refresh,
-  selectAll,
-}
 
 class FilePane extends StatelessWidget {
   final int paneIndex;
@@ -157,11 +144,12 @@ class _PaneContent extends StatelessWidget {
               selectedPaths: controller.selectedPaths,
               loading: controller.isLoading,
               onSingleTap: (path) => controller.toggleSelection(path),
-              onDoubleTap: (path) => _handleDoubleTap(context, controller, path),
+              onDoubleTap: (path) =>
+                  _handleDoubleTap(context, controller, path),
               onItemRightClick: (path, pos) =>
-                  _showItemContextMenu(context, path, pos),
+                  _showNativeMenu(context, [path], pos),
               onEmptyRightClick: (pos) =>
-                  _showEmptyContextMenu(context, pos),
+                  _showNativeMenu(context, [], pos),
             ),
           ),
           _StatusBar(
@@ -173,7 +161,21 @@ class _PaneContent extends StatelessWidget {
     );
   }
 
-  // ── Navigation / Open ──────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────
+
+  FileEntry? _findEntry(PaneController controller, String path) {
+    for (final e in controller.entries) {
+      if (e.path == path) return e;
+    }
+    return null;
+  }
+
+  String _basename(String path) {
+    final idx = path.lastIndexOf(RegExp(r'[\\/]'));
+    return idx >= 0 ? path.substring(idx + 1) : path;
+  }
+
+  // ── Open / Navigate ────────────────────────────────────────────────
 
   void _handleDoubleTap(
       BuildContext context, PaneController controller, String path) {
@@ -191,146 +193,80 @@ class _PaneContent extends StatelessWidget {
     _handleDoubleTap(context, controller, controller.selectedPaths.first);
   }
 
-  FileEntry? _findEntry(PaneController controller, String path) {
-    for (final e in controller.entries) {
-      if (e.path == path) return e;
-    }
-    return null;
-  }
+  // ── Native Shell Context Menu ──────────────────────────────────────
 
-  // ── Context Menus ──────────────────────────────────────────────────
-
-  Future<void> _showItemContextMenu(
-      BuildContext context, String path, Offset position) async {
-    final appState = context.read<AppState>();
+  void _showNativeMenu(
+      BuildContext context, List<String> selectedPaths, Offset position) {
     final controller = context.read<PaneController>();
 
-    if (!controller.selectedPaths.contains(path)) {
+    // If right-clicking an unselected item, select only it
+    if (selectedPaths.length == 1 &&
+        !controller.selectedPaths.contains(selectedPaths.first)) {
       controller.clearSelection();
-      controller.toggleSelection(path);
+      controller.toggleSelection(selectedPaths.first);
+    } else if (selectedPaths.isEmpty) {
+      controller.clearSelection();
     }
 
-    final action = await _showMenu(context, position, [
-      _MenuItem(_CtxAction.open, Icons.open_in_new, '打开'),
-      _MenuItem(_CtxAction.openInNewTab, Icons.tab, '在新标签页中打开'),
-      null,
-      _MenuItem(_CtxAction.copyPath, Icons.link, '复制路径'),
-      _MenuItem(_CtxAction.cut, Icons.content_cut, '剪切  (Ctrl+X)'),
-      _MenuItem(_CtxAction.copy, Icons.content_copy, '复制  (Ctrl+C)'),
-      if (appState.hasClipboard)
-        _MenuItem(_CtxAction.paste, Icons.content_paste, '粘贴  (Ctrl+V)'),
-      null,
-      _MenuItem(_CtxAction.delete, Icons.delete_outline, '删除  (Del)'),
-      _MenuItem(_CtxAction.rename, Icons.edit, '重命名  (F2)'),
-      null,
-      _MenuItem(_CtxAction.refresh, Icons.refresh, '刷新  (F5)'),
-      _MenuItem(_CtxAction.selectAll, Icons.select_all, '全选  (Ctrl+A)'),
-    ]);
+    // Use all currently selected paths for the menu
+    final paths = selectedPaths.isEmpty ? <String>[] : controller.selectedPaths.toList();
 
-    if (action != null) {
-      if (!context.mounted) return;
-      _executeAction(context, action);
-    }
+    // Convert logical → physical pixels
+    final dpr = View.of(context).devicePixelRatio;
+    final physX = (position.dx * dpr).round();
+    final physY = (position.dy * dpr).round();
+
+    final verb = ShellContextMenu.show(
+      folderPath: controller.currentPath,
+      selectedPaths: paths,
+      screenX: physX,
+      screenY: physY,
+    );
+
+    if (!context.mounted) return;
+    _handleVerb(context, verb, paths);
   }
 
-  Future<void> _showEmptyContextMenu(
-      BuildContext context, Offset position) async {
+  void _handleVerb(
+      BuildContext context, String? verb, List<String> selectedPaths) {
+    if (verb == null) return;
+
     final appState = context.read<AppState>();
     final controller = context.read<PaneController>();
-    controller.clearSelection();
 
-    final action = await _showMenu(context, position, [
-      if (appState.hasClipboard)
-        _MenuItem(_CtxAction.paste, Icons.content_paste, '粘贴  (Ctrl+V)'),
-      _MenuItem(_CtxAction.newFolder, Icons.create_new_folder_outlined, '新建文件夹'),
-      null,
-      _MenuItem(_CtxAction.refresh, Icons.refresh, '刷新  (F5)'),
-      _MenuItem(_CtxAction.selectAll, Icons.select_all, '全选  (Ctrl+A)'),
-    ]);
-
-    if (action != null) {
-      if (!context.mounted) return;
-      _executeAction(context, action);
-    }
-  }
-
-  Future<_CtxAction?> _showMenu(
-      BuildContext context, Offset position, List<_MenuItem?> items) {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final size = overlay.size;
-    final rect = RelativeRect.fromLTRB(
-      position.dx,
-      position.dy,
-      size.width - position.dx,
-      size.height - position.dy,
-    );
-
-    return showMenu<_CtxAction>(
-      context: context,
-      position: rect,
-      constraints: const BoxConstraints(minWidth: 180),
-      items: items.map<PopupMenuEntry<_CtxAction>>((item) {
-        if (item == null) {
-          return const PopupMenuDivider(height: 4);
+    switch (verb) {
+      case 'open':
+      case 'explore':
+        // Intercepted — navigate for dirs, open for files
+        if (selectedPaths.length == 1) {
+          _handleDoubleTap(context, controller, selectedPaths.first);
         }
-        return PopupMenuItem<_CtxAction>(
-          value: item.action,
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            children: [
-              Icon(item.icon, size: 16, color: const Color(0xFF555555)),
-              const SizedBox(width: 8),
-              Text(item.label, style: const TextStyle(fontSize: 12)),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  // ── Action Execution ───────────────────────────────────────────────
-
-  void _executeAction(BuildContext context, _CtxAction action) {
-    final controller = context.read<PaneController>();
-    final selected = controller.selectedPaths.toList();
-
-    switch (action) {
-      case _CtxAction.open:
-        if (selected.isNotEmpty) {
-          _handleDoubleTap(context, controller, selected.first);
-        }
-      case _CtxAction.openInNewTab:
-        if (selected.isNotEmpty) {
-          final entry = _findEntry(controller, selected.first);
-          if (entry != null && entry.isDirectory) {
-            controller.addTab(selected.first);
-          }
-        }
-      case _CtxAction.copyPath:
-        if (selected.isNotEmpty) {
-          Clipboard.setData(ClipboardData(text: selected.join('\n')));
-        }
-      case _CtxAction.cut:
-        _cutSelected(context);
-      case _CtxAction.copy:
-        _copySelected(context);
-      case _CtxAction.paste:
-        _paste(context);
-      case _CtxAction.delete:
-        _deleteSelected(context);
-      case _CtxAction.rename:
+      case 'rename':
+        // Intercepted — show our rename dialog
         _renameSelected(context);
-      case _CtxAction.newFolder:
-        _showNewFolderDialog(context);
-      case _CtxAction.refresh:
+      case 'copy':
+        // Shell put CF_HDROP on clipboard; sync our app clipboard
+        if (selectedPaths.isNotEmpty) {
+          appState.copyPaths(selectedPaths);
+        }
         controller.refresh();
-      case _CtxAction.selectAll:
-        controller.selectAll();
+      case 'cut':
+        if (selectedPaths.isNotEmpty) {
+          appState.cutPaths(selectedPaths);
+        }
+        controller.refresh();
+      case 'delete':
+        controller.refresh();
+      case 'paste':
+        appState.clearClipboard();
+        controller.refresh();
+      default:
+        // Properties, shell extensions, etc. — just refresh
+        controller.refresh();
     }
   }
 
-  // ── Clipboard Operations ───────────────────────────────────────────
+  // ── Keyboard-triggered operations ──────────────────────────────────
 
   void _copySelected(BuildContext context) {
     final appState = context.read<AppState>();
@@ -369,8 +305,6 @@ class _PaneContent extends StatelessWidget {
     controller.refresh();
   }
 
-  // ── Delete ────────────────────────────────────────────────────────
-
   Future<void> _deleteSelected(BuildContext context) async {
     final controller = context.read<PaneController>();
     final selected = controller.selectedPaths.toList();
@@ -401,7 +335,6 @@ class _PaneContent extends StatelessWidget {
     );
 
     if (confirm != true) return;
-
     for (final path in selected) {
       try {
         await FileService.deleteEntry(path);
@@ -409,8 +342,6 @@ class _PaneContent extends StatelessWidget {
     }
     controller.refresh();
   }
-
-  // ── Rename ─────────────────────────────────────────────────────────
 
   Future<void> _renameSelected(BuildContext context) async {
     final controller = context.read<PaneController>();
@@ -433,43 +364,12 @@ class _PaneContent extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('重命名失败: $e'), duration: const Duration(seconds: 2)),
+          SnackBar(
+              content: Text('重命名失败: $e'),
+              duration: const Duration(seconds: 2)),
         );
       }
     }
-  }
-
-  // ── New Folder ─────────────────────────────────────────────────────
-
-  Future<void> _showNewFolderDialog(BuildContext context) async {
-    final controller = context.read<PaneController>();
-
-    final name = await _showInputDialog(
-      context,
-      title: '新建文件夹',
-      initialValue: '新建文件夹',
-      confirmText: '创建',
-    );
-
-    if (name == null || name.isEmpty) return;
-
-    try {
-      await FileService.createFolder(controller.currentPath, name);
-      controller.refresh();
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('创建失败: $e'), duration: const Duration(seconds: 2)),
-        );
-      }
-    }
-  }
-
-  // ── Helpers ────────────────────────────────────────────────────────
-
-  String _basename(String path) {
-    final idx = path.lastIndexOf(RegExp(r'[\\/]'));
-    return idx >= 0 ? path.substring(idx + 1) : path;
   }
 
   Future<String?> _showInputDialog(
@@ -506,13 +406,6 @@ class _PaneContent extends StatelessWidget {
       ),
     );
   }
-}
-
-class _MenuItem {
-  final _CtxAction action;
-  final IconData icon;
-  final String label;
-  const _MenuItem(this.action, this.icon, this.label);
 }
 
 class _StatusBar extends StatelessWidget {
