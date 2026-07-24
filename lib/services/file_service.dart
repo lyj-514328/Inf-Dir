@@ -1,34 +1,11 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
+import 'directory_service.dart';
 
 class FileService {
   static Future<List<FileEntry>> listDirectory(String dirPath) async {
-    final dir = Directory(dirPath);
-    if (!await dir.exists()) return [];
-
-    final List<FileEntry> entries = [];
-    try {
-      await for (final entity in dir.list(followLinks: false)) {
-        try {
-          final stat = await entity.stat();
-          entries.add(FileEntry(
-            name: p.basename(entity.path),
-            path: entity.path,
-            isDirectory: entity is Directory,
-            size: stat.size,
-            modified: stat.modified,
-          ));
-        } catch (_) {}
-      }
-    } catch (_) {}
-
-    entries.sort((a, b) {
-      if (a.isDirectory != b.isDirectory) return a.isDirectory ? -1 : 1;
-      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-    });
-
-    return entries;
+    return DirectoryService.listDirectory(dirPath);
   }
 
   static List<String> getDrives() {
@@ -40,6 +17,32 @@ class FileService {
       }
     }
     return drives;
+  }
+
+  /// Recycle Bin virtual path constants.
+  static const String recycleBinShellPath = 'shell:RecycleBinFolder';
+  static const String recycleBinClsidPath = '::{645FF040-5081-101B-9F08-00AA002F954E}';
+
+  /// My Computer (This PC) virtual path constant.
+  static const String myComputerClsidPath =
+      '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}';
+
+  /// Returns true if [path] is a virtual shell path (Recycle Bin, etc.)
+  /// rather than a regular filesystem path.
+  static bool isSpecialPath(String path) {
+    return path.startsWith('shell:') || path.startsWith('::');
+  }
+
+  /// Returns true if [path] points to the Recycle Bin.
+  static bool isRecycleBinPath(String path) {
+    return path.startsWith(recycleBinShellPath) ||
+        path.startsWith(recycleBinClsidPath);
+  }
+
+  /// Returns true if [path] points to "This PC" (My Computer).
+  static bool isMyComputerPath(String path) {
+    return path.startsWith(myComputerClsidPath) ||
+        path.startsWith('shell:MyComputerFolder');
   }
 
   static String get homeDirectory =>

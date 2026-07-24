@@ -239,13 +239,11 @@ class _QuickAccessTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return _SidebarItem(
       onTap: () => onNavigate(item.path),
-      leading: _isFileSystemPath
-          ? _ShellIcon(
-              path: item.path,
-              isDirectory: true,
-              fallback: _fallbackIcon(),
-            )
-          : Icon(_fallbackIcon(), size: 15, color: Colors.amber.shade700),
+      leading: _ShellIcon(
+        path: item.path,
+        isDirectory: true,
+        fallback: _fallbackIcon(),
+      ),
       title: item.name,
       showArrow: false,
       trailing: item.isPinned
@@ -278,8 +276,15 @@ class _ThisPcTreeNode extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _SidebarItem(
-          onTap: onToggle,
-          leading: Icon(Icons.computer, size: 15, color: Colors.blue.shade600),
+          onTap: () {
+            onNavigate('::{20D04FE0-3AEA-1069-A2D8-08002B30309D}');
+            onToggle();
+          },
+          leading: _ShellIcon(
+            path: '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}',
+            isDirectory: true,
+            fallback: Icons.computer,
+          ),
           title: label,
           showArrow: true,
           expanded: expanded,

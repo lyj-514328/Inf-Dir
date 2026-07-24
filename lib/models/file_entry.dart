@@ -7,13 +7,31 @@ class FileEntry {
   final int size;
   final DateTime modified;
 
+  // --- Recycle Bin specific fields (optional) ---
+
+  /// Original file path before deletion (e.g. "C:\Users\...\report.pdf")
+  final String? originalPath;
+
+  /// Deletion date string from shell (e.g. "2026/07/24 15:30:00")
+  final String? recycleDate;
+
+  /// Full shell parsing name for context menu / shell operations
+  /// (e.g. "::{645FF040-...}\$RABCDEF.pdf")
+  final String? parsingName;
+
   const FileEntry({
     required this.name,
     required this.path,
     required this.isDirectory,
     required this.size,
     required this.modified,
+    this.originalPath,
+    this.recycleDate,
+    this.parsingName,
   });
+
+  /// Whether this entry is inside the Recycle Bin.
+  bool get isRecycleBinItem => parsingName != null;
 
   String get type {
     if (isDirectory) return '文件夹';

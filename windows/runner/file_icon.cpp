@@ -3,6 +3,7 @@
 #include <shobjidl.h>
 #include <objbase.h>
 #include <gdiplus.h>
+#include <string>
 
 // -- GDI+ lazy init ---------------------------------------------------
 
@@ -54,8 +55,14 @@ unsigned char* GetFileIconPngW(const wchar_t* path, int size, int* outSize) {
     comInitialized = (hr == S_OK);
 
     // Create IShellItem and query IShellItemImageFactory
+    // Normalize virtual Shell paths: "::{CLSID}" -> "shell:::{CLSID}"
+    std::wstring parsingPath = path;
+    if (parsingPath.substr(0, 3) == L"::{") {
+        parsingPath = L"shell:" + parsingPath;
+    }
+
     IShellItemImageFactory* factory = nullptr;
-    hr = SHCreateItemFromParsingName(path, nullptr, IID_IShellItemImageFactory, (void**)&factory);
+    hr = SHCreateItemFromParsingName(parsingPath.c_str(), nullptr, IID_IShellItemImageFactory, (void**)&factory);
     if (FAILED(hr) || !factory) {
         if (comInitialized) CoUninitialize();
         return nullptr;

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
 import '../services/file_service.dart';
+import '../services/directory_service.dart';
 
 enum SortColumn { name, dateModified, type, size }
 
@@ -55,7 +56,7 @@ class PaneController extends ChangeNotifier {
   Future<void> _loadEntries(String path) async {
     _loading = true;
     notifyListeners();
-    _entries = await FileService.listDirectory(path);
+    _entries = DirectoryService.listDirectory(path);
     _applySort();
     _loading = false;
     _selectedPaths.clear();

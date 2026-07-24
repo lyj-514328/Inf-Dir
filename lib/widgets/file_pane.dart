@@ -83,11 +83,15 @@ class _PaneContent extends StatelessWidget {
             return KeyEventResult.handled;
           }
           if (event.logicalKey == LogicalKeyboardKey.delete) {
-            _deleteSelected(context);
+            if (!FileService.isRecycleBinPath(controller.currentPath)) {
+              _deleteSelected(context);
+            }
             return KeyEventResult.handled;
           }
           if (event.logicalKey == LogicalKeyboardKey.f2) {
-            _renameSelected(context);
+            if (!FileService.isRecycleBinPath(controller.currentPath)) {
+              _renameSelected(context);
+            }
             return KeyEventResult.handled;
           }
           if (event.logicalKey == LogicalKeyboardKey.keyC &&
@@ -97,11 +101,17 @@ class _PaneContent extends StatelessWidget {
           }
           if (event.logicalKey == LogicalKeyboardKey.keyX &&
               HardwareKeyboard.instance.isControlPressed) {
+            if (FileService.isRecycleBinPath(controller.currentPath)) {
+              return KeyEventResult.handled;
+            }
             _cutSelected(context);
             return KeyEventResult.handled;
           }
           if (event.logicalKey == LogicalKeyboardKey.keyV &&
               HardwareKeyboard.instance.isControlPressed) {
+            if (FileService.isRecycleBinPath(controller.currentPath)) {
+              return KeyEventResult.handled;
+            }
             _paste(context);
             return KeyEventResult.handled;
           }
@@ -192,6 +202,9 @@ class _PaneContent extends StatelessWidget {
 
   void _handleDoubleTap(
       BuildContext context, PaneController controller, String path) {
+    // In the Recycle Bin, double-click does nothing useful; use right-click
+    if (FileService.isRecycleBinPath(controller.currentPath)) return;
+
     final entry = _findEntry(controller, path);
     if (entry == null) return;
     if (entry.isDirectory) {
@@ -202,6 +215,8 @@ class _PaneContent extends StatelessWidget {
   }
 
   void _openSelected(BuildContext context, PaneController controller) {
+    // In the Recycle Bin, Enter does nothing
+    if (FileService.isRecycleBinPath(controller.currentPath)) return;
     if (controller.selectedPaths.isEmpty) return;
     _handleDoubleTap(context, controller, controller.selectedPaths.first);
   }
@@ -302,6 +317,10 @@ class _PaneContent extends StatelessWidget {
   Future<void> _paste(BuildContext context) async {
     final appState = context.read<AppState>();
     final controller = context.read<PaneController>();
+
+    // Cannot paste into the Recycle Bin
+    if (FileService.isRecycleBinPath(controller.currentPath)) return;
+
     if (!appState.hasClipboard) return;
 
     final destDir = controller.currentPath;
@@ -320,6 +339,10 @@ class _PaneContent extends StatelessWidget {
 
   Future<void> _deleteSelected(BuildContext context) async {
     final controller = context.read<PaneController>();
+
+    // In Recycle Bin, deletion is handled by the shell context menu
+    if (FileService.isRecycleBinPath(controller.currentPath)) return;
+
     final selected = controller.selectedPaths.toList();
     if (selected.isEmpty) return;
 
@@ -358,6 +381,10 @@ class _PaneContent extends StatelessWidget {
 
   Future<void> _renameSelected(BuildContext context) async {
     final controller = context.read<PaneController>();
+
+    // In Recycle Bin, items cannot be renamed
+    if (FileService.isRecycleBinPath(controller.currentPath)) return;
+
     if (controller.selectedPaths.length != 1) return;
     final oldPath = controller.selectedPaths.first;
     final oldName = _basename(oldPath);

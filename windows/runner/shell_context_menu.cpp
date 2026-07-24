@@ -1,4 +1,4 @@
-#include "shell_context_menu.h"
+﻿#include "shell_context_menu.h"
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <commctrl.h>
@@ -6,7 +6,32 @@
 
 // -- Helpers ----------------------------------------------------------
 
+static bool IsVirtualShellPath(LPCWSTR path) {
+    return (wcsstr(path, L"shell:") != nullptr ||
+            wcsstr(path, L"::{") != nullptr);
+}
+
 static HRESULT GetFolderShellFolder(IShellFolder** ppFolder, LPCWSTR path) {
+    // Virtual shell paths (e.g. "shell:RecycleBinFolder", "::{CLSID}")
+    // cannot be parsed via SHGetDesktopFolder->ParseDisplayName on all
+    // Windows versions. Use SHParseDisplayName instead.
+    if (IsVirtualShellPath(path)) {
+        PIDLIST_ABSOLUTE pidl = nullptr;
+        HRESULT hr = SHParseDisplayName(path, nullptr, &pidl, 0, nullptr);
+        if (FAILED(hr) || !pidl) return hr;
+
+        IShellFolder* desktop = nullptr;
+        hr = SHGetDesktopFolder(&desktop);
+        if (SUCCEEDED(hr)) {
+            hr = desktop->BindToObject(pidl, nullptr, IID_IShellFolder,
+                reinterpret_cast<void**>(ppFolder));
+            desktop->Release();
+        }
+        CoTaskMemFree(pidl);
+        return hr;
+    }
+
+    // Regular filesystem path — use desktop->ParseDisplayName
     IShellFolder* desktop = nullptr;
     HRESULT hr = SHGetDesktopFolder(&desktop);
     if (FAILED(hr)) return hr;
@@ -64,14 +89,60 @@ HRESULT ShowShellContextMenuW(
     IContextMenu* pcm = nullptr;
 
     if (selectedCount > 0 && selectedPaths) {
+        bool isVirtual = IsVirtualShellPath(folderPath);
         PIDLIST_RELATIVE* pidls = new PIDLIST_RELATIVE[selectedCount]();
         bool ok = true;
-        for (int i = 0; i < selectedCount && ok; i++) {
-            const wchar_t* name = FileNameFromPath(selectedPaths[i]);
-            ULONG eaten = 0;
-            hr = folder->ParseDisplayName(nullptr, nullptr,
-                const_cast<LPWSTR>(name), &eaten, &pidls[i], nullptr);
-            if (FAILED(hr)) ok = false;
+
+        if (isVirtual) {
+            // For virtual shell folders (Recycle Bin, etc.), we need
+            // relative PIDLs for GetUIObjectOf. Get the item's absolute
+            // PIDL via IShellItem2::GetIDList, then strip the folder
+            // prefix to obtain the relative portion.
+            PIDLIST_ABSOLUTE folderPidl = nullptr;
+            SHParseDisplayName(folderPath, nullptr, &folderPidl, 0, nullptr);
+
+            for (int i = 0; i < selectedCount && ok; i++) {
+                IShellItem* item = nullptr;
+                hr = SHCreateItemFromParsingName(selectedPaths[i], nullptr,
+                    IID_PPV_ARGS(&item));
+                if (SUCCEEDED(hr) && item) {
+                    PIDLIST_ABSOLUTE absPidl = nullptr;
+                    hr = SHGetIDListFromObject(item, &absPidl);
+                    if (SUCCEEDED(hr) && absPidl) {
+                        // Walk through folderPidl's ITEMIDLISTs and skip
+                        // the same prefix from absPidl to get the relative PIDL.
+                        PCUIDLIST_RELATIVE folderWalk =
+                            (PCUIDLIST_RELATIVE)folderPidl;
+                        PCUIDLIST_RELATIVE itemWalk =
+                            (PCUIDLIST_RELATIVE)absPidl;
+                        while (folderWalk->mkid.cb > 0 &&
+                               itemWalk->mkid.cb > 0) {
+                            folderWalk = ILGetNext(folderWalk);
+                            itemWalk = ILGetNext(itemWalk);
+                        }
+                        // itemWalk now points to the relative PIDL
+                        pidls[i] = ILClone(itemWalk);
+                        CoTaskMemFree(absPidl);
+                    } else {
+                        ok = false;
+                    }
+                    item->Release();
+                } else {
+                    ok = false;
+                }
+            }
+
+            if (folderPidl) CoTaskMemFree(folderPidl);
+        } else {
+            // Regular filesystem paths — extract filename and parse
+            // within the parent folder.
+            for (int i = 0; i < selectedCount && ok; i++) {
+                const wchar_t* name = FileNameFromPath(selectedPaths[i]);
+                ULONG eaten = 0;
+                hr = folder->ParseDisplayName(nullptr, nullptr,
+                    const_cast<LPWSTR>(name), &eaten, &pidls[i], nullptr);
+                if (FAILED(hr)) ok = false;
+            }
         }
 
         if (ok) {
