@@ -16,12 +16,25 @@ class AddressBar extends StatefulWidget {
 
 class _AddressBarState extends State<AddressBar> {
   late TextEditingController _controller;
+  late FocusNode _focusNode;
   bool _editing = false;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.currentPath);
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus && _editing) {
+      // Lost focus without submitting → revert to current path
+      setState(() {
+        _editing = false;
+        _controller.text = widget.currentPath;
+      });
+    }
   }
 
   @override
@@ -34,6 +47,8 @@ class _AddressBarState extends State<AddressBar> {
 
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -63,6 +78,7 @@ class _AddressBarState extends State<AddressBar> {
           Expanded(
             child: TextField(
               controller: _controller,
+              focusNode: _focusNode,
               style: const TextStyle(fontSize: 12),
               decoration: const InputDecoration(
                 border: InputBorder.none,

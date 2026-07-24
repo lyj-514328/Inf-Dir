@@ -28,12 +28,19 @@ typedef _ShowMenuDart = int Function(
 typedef _GetActiveWindowNative = IntPtr Function();
 typedef _GetActiveWindowDart = int Function();
 
+typedef _ClientToScreenNative = Int32 Function(IntPtr hWnd, Pointer<Int32> lpPoint);
+typedef _ClientToScreenDart = int Function(int hWnd, Pointer<Int32> lpPoint);
+
 class ShellContextMenu {
   static final _ShowMenuDart _showMenu = _load();
   static final _GetActiveWindowDart _getActiveWindow =
       DynamicLibrary.open('user32.dll')
           .lookupFunction<_GetActiveWindowNative, _GetActiveWindowDart>(
               'GetActiveWindow');
+  static final _ClientToScreenDart _clientToScreen =
+      DynamicLibrary.open('user32.dll')
+          .lookupFunction<_ClientToScreenNative, _ClientToScreenDart>(
+              'ClientToScreen');
 
   static _ShowMenuDart _load() {
     return DynamicLibrary.process()
@@ -43,8 +50,23 @@ class ShellContextMenu {
   /// Verbs that Dart handles internally (not invoked by the shell).
   static const interceptVerbs = ['rename', 'open', 'explore'];
 
+  /// Converts client-area logical coordinates to screen physical coordinates.
+  static (int, int) toScreenCoords(double logicalX, double logicalY, double dpr) {
+    final hwnd = _getActiveWindow();
+    // POINT struct: two int32 (x, y)
+    final point = calloc<Int32>(2);
+    point[0] = (logicalX * dpr).round();
+    point[1] = (logicalY * dpr).round();
+    _clientToScreen(hwnd, point);
+    final sx = point[0];
+    final sy = point[1];
+    calloc.free(point);
+    return (sx, sy);
+  }
+
   /// Shows the native Windows Shell context menu.
   ///
+  /// [screenX] and [screenY] must be in screen physical pixel coordinates.
   /// Returns the command verb, or null if cancelled.
   static String? show({
     required String folderPath,

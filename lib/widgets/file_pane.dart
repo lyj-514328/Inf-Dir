@@ -22,8 +22,8 @@ class FilePane extends StatelessWidget {
     final controller = appState.panes[paneIndex];
     final isActive = appState.activePaneIndex == paneIndex;
 
-    return GestureDetector(
-      onTap: () => appState.setActivePane(paneIndex),
+    return Listener(
+      onPointerDown: (_) => appState.setActivePane(paneIndex),
       child: Container(
         decoration: BoxDecoration(
           border: Border.all(
@@ -239,16 +239,17 @@ class _PaneContent extends StatelessWidget {
     // Use all currently selected paths for the menu
     final paths = selectedPaths.isEmpty ? <String>[] : controller.selectedPaths.toList();
 
-    // Convert logical → physical pixels
+    // Convert logical (window-relative) → screen physical coordinates
     final dpr = View.of(context).devicePixelRatio;
-    final physX = (position.dx * dpr).round();
-    final physY = (position.dy * dpr).round();
+    final (screenX, screenY) = ShellContextMenu.toScreenCoords(
+      position.dx, position.dy, dpr,
+    );
 
     final verb = ShellContextMenu.show(
       folderPath: controller.currentPath,
       selectedPaths: paths,
-      screenX: physX,
-      screenY: physY,
+      screenX: screenX,
+      screenY: screenY,
     );
 
     if (!context.mounted) return;

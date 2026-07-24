@@ -50,65 +50,184 @@ class _PngIcon extends StatelessWidget {
 }
 
 // ======================================================================
+//  Path helpers
+// ======================================================================
+
+/// Normalize path for comparison: lowercase, remove trailing separator.
+String _norm(String path) {
+  var s = path.replaceAll('/', '\\');
+  while (s.length > 3 && s.endsWith('\\')) {
+    s = s.substring(0, s.length - 1);
+  }
+  return s.toLowerCase();
+}
+
+bool _pathEquals(String a, String b) => _norm(a) == _norm(b);
+
+/// Check if [child] is under [parent] (or equal).
+bool _isUnder(String child, String parent) {
+  final nc = _norm(child);
+  final np = _norm(parent);
+  return nc == np || nc.startsWith(np.endsWith('\\') ? np : '$np\\');
+}
+
+// ======================================================================
 //  SidebarTree — the main sidebar widget
 // ======================================================================
 
 class SidebarTree extends StatefulWidget {
+  final String activePath;
   final ValueChanged<String> onNavigate;
 
-  const SidebarTree({super.key, required this.onNavigate});
+  const SidebarTree({
+    super.key,
+    required this.activePath,
+    required this.onNavigate,
+  });
 
   @override
   State<SidebarTree> createState() => _SidebarTreeState();
 }
 
 class _SidebarTreeState extends State<SidebarTree> {
+  static const _thisPcGuid = '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}';
+
   List<QuickAccessItem> _quickAccessItems = [];
   List<String> _driveRoots = [];
 
-  // Tree expansion state
+  // Centralized tree state
   bool _thisPcExpanded = true;
-  final Set<String> _expandedDrives = {};
-  final Map<String, List<_ChildDir>> _driveChildren = {};
-  final Map<String, bool> _driveHasChildren = {};
+  final Set<String> _expandedPaths = {}; // normalized paths that are expanded
+  final Map<String, List<_ChildDir>> _childrenCache = {}; // norm path → children
+  final Map<String, bool> _hasChildrenCache = {}; // norm path → has sub-dirs
+
+  // Single selection shared across Quick Access + This PC
+  String? _selectedPath;
 
   @override
   void initState() {
     super.initState();
-    _loadQuickAccess();
+    _quickAccessItems = SidebarService.getQuickAccessItems();
     _driveRoots = SidebarService.getDriveRoots();
     if (_driveRoots.isNotEmpty) {
-      _expandedDrives.add(_driveRoots.first);
+      _expandedPaths.add(_norm(_driveRoots.first));
     }
-    _loadDriveChildren(_driveRoots.first);
-    // Pre-check all drives for subdirectory presence
+    _loadChildren(_driveRoots.first);
     for (final drive in _driveRoots) {
-      _driveHasChildren[drive] =
+      _hasChildrenCache[_norm(drive)] =
           SidebarService.directoryHasChildren(drive);
     }
+    // Initial sync
+    _selectedPath = widget.activePath;
+    _syncToPath(widget.activePath);
   }
 
-  void _loadQuickAccess() {
-    final items = SidebarService.getQuickAccessItems();
-    setState(() {
-      _quickAccessItems = items;
-    });
+  @override
+  void didUpdateWidget(SidebarTree oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_pathEquals(widget.activePath, oldWidget.activePath)) {
+      _selectedPath = widget.activePath;
+      _syncToPath(widget.activePath);
+    }
   }
 
-  Future<void> _toggleDriveExpanded(String drive) async {
-    if (_expandedDrives.contains(drive)) {
-      setState(() => _expandedDrives.remove(drive));
+  // ── Sync tree to a target path ──────────────────────────────────────
+
+  void _syncToPath(String path) {
+    // Priority 1: Quick Access match
+    for (final item in _quickAccessItems) {
+      if (_pathEquals(item.path, path)) {
+        setState(() => _selectedPath = item.path);
+        return;
+      }
+    }
+
+    // Priority 2: This PC tree
+    if (path == _thisPcGuid) {
+      setState(() => _selectedPath = _thisPcGuid);
       return;
     }
-    if (_driveChildren[drive] == null) {
-      await _loadDriveChildren(drive);
+
+    // Find matching drive
+    final drive = _findDriveFor(path);
+    if (drive == null) {
+      setState(() {});
+      return;
     }
-    setState(() => _expandedDrives.add(drive));
+
+    // Ensure This PC is expanded
+    _thisPcExpanded = true;
+    // Expand the drive
+    _expandedPaths.add(_norm(drive));
+    _loadChildren(drive);
+
+    // Expand intermediate directories to reveal the target
+    _expandChainTo(path, drive);
+
+    setState(() => _selectedPath = path);
   }
 
-  Future<void> _loadDriveChildren(String drive) async {
+  String? _findDriveFor(String path) {
+    for (final drive in _driveRoots) {
+      if (_isUnder(path, drive)) return drive;
+    }
+    return null;
+  }
+
+  /// Expand all intermediate directories from [drive] down to [targetPath].
+  void _expandChainTo(String targetPath, String drive) {
+    final normTarget = _norm(targetPath);
+    final normDrive = _norm(drive);
+    if (normTarget == normDrive) return;
+
+    // Get relative segments after drive
+    var rel = targetPath.replaceAll('/', '\\');
+    // Remove drive prefix (e.g. "C:\")
+    if (rel.toLowerCase().startsWith(drive.toLowerCase())) {
+      rel = rel.substring(drive.length);
+    }
+    final segments = rel.split('\\').where((s) => s.isNotEmpty).toList();
+
+    // Build path incrementally and expand each level
+    String current = drive.endsWith('\\') ? drive : '$drive\\';
+    for (int i = 0; i < segments.length; i++) {
+      current = i == 0 ? '$drive${segments[i]}' : '$current\\${segments[i]}';
+      final normCurrent = _norm(current);
+      _expandedPaths.add(normCurrent);
+      // Load children for this level (needed to render sub-nodes)
+      _loadChildrenSync(current);
+    }
+  }
+
+  // ── Children loading ────────────────────────────────────────────────
+
+  void _loadChildrenSync(String path) {
+    final key = _norm(path);
+    if (_childrenCache.containsKey(key)) return;
     try {
-      final dir = Directory(drive);
+      final dir = Directory(path);
+      if (!dir.existsSync()) {
+        _childrenCache[key] = [];
+        return;
+      }
+      final entities = dir.listSync(followLinks: false);
+      final children = entities
+          .whereType<Directory>()
+          .map((d) => _ChildDir(p.basename(d.path), d.path))
+          .toList();
+      children.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _childrenCache[key] = children;
+    } catch (_) {
+      _childrenCache[key] = [];
+    }
+  }
+
+  Future<void> _loadChildren(String path) async {
+    final key = _norm(path);
+    if (_childrenCache.containsKey(key)) return;
+    try {
+      final dir = Directory(path);
       final entities = await dir.list(followLinks: false).toList();
       final children = entities
           .whereType<Directory>()
@@ -116,11 +235,41 @@ class _SidebarTreeState extends State<SidebarTree> {
           .toList();
       children.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      setState(() => _driveChildren[drive] = children);
+      if (mounted) setState(() => _childrenCache[key] = children);
     } catch (_) {
-      setState(() => _driveChildren[drive] = []);
+      if (mounted) setState(() => _childrenCache[key] = []);
     }
   }
+
+  bool _hasChildren(String path) {
+    final key = _norm(path);
+    if (_hasChildrenCache.containsKey(key)) return _hasChildrenCache[key]!;
+    final has = SidebarService.directoryHasChildren(path);
+    _hasChildrenCache[key] = has;
+    return has;
+  }
+
+  // ── Toggle expansion ────────────────────────────────────────────────
+
+  void _toggleExpand(String path) {
+    final key = _norm(path);
+    if (_expandedPaths.contains(key)) {
+      setState(() => _expandedPaths.remove(key));
+    } else {
+      _loadChildren(path);
+      setState(() => _expandedPaths.add(key));
+    }
+  }
+
+  void _selectAndNavigate(String path) {
+    setState(() => _selectedPath = path);
+    widget.onNavigate(path);
+  }
+
+  bool _isSelected(String path) =>
+      _selectedPath != null && _pathEquals(_selectedPath!, path);
+
+  // ── Build ───────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -141,7 +290,8 @@ class _SidebarTreeState extends State<SidebarTree> {
             ),
             ..._quickAccessItems.map((item) => _QuickAccessTile(
                   item: item,
-                  onNavigate: widget.onNavigate,
+                  selected: _isSelected(item.path),
+                  onTap: () => _selectAndNavigate(item.path),
                 )),
             const Divider(height: 1, thickness: 1),
 
@@ -150,27 +300,29 @@ class _SidebarTreeState extends State<SidebarTree> {
             _ThisPcTreeNode(
               label: '此电脑',
               expanded: _thisPcExpanded,
-              onToggle: () => setState(() => _thisPcExpanded = !_thisPcExpanded),
-              onNavigate: widget.onNavigate,
+              selected: _isSelected(_thisPcGuid),
+              onToggle: () =>
+                  setState(() => _thisPcExpanded = !_thisPcExpanded),
+              onTap: () {
+                setState(() => _selectedPath = _thisPcGuid);
+                widget.onNavigate(_thisPcGuid);
+                setState(() => _thisPcExpanded = !_thisPcExpanded);
+              },
               children: [
-                // Drives
                 ..._driveRoots.map((drive) {
                   final label = SidebarService.formatDriveLabel(drive);
-                  final expanded = _expandedDrives.contains(drive);
-                  final children = _driveChildren[drive] ?? [];
+                  final normDrive = _norm(drive);
+                  final expanded = _expandedPaths.contains(normDrive);
+                  final children = _childrenCache[normDrive] ?? [];
                   return _DriveTreeNode(
                     drive: drive,
                     label: label,
                     expanded: expanded,
-                    hasChildren: _driveHasChildren[drive] ?? false,
-                    onToggle: () => _toggleDriveExpanded(drive),
-                    onNavigate: widget.onNavigate,
-                    children: children.map((child) => _ChildDirTile(
-                      name: child.name,
-                      path: child.path,
-                      depth: 2,
-                      onNavigate: widget.onNavigate,
-                    )).toList(),
+                    hasChildren: _hasChildren(drive),
+                    selected: _isSelected(drive),
+                    onToggle: () => _toggleExpand(drive),
+                    onTap: () => _selectAndNavigate(drive),
+                    children: children.map((child) => _buildChildTile(child, 2)).toList(),
                   );
                 }),
               ],
@@ -178,6 +330,26 @@ class _SidebarTreeState extends State<SidebarTree> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildChildTile(_ChildDir child, int depth) {
+    final normPath = _norm(child.path);
+    final expanded = _expandedPaths.contains(normPath);
+    final hasKids = _hasChildren(child.path);
+    final children = _childrenCache[normPath] ?? [];
+
+    return _ChildDirNode(
+      name: child.name,
+      path: child.path,
+      depth: depth,
+      expanded: expanded,
+      hasChildren: hasKids,
+      selected: _isSelected(child.path),
+      children: children,
+      onToggle: () => _toggleExpand(child.path),
+      onTap: () => _selectAndNavigate(child.path),
+      buildChild: (c, d) => _buildChildTile(c, d),
     );
   }
 }
@@ -222,9 +394,14 @@ class _SectionHeader extends StatelessWidget {
 /// A flat tile in the Quick Access section.
 class _QuickAccessTile extends StatelessWidget {
   final QuickAccessItem item;
-  final ValueChanged<String> onNavigate;
+  final bool selected;
+  final VoidCallback onTap;
 
-  const _QuickAccessTile({required this.item, required this.onNavigate});
+  const _QuickAccessTile({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
 
   IconData _fallbackIcon() {
     final name = item.name;
@@ -238,13 +415,10 @@ class _QuickAccessTile extends StatelessWidget {
     return Icons.folder;
   }
 
-  bool get _isFileSystemPath =>
-      item.path.isNotEmpty && !item.path.startsWith('::');
-
   @override
   Widget build(BuildContext context) {
     return _SidebarItem(
-      onTap: () => onNavigate(item.path),
+      onTap: onTap,
       leading: _ShellIcon(
         path: item.path,
         isDirectory: true,
@@ -252,6 +426,7 @@ class _QuickAccessTile extends StatelessWidget {
       ),
       title: item.name,
       showArrow: false,
+      selected: selected,
       trailing: item.isPinned
           ? Icon(Icons.push_pin, size: 11, color: Colors.grey.shade500)
           : null,
@@ -263,15 +438,17 @@ class _QuickAccessTile extends StatelessWidget {
 class _ThisPcTreeNode extends StatelessWidget {
   final String label;
   final bool expanded;
+  final bool selected;
   final VoidCallback onToggle;
-  final ValueChanged<String> onNavigate;
+  final VoidCallback onTap;
   final List<Widget> children;
 
   const _ThisPcTreeNode({
     required this.label,
     required this.expanded,
+    required this.selected,
     required this.onToggle,
-    required this.onNavigate,
+    required this.onTap,
     required this.children,
   });
 
@@ -282,10 +459,7 @@ class _ThisPcTreeNode extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _SidebarItem(
-          onTap: () {
-            onNavigate('::{20D04FE0-3AEA-1069-A2D8-08002B30309D}');
-            onToggle();
-          },
+          onTap: onTap,
           leading: _ShellIcon(
             path: '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}',
             isDirectory: true,
@@ -294,6 +468,7 @@ class _ThisPcTreeNode extends StatelessWidget {
           title: label,
           showArrow: true,
           expanded: expanded,
+          selected: selected,
         ),
         if (expanded) ...children,
       ],
@@ -302,13 +477,14 @@ class _ThisPcTreeNode extends StatelessWidget {
 }
 
 /// Tree node for a single drive.
-class _DriveTreeNode extends StatefulWidget {
+class _DriveTreeNode extends StatelessWidget {
   final String drive;
   final String label;
   final bool expanded;
   final bool hasChildren;
+  final bool selected;
   final VoidCallback onToggle;
-  final ValueChanged<String> onNavigate;
+  final VoidCallback onTap;
   final List<Widget> children;
 
   const _DriveTreeNode({
@@ -316,16 +492,12 @@ class _DriveTreeNode extends StatefulWidget {
     required this.label,
     required this.expanded,
     required this.hasChildren,
+    required this.selected,
     required this.onToggle,
-    required this.onNavigate,
+    required this.onTap,
     required this.children,
   });
 
-  @override
-  State<_DriveTreeNode> createState() => _DriveTreeNodeState();
-}
-
-class _DriveTreeNodeState extends State<_DriveTreeNode> {
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -335,50 +507,76 @@ class _DriveTreeNodeState extends State<_DriveTreeNode> {
         _SidebarItem(
           depth: 1,
           onTap: () {
-            widget.onNavigate(widget.drive);
-            widget.onToggle();
+            onTap();
+            if (hasChildren) onToggle();
           },
           leading: _ShellIcon(
-            path: widget.drive,
+            path: drive,
             isDirectory: true,
             fallback: Icons.storage,
           ),
-          title: widget.label,
-          showArrow: widget.hasChildren,
-          expanded: widget.expanded,
+          title: label,
+          showArrow: hasChildren,
+          expanded: expanded,
+          selected: selected,
         ),
-        if (widget.expanded) ...widget.children,
+        if (expanded) ...children,
       ],
     );
   }
 }
 
-/// A terminal directory child tile.
-class _ChildDirTile extends StatelessWidget {
+/// A recursive directory tree node (controlled by parent).
+class _ChildDirNode extends StatelessWidget {
   final String name;
   final String path;
   final int depth;
-  final ValueChanged<String> onNavigate;
+  final bool expanded;
+  final bool hasChildren;
+  final bool selected;
+  final List<_ChildDir> children;
+  final VoidCallback onToggle;
+  final VoidCallback onTap;
+  final Widget Function(_ChildDir, int) buildChild;
 
-  const _ChildDirTile({
+  const _ChildDirNode({
     required this.name,
     required this.path,
     required this.depth,
-    required this.onNavigate,
+    required this.expanded,
+    required this.hasChildren,
+    required this.selected,
+    required this.children,
+    required this.onToggle,
+    required this.onTap,
+    required this.buildChild,
   });
 
   @override
   Widget build(BuildContext context) {
-    return _SidebarItem(
-      depth: depth,
-      onTap: () => onNavigate(path),
-      leading: _ShellIcon(
-        path: path,
-        isDirectory: true,
-        fallback: Icons.folder,
-      ),
-      title: name,
-      showArrow: false,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _SidebarItem(
+          depth: depth,
+          onTap: () {
+            onTap();
+            if (hasChildren) onToggle();
+          },
+          leading: _ShellIcon(
+            path: path,
+            isDirectory: true,
+            fallback: Icons.folder,
+          ),
+          title: name,
+          showArrow: hasChildren,
+          expanded: expanded,
+          selected: selected,
+        ),
+        if (expanded)
+          ...children.map((child) => buildChild(child, depth + 1)),
+      ],
     );
   }
 }
@@ -391,6 +589,7 @@ class _SidebarItem extends StatelessWidget {
   final String title;
   final bool showArrow;
   final bool expanded;
+  final bool selected;
   final Widget? trailing;
 
   const _SidebarItem({
@@ -400,6 +599,7 @@ class _SidebarItem extends StatelessWidget {
     required this.title,
     this.showArrow = false,
     this.expanded = false,
+    this.selected = false,
     this.trailing,
   });
 
@@ -408,8 +608,9 @@ class _SidebarItem extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       hoverColor: const Color(0x11000000),
-      child: SizedBox(
+      child: Container(
         height: 22,
+        color: selected ? const Color(0xFFCCE8FF) : null,
         child: Row(
           children: [
             SizedBox(width: 4.0 + depth * 16.0),
