@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import '../services/icon_service.dart';
 
 class AddressBar extends StatefulWidget {
   final String currentPath;
+  final String iconPath;
   final ValueChanged<String> onSubmit;
 
   const AddressBar({
     super.key,
     required this.currentPath,
+    required this.iconPath,
     required this.onSubmit,
   });
 
@@ -61,6 +64,14 @@ class _AddressBarState extends State<AddressBar> {
     setState(() => _editing = false);
   }
 
+  Widget _buildIcon() {
+    final bytes = IconService.getFileIconPng(widget.iconPath, true, 16);
+    if (bytes != null) {
+      return Image.memory(bytes, width: 14, height: 14, gaplessPlayback: true);
+    }
+    return Icon(Icons.folder_open, size: 14, color: Colors.amber.shade700);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -73,7 +84,7 @@ class _AddressBarState extends State<AddressBar> {
       child: Row(
         children: [
           const SizedBox(width: 6),
-          Icon(Icons.folder_open, size: 14, color: Colors.amber.shade700),
+          _buildIcon(),
           const SizedBox(width: 4),
           Expanded(
             child: TextField(

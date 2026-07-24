@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../state/pane_controller.dart';
+import '../services/icon_service.dart';
 
 class PaneTabBar extends StatelessWidget {
   final List<TabInfo> tabs;
@@ -33,6 +34,7 @@ class PaneTabBar extends StatelessWidget {
                 final isActive = index == activeIndex;
                 return _TabItem(
                   label: tabs[index].label,
+                  path: tabs[index].path,
                   isActive: isActive,
                   onTap: () => onSwitchTab(index),
                   onClose: () => onCloseTab(index),
@@ -57,6 +59,7 @@ class PaneTabBar extends StatelessWidget {
 
 class _TabItem extends StatelessWidget {
   final String label;
+  final String path;
   final bool isActive;
   final VoidCallback onTap;
   final VoidCallback onClose;
@@ -64,6 +67,7 @@ class _TabItem extends StatelessWidget {
 
   const _TabItem({
     required this.label,
+    required this.path,
     required this.isActive,
     required this.onTap,
     required this.onClose,
@@ -72,6 +76,11 @@ class _TabItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final iconBytes = IconService.getFileIconPng(path, true, 16);
+    final iconWidget = iconBytes != null
+        ? Image.memory(iconBytes, width: 14, height: 14, gaplessPlayback: true)
+        : Icon(Icons.folder, size: 14, color: Colors.amber.shade700);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -90,7 +99,7 @@ class _TabItem extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.folder, size: 14, color: Colors.amber.shade700),
+            SizedBox(width: 14, height: 14, child: iconWidget),
             const SizedBox(width: 4),
             Flexible(
               child: Text(
