@@ -157,9 +157,9 @@ class _SidebarTreeState extends State<SidebarTree> {
                     drive: drive,
                     label: label,
                     expanded: expanded,
-                    // Show arrow if children exist OR if not yet loaded (drives
-                    // almost always have children; loading lazily on first click).
-                    childCount: loaded != null ? children.length : -1,
+                    // Drives almost always have children; show arrow optimistically
+                    // before the first lazy load.
+                    hasChildren: loaded != null ? children.isNotEmpty : true,
                     onToggle: () => _toggleDriveExpanded(drive),
                     onNavigate: widget.onNavigate,
                     children: children.map((child) => _ChildDirTile(
@@ -303,7 +303,7 @@ class _DriveTreeNode extends StatefulWidget {
   final String drive;
   final String label;
   final bool expanded;
-  final int childCount;
+  final bool hasChildren;
   final VoidCallback onToggle;
   final ValueChanged<String> onNavigate;
   final List<Widget> children;
@@ -312,7 +312,7 @@ class _DriveTreeNode extends StatefulWidget {
     required this.drive,
     required this.label,
     required this.expanded,
-    required this.childCount,
+    required this.hasChildren,
     required this.onToggle,
     required this.onNavigate,
     required this.children,
@@ -341,7 +341,7 @@ class _DriveTreeNodeState extends State<_DriveTreeNode> {
             fallback: Icons.storage,
           ),
           title: widget.label,
-          showArrow: widget.childCount != 0,
+          showArrow: widget.hasChildren,
           expanded: widget.expanded,
         ),
         if (widget.expanded) ...widget.children,
