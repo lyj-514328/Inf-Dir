@@ -146,7 +146,17 @@ class _PaneContent extends StatelessWidget {
               sortColumn: controller.sortColumn,
               sortAscending: controller.sortAscending,
               onSort: controller.sortBy,
-              onSingleTap: (path) => controller.toggleSelection(path),
+              onSingleTap: (path) {
+                final ctrl = HardwareKeyboard.instance.isControlPressed;
+                final shift = HardwareKeyboard.instance.isShiftPressed;
+                if (shift) {
+                  controller.selectRange(path);
+                } else if (ctrl) {
+                  controller.toggleSelection(path);
+                } else {
+                  controller.selectSingle(path);
+                }
+              },
               onDoubleTap: (path) =>
                   _handleDoubleTap(context, controller, path),
               onItemRightClick: (path, pos) =>

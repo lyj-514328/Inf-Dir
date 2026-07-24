@@ -19,6 +19,7 @@ class PaneController extends ChangeNotifier {
   final List<TabInfo> _tabs = [];
   int _activeTabIndex = 0;
   final Set<String> _selectedPaths = {};
+  String? _anchorPath;
   bool _loading = false;
   SortColumn _sortColumn = SortColumn.name;
   bool _sortAscending = true;
@@ -58,6 +59,7 @@ class PaneController extends ChangeNotifier {
     _applySort();
     _loading = false;
     _selectedPaths.clear();
+    _anchorPath = null;
     notifyListeners();
   }
 
@@ -171,11 +173,43 @@ class PaneController extends ChangeNotifier {
     _loadEntries(tabPath);
   }
 
+  void selectSingle(String path) {
+    _selectedPaths.clear();
+    _selectedPaths.add(path);
+    _anchorPath = path;
+    notifyListeners();
+  }
+
   void toggleSelection(String path) {
     if (_selectedPaths.contains(path)) {
       _selectedPaths.remove(path);
     } else {
       _selectedPaths.add(path);
+    }
+    _anchorPath = path;
+    notifyListeners();
+  }
+
+  void selectRange(String path) {
+    _anchorPath ??= path;
+
+    int anchorIndex = -1;
+    int clickIndex = -1;
+    for (int i = 0; i < _entries.length; i++) {
+      if (_entries[i].path == _anchorPath) anchorIndex = i;
+      if (_entries[i].path == path) clickIndex = i;
+    }
+    if (anchorIndex < 0 || clickIndex < 0) {
+      selectSingle(path);
+      return;
+    }
+
+    final start = anchorIndex < clickIndex ? anchorIndex : clickIndex;
+    final end = anchorIndex < clickIndex ? clickIndex : anchorIndex;
+
+    _selectedPaths.clear();
+    for (int i = start; i <= end; i++) {
+      _selectedPaths.add(_entries[i].path);
     }
     notifyListeners();
   }
@@ -191,6 +225,7 @@ class PaneController extends ChangeNotifier {
   void clearSelection() {
     if (_selectedPaths.isNotEmpty) {
       _selectedPaths.clear();
+      _anchorPath = null;
       notifyListeners();
     }
   }
