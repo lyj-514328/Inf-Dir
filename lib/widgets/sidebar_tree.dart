@@ -288,19 +288,19 @@ class _SidebarTreeState extends State<SidebarTree> {
             controller: _verticalScrollController,
             thumbVisibility: true,
             notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
-            child: SingleChildScrollView(
-              controller: _verticalScrollController,
-              child: Scrollbar(
+            child: Scrollbar(
+              controller: _horizontalScrollController,
+              thumbVisibility: true,
+              notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
                 controller: _horizontalScrollController,
-                thumbVisibility: true,
-                notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
-                child: SingleChildScrollView(
-                  controller: _horizontalScrollController,
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    constraints:
-                        BoxConstraints(minWidth: constraints.maxWidth),
-                    child: IntrinsicWidth(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints:
+                      BoxConstraints(minWidth: constraints.maxWidth),
+                  child: IntrinsicWidth(
+                    child: SingleChildScrollView(
+                      controller: _verticalScrollController,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
