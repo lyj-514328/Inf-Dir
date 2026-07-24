@@ -103,6 +103,9 @@ class _SidebarTreeState extends State<SidebarTree> {
   // Single selection shared across Quick Access + This PC
   String? _selectedPath;
 
+  final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _horizontalScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -119,6 +122,13 @@ class _SidebarTreeState extends State<SidebarTree> {
     // Initial sync
     _selectedPath = widget.activePath;
     _syncToPath(widget.activePath);
+  }
+
+  @override
+  void dispose() {
+    _verticalScrollController.dispose();
+    _horizontalScrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -272,58 +282,83 @@ class _SidebarTreeState extends State<SidebarTree> {
       width: 220,
       color: const Color(0xFFF8F8F8),
       alignment: Alignment.topLeft,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ---- Quick Access section ----
-            const _SectionHeader(
-              icon: Icons.history,
-              title: '快速访问',
-              topPadding: 2,
-            ),
-            ..._quickAccessItems.map((item) => _QuickAccessTile(
-                  item: item,
-                  selected: _isSelected(item.path),
-                  onTap: () => _selectAndNavigate(item.path),
-                )),
-            const Divider(height: 1, thickness: 1),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Scrollbar(
+            controller: _verticalScrollController,
+            thumbVisibility: true,
+            notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
+            child: SingleChildScrollView(
+              controller: _verticalScrollController,
+              child: Scrollbar(
+                controller: _horizontalScrollController,
+                thumbVisibility: true,
+                notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
+                child: SingleChildScrollView(
+                  controller: _horizontalScrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minWidth: constraints.maxWidth),
+                    child: IntrinsicWidth(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+          // ---- Quick Access section ----
+          const _SectionHeader(
+            icon: Icons.history,
+            title: '快速访问',
+            topPadding: 2,
+          ),
+          ..._quickAccessItems.map((item) => _QuickAccessTile(
+                item: item,
+                selected: _isSelected(item.path),
+                onTap: () => _selectAndNavigate(item.path),
+              )),
+          const Divider(height: 1, thickness: 1),
 
-            // ---- This PC section ----
-            const SizedBox(height: 4),
-            _ThisPcTreeNode(
-              label: '此电脑',
-              expanded: _thisPcExpanded,
-              selected: _isSelected(_thisPcGuid),
-              onToggle: () =>
-                  setState(() => _thisPcExpanded = !_thisPcExpanded),
-              onTap: () {
-                setState(() => _selectedPath = _thisPcGuid);
-                widget.onNavigate(_thisPcGuid);
-                setState(() => _thisPcExpanded = !_thisPcExpanded);
-              },
-              children: [
-                ..._driveRoots.map((drive) {
-                  final label = SidebarService.formatDriveLabel(drive);
-                  final normDrive = _norm(drive);
-                  final expanded = _expandedPaths.contains(normDrive);
-                  final children = _childrenCache[normDrive] ?? [];
-                  return _DriveTreeNode(
-                    drive: drive,
-                    label: label,
-                    expanded: expanded,
-                    hasChildren: _hasChildren(drive),
-                    selected: _isSelected(drive),
-                    onToggle: () => _toggleExpand(drive),
-                    onTap: () => _selectAndNavigate(drive),
-                    children: children.map((child) => _buildChildTile(child, 2)).toList(),
-                  );
-                }),
-              ],
+          // ---- This PC section ----
+          const SizedBox(height: 4),
+          _ThisPcTreeNode(
+            label: '此电脑',
+            expanded: _thisPcExpanded,
+            selected: _isSelected(_thisPcGuid),
+            onToggle: () =>
+                setState(() => _thisPcExpanded = !_thisPcExpanded),
+            onTap: () {
+              setState(() => _selectedPath = _thisPcGuid);
+              widget.onNavigate(_thisPcGuid);
+              setState(() => _thisPcExpanded = !_thisPcExpanded);
+            },
+            children: [
+              ..._driveRoots.map((drive) {
+                final label = SidebarService.formatDriveLabel(drive);
+                final normDrive = _norm(drive);
+                final expanded = _expandedPaths.contains(normDrive);
+                final children = _childrenCache[normDrive] ?? [];
+                return _DriveTreeNode(
+                  drive: drive,
+                  label: label,
+                  expanded: expanded,
+                  hasChildren: _hasChildren(drive),
+                  selected: _isSelected(drive),
+                  onToggle: () => _toggleExpand(drive),
+                  onTap: () => _selectAndNavigate(drive),
+                  children: children.map((child) => _buildChildTile(child, 2)).toList(),
+                );
+              }),
+            ],
+          ),
+        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -605,6 +640,7 @@ class _SidebarItem extends StatelessWidget {
       hoverColor: const Color(0x11000000),
       child: Container(
         height: 22,
+        width: double.infinity,
         color: selected ? const Color(0xFFCCE8FF) : null,
         child: Row(
           children: [
