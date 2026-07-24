@@ -121,14 +121,17 @@ class _SidebarTreeState extends State<SidebarTree> {
     return Container(
       width: 220,
       color: const Color(0xFFF8F8F8),
+      alignment: Alignment.topLeft,
       child: SingleChildScrollView(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ---- Quick Access section ----
             const _SectionHeader(
               icon: Icons.history,
               title: '快速访问',
+              topPadding: 2,
             ),
             ..._quickAccessItems.map((item) => _QuickAccessTile(
                   item: item,
@@ -137,10 +140,7 @@ class _SidebarTreeState extends State<SidebarTree> {
             const Divider(height: 1, thickness: 1),
 
             // ---- This PC section ----
-            const _SectionHeader(
-              icon: Icons.computer,
-              title: '此电脑',
-            ),
+            const SizedBox(height: 4),
             _ThisPcTreeNode(
               label: '此电脑',
               expanded: _thisPcExpanded,
@@ -184,12 +184,17 @@ class _SidebarTreeState extends State<SidebarTree> {
 class _SectionHeader extends StatelessWidget {
   final IconData icon;
   final String title;
-  const _SectionHeader({required this.icon, required this.title});
+  final double topPadding;
+  const _SectionHeader({
+    required this.icon,
+    required this.title,
+    this.topPadding = 8,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 2),
+      padding: EdgeInsets.fromLTRB(8, topPadding, 8, 2),
       child: Row(
         children: [
           Icon(icon, size: 13, color: const Color(0xFF666666)),
@@ -243,6 +248,9 @@ class _QuickAccessTile extends StatelessWidget {
           : Icon(_fallbackIcon(), size: 15, color: Colors.amber.shade700),
       title: item.name,
       showArrow: false,
+      trailing: item.isPinned
+          ? Icon(Icons.push_pin, size: 11, color: Colors.grey.shade500)
+          : null,
     );
   }
 }
@@ -372,6 +380,7 @@ class _SidebarItem extends StatelessWidget {
   final String title;
   final bool showArrow;
   final bool expanded;
+  final Widget? trailing;
 
   const _SidebarItem({
     this.depth = 0,
@@ -380,6 +389,7 @@ class _SidebarItem extends StatelessWidget {
     required this.title,
     this.showArrow = false,
     this.expanded = false,
+    this.trailing,
   });
 
   @override
@@ -410,6 +420,7 @@ class _SidebarItem extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (trailing != null) trailing!,
           ],
         ),
       ),

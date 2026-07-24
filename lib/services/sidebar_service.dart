@@ -26,7 +26,8 @@ typedef _FreeSidebarItemsDart = void Function(Pointer<Uint8> ptr);
 class QuickAccessItem {
   final String name;
   final String path;
-  QuickAccessItem(this.name, this.path);
+  final bool isPinned;
+  QuickAccessItem(this.name, this.path, this.isPinned);
 }
 
 class DriveInfo {
@@ -149,7 +150,9 @@ class SidebarService {
       offset = newOffset1;
       final (path, newOffset2) = _readString(buf, offset);
       offset = newOffset2;
-      items.add(QuickAccessItem(name, path));
+      final isPinned = buf.elementAt(offset).cast<Int32>().value != 0;
+      offset += 4;
+      items.add(QuickAccessItem(name, path, isPinned));
     }
     return items;
   }

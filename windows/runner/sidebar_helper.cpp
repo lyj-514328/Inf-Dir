@@ -3,21 +3,29 @@
 #include <shlwapi.h>
 #include <knownfolders.h>
 #include <objbase.h>
+#include <propkey.h>
 #include <vector>
 #include <string>
 
 #pragma comment(lib, "shlwapi.lib")
 
-// KnownFolder GUIDs not defined in some SDK versions
-// {679F85C8-3225-4EA2-B389-DD0AFE7B1977}
-static const GUID FOLDERID_QuickAccess_Inline =
-    {0x679F85C8, 0x3225, 0x4EA2, {0xB3, 0x89, 0xDD, 0x0A, 0xFE, 0x7B, 0x19, 0x77}};
+static const GUID CLSID_FrequentPlaces =
+    {0x3936E9E4, 0xD92C, 0x4EEE, {0xA8, 0x5A, 0xBC, 0x16, 0xD5, 0xEA, 0x08, 0x19}};
 
 static void AppendString(std::vector<unsigned char>& buf, const std::wstring& s) {
     int len = (int)s.size();
     buf.insert(buf.end(), (unsigned char*)&len, (unsigned char*)&len + sizeof(len));
     if (len > 0)
         buf.insert(buf.end(), (unsigned char*)s.data(), (unsigned char*)s.data() + len * sizeof(wchar_t));
+}
+
+static std::wstring GetShellItemDisplayName(IShellItem* item, SIGDN sigdn) {
+    LPWSTR pszName = nullptr;
+    HRESULT hr = item->GetDisplayName(sigdn, &pszName);
+    if (FAILED(hr) || !pszName) return L"";
+    std::wstring result = pszName;
+    CoTaskMemFree(pszName);
+    return result;
 }
 
 extern "C" __declspec(dllexport)
@@ -31,7 +39,16 @@ unsigned char* GetQuickAccessItems(int* outSize) {
     comInit = (hr == S_OK);
 
     IShellItem* shellItem = nullptr;
-    hr = SHGetKnownFolderItem(FOLDERID_QuickAccess_Inline, KF_FLAG_DEFAULT, nullptr, IID_IShellItem, (void**)&shellItem);
+    hr = SHGetKnownFolderItem(CLSID_FrequentPlaces, KF_FLAG_DEFAULT, nullptr, IID_IShellItem, (void**)&shellItem);
+    if (FAILED(hr) || !shellItem) {
+        wchar_t parseBuf[] = L"shell:::{3936E9E4-D92C-4EEE-A85A-BC16D5EA0819}";
+        PIDLIST_ABSOLUTE pidl = nullptr;
+        hr = SHParseDisplayName(parseBuf, nullptr, &pidl, 0, nullptr);
+        if (SUCCEEDED(hr) && pidl) {
+            hr = SHCreateShellItem(nullptr, nullptr, pidl, &shellItem);
+            CoTaskMemFree(pidl);
+        }
+    }
     if (FAILED(hr) || !shellItem) {
         if (comInit) CoUninitialize();
         return nullptr;
@@ -40,48 +57,75 @@ unsigned char* GetQuickAccessItems(int* outSize) {
     IShellFolder* shellFolder = nullptr;
     hr = shellItem->BindToHandler(nullptr, BHID_SFObject, IID_IShellFolder, (void**)&shellFolder);
     shellItem->Release();
-    if (FAILED(hr) || !shellFolder) {
-        if (comInit) CoUninitialize();
-        return nullptr;
-    }
-
-    IEnumIDList* enumIdl = nullptr;
-    hr = shellFolder->EnumObjects(nullptr, SHCONTF_FOLDERS | SHCONTF_NONFOLDERS | SHCONTF_INCLUDEHIDDEN, &enumIdl);
-    if (FAILED(hr) || !enumIdl) {
-        shellFolder->Release();
-        if (comInit) CoUninitialize();
-        return nullptr;
-    }
 
     std::vector<std::wstring> names;
     std::vector<std::wstring> paths;
+    std::vector<int> pinnedFlags;
 
-    PITEMID_CHILD pidl;
-    while (enumIdl->Next(1, &pidl, nullptr) == S_OK) {
-        STRRET strRet = {};
-        if (SUCCEEDED(shellFolder->GetDisplayNameOf(pidl, SHGDN_NORMAL | SHGDN_INFOLDER, &strRet))) {
-            wchar_t nameBuf[256];
-            StrRetToBufW(&strRet, pidl, nameBuf, 256);
-            names.push_back(nameBuf);
-        } else {
-            names.push_back(L"?");
+    if (SUCCEEDED(hr) && shellFolder) {
+        IEnumIDList* enumIdl = nullptr;
+        hr = shellFolder->EnumObjects(nullptr, SHCONTF_FOLDERS | SHCONTF_NONFOLDERS, &enumIdl);
+
+        if (SUCCEEDED(hr) && enumIdl) {
+            PITEMID_CHILD pidl;
+            while (enumIdl->Next(1, &pidl, nullptr) == S_OK) {
+                STRRET strRet = {};
+                std::wstring nameStr;
+                std::wstring pathStr;
+
+                if (SUCCEEDED(shellFolder->GetDisplayNameOf(pidl, SHGDN_NORMAL | SHGDN_INFOLDER, &strRet))) {
+                    wchar_t buf[256];
+                    StrRetToBufW(&strRet, pidl, buf, 256);
+                    nameStr = buf;
+                }
+                if (SUCCEEDED(shellFolder->GetDisplayNameOf(pidl, SHGDN_FORPARSING, &strRet))) {
+                    wchar_t buf[1024];
+                    StrRetToBufW(&strRet, pidl, buf, 1024);
+                    pathStr = buf;
+                }
+
+                if (!pathStr.empty()) {
+                    IShellItem* resolvedItem = nullptr;
+                    if (SUCCEEDED(SHCreateItemWithParent(nullptr, shellFolder, pidl, IID_IShellItem, (void**)&resolvedItem))) {
+                        std::wstring resolved = GetShellItemDisplayName(resolvedItem, SIGDN_DESKTOPABSOLUTEPARSING);
+                        if (!resolved.empty()) pathStr = resolved;
+
+                        int isPinned = 0;
+                        IShellItem2* item2 = nullptr;
+                        if (SUCCEEDED(resolvedItem->QueryInterface(IID_IShellItem2, (void**)&item2))) {
+                            PROPVARIANT propVar;
+                            PropVariantInit(&propVar);
+                            if (SUCCEEDED(item2->GetProperty(PKEY_Home_IsPinned, &propVar))) {
+                                if (propVar.vt == VT_BOOL) {
+                                    isPinned = (propVar.boolVal == VARIANT_TRUE) ? 1 : 0;
+                                }
+                                PropVariantClear(&propVar);
+                            }
+                            item2->Release();
+                        }
+                        pinnedFlags.push_back(isPinned);
+                        resolvedItem->Release();
+                    } else {
+                        pinnedFlags.push_back(0);
+                    }
+                }
+
+                if (!nameStr.empty() && !pathStr.empty()) {
+                    names.push_back(nameStr);
+                    paths.push_back(pathStr);
+                }
+                CoTaskMemFree(pidl);
+            }
+            enumIdl->Release();
         }
-
-        if (SUCCEEDED(shellFolder->GetDisplayNameOf(pidl, SHGDN_FORPARSING, &strRet))) {
-            wchar_t pathBuf[1024];
-            StrRetToBufW(&strRet, pidl, pathBuf, 1024);
-            paths.push_back(pathBuf);
-        } else {
-            paths.push_back(L"");
-        }
-
-        CoTaskMemFree(pidl);
+        shellFolder->Release();
     }
 
-    enumIdl->Release();
-    shellFolder->Release();
     if (comInit) CoUninitialize();
 
+    // Buffer layout:
+    //   [count: int32]
+    //   for each: [nameLen] [name] [pathLen] [path] [isPinned: int32]
     std::vector<unsigned char> buf;
     int count = (int)names.size();
     buf.insert(buf.end(), (unsigned char*)&count, (unsigned char*)&count + sizeof(count));
@@ -89,6 +133,7 @@ unsigned char* GetQuickAccessItems(int* outSize) {
     for (int i = 0; i < count; i++) {
         AppendString(buf, names[i]);
         AppendString(buf, paths[i]);
+        buf.insert(buf.end(), (unsigned char*)&pinnedFlags[i], (unsigned char*)&pinnedFlags[i] + sizeof(int));
     }
 
     SIZE_T totalSz = buf.size();
