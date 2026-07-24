@@ -19,6 +19,7 @@ extern "C" {
 //     [nameLen: int32] [nameChars: wchar_t[]]          -- display name
 //     [pathLen: int32] [pathChars: wchar_t[]]          -- full path / parsing name
 //     [isDirectory: int32]
+//     [hasChildren: int32]                              -- 1 if directory has sub-items
 //     [sizeBytes: int64]
 //     [modifiedDateLen: int32] [modifiedDateChars: wchar_t[]]  -- "YYYY/MM/DD HH:MM:SS"
 //     [isRecycleBinItem: int32]                        -- 1 if from recycle bin

@@ -201,6 +201,9 @@ static bool EnumerateShellFolder(const wchar_t* path,
             AppendString(buf, name);
             AppendString(buf, filePath);
             AppendInt32(buf, isDirectory);
+            // For shell folders, if it's a directory we optimistically
+            // mark hasChildren; the actual check is expensive.
+            AppendInt32(buf, isDirectory);
             AppendInt64(buf, sizeBytes);
             AppendString(buf, modifiedDate);
             AppendInt32(buf, isRecycleBinItem ? 1 : 0);
@@ -247,9 +250,28 @@ static void EnumerateFilesystem(const wchar_t* path,
         int64_t sizeBytes = ((int64_t)ffd.nFileSizeHigh << 32) | ffd.nFileSizeLow;
         std::wstring modifiedDate = FormatFileTime(ffd.ftLastWriteTime);
 
+        // Check hasChildren for directories by probing for any entry.
+        int32_t hasChildren = 0;
+        if (isDirectory) {
+            std::wstring probe = fullPath + L"\\*";
+            WIN32_FIND_DATAW pfd;
+            HANDLE hProbe = FindFirstFileW(probe.c_str(), &pfd);
+            if (hProbe != INVALID_HANDLE_VALUE) {
+                do {
+                    if (wcscmp(pfd.cFileName, L".") != 0 &&
+                        wcscmp(pfd.cFileName, L"..") != 0) {
+                        hasChildren = 1;
+                        break;
+                    }
+                } while (FindNextFileW(hProbe, &pfd) != 0);
+                FindClose(hProbe);
+            }
+        }
+
         AppendString(buf, name);
         AppendString(buf, fullPath);
         AppendInt32(buf, isDirectory);
+        AppendInt32(buf, hasChildren);
         AppendInt64(buf, sizeBytes);
         AppendString(buf, modifiedDate);
         AppendInt32(buf, 0); // not recycle bin
@@ -292,9 +314,28 @@ static void EnumerateDrives(std::vector<unsigned char>& buf, int32_t& count) {
             st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         modifiedDate = dateBuf;
 
+        // Check whether the drive has any top-level items.
+        int32_t hasChildren = 0;
+        {
+            std::wstring probe = std::wstring(root) + L"*";
+            WIN32_FIND_DATAW pfd;
+            HANDLE hProbe = FindFirstFileW(probe.c_str(), &pfd);
+            if (hProbe != INVALID_HANDLE_VALUE) {
+                do {
+                    if (wcscmp(pfd.cFileName, L".") != 0 &&
+                        wcscmp(pfd.cFileName, L"..") != 0) {
+                        hasChildren = 1;
+                        break;
+                    }
+                } while (FindNextFileW(hProbe, &pfd) != 0);
+                FindClose(hProbe);
+            }
+        }
+
         AppendString(buf, label);       // name
         AppendString(buf, root);        // path
         AppendInt32(buf, 1);            // isDirectory
+        AppendInt32(buf, hasChildren);  // hasChildren
         AppendInt64(buf, 0);            // size
         AppendString(buf, modifiedDate); // modifiedDate
         AppendInt32(buf, 0);            // isRecycleBinItem

@@ -54,6 +54,7 @@ class DirectoryService {
   ///     [nameLen: int32] [nameChars: wchar_t[]]
   ///     [pathLen: int32] [pathChars: wchar_t[]]
   ///     [isDirectory: int32]
+  ///     [hasChildren: int32]
   ///     [sizeBytes: int64]
   ///     [modifiedDateLen: int32] [modifiedDateChars: wchar_t[]]
   ///     [isRecycleBinItem: int32]
@@ -76,6 +77,12 @@ class DirectoryService {
       int isDir = 0;
       if (offset + 4 <= totalSize) {
         isDir = buf.elementAt(offset).cast<Int32>().value;
+        offset += 4;
+      }
+
+      int hasChildren = 0;
+      if (offset + 4 <= totalSize) {
+        hasChildren = buf.elementAt(offset).cast<Int32>().value;
         offset += 4;
       }
 
@@ -109,6 +116,7 @@ class DirectoryService {
         name: name.isNotEmpty ? name : '(unknown)',
         path: itemPath,
         isDirectory: isDir != 0,
+        hasChildren: hasChildren != 0,
         size: sizeBytes,
         modified: _parseDate(modifiedDateStr),
         originalPath: originalPath.isNotEmpty ? originalPath : null,

@@ -19,6 +19,9 @@ typedef _GetDriveInfoDart = Pointer<Uint8> Function(
 typedef _FreeSidebarItemsNative = Void Function(Pointer<Uint8> ptr);
 typedef _FreeSidebarItemsDart = void Function(Pointer<Uint8> ptr);
 
+typedef _ProbeChildrenNative = Int32 Function(Pointer<Utf16> path);
+typedef _ProbeChildrenDart = int Function(Pointer<Utf16> path);
+
 // ---------------------------------------------------------------------------
 //  Data model
 // ---------------------------------------------------------------------------
@@ -51,6 +54,10 @@ class SidebarService {
   static final _freeSidebarItems =
       DynamicLibrary.process().lookupFunction<_FreeSidebarItemsNative,
           _FreeSidebarItemsDart>('FreeSidebarItems');
+
+  static final _probeChildren =
+      DynamicLibrary.process().lookupFunction<_ProbeChildrenNative,
+          _ProbeChildrenDart>('ProbeDirectoryHasChildren');
 
   static final Map<String, DriveInfo> _driveInfoCache = {};
 
@@ -115,6 +122,14 @@ class SidebarService {
       return '${info.friendlyName} ($letter:)';
     }
     return '($letter:)';
+  }
+
+  /// Lightweight check: returns true if [path] has at least one subdirectory.
+  static bool directoryHasChildren(String path) {
+    final ptr = path.toNativeUtf16();
+    final result = _probeChildren(ptr);
+    calloc.free(ptr);
+    return result != 0;
   }
 
   // -----------------------------------------------------------------------

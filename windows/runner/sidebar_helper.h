@@ -27,6 +27,11 @@ unsigned char* GetDriveInfo(const wchar_t* driveRoot, int* outSize);
 __declspec(dllexport)
 void FreeSidebarItems(unsigned char* ptr);
 
+// Lightweight check: returns 1 if [path] has at least one subdirectory
+// (excluding . and ..), 0 if not or on error.
+__declspec(dllexport)
+int ProbeDirectoryHasChildren(const wchar_t* path);
+
 #ifdef __cplusplus
 }
 #endif

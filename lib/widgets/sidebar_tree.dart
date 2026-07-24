@@ -70,6 +70,7 @@ class _SidebarTreeState extends State<SidebarTree> {
   bool _thisPcExpanded = true;
   final Set<String> _expandedDrives = {};
   final Map<String, List<_ChildDir>> _driveChildren = {};
+  final Map<String, bool> _driveHasChildren = {};
 
   @override
   void initState() {
@@ -80,6 +81,11 @@ class _SidebarTreeState extends State<SidebarTree> {
       _expandedDrives.add(_driveRoots.first);
     }
     _loadDriveChildren(_driveRoots.first);
+    // Pre-check all drives for subdirectory presence
+    for (final drive in _driveRoots) {
+      _driveHasChildren[drive] =
+          SidebarService.directoryHasChildren(drive);
+    }
   }
 
   void _loadQuickAccess() {
@@ -151,15 +157,12 @@ class _SidebarTreeState extends State<SidebarTree> {
                 ..._driveRoots.map((drive) {
                   final label = SidebarService.formatDriveLabel(drive);
                   final expanded = _expandedDrives.contains(drive);
-                  final loaded = _driveChildren[drive]; // null = not yet loaded
-                  final children = loaded ?? [];
+                  final children = _driveChildren[drive] ?? [];
                   return _DriveTreeNode(
                     drive: drive,
                     label: label,
                     expanded: expanded,
-                    // Drives almost always have children; show arrow optimistically
-                    // before the first lazy load.
-                    hasChildren: loaded != null ? children.isNotEmpty : true,
+                    hasChildren: _driveHasChildren[drive] ?? false,
                     onToggle: () => _toggleDriveExpanded(drive),
                     onNavigate: widget.onNavigate,
                     children: children.map((child) => _ChildDirTile(

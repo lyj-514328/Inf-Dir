@@ -4,6 +4,7 @@ class FileEntry {
   final String name;
   final String path;
   final bool isDirectory;
+  final bool hasChildren;
   final int size;
   final DateTime modified;
 
@@ -23,6 +24,7 @@ class FileEntry {
     required this.name,
     required this.path,
     required this.isDirectory,
+    this.hasChildren = false,
     required this.size,
     required this.modified,
     this.originalPath,
