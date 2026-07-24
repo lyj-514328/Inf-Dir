@@ -6,6 +6,7 @@ import '../state/pane_controller.dart';
 class FileListView extends StatelessWidget {
   final List<FileEntry> entries;
   final Set<String> selectedPaths;
+  final bool isActive;
   final ValueChanged<String> onSingleTap;
   final ValueChanged<String> onDoubleTap;
   final Function(String path, Offset globalPosition)? onItemRightClick;
@@ -19,6 +20,7 @@ class FileListView extends StatelessWidget {
     super.key,
     required this.entries,
     required this.selectedPaths,
+    this.isActive = true,
     required this.onSingleTap,
     required this.onDoubleTap,
     this.onItemRightClick,
@@ -71,6 +73,7 @@ class FileListView extends StatelessWidget {
                       return _FileRow(
                         entry: entry,
                         isSelected: selectedPaths.contains(entry.path),
+                        isActive: isActive,
                         onSingleTap: () => onSingleTap(entry.path),
                         onDoubleTap: () => onDoubleTap(entry.path),
                         onRightClick: (pos) =>
@@ -202,6 +205,7 @@ class _HeaderCell extends StatelessWidget {
 class _FileRow extends StatelessWidget {
   final FileEntry entry;
   final bool isSelected;
+  final bool isActive;
   final VoidCallback onSingleTap;
   final VoidCallback onDoubleTap;
   final ValueChanged<Offset>? onRightClick;
@@ -209,6 +213,7 @@ class _FileRow extends StatelessWidget {
   const _FileRow({
     required this.entry,
     required this.isSelected,
+    this.isActive = true,
     required this.onSingleTap,
     required this.onDoubleTap,
     this.onRightClick,
@@ -216,9 +221,13 @@ class _FileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor =
-        isSelected ? const Color(0xFF0078D4) : Colors.transparent;
-    final textColor = isSelected ? Colors.white : const Color(0xFF1A1A1A);
+    // Active pane: blue selection; Inactive pane: grey selection
+    final bgColor = isSelected
+        ? (isActive ? const Color(0xFF0078D4) : const Color(0xFFCCCCCC))
+        : Colors.transparent;
+    final textColor = isSelected
+        ? (isActive ? Colors.white : const Color(0xFF1A1A1A))
+        : const Color(0xFF1A1A1A);
 
     return GestureDetector(
       onTap: onSingleTap,
@@ -237,7 +246,7 @@ class _FileRow extends StatelessWidget {
                   _FileIcon(
                     path: entry.path,
                     isDirectory: entry.isDirectory,
-                    isSelected: isSelected,
+                    isSelected: isSelected && isActive,
                   ),
                   const SizedBox(width: 4),
                   Expanded(

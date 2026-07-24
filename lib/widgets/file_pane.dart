@@ -48,6 +48,8 @@ class _PaneContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<PaneController>();
+    final appState = context.watch<AppState>();
+    final isActive = appState.activePaneIndex == paneIndex;
 
     return Focus(
       autofocus: false,
@@ -153,6 +155,7 @@ class _PaneContent extends StatelessWidget {
             child: FileListView(
               entries: controller.entries,
               selectedPaths: controller.selectedPaths,
+              isActive: isActive,
               loading: controller.isLoading,
               sortColumn: controller.sortColumn,
               sortAscending: controller.sortAscending,
