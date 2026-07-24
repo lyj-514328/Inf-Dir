@@ -151,12 +151,15 @@ class _SidebarTreeState extends State<SidebarTree> {
                 ..._driveRoots.map((drive) {
                   final label = SidebarService.formatDriveLabel(drive);
                   final expanded = _expandedDrives.contains(drive);
-                  final children = _driveChildren[drive] ?? [];
+                  final loaded = _driveChildren[drive]; // null = not yet loaded
+                  final children = loaded ?? [];
                   return _DriveTreeNode(
                     drive: drive,
                     label: label,
                     expanded: expanded,
-                    childCount: children.length,
+                    // Show arrow if children exist OR if not yet loaded (drives
+                    // almost always have children; loading lazily on first click).
+                    childCount: loaded != null ? children.length : -1,
                     onToggle: () => _toggleDriveExpanded(drive),
                     onNavigate: widget.onNavigate,
                     children: children.map((child) => _ChildDirTile(
@@ -338,7 +341,7 @@ class _DriveTreeNodeState extends State<_DriveTreeNode> {
             fallback: Icons.storage,
           ),
           title: widget.label,
-          showArrow: widget.childCount > 0,
+          showArrow: widget.childCount != 0,
           expanded: widget.expanded,
         ),
         if (widget.expanded) ...widget.children,
