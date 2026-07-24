@@ -35,6 +35,13 @@ unsigned char* ListDirectoryEntries(const wchar_t* path, int* outSize);
 __declspec(dllexport)
 void FreeDirectoryEntries(unsigned char* ptr);
 
+// Get the friendly display name for any path (including Shell CLSID paths).
+// Returns a wchar_t* buffer allocated with CoTaskMemAlloc; caller must free
+// with CoTaskMemFree (or use the FreeDirectoryEntries helper).
+// Returns nullptr on failure.
+__declspec(dllexport)
+wchar_t* GetShellDisplayName(const wchar_t* path);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,8 +1,7 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 import '../services/sidebar_service.dart';
+import '../services/directory_service.dart';
 import '../services/icon_service.dart';
 
 // ======================================================================
@@ -199,21 +198,16 @@ class _SidebarTreeState extends State<SidebarTree> {
     }
   }
 
-  // ── Children loading ────────────────────────────────────────────────
+  // ── Children loading (via native Shell API) ────────────────────────
 
   void _loadChildrenSync(String path) {
     final key = _norm(path);
     if (_childrenCache.containsKey(key)) return;
     try {
-      final dir = Directory(path);
-      if (!dir.existsSync()) {
-        _childrenCache[key] = [];
-        return;
-      }
-      final entities = dir.listSync(followLinks: false);
-      final children = entities
-          .whereType<Directory>()
-          .map((d) => _ChildDir(p.basename(d.path), d.path))
+      final entries = DirectoryService.listDirectory(path);
+      final children = entries
+          .where((e) => e.isDirectory)
+          .map((e) => _ChildDir(e.name, e.path))
           .toList();
       children.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -227,11 +221,12 @@ class _SidebarTreeState extends State<SidebarTree> {
     final key = _norm(path);
     if (_childrenCache.containsKey(key)) return;
     try {
-      final dir = Directory(path);
-      final entities = await dir.list(followLinks: false).toList();
-      final children = entities
-          .whereType<Directory>()
-          .map((d) => _ChildDir(p.basename(d.path), d.path))
+      // DirectoryService.listDirectory is synchronous (native call),
+      // wrap in compute-like pattern is unnecessary; just call directly.
+      final entries = DirectoryService.listDirectory(path);
+      final children = entries
+          .where((e) => e.isDirectory)
+          .map((e) => _ChildDir(e.name, e.path))
           .toList();
       children.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));

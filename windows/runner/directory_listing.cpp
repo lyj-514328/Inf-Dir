@@ -393,3 +393,29 @@ extern "C" __declspec(dllexport)
 void FreeDirectoryEntries(unsigned char* ptr) {
     if (ptr) CoTaskMemFree(ptr);
 }
+
+extern "C" __declspec(dllexport)
+wchar_t* GetShellDisplayName(const wchar_t* path) {
+    if (!path) return nullptr;
+
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    bool comInit = (hr == S_OK);
+
+    IShellItem* item = nullptr;
+    hr = SHCreateItemFromParsingName(path, nullptr, IID_PPV_ARGS(&item));
+    if (FAILED(hr) || !item) {
+        if (comInit) CoUninitialize();
+        return nullptr;
+    }
+
+    LPWSTR displayName = nullptr;
+    hr = item->GetDisplayName(SIGDN_NORMALDISPLAY, &displayName);
+    item->Release();
+
+    if (comInit) CoUninitialize();
+
+    if (FAILED(hr) || !displayName) return nullptr;
+
+    // displayName is already CoTaskMemAlloc'd — return directly
+    return displayName;
+}

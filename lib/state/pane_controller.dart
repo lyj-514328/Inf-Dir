@@ -31,6 +31,14 @@ class PaneController extends ChangeNotifier {
   }
 
   String get currentPath => _currentPath;
+
+  /// Friendly display path for the address bar (shell CLSIDs → names).
+  String get displayPath {
+    if (_currentPath.startsWith('::') || _currentPath.startsWith('shell:')) {
+      return DirectoryService.getDisplayName(_currentPath);
+    }
+    return _currentPath;
+  }
   List<FileEntry> get entries => _entries;
   bool get canGoBack => _backStack.isNotEmpty;
   bool get canGoForward => _forwardStack.isNotEmpty;
@@ -49,6 +57,10 @@ class PaneController extends ChangeNotifier {
   bool get sortAscending => _sortAscending;
 
   String _pathLabel(String path) {
+    // For Shell CLSID paths, ask the Shell for a friendly name
+    if (path.startsWith('::') || path.startsWith('shell:')) {
+      return DirectoryService.getDisplayName(path);
+    }
     if (path.length <= 3) return path;
     return p.basename(path);
   }

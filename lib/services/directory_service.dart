@@ -1,7 +1,6 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import '../models/file_entry.dart';
-import 'file_service.dart';
 
 // Native function signatures
 
@@ -13,6 +12,9 @@ typedef _ListDirectoryDart = Pointer<Uint8> Function(
 typedef _FreeDirEntriesNative = Void Function(Pointer<Uint8> ptr);
 typedef _FreeDirEntriesDart = void Function(Pointer<Uint8> ptr);
 
+typedef _GetDisplayNameNative = Pointer<Utf16> Function(Pointer<Utf16> path);
+typedef _GetDisplayNameDart = Pointer<Utf16> Function(Pointer<Utf16> path);
+
 class DirectoryService {
   static final _list = DynamicLibrary.process()
       .lookupFunction<_ListDirectoryNative, _ListDirectoryDart>(
@@ -21,6 +23,33 @@ class DirectoryService {
   static final _free = DynamicLibrary.process()
       .lookupFunction<_FreeDirEntriesNative, _FreeDirEntriesDart>(
           'FreeDirectoryEntries');
+
+  static final _getDisplayName = DynamicLibrary.process()
+      .lookupFunction<_GetDisplayNameNative, _GetDisplayNameDart>(
+          'GetShellDisplayName');
+
+  /// Cache for shell display names to avoid repeated FFI calls.
+  static final Map<String, String> _displayNameCache = {};
+
+  /// Get the friendly display name for any path (including Shell CLSIDs).
+  /// Falls back to the path itself if the shell cannot resolve it.
+  static String getDisplayName(String path) {
+    final cached = _displayNameCache[path];
+    if (cached != null) return cached;
+
+    final pathPtr = path.toNativeUtf16();
+    final resultPtr = _getDisplayName(pathPtr);
+    calloc.free(pathPtr);
+
+    if (resultPtr == nullptr) return path;
+
+    final name = resultPtr.toDartString();
+    // Free the CoTaskMem-allocated string
+    _free(resultPtr.cast<Uint8>());
+
+    _displayNameCache[path] = name;
+    return name;
+  }
 
   /// Unified directory listing: handles regular paths, Shell virtual
   /// folders (Recycle Bin, This PC), and drive roots.

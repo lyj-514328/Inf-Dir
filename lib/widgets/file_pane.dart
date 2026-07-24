@@ -143,7 +143,7 @@ class _PaneContent extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 2),
             child: AddressBar(
-              currentPath: controller.currentPath,
+              currentPath: controller.displayPath,
               onSubmit: (path) => controller.navigateTo(path),
             ),
           ),
