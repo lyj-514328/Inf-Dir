@@ -28,9 +28,19 @@ class PaneTabBar extends StatelessWidget {
           Expanded(
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: tabs.length,
+              itemCount: tabs.length + 1,
               itemExtent: null,
               itemBuilder: (context, index) {
+                if (index == tabs.length) {
+                  return InkWell(
+                    onTap: onAddTab,
+                    child: const SizedBox(
+                      width: 24,
+                      height: 26,
+                      child: Icon(Icons.add, size: 14, color: Color(0xFF666666)),
+                    ),
+                  );
+                }
                 final isActive = index == activeIndex;
                 return _TabItem(
                   label: tabs[index].label,
@@ -41,14 +51,6 @@ class PaneTabBar extends StatelessWidget {
                   showClose: tabs.length > 1,
                 );
               },
-            ),
-          ),
-          InkWell(
-            onTap: onAddTab,
-            child: const SizedBox(
-              width: 24,
-              height: 26,
-              child: Icon(Icons.add, size: 14, color: Color(0xFF666666)),
             ),
           ),
         ],

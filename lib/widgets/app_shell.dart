@@ -51,40 +51,43 @@ class _AppShellState extends State<AppShell> {
           _WorkspaceBar(layoutState: layoutState),
           Container(height: 1, color: const Color(0xFFD0D0D0)),
           Expanded(
-            child: Row(
-              children: [
-                Container(
-                  margin: const EdgeInsets.all(1),
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant,
+            child: Padding(
+              padding: const EdgeInsets.all(3),
+              child: Row(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.all(1),
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                      color: Theme.of(context).colorScheme.surface,
                     ),
-                    color: Theme.of(context).colorScheme.surface,
-                  ),
-                  child: SizedBox(
-                    width: _sidebarWidth,
-                    child: SidebarTree(
-                      activePath: activePane?.displayPath ?? '',
-                      onNavigate: (path) {
-                        activePane?.navigateTo(path);
-                      },
+                    child: SizedBox(
+                      width: _sidebarWidth,
+                      child: SidebarTree(
+                        activePath: activePane?.displayPath ?? '',
+                        onNavigate: (path) {
+                          activePane?.navigateTo(path);
+                        },
+                      ),
                     ),
                   ),
-                ),
-                _SideSplitter(
-                  hovering: _sidebarHovering,
-                  dragging: _sidebarDragging,
-                  onHoverChanged: (v) => setState(() => _sidebarHovering = v),
-                  onDragStart: () => setState(() => _sidebarDragging = true),
-                  onDragUpdate: (delta) => setState(() => _sidebarWidth = (_sidebarWidth + delta).clamp(150, double.infinity)),
-                  onDragEnd: () => setState(() => _sidebarDragging = false),
-                ),
-                Expanded(
-                  child: LayoutView(node: layoutState.activeWorkspace),
-                ),
-              ],
+                  _SideSplitter(
+                    hovering: _sidebarHovering,
+                    dragging: _sidebarDragging,
+                    onHoverChanged: (v) => setState(() => _sidebarHovering = v),
+                    onDragStart: () => setState(() => _sidebarDragging = true),
+                    onDragUpdate: (delta) => setState(() => _sidebarWidth = (_sidebarWidth + delta).clamp(150, double.infinity)),
+                    onDragEnd: () => setState(() => _sidebarDragging = false),
+                  ),
+                  Expanded(
+                    child: LayoutView(node: layoutState.activeWorkspace),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
