@@ -108,8 +108,8 @@ class LayoutState extends ChangeNotifier {
   void removeWorkspace(int index) {
     if (_tree.workspaces.length <= 1) return;
     final ws = _tree.workspaces[index];
-    final removedIds = _tree.closeNode(ws);
-    for (final id in removedIds) {
+    final result = _tree.closeNode(ws);
+    for (final id in result.removedPanes) {
       _controllers.remove(id);
     }
     _tree.workspaces.removeAt(index);
@@ -143,14 +143,21 @@ class LayoutState extends ChangeNotifier {
     // 检查是否是最后一个 pane
     if (allPaneNodes.length <= 1) return;
 
-    final removedIds = _tree.closeNode(node);
-    for (final id in removedIds) {
+    final result = _tree.closeNode(node);
+    for (final id in result.removedPanes) {
       _controllers.remove(id);
     }
 
-    // 焦点转移到最近的 pane
-    final firstPane = _findFirstPane(_tree.activeWorkspace);
-    if (firstPane != null) _focusedNodeId = firstPane.id;
+    // 焦点转移：优先兄弟 → 展平幸存者 → 首个 pane
+    final nextFocusNode = result.nextFocusId != null
+        ? _findNodeById(result.nextFocusId!)
+        : null;
+    if (nextFocusNode != null && nextFocusNode.isPane) {
+      _focusedNodeId = nextFocusNode.id;
+    } else {
+      final firstPane = _findFirstPane(_tree.activeWorkspace);
+      if (firstPane != null) _focusedNodeId = firstPane.id;
+    }
 
     notifyListeners();
   }

@@ -71,6 +71,14 @@ class LayoutNode {
   }
 }
 
+/// 关闭操作的结果
+class CloseResult {
+  final List<String> removedPanes;
+  final String? nextFocusId; // 建议聚焦的节点 ID，null 则回退到首个 pane
+
+  CloseResult({required this.removedPanes, this.nextFocusId});
+}
+
 /// 布局树管理器 — 提供所有操作
 class LayoutTree {
   final List<LayoutNode> workspaces;
@@ -156,11 +164,29 @@ class LayoutTree {
   // ============================================================
   // 操作 3：关闭节点 —— 类似 i3 tree_close_internal()
   // ============================================================
-  /// 返回需要清理的 paneId 列表
-  List<String> closeNode(LayoutNode node) {
+  /// 关闭节点，返回 (需清理的 paneId 列表, 建议聚焦节点 ID)
+  CloseResult closeNode(LayoutNode node) {
     final removed = <String>[];
+
+    // 在摘除之前记录兄弟和父节点信息，用于确定下一个焦点
+    final sibling = node.nextSibling ?? node.prevSibling;
+    final parent = node.parent;
+
     _closeInternal(node, removed);
-    return removed;
+
+    // 确定下一个焦点：
+    // 1) 优先兄弟（关闭后在原位置的邻居）
+    // 2) 父节点被展平后的幸存者
+    // 3) null — 由调用方回退
+    String? nextFocusId;
+    if (sibling != null) {
+      nextFocusId = _firstLeafId(sibling);
+    } else if (parent != null && parent.isSplit && parent.children.length == 1) {
+      // 关闭后父节点只剩一个孩子，展平逻辑会在 _closeInternal 触发
+      nextFocusId = _firstLeafId(parent.children.first);
+    }
+
+    return CloseResult(removedPanes: removed, nextFocusId: nextFocusId);
   }
 
   void _closeInternal(LayoutNode node, List<String> removedPanes) {
@@ -181,7 +207,7 @@ class LayoutTree {
     // 从父节点摘除
     parent.children.remove(node);
 
-    // 如果父节点是 split 且只剩一个孩子 → 展平
+    // 如果父节点是 split 且只剩一个孩子 → 展平到祖父节点
     if (parent.isSplit && parent.children.length == 1) {
       final survivor = parent.children.first;
       if (parent.parent != null) {
@@ -197,6 +223,16 @@ class LayoutTree {
     }
 
     _fixPercent(parent);
+  }
+
+  /// 递归找到节点下的第一个叶子 pane 的 id
+  String? _firstLeafId(LayoutNode node) {
+    if (node.isPane) return node.id;
+    for (final child in node.children) {
+      final id = _firstLeafId(child);
+      if (id != null) return id;
+    }
+    return null;
   }
 
   // ============================================================

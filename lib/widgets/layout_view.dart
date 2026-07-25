@@ -6,9 +6,6 @@ import 'file_pane.dart';
 import 'alt_overlay.dart';
 
 /// 递归渲染布局树 — 仿 i3 render_con()
-///
-/// 每个非叶子节点根据 layout (horizontal/vertical) 把空间按 percent 分给子节点，
-/// 叶子节点 (pane) 渲染为 FilePane。
 class LayoutView extends StatelessWidget {
   final LayoutNode node;
 
@@ -19,7 +16,6 @@ class LayoutView extends StatelessWidget {
     if (node.isPane) {
       return _PaneWrapper(node: node);
     }
-
     if (node.children.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -31,11 +27,12 @@ class LayoutView extends StatelessWidget {
         ? Row(
             children: [
               for (int i = 0; i < children.length; i++) ...[
-                if (i > 0) _Splitter(
-                  direction: SplitDirection.horizontal,
-                  left: children[i - 1],
-                  right: children[i],
-                ),
+                if (i > 0)
+                  _Splitter(
+                    direction: SplitDirection.horizontal,
+                    left: children[i - 1],
+                    right: children[i],
+                  ),
                 Expanded(
                   flex: _flexFromPercent(children[i].percent, node),
                   child: LayoutView(node: children[i]),
@@ -46,11 +43,12 @@ class LayoutView extends StatelessWidget {
         : Column(
             children: [
               for (int i = 0; i < children.length; i++) ...[
-                if (i > 0) _Splitter(
-                  direction: SplitDirection.vertical,
-                  top: children[i - 1],
-                  bottom: children[i],
-                ),
+                if (i > 0)
+                  _Splitter(
+                    direction: SplitDirection.vertical,
+                    top: children[i - 1],
+                    bottom: children[i],
+                  ),
                 Expanded(
                   flex: _flexFromPercent(children[i].percent, node),
                   child: LayoutView(node: children[i]),
@@ -60,7 +58,6 @@ class LayoutView extends StatelessWidget {
           );
   }
 
-  /// 将 percent 转为整数的 flex 值（用于 Expanded）
   int _flexFromPercent(double percent, LayoutNode parent) {
     if (percent <= 0) {
       return (1.0 / parent.children.length * 1000).round();
@@ -69,7 +66,6 @@ class LayoutView extends StatelessWidget {
   }
 }
 
-/// Pane 包装器 — 负责聚焦、Alt 浮层、圆角边框
 class _PaneWrapper extends StatelessWidget {
   final LayoutNode node;
 
@@ -77,6 +73,8 @@ class _PaneWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final layoutState = context.watch<LayoutState>();
     final controller = layoutState.controllerFor(node);
     final isFocused = layoutState.focusedNodeId == node.id;
@@ -86,15 +84,15 @@ class _PaneWrapper extends StatelessWidget {
     return GestureDetector(
       onTap: () => layoutState.focusNode(node),
       child: Container(
-        margin: const EdgeInsets.all(2),
+        margin: const EdgeInsets.all(1),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
-            color: isFocused ? const Color(0xFF0078D4) : const Color(0xFFC0C0C0),
-            width: isFocused ? 2 : 1,
+            color: isFocused ? cs.primary : cs.outlineVariant,
+            width: isFocused ? 1.5 : 1,
           ),
-          color: Colors.white,
+          color: cs.surface,
         ),
         child: Stack(
           children: [
@@ -108,7 +106,6 @@ class _PaneWrapper extends StatelessWidget {
   }
 }
 
-/// 可拖拽的分割线
 class _Splitter extends StatefulWidget {
   final SplitDirection direction;
   final LayoutNode? left;
@@ -134,6 +131,7 @@ class _SplitterState extends State<_Splitter> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final isH = widget.direction == SplitDirection.horizontal;
 
     return MouseRegion(
@@ -145,7 +143,6 @@ class _SplitterState extends State<_Splitter> {
         onPanUpdate: (details) {
           final state = context.read<LayoutState>();
           final deltaPixels = isH ? details.delta.dx : details.delta.dy;
-          // 假设父容器大约 800px 宽/高，delta / 800 = 百分比变化
           const approxSize = 800.0;
           final deltaPercent = deltaPixels / approxSize;
 
@@ -157,13 +154,13 @@ class _SplitterState extends State<_Splitter> {
         },
         onPanEnd: (_) => setState(() => _dragging = false),
         child: Container(
-          width: isH ? 5 : double.infinity,
-          height: isH ? double.infinity : 5,
+          width: isH ? 2 : double.infinity,
+          height: isH ? double.infinity : 2,
           color: _dragging
-              ? const Color(0xFF0078D4)
+              ? cs.primary
               : _hovering
-                  ? const Color(0xFFA0A0A0)
-                  : const Color(0xFFD8D8D8),
+                  ? cs.primary.withValues(alpha: 0.3)
+                  : Colors.transparent,
         ),
       ),
     );
