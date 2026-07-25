@@ -51,107 +51,107 @@ class _PaneContent extends StatelessWidget {
     final appState = context.watch<AppState>();
     final isActive = appState.activePaneIndex == paneIndex;
 
-    return Focus(
-      autofocus: false,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.backspace ||
-              (event.logicalKey == LogicalKeyboardKey.arrowUp &&
-                  HardwareKeyboard.instance.isAltPressed)) {
-            controller.goUp();
-            return KeyEventResult.handled;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
-              HardwareKeyboard.instance.isAltPressed) {
-            controller.goBack();
-            return KeyEventResult.handled;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
-              HardwareKeyboard.instance.isAltPressed) {
-            controller.goForward();
-            return KeyEventResult.handled;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.f5) {
-            controller.refresh();
-            return KeyEventResult.handled;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.keyA &&
-              HardwareKeyboard.instance.isControlPressed) {
-            controller.selectAll();
-            return KeyEventResult.handled;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.enter) {
-            _openSelected(context, controller);
-            return KeyEventResult.handled;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.delete) {
-            if (!FileService.isRecycleBinPath(controller.currentPath)) {
-              _deleteSelected(context);
-            }
-            return KeyEventResult.handled;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.f2) {
-            if (!FileService.isRecycleBinPath(controller.currentPath)) {
-              _renameSelected(context);
-            }
-            return KeyEventResult.handled;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.keyC &&
-              HardwareKeyboard.instance.isControlPressed) {
-            _copySelected(context);
-            return KeyEventResult.handled;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.keyX &&
-              HardwareKeyboard.instance.isControlPressed) {
-            if (FileService.isRecycleBinPath(controller.currentPath)) {
-              return KeyEventResult.handled;
-            }
-            _cutSelected(context);
-            return KeyEventResult.handled;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.keyV &&
-              HardwareKeyboard.instance.isControlPressed) {
-            if (FileService.isRecycleBinPath(controller.currentPath)) {
-              return KeyEventResult.handled;
-            }
-            _paste(context);
-            return KeyEventResult.handled;
-          }
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Column(
-        children: [
-          PaneTabBar(
-            tabs: controller.tabs,
-            activeIndex: controller.activeTabIndex,
-            onSwitchTab: controller.switchTab,
-            onCloseTab: controller.closeTab,
-            onAddTab: () => controller.addTab(),
+    return Column(
+      children: [
+        PaneTabBar(
+          tabs: controller.tabs,
+          activeIndex: controller.activeTabIndex,
+          onSwitchTab: controller.switchTab,
+          onCloseTab: controller.closeTab,
+          onAddTab: () => controller.addTab(),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+          child: NavToolbar(
+            canGoBack: controller.canGoBack,
+            canGoForward: controller.canGoForward,
+            canGoUp: controller.canGoUp,
+            onBack: controller.goBack,
+            onForward: controller.goForward,
+            onUp: controller.goUp,
+            onHome: controller.goHome,
+            onRefresh: controller.refresh,
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
-            child: NavToolbar(
-              canGoBack: controller.canGoBack,
-              canGoForward: controller.canGoForward,
-              canGoUp: controller.canGoUp,
-              onBack: controller.goBack,
-              onForward: controller.goForward,
-              onUp: controller.goUp,
-              onHome: controller.goHome,
-              onRefresh: controller.refresh,
-            ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: AddressBar(
+            currentPath: controller.displayPath,
+            iconPath: controller.currentPath,
+            onSubmit: (path) => controller.navigateTo(path),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: AddressBar(
-              currentPath: controller.displayPath,
-              iconPath: controller.currentPath,
-              onSubmit: (path) => controller.navigateTo(path),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Expanded(
+        ),
+        const SizedBox(height: 2),
+        Expanded(
+          child: Focus(
+            autofocus: false,
+            onKeyEvent: (node, event) {
+              if (event is KeyDownEvent) {
+                if (event.logicalKey == LogicalKeyboardKey.backspace ||
+                    (event.logicalKey == LogicalKeyboardKey.arrowUp &&
+                        HardwareKeyboard.instance.isAltPressed)) {
+                  controller.goUp();
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
+                    HardwareKeyboard.instance.isAltPressed) {
+                  controller.goBack();
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
+                    HardwareKeyboard.instance.isAltPressed) {
+                  controller.goForward();
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.f5) {
+                  controller.refresh();
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.keyA &&
+                    HardwareKeyboard.instance.isControlPressed) {
+                  controller.selectAll();
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.enter) {
+                  _openSelected(context, controller);
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.delete) {
+                  if (!FileService.isRecycleBinPath(controller.currentPath)) {
+                    _deleteSelected(context);
+                  }
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.f2) {
+                  if (!FileService.isRecycleBinPath(controller.currentPath)) {
+                    _renameSelected(context);
+                  }
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.keyC &&
+                    HardwareKeyboard.instance.isControlPressed) {
+                  _copySelected(context);
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.keyX &&
+                    HardwareKeyboard.instance.isControlPressed) {
+                  if (FileService.isRecycleBinPath(controller.currentPath)) {
+                    return KeyEventResult.handled;
+                  }
+                  _cutSelected(context);
+                  return KeyEventResult.handled;
+                }
+                if (event.logicalKey == LogicalKeyboardKey.keyV &&
+                    HardwareKeyboard.instance.isControlPressed) {
+                  if (FileService.isRecycleBinPath(controller.currentPath)) {
+                    return KeyEventResult.handled;
+                  }
+                  _paste(context);
+                  return KeyEventResult.handled;
+                }
+              }
+              return KeyEventResult.ignored;
+            },
             child: FileListView(
               entries: controller.entries,
               selectedPaths: controller.selectedPaths,
@@ -179,12 +179,12 @@ class _PaneContent extends StatelessWidget {
                   _showNativeMenu(context, [], pos),
             ),
           ),
-          _StatusBar(
-            total: controller.entryCount,
-            selected: controller.selectedCount,
-          ),
-        ],
-      ),
+        ),
+        _StatusBar(
+          total: controller.entryCount,
+          selected: controller.selectedCount,
+        ),
+      ],
     );
   }
 
