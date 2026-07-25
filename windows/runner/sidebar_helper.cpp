@@ -186,27 +186,5 @@ void FreeSidebarItems(unsigned char* ptr) {
 extern "C" __declspec(dllexport)
 int ProbeDirectoryHasChildren(const wchar_t* path) {
     if (!path || !*path) return 0;
-
-    std::wstring pattern = path;
-    if (!pattern.empty() && pattern.back() != L'\\')
-        pattern += L'\\';
-    pattern += L'*';
-
-    WIN32_FIND_DATAW ffd;
-    HANDLE hFind = FindFirstFileW(pattern.c_str(), &ffd);
-    if (hFind == INVALID_HANDLE_VALUE)
-        return 0;
-
-    int hasDir = 0;
-    do {
-        if (wcscmp(ffd.cFileName, L".") == 0 || wcscmp(ffd.cFileName, L"..") == 0)
-            continue;
-        if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            hasDir = 1;
-            break;
-        }
-    } while (FindNextFileW(hFind, &ffd) != 0);
-
-    FindClose(hFind);
-    return hasDir;
+    return PathIsDirectoryEmptyW(path) ? 0 : 1;
 }

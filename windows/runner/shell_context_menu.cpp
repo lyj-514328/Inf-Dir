@@ -31,7 +31,7 @@ static HRESULT GetFolderShellFolder(IShellFolder** ppFolder, LPCWSTR path) {
         return hr;
     }
 
-    // Regular filesystem path — use desktop->ParseDisplayName
+    // Regular filesystem path - use desktop->ParseDisplayName
     IShellFolder* desktop = nullptr;
     HRESULT hr = SHGetDesktopFolder(&desktop);
     if (FAILED(hr)) return hr;
@@ -134,7 +134,7 @@ HRESULT ShowShellContextMenuW(
 
             if (folderPidl) CoTaskMemFree(folderPidl);
         } else {
-            // Regular filesystem paths — extract filename and parse
+            // Regular filesystem paths - extract filename and parse
             // within the parent folder.
             for (int i = 0; i < selectedCount && ok; i++) {
                 const wchar_t* name = FileNameFromPath(selectedPaths[i]);
@@ -252,3 +252,4 @@ HRESULT ShowShellContextMenuW(
     pcm->Release();
     return S_OK;
 }
+

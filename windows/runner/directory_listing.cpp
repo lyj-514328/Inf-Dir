@@ -10,7 +10,7 @@
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "propsys.lib")
 
-// ── Helper: append primitives to byte buffer ──────────────────────────
+// -- Helper: append primitives to byte buffer --------------------------
 
 static void AppendString(std::vector<unsigned char>& buf, const std::wstring& s) {
     int32_t len = (int32_t)s.size();
@@ -30,7 +30,7 @@ static void AppendInt32(std::vector<unsigned char>& buf, int32_t val) {
     buf.insert(buf.end(), (unsigned char*)&val, (unsigned char*)&val + sizeof(val));
 }
 
-// ── Helper: format a FILETIME as "YYYY/MM/DD HH:MM:SS" ────────────────
+// -- Helper: format a FILETIME as "YYYY/MM/DD HH:MM:SS" ----------------
 
 static std::wstring FormatFileTime(const FILETIME& ft) {
     SYSTEMTIME st = {};
@@ -42,13 +42,13 @@ static std::wstring FormatFileTime(const FILETIME& ft) {
     return buf;
 }
 
-// ── Helper: resolve a property key by canonical name ──────────────────
+// -- Helper: resolve a property key by canonical name ------------------
 
 static bool GetPropertyKeyByName(const wchar_t* name, PROPERTYKEY& pkey) {
     return SUCCEEDED(PSGetPropertyKeyFromName(name, &pkey));
 }
 
-// ── Helper: read a string property from IShellItem2 ───────────────────
+// -- Helper: read a string property from IShellItem2 -------------------
 
 static std::wstring GetShellItemString(IShellItem2* item2, const PROPERTYKEY& pkey) {
     PWSTR value = nullptr;
@@ -60,7 +60,7 @@ static std::wstring GetShellItemString(IShellItem2* item2, const PROPERTYKEY& pk
     return L"";
 }
 
-// ── Path detection helpers ────────────────────────────────────────────
+// -- Path detection helpers --------------------------------------------
 
 static bool IsVirtualShellPath(const wchar_t* path) {
     return (wcsstr(path, L"shell:") != nullptr ||
@@ -77,7 +77,7 @@ static bool IsMyComputerPath(const wchar_t* path) {
             wcsstr(path, L"20D04FE0") != nullptr);
 }
 
-// ── Enumerate Shell virtual folder via BHID_EnumItems ─────────────────
+// -- Enumerate Shell virtual folder via BHID_EnumItems -----------------
 
 // Returns false if the path is not a virtual folder we handle.
 static bool EnumerateShellFolder(const wchar_t* path,
@@ -100,7 +100,7 @@ static bool EnumerateShellFolder(const wchar_t* path,
     folderItem->Release();
 
     if (FAILED(hr) || !enumItems)
-        return true; // virtual folder but empty — still "handled"
+        return true; // virtual folder but empty - still "handled"
 
     // Resolve property keys for Recycle Bin fields
     PROPERTYKEY pkeyDeletedFrom = {};
@@ -164,7 +164,7 @@ static bool EnumerateShellFolder(const wchar_t* path,
                     }
                 }
 
-                // Attributes → isDirectory
+                // Attributes - isDirectory
                 if (memcmp(&pkeyFileAttributes, &emptyPkey, sizeof(PROPERTYKEY)) != 0) {
                     PROPVARIANT pv;
                     PropVariantInit(&pv);
@@ -219,7 +219,7 @@ static bool EnumerateShellFolder(const wchar_t* path,
     return true;
 }
 
-// ── Enumerate regular filesystem directory via FindFirstFile ──────────
+// -- Enumerate regular filesystem directory via FindFirstFile ----------
 
 static void EnumerateFilesystem(const wchar_t* path,
     std::vector<unsigned char>& buf, int32_t& count)
@@ -250,22 +250,9 @@ static void EnumerateFilesystem(const wchar_t* path,
         int64_t sizeBytes = ((int64_t)ffd.nFileSizeHigh << 32) | ffd.nFileSizeLow;
         std::wstring modifiedDate = FormatFileTime(ffd.ftLastWriteTime);
 
-        // Check hasChildren for directories by probing for any entry.
         int32_t hasChildren = 0;
         if (isDirectory) {
-            std::wstring probe = fullPath + L"\\*";
-            WIN32_FIND_DATAW pfd;
-            HANDLE hProbe = FindFirstFileW(probe.c_str(), &pfd);
-            if (hProbe != INVALID_HANDLE_VALUE) {
-                do {
-                    if (wcscmp(pfd.cFileName, L".") != 0 &&
-                        wcscmp(pfd.cFileName, L"..") != 0) {
-                        hasChildren = 1;
-                        break;
-                    }
-                } while (FindNextFileW(hProbe, &pfd) != 0);
-                FindClose(hProbe);
-            }
+            hasChildren = PathIsDirectoryEmptyW(fullPath.c_str()) ? 0 : 1;
         }
 
         AppendString(buf, name);
@@ -285,7 +272,7 @@ static void EnumerateFilesystem(const wchar_t* path,
     FindClose(hFind);
 }
 
-// ── Enumerate drives (for "My Computer") ──────────────────────────────
+// -- Enumerate drives (for "My Computer") ------------------------------
 
 static void EnumerateDrives(std::vector<unsigned char>& buf, int32_t& count) {
     for (int i = 0; i < 26; i++) {
@@ -346,7 +333,7 @@ static void EnumerateDrives(std::vector<unsigned char>& buf, int32_t& count) {
     }
 }
 
-// ── Main exported function ────────────────────────────────────────────
+// -- Main exported function --------------------------------------------
 
 extern "C" __declspec(dllexport)
 unsigned char* ListDirectoryEntries(const wchar_t* path, int* outSize) {
@@ -416,6 +403,7 @@ wchar_t* GetShellDisplayName(const wchar_t* path) {
 
     if (FAILED(hr) || !displayName) return nullptr;
 
-    // displayName is already CoTaskMemAlloc'd — return directly
+    // displayName is already CoTaskMemAlloc'd - return directly
     return displayName;
 }
+
