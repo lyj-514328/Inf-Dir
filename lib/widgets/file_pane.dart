@@ -158,6 +158,7 @@ class _PaneContent extends StatelessWidget {
               onSort: controller.sortBy,
               columnWidths: controller.columnWidths,
               onResizeColumn: controller.resizeColumn,
+              onInitWidths: controller.initColumnWidths,
               onSingleTap: (path) {
                 final ctrl = HardwareKeyboard.instance.isControlPressed;
                 final shift = HardwareKeyboard.instance.isShiftPressed;

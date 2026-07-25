@@ -17,6 +17,7 @@ class FileListView extends StatefulWidget {
   final ValueChanged<SortColumn> onSort;
   final List<double> columnWidths;
   final Function(int colIndex, double deltaPx) onResizeColumn;
+  final Function(double paneWidth)? onInitWidths;
 
   const FileListView({
     super.key,
@@ -33,6 +34,7 @@ class FileListView extends StatefulWidget {
     required this.onSort,
     required this.columnWidths,
     required this.onResizeColumn,
+    this.onInitWidths,
   });
 
   @override
@@ -45,6 +47,8 @@ class _FileListViewState extends State<FileListView> {
   static const double _hPad = 8; // horizontal padding
 
   double _paneWidth = 0;
+  bool _widthsInitialized = false;
+  final ScrollController _hScrollController = ScrollController();
 
   double get _totalColWidth =>
       widget.columnWidths.reduce((a, b) => a + b) + 4 * _splitterW + _hPad;
@@ -67,6 +71,12 @@ class _FileListViewState extends State<FileListView> {
   }
 
   @override
+  void dispose() {
+    _hScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (widget.loading) {
       return const Center(
@@ -81,11 +91,20 @@ class _FileListViewState extends State<FileListView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         _paneWidth = constraints.maxWidth;
+        if (!_widthsInitialized && _paneWidth > 0 && widget.onInitWidths != null) {
+          _widthsInitialized = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            widget.onInitWidths!(_paneWidth);
+          });
+        }
         final blankW = _blankWidth;
         final listW = _listWidth;
 
-        return SingleChildScrollView(
+        return Scrollbar(
+          controller: _hScrollController,
+          child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
+          controller: _hScrollController,
           child: SizedBox(
             width: listW,
             height: constraints.maxHeight,
@@ -136,6 +155,7 @@ class _FileListViewState extends State<FileListView> {
                 ),
               ],
             ),
+          ),
           ),
         );
       },

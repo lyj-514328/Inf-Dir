@@ -67,6 +67,21 @@ class PaneController extends ChangeNotifier {
     }
   }
 
+  /// 按 pane 宽度 + 比例 (name:date:type:size = 4:2:2:1) 计算初始列宽
+  void initColumnWidths(double paneWidth) {
+    // Fixed overhead: 4 splitters(4px each) + padding(8px) + min blank(20px)
+    const overhead = 4 * 4 + 8 + 20.0;
+    final avail = (paneWidth - overhead).clamp(160, double.infinity);
+    const totalRatio = 4 + 2 + 2 + 1;
+    _columnWidths = [
+      (avail * 4 / totalRatio).roundToDouble(),
+      (avail * 2 / totalRatio).roundToDouble(),
+      (avail * 2 / totalRatio).roundToDouble(),
+      (avail * 1 / totalRatio).roundToDouble(),
+    ];
+    notifyListeners();
+  }
+
   String _pathLabel(String path) {
     // For Shell CLSID paths, ask the Shell for a friendly name
     if (path.startsWith('::') || path.startsWith('shell:')) {

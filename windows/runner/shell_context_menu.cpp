@@ -1,8 +1,9 @@
-﻿#include "shell_context_menu.h"
+#include "shell_context_menu.h"
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <commctrl.h>
 #include <strsafe.h>
+#include <stdio.h>
 
 // -- Helpers ----------------------------------------------------------
 
@@ -64,6 +65,34 @@ static bool IsVerbIntercepted(const wchar_t* verb,
         if (_wcsicmp(verb, interceptVerbs[i]) == 0) return true;
     }
     return false;
+}
+
+// -- Window subclassing for menu message forwarding --
+// TrackPopupMenu sends WM_INITMENUPOPUP/WM_DRAWITEM etc. to the parent
+// window. We subclass the window to intercept these and forward to
+// IContextMenu2/3 (same approach as Double Commander).
+static IContextMenu2* g_pcm2 = nullptr;
+static IContextMenu3* g_pcm3 = nullptr;
+static WNDPROC g_oldWndProc = nullptr;
+
+static LRESULT CALLBACK MenuSubclassProc(HWND hWnd, UINT uMsg,
+    WPARAM wParam, LPARAM lParam) {
+    switch (uMsg) {
+    case WM_INITMENUPOPUP:
+    case WM_DRAWITEM:
+    case WM_MEASUREITEM:
+    case WM_MENUCHAR:
+        if (g_pcm3) {
+            LRESULT result = 0;
+            g_pcm3->HandleMenuMsg2(uMsg, wParam, lParam, &result);
+            return result;
+        } else if (g_pcm2) {
+            g_pcm2->HandleMenuMsg(uMsg, wParam, lParam);
+            return 0;
+        }
+        break;
+    }
+    return CallWindowProcW(g_oldWndProc, hWnd, uMsg, wParam, lParam);
 }
 
 // -- Main entry point -------------------------------------------------
@@ -168,6 +197,8 @@ HRESULT ShowShellContextMenuW(
 
     IContextMenu2* pcm2 = nullptr;
     pcm->QueryInterface(IID_IContextMenu2, reinterpret_cast<void**>(&pcm2));
+    IContextMenu3* pcm3 = nullptr;
+    pcm->QueryInterface(IID_IContextMenu3, reinterpret_cast<void**>(&pcm3));
 
     HMENU hMenu = CreatePopupMenu();
     if (!hMenu) {
@@ -176,7 +207,7 @@ HRESULT ShowShellContextMenuW(
         return E_FAIL;
     }
 
-    UINT flags = CMF_NORMAL | CMF_EXPLORE;
+    UINT flags = CMF_NORMAL | CMF_EXPLORE | CMF_EXTENDEDVERBS;
     if (selectedCount == 1) flags |= CMF_CANRENAME;
 
     __try {
@@ -185,12 +216,21 @@ HRESULT ShowShellContextMenuW(
         hr = E_FAIL;
     }
 
+    // -- Subclass the window to forward menu messages to IContextMenu2/3 --
+
     if (FAILED(hr)) {
         DestroyMenu(hMenu);
+        if (pcm3) pcm3->Release();
         if (pcm2) pcm2->Release();
         pcm->Release();
         return hr;
     }
+
+    g_pcm2 = pcm2;
+    g_pcm3 = pcm3;
+    g_oldWndProc = reinterpret_cast<WNDPROC>(
+        SetWindowLongPtrW(hwnd, GWLP_WNDPROC,
+            reinterpret_cast<LONG_PTR>(MenuSubclassProc)));
 
     UINT cmd = 0;
     __try {
@@ -200,6 +240,15 @@ HRESULT ShowShellContextMenuW(
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         cmd = 0;
     }
+
+    // Restore original wndproc
+    if (g_oldWndProc) {
+        SetWindowLongPtrW(hwnd, GWLP_WNDPROC,
+            reinterpret_cast<LONG_PTR>(g_oldWndProc));
+        g_oldWndProc = nullptr;
+    }
+    g_pcm2 = nullptr;
+    g_pcm3 = nullptr;
 
     if (cmd > 0) {
         // Retrieve verb (Unicode)
@@ -248,6 +297,7 @@ HRESULT ShowShellContextMenuW(
     }
 
     DestroyMenu(hMenu);
+    if (pcm3) pcm3->Release();
     if (pcm2) pcm2->Release();
     pcm->Release();
     return S_OK;
