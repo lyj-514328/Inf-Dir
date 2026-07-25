@@ -286,11 +286,11 @@ class _SidebarTreeState extends State<SidebarTree> {
         builder: (context, constraints) {
           return Scrollbar(
             controller: _verticalScrollController,
-            thumbVisibility: true,
+            thumbVisibility: false,
             notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
             child: Scrollbar(
               controller: _horizontalScrollController,
-              thumbVisibility: true,
+              thumbVisibility: false,
               notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
               child: SingleChildScrollView(
                 controller: _horizontalScrollController,

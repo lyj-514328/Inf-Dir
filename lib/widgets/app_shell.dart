@@ -13,10 +13,13 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  double _sidebarWidth = 220;
+  bool _sidebarHovering = false;
+  bool _sidebarDragging = false;
+
   @override
   void initState() {
     super.initState();
-    // 监听键盘以触发 Alt 浮层
     ServicesBinding.instance.keyboard.addHandler(_onKey);
   }
 
@@ -50,13 +53,34 @@ class _AppShellState extends State<AppShell> {
           Expanded(
             child: Row(
               children: [
-                SidebarTree(
-                  activePath: activePane?.displayPath ?? '',
-                  onNavigate: (path) {
-                    activePane?.navigateTo(path);
-                  },
+                Container(
+                  margin: const EdgeInsets.all(1),
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                    color: Theme.of(context).colorScheme.surface,
+                  ),
+                  child: SizedBox(
+                    width: _sidebarWidth,
+                    child: SidebarTree(
+                      activePath: activePane?.displayPath ?? '',
+                      onNavigate: (path) {
+                        activePane?.navigateTo(path);
+                      },
+                    ),
+                  ),
                 ),
-                Container(width: 1, color: const Color(0xFFD0D0D0)),
+                _SideSplitter(
+                  hovering: _sidebarHovering,
+                  dragging: _sidebarDragging,
+                  onHoverChanged: (v) => setState(() => _sidebarHovering = v),
+                  onDragStart: () => setState(() => _sidebarDragging = true),
+                  onDragUpdate: (delta) => setState(() => _sidebarWidth = (_sidebarWidth + delta).clamp(150, 500)),
+                  onDragEnd: () => setState(() => _sidebarDragging = false),
+                ),
                 Expanded(
                   child: LayoutView(node: layoutState.activeWorkspace),
                 ),
@@ -259,6 +283,49 @@ class _ToolButton extends StatelessWidget {
           width: 28,
           height: 28,
           child: Icon(icon, size: 16, color: const Color(0xFF555555)),
+        ),
+      ),
+    );
+  }
+}
+
+/// 侧边栏与主内容区的可拖拽分隔线，风格与 pane 间 splitter 一致
+class _SideSplitter extends StatelessWidget {
+  final bool hovering;
+  final bool dragging;
+  final ValueChanged<bool> onHoverChanged;
+  final VoidCallback onDragStart;
+  final ValueChanged<double> onDragUpdate;
+  final VoidCallback onDragEnd;
+
+  const _SideSplitter({
+    required this.hovering,
+    required this.dragging,
+    required this.onHoverChanged,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      onEnter: (_) => onHoverChanged(true),
+      onExit: (_) => onHoverChanged(false),
+      child: GestureDetector(
+        onPanStart: (_) => onDragStart(),
+        onPanUpdate: (details) => onDragUpdate(details.delta.dx),
+        onPanEnd: (_) => onDragEnd(),
+        child: Container(
+          width: 2,
+          color: dragging
+              ? cs.primary
+              : hovering
+                  ? cs.primary.withValues(alpha: 0.3)
+                  : Colors.transparent,
         ),
       ),
     );
