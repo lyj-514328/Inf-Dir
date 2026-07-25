@@ -92,6 +92,7 @@ class LayoutState extends ChangeNotifier {
       parent: ws,
     );
     ws.children.add(pane);
+    _tree.activeWorkspaceIndex = _tree.workspaces.length - 1;
     _focusedNodeId = pane.id;
     notifyListeners();
   }

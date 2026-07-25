@@ -82,6 +82,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       color: Theme.of(context).colorScheme.surface,
                     ),
                     child: SizedBox(
+                      key: ValueKey(layoutState.activeWorkspaceIndex),
                       width: _sidebarWidth,
                       child: SidebarTree(
                         activePath: activePane?.displayPath ?? '',
