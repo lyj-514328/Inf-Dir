@@ -24,6 +24,7 @@ class PaneController extends ChangeNotifier {
   bool _loading = false;
   SortColumn _sortColumn = SortColumn.name;
   bool _sortAscending = true;
+  List<double> _columnWidths = [300, 140, 100, 80]; // name, date, type, size
 
   PaneController(String initialPath) : _currentPath = initialPath {
     _tabs.add(TabInfo(path: initialPath, label: _pathLabel(initialPath)));
@@ -55,6 +56,16 @@ class PaneController extends ChangeNotifier {
   int get selectedCount => _selectedPaths.length;
   SortColumn get sortColumn => _sortColumn;
   bool get sortAscending => _sortAscending;
+  List<double> get columnWidths => _columnWidths;
+
+  /// 向右拖拽增大左侧列宽度，右侧列不变，整体列表宽度增加
+  void resizeColumn(int colIndex, double deltaPx) {
+    final left = _columnWidths[colIndex] + deltaPx;
+    if (left >= 40) {
+      _columnWidths[colIndex] = left;
+      notifyListeners();
+    }
+  }
 
   String _pathLabel(String path) {
     // For Shell CLSID paths, ask the Shell for a friendly name

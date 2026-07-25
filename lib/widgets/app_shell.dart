@@ -62,8 +62,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       body: Column(
         children: [
           _MenuBar(),
-          _GlobalToolbar(layoutState: layoutState),
-          Container(height: 1, color: const Color(0xFFD0D0D0)),
           _WorkspaceBar(layoutState: layoutState),
           Container(height: 1, color: const Color(0xFFD0D0D0)),
           Expanded(
@@ -252,60 +250,6 @@ class _MenuLabel extends StatelessWidget {
       child: Text(
         label,
         style: const TextStyle(fontSize: 12, color: Color(0xFF333333)),
-      ),
-    );
-  }
-}
-
-class _GlobalToolbar extends StatelessWidget {
-  final LayoutState layoutState;
-
-  const _GlobalToolbar({required this.layoutState});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 30,
-      color: const Color(0xFFF5F5F5),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        children: [
-          _ToolButton(Icons.content_copy, '复制', () {}),
-          _ToolButton(Icons.content_cut, '剪切', () {}),
-          _ToolButton(Icons.content_paste, '粘贴', () {}),
-          _ToolButton(Icons.delete_outline, '删除', () {}),
-          const SizedBox(width: 8),
-          _ToolButton(Icons.create_new_folder_outlined, '新建文件夹', () {}),
-          const Spacer(),
-          _ToolButton(Icons.view_list, '列表', () {}),
-          _ToolButton(Icons.grid_view, '图标', () {}),
-          const SizedBox(width: 8),
-          _ToolButton(Icons.search, '搜索', () {}),
-        ],
-      ),
-    );
-  }
-}
-
-class _ToolButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _ToolButton(this.icon, this.tooltip, this.onTap);
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(2),
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: Icon(icon, size: 16, color: const Color(0xFF555555)),
-        ),
       ),
     );
   }

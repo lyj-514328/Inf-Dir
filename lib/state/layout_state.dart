@@ -167,19 +167,15 @@ class LayoutState extends ChangeNotifier {
   // 缩放操作（拖拽分割线）
   // ============================================================
   bool resizePane(LayoutNode node, SplitDirection direction, double delta) {
-    // 在对应方向上找兄弟
+    // 在对应方向上找兄弟（delta 正负只决定找哪个兄弟）
     final sibling = direction == SplitDirection.horizontal
         ? (delta > 0 ? node.nextSibling : node.prevSibling)
         : (delta > 0 ? node.nextSibling : node.prevSibling);
 
     if (sibling == null || sibling.parent != node.parent) return false;
 
-    // 修正方向：delta 为正表示 first 增大
-    final first = delta > 0 ? node : sibling;
-    final second = delta > 0 ? sibling : node;
-    final absDelta = delta.abs();
-
-    final result = _tree.resizeNodes(first, second, absDelta);
+    // node 总是增长的一方，sibling 收缩
+    final result = _tree.resizeNodes(node, sibling, delta.abs());
     if (result) notifyListeners();
     return result;
   }

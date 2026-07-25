@@ -23,46 +23,53 @@ class LayoutView extends StatelessWidget {
     final isHorizontal = node.layout == SplitDirection.horizontal;
     final children = node.children;
 
-    return isHorizontal
-        ? Row(
-            children: [
-              for (int i = 0; i < children.length; i++) ...[
-                if (i > 0)
-                  _Splitter(
-                    direction: SplitDirection.horizontal,
-                    left: children[i - 1],
-                    right: children[i],
-                  ),
-                Expanded(
-                  flex: _flexFromPercent(children[i].percent, node),
-                  child: LayoutView(node: children[i]),
-                ),
-              ],
-            ],
-          )
-        : Column(
-            children: [
-              for (int i = 0; i < children.length; i++) ...[
-                if (i > 0)
-                  _Splitter(
-                    direction: SplitDirection.vertical,
-                    top: children[i - 1],
-                    bottom: children[i],
-                  ),
-                Expanded(
-                  flex: _flexFromPercent(children[i].percent, node),
-                  child: LayoutView(node: children[i]),
-                ),
-              ],
-            ],
-          );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalSize = isHorizontal ? constraints.maxWidth : constraints.maxHeight;
+        return isHorizontal
+            ? Row(
+                children: [
+                  for (int i = 0; i < children.length; i++) ...[
+                    if (i > 0)
+                      _Splitter(
+                        direction: SplitDirection.horizontal,
+                        left: children[i - 1],
+                        right: children[i],
+                        totalSize: totalSize,
+                      ),
+                    Expanded(
+                      flex: _flexFromPercent(children[i].percent, node),
+                      child: LayoutView(node: children[i]),
+                    ),
+                  ],
+                ],
+              )
+            : Column(
+                children: [
+                  for (int i = 0; i < children.length; i++) ...[
+                    if (i > 0)
+                      _Splitter(
+                        direction: SplitDirection.vertical,
+                        top: children[i - 1],
+                        bottom: children[i],
+                        totalSize: totalSize,
+                      ),
+                    Expanded(
+                      flex: _flexFromPercent(children[i].percent, node),
+                      child: LayoutView(node: children[i]),
+                    ),
+                  ],
+                ],
+              );
+      },
+    );
   }
 
   int _flexFromPercent(double percent, LayoutNode parent) {
     if (percent <= 0) {
-      return (1.0 / parent.children.length * 1000).round();
+      return (1.0 / parent.children.length * 500).round();
     }
-    return (percent * 1000).round().clamp(1, 10000);
+    return (percent * 500).round().clamp(1, 5000);
   }
 }
 
@@ -90,7 +97,7 @@ class _PaneWrapper extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color: isFocused ? cs.primary : cs.outlineVariant,
-            width: isFocused ? 1.5 : 1,
+            width: 1.5,
           ),
           color: cs.surface,
         ),
@@ -122,6 +129,7 @@ class _Splitter extends StatefulWidget {
   final LayoutNode? right;
   final LayoutNode? top;
   final LayoutNode? bottom;
+  final double totalSize;
 
   const _Splitter({
     required this.direction,
@@ -129,6 +137,7 @@ class _Splitter extends StatefulWidget {
     this.right,
     this.top,
     this.bottom,
+    required this.totalSize,
   });
 
   @override
@@ -138,6 +147,8 @@ class _Splitter extends StatefulWidget {
 class _SplitterState extends State<_Splitter> {
   bool _hovering = false;
   bool _dragging = false;
+  double _startPos = 0;   // 拖拽起点（全局坐标）
+  double _startPct = 0;   // 拖拽起点时 left/top 的 percent
 
   @override
   Widget build(BuildContext context) {
@@ -150,26 +161,26 @@ class _SplitterState extends State<_Splitter> {
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
       child: GestureDetector(
-        onPanStart: (_) => setState(() => _dragging = true),
+        onPanStart: (details) {
+          setState(() => _dragging = true);
+          _startPos = isH ? details.globalPosition.dx : details.globalPosition.dy;
+          _startPct = isH ? widget.left!.percent : widget.top!.percent;
+        },
         onPanUpdate: (details) {
-          final state = context.read<LayoutState>();
-          final deltaPixels = isH ? details.delta.dx : details.delta.dy;
-          const approxSize = 800.0;
-          final deltaPercent = deltaPixels / approxSize;
+          final pos = isH ? details.globalPosition.dx : details.globalPosition.dy;
+          final diff = pos - _startPos;
+          final targetPct = _startPct + (diff / widget.totalSize);
 
-          if (isH && widget.left != null && widget.right != null) {
-            if (deltaPercent > 0) {
-              state.resizePane(widget.left!, widget.direction, deltaPercent);
-            } else {
-              state.resizePane(widget.right!, widget.direction, deltaPercent);
-            }
-          } else if (!isH && widget.top != null && widget.bottom != null) {
-            if (deltaPercent > 0) {
-              state.resizePane(widget.top!, widget.direction, deltaPercent);
-            } else {
-              state.resizePane(widget.bottom!, widget.direction, deltaPercent);
-            }
-          }
+          final state = context.read<LayoutState>();
+          final first = isH ? widget.left! : widget.top!;
+          final second = isH ? widget.right! : widget.bottom!;
+          final total = first.percent + second.percent;
+          final clamped = targetPct.clamp(0.05, total - 0.05);
+
+          if ((clamped - first.percent).abs() < 0.0001) return;
+          first.percent = clamped;
+          second.percent = total - clamped;
+          state.notifyListeners();
         },
         onPanEnd: (_) {
           setState(() => _dragging = false);
