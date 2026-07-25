@@ -12,7 +12,7 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   double _sidebarWidth = 220;
   bool _sidebarHovering = false;
   bool _sidebarDragging = false;
@@ -20,7 +20,23 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     ServicesBinding.instance.keyboard.addHandler(_onKey);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Alt+Tab 切换窗口后 KeyUpEvent 丢失，overlay 会残留。
+    // 应用不可见时主动隐藏 overlay。
+    if (state != AppLifecycleState.resumed) {
+      context.read<LayoutState>().hideAltOverlay();
+    }
   }
 
   bool _onKey(KeyEvent event) {
@@ -81,7 +97,9 @@ class _AppShellState extends State<AppShell> {
                     onHoverChanged: (v) => setState(() => _sidebarHovering = v),
                     onDragStart: () => setState(() => _sidebarDragging = true),
                     onDragUpdate: (delta) => setState(() => _sidebarWidth = (_sidebarWidth + delta).clamp(150, double.infinity)),
-                    onDragEnd: () => setState(() => _sidebarDragging = false),
+                    onDragEnd: () {
+                      setState(() => _sidebarDragging = false);
+                    },
                   ),
                   Expanded(
                     child: LayoutView(node: layoutState.activeWorkspace),

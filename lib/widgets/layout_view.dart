@@ -81,8 +81,8 @@ class _PaneWrapper extends StatelessWidget {
 
     if (controller == null) return const SizedBox.shrink();
 
-    return GestureDetector(
-      onTap: () => layoutState.focusNode(node),
+    return Listener(
+      onPointerDown: (_) => layoutState.focusNode(node),
       child: Container(
         margin: const EdgeInsets.all(1),
         clipBehavior: Clip.antiAlias,
@@ -152,7 +152,9 @@ class _SplitterState extends State<_Splitter> {
             state.resizePane(widget.top!, widget.direction, deltaPercent);
           }
         },
-        onPanEnd: (_) => setState(() => _dragging = false),
+        onPanEnd: (_) {
+          setState(() => _dragging = false);
+        },
         child: Container(
           width: isH ? 2 : double.infinity,
           height: isH ? double.infinity : 2,

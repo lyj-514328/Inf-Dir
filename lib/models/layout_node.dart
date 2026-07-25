@@ -209,7 +209,7 @@ class LayoutTree {
 
     // 如果父节点是 split 且只剩一个孩子 → 展平到祖父节点
     if (parent.isSplit && parent.children.length == 1) {
-      final survivor = parent.children.first;
+      final survivor = parent.children.removeAt(0);
       if (parent.parent != null) {
         final gpIdx = parent.parent!.children.indexOf(parent);
         parent.parent!.children[gpIdx] = survivor;
