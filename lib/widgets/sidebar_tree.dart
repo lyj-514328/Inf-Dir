@@ -104,7 +104,6 @@ class _SidebarTreeState extends State<SidebarTree> {
   String? _selectedPath;
 
   final ScrollController _verticalScrollController = ScrollController();
-  final ScrollController _horizontalScrollController = ScrollController();
 
   @override
   void initState() {
@@ -127,7 +126,6 @@ class _SidebarTreeState extends State<SidebarTree> {
   @override
   void dispose() {
     _verticalScrollController.dispose();
-    _horizontalScrollController.dispose();
     super.dispose();
   }
 
@@ -279,86 +277,66 @@ class _SidebarTreeState extends State<SidebarTree> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 220,
-      color: const Color(0xFFF8F8F8),
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(color: Color(0xFFF8F8F8)),
       alignment: Alignment.topLeft,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Scrollbar(
-            controller: _verticalScrollController,
-            thumbVisibility: false,
-            notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
-            child: Scrollbar(
-              controller: _horizontalScrollController,
-              thumbVisibility: false,
-              notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
-              child: SingleChildScrollView(
-                controller: _horizontalScrollController,
-                scrollDirection: Axis.horizontal,
-                child: ConstrainedBox(
-                  constraints:
-                      BoxConstraints(minWidth: constraints.maxWidth),
-                  child: IntrinsicWidth(
-                    child: SingleChildScrollView(
-                      controller: _verticalScrollController,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-          // ---- Quick Access section ----
-          const _SectionHeader(
-            icon: Icons.history,
-            title: '快速访问',
-            topPadding: 2,
-          ),
-          ..._quickAccessItems.map((item) => _QuickAccessTile(
-                item: item,
-                selected: _isSelected(item.path),
-                onTap: () => _selectAndNavigate(item.path),
-              )),
-          const Divider(height: 1, thickness: 1),
-
-          // ---- This PC section ----
-          const SizedBox(height: 4),
-          _ThisPcTreeNode(
-            label: '此电脑',
-            expanded: _thisPcExpanded,
-            selected: _isSelected(_thisPcGuid),
-            onToggle: () =>
-                setState(() => _thisPcExpanded = !_thisPcExpanded),
-            onTap: () {
-              setState(() => _selectedPath = _thisPcGuid);
-              widget.onNavigate(_thisPcGuid);
-              setState(() => _thisPcExpanded = !_thisPcExpanded);
-            },
+      child: Scrollbar(
+        controller: _verticalScrollController,
+        thumbVisibility: false,
+        child: SingleChildScrollView(
+          controller: _verticalScrollController,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ..._driveRoots.map((drive) {
-                final label = SidebarService.formatDriveLabel(drive);
-                final normDrive = _norm(drive);
-                final expanded = _expandedPaths.contains(normDrive);
-                final children = _childrenCache[normDrive] ?? [];
-                return _DriveTreeNode(
-                  drive: drive,
-                  label: label,
-                  expanded: expanded,
-                  hasChildren: _hasChildren(drive),
-                  selected: _isSelected(drive),
-                  onToggle: () => _toggleExpand(drive),
-                  onTap: () => _selectAndNavigate(drive),
-                  children: children.map((child) => _buildChildTile(child, 2)).toList(),
-                );
-              }),
+              // ---- Quick Access section ----
+              const _SectionHeader(
+                icon: Icons.history,
+                title: '快速访问',
+                topPadding: 2,
+              ),
+              ..._quickAccessItems.map((item) => _QuickAccessTile(
+                    item: item,
+                    selected: _isSelected(item.path),
+                    onTap: () => _selectAndNavigate(item.path),
+                  )),
+              const Divider(height: 1, thickness: 1),
+
+              // ---- This PC section ----
+              const SizedBox(height: 4),
+              _ThisPcTreeNode(
+                label: '此电脑',
+                expanded: _thisPcExpanded,
+                selected: _isSelected(_thisPcGuid),
+                onToggle: () =>
+                    setState(() => _thisPcExpanded = !_thisPcExpanded),
+                onTap: () {
+                  setState(() => _selectedPath = _thisPcGuid);
+                  widget.onNavigate(_thisPcGuid);
+                  setState(() => _thisPcExpanded = !_thisPcExpanded);
+                },
+                children: [
+                  ..._driveRoots.map((drive) {
+                    final label = SidebarService.formatDriveLabel(drive);
+                    final normDrive = _norm(drive);
+                    final expanded = _expandedPaths.contains(normDrive);
+                    final children = _childrenCache[normDrive] ?? [];
+                    return _DriveTreeNode(
+                      drive: drive,
+                      label: label,
+                      expanded: expanded,
+                      hasChildren: _hasChildren(drive),
+                      selected: _isSelected(drive),
+                      onToggle: () => _toggleExpand(drive),
+                      onTap: () => _selectAndNavigate(drive),
+                      children: children.map((child) => _buildChildTile(child, 2)).toList(),
+                    );
+                  }),
+                ],
+              ),
             ],
           ),
-        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
+        ),
       ),
     );
   }

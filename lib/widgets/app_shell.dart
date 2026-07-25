@@ -78,7 +78,7 @@ class _AppShellState extends State<AppShell> {
                   dragging: _sidebarDragging,
                   onHoverChanged: (v) => setState(() => _sidebarHovering = v),
                   onDragStart: () => setState(() => _sidebarDragging = true),
-                  onDragUpdate: (delta) => setState(() => _sidebarWidth = (_sidebarWidth + delta).clamp(150, 500)),
+                  onDragUpdate: (delta) => setState(() => _sidebarWidth = (_sidebarWidth + delta).clamp(150, double.infinity)),
                   onDragEnd: () => setState(() => _sidebarDragging = false),
                 ),
                 Expanded(
