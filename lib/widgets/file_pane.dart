@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/file_entry.dart';
+import '../models/layout_node.dart';
 import '../state/app_state.dart';
+import '../state/layout_state.dart';
 import '../state/pane_controller.dart';
 import '../services/file_service.dart';
 import '../services/shell_context_menu.dart';
@@ -12,44 +14,38 @@ import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
 
 class FilePane extends StatelessWidget {
-  final int paneIndex;
+  final String paneId;
 
-  const FilePane({super.key, required this.paneIndex});
+  const FilePane({super.key, required this.paneId});
 
   @override
   Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
-    final controller = appState.panes[paneIndex];
-    final isActive = appState.activePaneIndex == paneIndex;
+    final layoutState = context.watch<LayoutState>();
+    final node = layoutState.allPaneNodes.firstWhere(
+      (n) => n.paneId == paneId,
+      orElse: () => layoutState.allPaneNodes.first,
+    );
+    final controller = layoutState.controllerFor(node);
 
-    return Listener(
-      onPointerDown: (_) => appState.setActivePane(paneIndex),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: isActive ? const Color(0xFF0078D4) : const Color(0xFFC0C0C0),
-            width: isActive ? 2 : 1,
-          ),
-        ),
-        child: ChangeNotifierProvider<PaneController>.value(
-          value: controller,
-          child: _PaneContent(paneIndex: paneIndex),
-        ),
-      ),
+    if (controller == null) return const SizedBox.shrink();
+
+    return ChangeNotifierProvider<PaneController>.value(
+      value: controller,
+      child: _PaneContent(paneNode: node),
     );
   }
 }
 
 class _PaneContent extends StatelessWidget {
-  final int paneIndex;
+  final LayoutNode paneNode;
 
-  const _PaneContent({required this.paneIndex});
+  const _PaneContent({required this.paneNode});
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<PaneController>();
-    final appState = context.watch<AppState>();
-    final isActive = appState.activePaneIndex == paneIndex;
+    final layoutState = context.watch<LayoutState>();
+    final isActive = layoutState.focusedNodeId == paneNode.id;
 
     return Column(
       children: [

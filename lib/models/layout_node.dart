@@ -1,0 +1,352 @@
+/// 节点类型：Workspace / 分割容器 / 文件面板
+enum NodeType { workspace, split, pane }
+
+/// 分割方向
+enum SplitDirection { horizontal, vertical }
+
+/// 仿 i3 的 Con 节点 — 布局树的核心数据结构
+///
+/// 树结构示例：
+///   workspace (L_SPLITH)
+///   ├── split (L_SPLITV)
+///   │   ├── pane (A)
+///   │   └── pane (B)
+///   └── pane (C)
+class LayoutNode {
+  final String id;
+  NodeType type;
+  SplitDirection layout; // split 才有效
+  double percent; // 占父容器空间比例 (0.0~1.0)，所有兄弟之和 = 1.0
+  String? paneId; // pane 类型时关联的控制器 ID
+  String? label; // workspace 名称
+  LayoutNode? parent;
+  final List<LayoutNode> children;
+
+  LayoutNode({
+    required this.id,
+    required this.type,
+    this.layout = SplitDirection.horizontal,
+    this.percent = 0.0,
+    this.paneId,
+    this.label,
+    this.parent,
+    List<LayoutNode>? children,
+  }) : children = children ?? [];
+
+  bool get isLeaf => children.isEmpty;
+  bool get isWorkspace => type == NodeType.workspace;
+  bool get isSplit => type == NodeType.split;
+  bool get isPane => type == NodeType.pane;
+
+  /// 找最近的 workspace 祖先
+  LayoutNode? get workspace {
+    LayoutNode? cur = this;
+    while (cur != null && cur.type != NodeType.workspace) {
+      cur = cur.parent;
+    }
+    return cur;
+  }
+
+  /// 兄弟节点数量
+  int get siblingCount => parent?.children.length ?? 0;
+
+  /// 在当前父节点 children 中的索引
+  int get indexInParent {
+    if (parent == null) return -1;
+    return parent!.children.indexOf(this);
+  }
+
+  /// 前一个兄弟
+  LayoutNode? get prevSibling {
+    final idx = indexInParent;
+    if (parent == null || idx <= 0) return null;
+    return parent!.children[idx - 1];
+  }
+
+  /// 后一个兄弟
+  LayoutNode? get nextSibling {
+    final idx = indexInParent;
+    if (parent == null || idx >= parent!.children.length - 1) return null;
+    return parent!.children[idx + 1];
+  }
+}
+
+/// 布局树管理器 — 提供所有操作
+class LayoutTree {
+  final List<LayoutNode> workspaces;
+  int activeWorkspaceIndex;
+
+  LayoutTree({
+    required this.workspaces,
+    this.activeWorkspaceIndex = 0,
+  });
+
+  LayoutNode get activeWorkspace => workspaces[activeWorkspaceIndex];
+
+  // ============================================================
+  // 操作 1：新建 workspace
+  // ============================================================
+  LayoutNode addWorkspace(String name) {
+    final ws = LayoutNode(
+      id: genId(),
+      type: NodeType.workspace,
+      layout: SplitDirection.horizontal,
+      label: name,
+    );
+    workspaces.add(ws);
+    return ws;
+  }
+
+  // ============================================================
+  // 操作 2：分割 (水平/垂直) —— 类似 i3 tree_split()
+  // ============================================================
+  void splitNode(LayoutNode node, SplitDirection direction, String newPaneId) {
+    final parent = node.parent;
+
+    // 如果父节点只有 1 个孩子且方向相同 → 直接改方向
+    if (parent != null &&
+        parent.isSplit &&
+        parent.children.length == 1 &&
+        parent.layout == direction) {
+      // 直接加兄弟
+      final newPane = LayoutNode(
+        id: genId(),
+        type: NodeType.pane,
+        paneId: newPaneId,
+        parent: parent,
+      );
+      parent.children.add(newPane);
+      _fixPercent(parent);
+      return;
+    }
+
+    // 否则创建新的分割容器包裹 node
+    final split = LayoutNode(
+      id: genId(),
+      type: NodeType.split,
+      layout: direction,
+      parent: parent,
+    );
+
+    if (parent != null) {
+      // 在父节点中用 split 替换 node
+      final idx = parent.children.indexOf(node);
+      parent.children[idx] = split;
+    }
+    split.percent = node.percent;
+
+    // node 变成 split 的孩子
+    node.parent = split;
+    node.percent = 0.0;
+    split.children.add(node);
+
+    // 新面板作为另一个孩子
+    final newPane = LayoutNode(
+      id: genId(),
+      type: NodeType.pane,
+      paneId: newPaneId,
+      parent: split,
+    );
+    split.children.add(newPane);
+
+    _fixPercent(split);
+    if (parent != null) _fixPercent(parent);
+  }
+
+  // ============================================================
+  // 操作 3：关闭节点 —— 类似 i3 tree_close_internal()
+  // ============================================================
+  /// 返回需要清理的 paneId 列表
+  List<String> closeNode(LayoutNode node) {
+    final removed = <String>[];
+    _closeInternal(node, removed);
+    return removed;
+  }
+
+  void _closeInternal(LayoutNode node, List<String> removedPanes) {
+    // 递归关闭子节点
+    final childrenCopy = List<LayoutNode>.from(node.children);
+    for (final child in childrenCopy) {
+      _closeInternal(child, removedPanes);
+    }
+
+    // 记录 paneId
+    if (node.isPane && node.paneId != null) {
+      removedPanes.add(node.paneId!);
+    }
+
+    final parent = node.parent;
+    if (parent == null) return;
+
+    // 从父节点摘除
+    parent.children.remove(node);
+
+    // 如果父节点是 split 且只剩一个孩子 → 展平
+    if (parent.isSplit && parent.children.length == 1) {
+      final survivor = parent.children.first;
+      if (parent.parent != null) {
+        final gpIdx = parent.parent!.children.indexOf(parent);
+        parent.parent!.children[gpIdx] = survivor;
+        survivor.parent = parent.parent;
+        survivor.percent = parent.percent;
+      }
+    }
+
+    if (parent.isSplit && parent.children.isEmpty) {
+      parent.parent?.children.remove(parent);
+    }
+
+    _fixPercent(parent);
+  }
+
+  // ============================================================
+  // 操作 4：缩放 —— 类似 i3 resize_neighboring_cons()
+  // ============================================================
+  /// first 和 second 是同一父节点的相邻兄弟，delta 是比例变化 (正=first 增大)
+  bool resizeNodes(LayoutNode first, LayoutNode second, double deltaPercent) {
+    if (first.parent != second.parent) return false;
+    final parent = first.parent!;
+
+    final newFirst = first.percent + deltaPercent;
+    final newSecond = second.percent - deltaPercent;
+
+    // 保证每个至少有 5% 空间
+    if (newFirst < 0.05 || newSecond < 0.05) return false;
+
+    first.percent = newFirst;
+    second.percent = newSecond;
+    _fixPercent(parent);
+    return true;
+  }
+
+  // ============================================================
+  // 操作 5：交换两个 pane —— 类似 i3 con_swap()
+  // ============================================================
+  bool swapPanes(LayoutNode a, LayoutNode b) {
+    if (a == b || !a.isPane || !b.isPane) return false;
+    if (a.parent == null || b.parent == null) return false;
+
+    // 在同一父节点内交换位置
+    if (a.parent == b.parent) {
+      final p = a.parent!;
+      final ai = p.children.indexOf(a);
+      final bi = p.children.indexOf(b);
+      p.children[ai] = b;
+      p.children[bi] = a;
+      // 交换百分比
+      final tmp = a.percent;
+      a.percent = b.percent;
+      b.percent = tmp;
+      return true;
+    }
+
+    // 跨父节点交换
+    final pa = a.parent!;
+    final pb = b.parent!;
+    final ai = pa.children.indexOf(a);
+    final bi = pb.children.indexOf(b);
+
+    pa.children[ai] = b;
+    pb.children[bi] = a;
+    b.parent = pa;
+    a.parent = pb;
+
+    final tmpPercent = a.percent;
+    a.percent = b.percent;
+    b.percent = tmpPercent;
+
+    _fixPercent(pa);
+    _fixPercent(pb);
+    return true;
+  }
+
+  // ============================================================
+  // 百分比归一化 —— 类似 i3 con_fix_percent()
+  // ============================================================
+  void _fixPercent(LayoutNode parent) {
+    final n = parent.children.length;
+    if (n == 0) return;
+
+    double total = 0.0;
+    int withPercent = 0;
+    for (final c in parent.children) {
+      if (c.percent > 0.0) {
+        total += c.percent;
+        withPercent++;
+      }
+    }
+
+    // 没有设置百分比的给默认值
+    if (withPercent != n) {
+      for (final c in parent.children) {
+        if (c.percent <= 0.0) {
+          c.percent = withPercent == 0 ? 1.0 : total / withPercent;
+          total += c.percent;
+          withPercent++;
+        }
+      }
+    }
+
+    // 归一化到 1.0
+    if (total == 0.0) {
+      final avg = 1.0 / n;
+      for (final c in parent.children) {
+        c.percent = avg;
+      }
+    } else if (total != 1.0) {
+      for (final c in parent.children) {
+        c.percent /= total;
+      }
+    }
+  }
+
+  int _counter = 0;
+  String genId() => 'n${++_counter}';
+}
+
+/// 构建默认的 4 宫格布局
+LayoutTree createDefaultLayout(
+  List<String> paneIds, {
+  String workspaceLabel = 'Workspace 1',
+}) {
+  final ws = LayoutNode(
+    id: 'ws0',
+    type: NodeType.workspace,
+    layout: SplitDirection.vertical,
+    label: workspaceLabel,
+  );
+
+  // 上排 (水平分割)
+  final topRow = LayoutNode(
+    id: 'split_top',
+    type: NodeType.split,
+    layout: SplitDirection.horizontal,
+    parent: ws,
+  );
+  topRow.children.addAll([
+    LayoutNode(id: 'p0', type: NodeType.pane, paneId: paneIds[0], parent: topRow),
+    LayoutNode(id: 'p1', type: NodeType.pane, paneId: paneIds[1], parent: topRow),
+  ]);
+
+  // 下排 (水平分割)
+  final bottomRow = LayoutNode(
+    id: 'split_bottom',
+    type: NodeType.split,
+    layout: SplitDirection.horizontal,
+    parent: ws,
+  );
+  bottomRow.children.addAll([
+    LayoutNode(id: 'p2', type: NodeType.pane, paneId: paneIds[2], parent: bottomRow),
+    LayoutNode(id: 'p3', type: NodeType.pane, paneId: paneIds[3], parent: bottomRow),
+  ]);
+
+  ws.children.addAll([topRow, bottomRow]);
+
+  final tree = LayoutTree(workspaces: [ws]);
+  tree._fixPercent(ws);
+  // 修复子节点
+  tree._fixPercent(topRow);
+  tree._fixPercent(bottomRow);
+
+  return tree;
+}

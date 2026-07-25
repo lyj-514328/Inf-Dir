@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'state/app_state.dart';
+import 'state/layout_state.dart';
 import 'widgets/app_shell.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AppState(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AppState()),
+        ChangeNotifierProvider(create: (_) => LayoutState()),
+      ],
       child: const InfDirApp(),
     ),
   );
