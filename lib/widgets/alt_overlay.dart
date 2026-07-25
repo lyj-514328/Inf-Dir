@@ -1,156 +1,145 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../models/layout_node.dart';
-import '../state/layout_state.dart';
 
-/// Alt 键按下时在面板上显示的浮动操作按钮层
+/// Alt 键按下时在每个面板上显示的浮动操作层
 ///
-/// 提供针对当前聚焦 pane 的操作：
-/// - 水平/垂直分割
-/// - 关闭
-/// - 与相邻面板交换
-class AltOverlay extends StatefulWidget {
+/// - 右上角：关闭图标
+/// - 中央微弱的十字分割线 + 分割按钮（1/4 位置）
+/// - 中央：交换图标（带选中反馈）
+class AltOverlay extends StatelessWidget {
   final LayoutNode node;
+  final bool isSwapSelected;
+  final VoidCallback onClose;
+  final ValueChanged<SplitDirection> onSplit;
+  final VoidCallback onSwap;
 
-  const AltOverlay({super.key, required this.node});
+  const AltOverlay({
+    super.key,
+    required this.node,
+    required this.isSwapSelected,
+    required this.onClose,
+    required this.onSplit,
+    required this.onSwap,
+  });
 
-  @override
-  State<AltOverlay> createState() => _AltOverlayState();
-}
+  // 水平分割（蓝色系）
+  static const _splitHLine = Color(0xFF5B9BD5);
+  static const _splitHBorder = Color(0xFF4A8AC4);
+  static const _splitHIcon = Color(0xFF3A7AB4);
 
-class _AltOverlayState extends State<AltOverlay> with SingleTickerProviderStateMixin {
-  late final AnimationController _anim;
-  late final Animation<double> _fade;
-
-  @override
-  void initState() {
-    super.initState();
-    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
-    _fade = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
-    _anim.forward();
-  }
-
-  @override
-  void dispose() {
-    _anim.dispose();
-    super.dispose();
-  }
+  // 垂直分割（琥珀色系）
+  static const _splitVLine = Color(0xFFE8A44A);
+  static const _splitVBorder = Color(0xFFD89338);
+  static const _splitVIcon = Color(0xFFC88228);
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fade,
-      child: Container(
-        color: Colors.black26,
-        child: Center(
-          child: Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            alignment: WrapAlignment.center,
-            children: [
-              _OpButton(
-                icon: Icons.vertical_split,
-                label: '垂直切分',
-                tooltip: '在右侧创建新面板',
-                onTap: () => _split(SplitDirection.horizontal),
-              ),
-              _OpButton(
-                icon: Icons.horizontal_split,
-                label: '水平切分',
-                tooltip: '在下方创建新面板',
-                onTap: () => _split(SplitDirection.vertical),
-              ),
-              _OpButton(
-                icon: Icons.close,
-                label: '关闭',
-                tooltip: '关闭当前面板',
-                color: Colors.red,
-                onTap: _closePane,
-              ),
-              _OpButton(
-                icon: Icons.swap_horiz,
-                label: '交换',
-                tooltip: '与相邻面板交换位置',
-                onTap: () => _showSwapMenu(context),
-              ),
-              _OpButton(
-                icon: Icons.open_in_full,
-                label: '扩大',
-                tooltip: '向两侧扩展 5%',
-                onTap: _expandRight,
-              ),
-              _OpButton(
-                icon: Icons.close_fullscreen,
-                label: '缩小',
-                tooltip: '向两侧收缩 5%',
-                onTap: _shrinkLeft,
-              ),
-            ],
+    return IgnorePointer(
+      ignoring: false,
+      child: Stack(
+        children: [
+          // 半透明遮罩
+          Positioned.fill(
+            child: Container(color: Colors.black.withValues(alpha: 0.10)),
           ),
-        ),
-      ),
-    );
-  }
 
-  void _split(SplitDirection dir) {
-    final state = context.read<LayoutState>();
-    state.splitPane(widget.node, dir);
-  }
+          // ── 十字分割线 ──
+          // 水平线（蓝色，2px）
+          Positioned(
+            left: 0, right: 0,
+            top: 0, bottom: 0,
+            child: Center(
+              child: Container(
+                height: 1.5,
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+                color: _splitHLine,
+              ),
+            ),
+          ),
+          // 竖直线（琥珀色，2px）
+          Positioned(
+            left: 0, right: 0,
+            top: 0, bottom: 0,
+            child: Center(
+              child: Container(
+                width: 1.5,
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                color: _splitVLine,
+              ),
+            ),
+          ),
 
-  void _closePane() {
-    final state = context.read<LayoutState>();
-    state.closePane(widget.node);
-  }
+          // ── 水平分割按钮（蓝色，十字线右侧 1/4 处：上下切分）──
+          Align(
+            alignment: const Alignment(0.45, 0),
+            child: _SplitBtn(
+              icon: Icons.horizontal_split,
+              tooltip: '水平切分',
+              borderColor: _splitHBorder,
+              iconColor: _splitHIcon,
+              onTap: () => onSplit(SplitDirection.vertical),
+            ),
+          ),
 
-  void _expandRight() {
-    final state = context.read<LayoutState>();
-    // 在水平和垂直方向都尝试扩展
-    state.resizePane(widget.node, SplitDirection.horizontal, 0.05);
-    state.resizePane(widget.node, SplitDirection.vertical, 0.05);
-  }
+          // ── 垂直分割按钮（琥珀色，十字线下侧 1/4 处：左右切分）──
+          Align(
+            alignment: const Alignment(0, 0.45),
+            child: _SplitBtn(
+              icon: Icons.vertical_split,
+              tooltip: '垂直切分',
+              borderColor: _splitVBorder,
+              iconColor: _splitVIcon,
+              onTap: () => onSplit(SplitDirection.horizontal),
+            ),
+          ),
 
-  void _shrinkLeft() {
-    final state = context.read<LayoutState>();
-    state.resizePane(widget.node, SplitDirection.horizontal, -0.05);
-    state.resizePane(widget.node, SplitDirection.vertical, -0.05);
-  }
+          // ── 右上角关闭 ──
+          Positioned(
+            top: 2,
+            right: 2,
+            child: _MiniIconBtn(
+              icon: Icons.cancel,
+              color: Colors.red.shade400,
+              tooltip: '关闭面板',
+              onTap: onClose,
+            ),
+          ),
 
-  void _showSwapMenu(BuildContext context) {
-    final state = context.read<LayoutState>();
-    final allPanes = state.allPaneNodes.where((p) => p.id != widget.node.id).toList();
-    if (allPanes.isEmpty) return;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('选择交换目标', style: TextStyle(fontSize: 14)),
-        content: SizedBox(
-          width: 250,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: allPanes.length,
-            itemBuilder: (_, i) {
-              final p = allPanes[i];
-              final ctrl = state.controllerFor(p);
-              return ListTile(
-                dense: true,
-                leading: const Icon(Icons.grid_view, size: 20),
-                title: Text(
-                  ctrl?.displayPath ?? p.id,
-                  style: const TextStyle(fontSize: 12),
+          // ── 中央交换 ──
+          Center(
+            child: GestureDetector(
+              onTap: onSwap,
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isSwapSelected
+                      ? const Color(0xFF3A8094).withValues(alpha: 0.22)
+                      : Colors.white.withValues(alpha: 0.92),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSwapSelected
+                        ? const Color(0xFF3A8094)
+                        : const Color(0xFF5A8A9E),
+                    width: isSwapSelected ? 2 : 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
                 ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  state.swapPanes(widget.node, p);
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
+                child: Icon(
+                  Icons.swap_horizontal_circle,
+                  size: 20,
+                  color: isSwapSelected
+                      ? const Color(0xFF3A8094)
+                      : const Color(0xFF4A8098),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -158,18 +147,19 @@ class _AltOverlayState extends State<AltOverlay> with SingleTickerProviderStateM
   }
 }
 
-class _OpButton extends StatelessWidget {
+/// 十字线上的分割按钮
+class _SplitBtn extends StatelessWidget {
   final IconData icon;
-  final String label;
   final String tooltip;
-  final Color? color;
+  final Color borderColor;
+  final Color iconColor;
   final VoidCallback onTap;
 
-  const _OpButton({
+  const _SplitBtn({
     required this.icon,
-    required this.label,
     required this.tooltip,
-    this.color,
+    required this.borderColor,
+    required this.iconColor,
     required this.onTap,
   });
 
@@ -177,40 +167,65 @@ class _OpButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 22, color: color ?? const Color(0xFF333333)),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: color ?? const Color(0xFF555555),
-                  ),
-                ),
-              ],
-            ),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            shape: BoxShape.circle,
+            border: Border.all(color: borderColor, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 2,
+                offset: const Offset(0, 1),
+              ),
+            ],
           ),
+          child: Icon(icon, size: 14, color: iconColor),
+        ),
+      ),
+    );
+  }
+}
+
+/// 迷你图标按钮（关闭）
+class _MiniIconBtn extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _MiniIconBtn({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.88),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: 14, color: color),
         ),
       ),
     );

@@ -209,12 +209,37 @@ class LayoutState extends ChangeNotifier {
   void hideAltOverlay() {
     if (_altOverlayVisible) {
       _altOverlayVisible = false;
+      _swapPendingIds.clear();
       notifyListeners();
     }
   }
 
   void toggleAltOverlay() {
     _altOverlayVisible = !_altOverlayVisible;
+    if (!_altOverlayVisible) _swapPendingIds.clear();
+    notifyListeners();
+  }
+
+  // ============================================================
+  // Swap 选中状态（Alt 模式下）
+  // ============================================================
+  final Set<String> _swapPendingIds = {};
+  Set<String> get swapPendingIds => _swapPendingIds;
+
+  void toggleSwapSelect(LayoutNode node) {
+    if (!node.isPane) return;
+    if (_swapPendingIds.contains(node.id)) {
+      _swapPendingIds.remove(node.id);
+    } else {
+      _swapPendingIds.add(node.id);
+      if (_swapPendingIds.length == 2) {
+        final ids = _swapPendingIds.toList();
+        final a = _findNodeById(ids[0]);
+        final b = _findNodeById(ids[1]);
+        _swapPendingIds.clear();
+        if (a != null && b != null) swapPanes(a, b);
+      }
+    }
     notifyListeners();
   }
 

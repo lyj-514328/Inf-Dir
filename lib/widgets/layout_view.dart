@@ -97,11 +97,21 @@ class _PaneWrapper extends StatelessWidget {
         child: Stack(
           children: [
             FilePane(paneId: node.paneId!),
-            if (isFocused && layoutState.altOverlayVisible)
-              AltOverlay(node: node),
+            if (layoutState.altOverlayVisible)
+              _buildAltOverlay(layoutState),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAltOverlay(LayoutState layoutState) {
+    return AltOverlay(
+      node: node,
+      isSwapSelected: layoutState.swapPendingIds.contains(node.id),
+      onClose: () => layoutState.closePane(node),
+      onSplit: (dir) => layoutState.splitPane(node, dir),
+      onSwap: () => layoutState.toggleSwapSelect(node),
     );
   }
 }
@@ -133,6 +143,7 @@ class _SplitterState extends State<_Splitter> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isH = widget.direction == SplitDirection.horizontal;
+    final altVisible = context.watch<LayoutState>().altOverlayVisible;
 
     return MouseRegion(
       cursor: isH ? SystemMouseCursors.resizeColumn : SystemMouseCursors.resizeRow,
@@ -147,9 +158,17 @@ class _SplitterState extends State<_Splitter> {
           final deltaPercent = deltaPixels / approxSize;
 
           if (isH && widget.left != null && widget.right != null) {
-            state.resizePane(widget.left!, widget.direction, deltaPercent);
+            if (deltaPercent > 0) {
+              state.resizePane(widget.left!, widget.direction, deltaPercent);
+            } else {
+              state.resizePane(widget.right!, widget.direction, deltaPercent);
+            }
           } else if (!isH && widget.top != null && widget.bottom != null) {
-            state.resizePane(widget.top!, widget.direction, deltaPercent);
+            if (deltaPercent > 0) {
+              state.resizePane(widget.top!, widget.direction, deltaPercent);
+            } else {
+              state.resizePane(widget.bottom!, widget.direction, deltaPercent);
+            }
           }
         },
         onPanEnd: (_) {
@@ -162,7 +181,9 @@ class _SplitterState extends State<_Splitter> {
               ? cs.primary
               : _hovering
                   ? cs.primary.withValues(alpha: 0.3)
-                  : Colors.transparent,
+                  : altVisible
+                      ? cs.outlineVariant.withValues(alpha: 0.4)
+                      : Colors.transparent,
         ),
       ),
     );
