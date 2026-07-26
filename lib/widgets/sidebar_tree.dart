@@ -1,78 +1,33 @@
-import 'dart:typed_data';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/sidebar_service.dart';
 import '../services/directory_service.dart';
 import '../services/icon_service.dart';
 
-// ======================================================================
-//  ShellIcon — loads proper Windows icon via IconService, fallback to
-//  Material icon
-// ======================================================================
+enum _RowType { thisPc, drive, directory }
 
-class _ShellIcon extends StatelessWidget {
+class _TreeRow {
+  final _RowType type;
   final String path;
-  final bool isDirectory;
-  final int iconSize;
-  final IconData fallback;
-
-  const _ShellIcon({
+  final String name;
+  final int depth;
+  final bool isExpanded;
+  final bool hasChildren;
+  const _TreeRow({
+    required this.type,
     required this.path,
-    required this.isDirectory,
-    this.iconSize = 15,
-    required this.fallback,
+    required this.name,
+    required this.depth,
+    required this.isExpanded,
+    required this.hasChildren,
   });
-
-  @override
-  Widget build(BuildContext context) {
-    final bytes = IconService.getFileIconPng(path, isDirectory, iconSize);
-    if (bytes != null) {
-      return _PngIcon(bytes: bytes, size: iconSize);
-    }
-    return Icon(fallback, size: iconSize.toDouble(), color: Colors.amber.shade700);
-  }
 }
 
-class _PngIcon extends StatelessWidget {
-  final Uint8List bytes;
-  final int size;
-  const _PngIcon({required this.bytes, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Image.memory(
-      bytes,
-      width: size.toDouble(),
-      height: size.toDouble(),
-      gaplessPlayback: true,
-    );
-  }
+class _ChildDir {
+  final String name;
+  final String path;
+  _ChildDir(this.name, this.path);
 }
-
-// ======================================================================
-//  Path helpers
-// ======================================================================
-
-/// Normalize path for comparison: lowercase, remove trailing separator.
-String _norm(String path) {
-  var s = path.replaceAll('/', '\\');
-  while (s.length > 3 && s.endsWith('\\')) {
-    s = s.substring(0, s.length - 1);
-  }
-  return s.toLowerCase();
-}
-
-bool _pathEquals(String a, String b) => _norm(a) == _norm(b);
-
-/// Check if [child] is under [parent] (or equal).
-bool _isUnder(String child, String parent) {
-  final nc = _norm(child);
-  final np = _norm(parent);
-  return nc == np || nc.startsWith(np.endsWith('\\') ? np : '$np\\');
-}
-
-// ======================================================================
-//  SidebarTree — the main sidebar widget
-// ======================================================================
 
 class SidebarTree extends StatefulWidget {
   final String activePath;
@@ -93,17 +48,14 @@ class _SidebarTreeState extends State<SidebarTree> {
 
   List<QuickAccessItem> _quickAccessItems = [];
   List<String> _driveRoots = [];
-
-  // Centralized tree state
   bool _thisPcExpanded = true;
-  final Set<String> _expandedPaths = {}; // normalized paths that are expanded
-  final Map<String, List<_ChildDir>> _childrenCache = {}; // norm path → children
-  final Map<String, bool> _hasChildrenCache = {}; // norm path → has sub-dirs
-
-  // Single selection shared across Quick Access + This PC
+  final Set<String> _expandedPaths = {};
+  final Map<String, List<_ChildDir>> _childrenCache = {};
+  final Map<String, bool> _hasChildrenCache = {};
   String? _selectedPath;
-
-  final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _scrollController = ScrollController();
+  List<_TreeRow> _treeItems = [];
+  bool _needsScrollToSelected = false;
 
   @override
   void initState() {
@@ -118,14 +70,13 @@ class _SidebarTreeState extends State<SidebarTree> {
       _hasChildrenCache[_norm(drive)] =
           SidebarService.directoryHasChildren(drive);
     }
-    // Initial sync
     _selectedPath = widget.activePath;
     _syncToPath(widget.activePath);
   }
 
   @override
   void dispose() {
-    _verticalScrollController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -138,40 +89,28 @@ class _SidebarTreeState extends State<SidebarTree> {
     }
   }
 
-  // ── Sync tree to a target path ──────────────────────────────────────
-
   void _syncToPath(String path) {
-    // Priority 1: Quick Access match
+    _needsScrollToSelected = true;
     for (final item in _quickAccessItems) {
       if (_pathEquals(item.path, path)) {
         setState(() => _selectedPath = item.path);
         return;
       }
     }
-
-    // Priority 2: This PC tree
     if (path == _thisPcGuid) {
       setState(() => _selectedPath = _thisPcGuid);
       return;
     }
-
-    // Find matching drive
     final drive = _findDriveFor(path);
     if (drive == null) {
       setState(() {});
       return;
     }
-
-    // Ensure This PC is expanded
     _thisPcExpanded = true;
-    // Expand the drive
     _expandedPaths.add(_norm(drive));
-    _loadChildren(drive);
-
-    // Expand intermediate directories to reveal the target
     _expandChainTo(path, drive);
-
     setState(() => _selectedPath = path);
+    _loadChildren(drive);
   }
 
   String? _findDriveFor(String path) {
@@ -181,32 +120,23 @@ class _SidebarTreeState extends State<SidebarTree> {
     return null;
   }
 
-  /// Expand all intermediate directories from [drive] down to [targetPath].
   void _expandChainTo(String targetPath, String drive) {
     final normTarget = _norm(targetPath);
     final normDrive = _norm(drive);
     if (normTarget == normDrive) return;
-
-    // Get relative segments after drive
     var rel = targetPath.replaceAll('/', '\\');
-    // Remove drive prefix (e.g. "C:\")
     if (rel.toLowerCase().startsWith(drive.toLowerCase())) {
       rel = rel.substring(drive.length);
     }
     final segments = rel.split('\\').where((s) => s.isNotEmpty).toList();
-
-    // Build path incrementally and expand each level
     String current = drive.endsWith('\\') ? drive : '$drive\\';
     for (int i = 0; i < segments.length; i++) {
       current = i == 0 ? '$drive${segments[i]}' : '$current\\${segments[i]}';
       final normCurrent = _norm(current);
       _expandedPaths.add(normCurrent);
-      // Load children for this level (needed to render sub-nodes)
       _loadChildrenSync(current);
     }
   }
-
-  // ── Children loading (via native Shell API) ────────────────────────
 
   void _loadChildrenSync(String path) {
     final key = _norm(path);
@@ -228,9 +158,10 @@ class _SidebarTreeState extends State<SidebarTree> {
   Future<void> _loadChildren(String path) async {
     final key = _norm(path);
     if (_childrenCache.containsKey(key)) return;
+    // Yield until after the current frame renders, so setState takes
+    // visual effect before the synchronous native enumeration blocks.
+    await _afterFrame();
     try {
-      // DirectoryService.listDirectory is synchronous (native call),
-      // wrap in compute-like pattern is unnecessary; just call directly.
       final entries = DirectoryService.listDirectory(path);
       final children = entries
           .where((e) => e.isDirectory)
@@ -252,7 +183,12 @@ class _SidebarTreeState extends State<SidebarTree> {
     return has;
   }
 
-  // ── Toggle expansion ────────────────────────────────────────────────
+  /// Returns a Future that completes after the current frame.
+  Future<void> _afterFrame() {
+    final c = Completer<void>();
+    WidgetsBinding.instance.addPostFrameCallback((_) => c.complete());
+    return c.future;
+  }
 
   void _toggleExpand(String path) {
     final key = _norm(path);
@@ -264,130 +200,287 @@ class _SidebarTreeState extends State<SidebarTree> {
     }
   }
 
-  void _selectAndNavigate(String path) {
-    setState(() => _selectedPath = path);
-    widget.onNavigate(path);
-  }
-
   bool _isSelected(String path) =>
       _selectedPath != null && _pathEquals(_selectedPath!, path);
 
-  // ── Build ───────────────────────────────────────────────────────────
+  List<_TreeRow> _flattenTree() {
+    final rows = <_TreeRow>[];
+    rows.add(_TreeRow(
+      type: _RowType.thisPc,
+      path: _thisPcGuid,
+      name: '\u6b64\u7535\u8111',
+      depth: 0,
+      isExpanded: _thisPcExpanded,
+      hasChildren: _driveRoots.isNotEmpty,
+    ));
+    if (_thisPcExpanded) {
+      for (final drive in _driveRoots) {
+        final normDrive = _norm(drive);
+        final expanded = _expandedPaths.contains(normDrive);
+        final children = _childrenCache[normDrive] ?? [];
+        final label = SidebarService.formatDriveLabel(drive);
+        final hasKids = _hasChildren(drive);
+        rows.add(_TreeRow(
+          type: _RowType.drive,
+          path: drive,
+          name: label,
+          depth: 1,
+          isExpanded: expanded,
+          hasChildren: hasKids,
+        ));
+        if (expanded) {
+          _flattenDir(children, 2, rows);
+        }
+      }
+    }
+    return rows;
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      clipBehavior: Clip.hardEdge,
-      decoration: const BoxDecoration(color: Color(0xFFF8F8F8)),
-      alignment: Alignment.topLeft,
-      child: Scrollbar(
-        controller: _verticalScrollController,
-        thumbVisibility: false,
-        child: SingleChildScrollView(
-          controller: _verticalScrollController,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ---- Quick Access section ----
-              const _SectionHeader(
-                icon: Icons.history,
-                title: '快速访问',
-                topPadding: 2,
-              ),
-              ..._quickAccessItems.map((item) => _QuickAccessTile(
-                    item: item,
-                    selected: _isSelected(item.path),
-                    onTap: () => _selectAndNavigate(item.path),
-                  )),
-              const Divider(height: 1, thickness: 1),
+  void _flattenDir(List<_ChildDir> dirs, int depth, List<_TreeRow> out) {
+    for (final dir in dirs) {
+      final normPath = _norm(dir.path);
+      final expanded = _expandedPaths.contains(normPath);
+      final children = _childrenCache[normPath] ?? [];
+      final hasKids = _hasChildren(dir.path);
+      out.add(_TreeRow(
+        type: _RowType.directory,
+        path: dir.path,
+        name: dir.name,
+        depth: depth,
+        isExpanded: expanded,
+        hasChildren: hasKids,
+      ));
+      if (expanded && children.isNotEmpty) {
+        _flattenDir(children, depth + 1, out);
+      }
+    }
+  }
 
-              // ---- This PC section ----
-              const SizedBox(height: 4),
-              _ThisPcTreeNode(
-                label: '此电脑',
-                expanded: _thisPcExpanded,
-                selected: _isSelected(_thisPcGuid),
-                onToggle: () =>
-                    setState(() => _thisPcExpanded = !_thisPcExpanded),
-                onTap: () {
-                  setState(() => _selectedPath = _thisPcGuid);
-                  widget.onNavigate(_thisPcGuid);
-                  setState(() => _thisPcExpanded = !_thisPcExpanded);
-                },
-                children: [
-                  ..._driveRoots.map((drive) {
-                    final label = SidebarService.formatDriveLabel(drive);
-                    final normDrive = _norm(drive);
-                    final expanded = _expandedPaths.contains(normDrive);
-                    final children = _childrenCache[normDrive] ?? [];
-                    return _DriveTreeNode(
-                      drive: drive,
-                      label: label,
-                      expanded: expanded,
-                      hasChildren: _hasChildren(drive),
-                      selected: _isSelected(drive),
-                      onToggle: () => _toggleExpand(drive),
-                      onTap: () => _selectAndNavigate(drive),
-                      children: children.map((child) => _buildChildTile(child, 2)).toList(),
-                    );
-                  }),
-                ],
+  double get _quickAccessHeaderHeight {
+    return 20.0;
+  }
+
+  double get _preTreeHeight {
+    return 20.0 + _quickAccessItems.length * 22.0 + 1.0 + 4.0;
+  }
+
+  void _tryScrollToSelected() {
+    if (!_needsScrollToSelected) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+
+      double? offset;
+      // Priority 1: Quick Access
+      final qaIndex =
+          _quickAccessItems.indexWhere((item) => _pathEquals(item.path, _selectedPath ?? ''));
+      if (qaIndex >= 0) {
+        offset = _quickAccessHeaderHeight + qaIndex * 22.0;
+      } else {
+        // Priority 2: This PC tree
+        final items = _flattenTree();
+        final treeIndex =
+            items.indexWhere((item) => _pathEquals(item.path, _selectedPath ?? ''));
+        if (treeIndex >= 0) {
+          offset = _preTreeHeight + treeIndex * 22.0;
+        }
+      }
+
+      if (offset == null) return; // target not yet visible, retry on next build
+
+      final viewportHeight = _scrollController.position.viewportDimension;
+      final centeredOffset = offset - viewportHeight / 2 + 11.0;
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      _scrollController.jumpTo(centeredOffset.clamp(0.0, maxScroll));
+      _needsScrollToSelected = false;
+    });
+  }
+
+  void _onTapTreeRow(_TreeRow row) {
+    setState(() => _selectedPath = row.path);
+    widget.onNavigate(row.path);
+    if (row.hasChildren) {
+      if (row.type == _RowType.thisPc) {
+        setState(() => _thisPcExpanded = !_thisPcExpanded);
+      } else {
+        _toggleExpand(row.path);
+      }
+    }
+  }
+
+  IconData _fallbackIcon(_RowType type) {
+    switch (type) {
+      case _RowType.thisPc:
+        return Icons.computer;
+      case _RowType.drive:
+        return Icons.storage;
+      case _RowType.directory:
+        return Icons.folder;
+    }
+  }
+
+  Widget _buildTreeRow(BuildContext context, int index) {
+    final row = _treeItems[index];
+    final isSelected =
+        _selectedPath != null && _pathEquals(_selectedPath!, row.path);
+    final fallback = _fallbackIcon(row.type);
+    return InkWell(
+      onTap: () => _onTapTreeRow(row),
+      hoverColor: const Color(0x11000000),
+      child: Container(
+        height: 22,
+        width: double.infinity,
+        color: isSelected ? const Color(0xFFCCE8FF) : null,
+        child: Row(
+          children: [
+            SizedBox(width: 4.0 + row.depth * 16.0),
+            if (row.hasChildren)
+              Icon(
+                row.isExpanded ? Icons.expand_more : Icons.chevron_right,
+                size: 14,
+                color: const Color(0xFF888888),
+              )
+            else
+              const SizedBox(width: 14),
+            const SizedBox(width: 2),
+            SizedBox(
+              width: 15,
+              child: _ShellIcon(
+                path: row.path,
+                isDirectory: true,
+                fallback: fallback,
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                row.name,
+                style: const TextStyle(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildChildTile(_ChildDir child, int depth) {
-    final normPath = _norm(child.path);
-    final expanded = _expandedPaths.contains(normPath);
-    final hasKids = _hasChildren(child.path);
-    final children = _childrenCache[normPath] ?? [];
+  IconData _quickAccessFallbackIcon(String name) {
+    if (name.contains('\u684c\u9762')) return Icons.desktop_windows;
+    if (name.contains('\u4e0b\u8f7d')) return Icons.download;
+    if (name.contains('\u6587\u6863')) return Icons.description;
+    if (name.contains('\u56fe\u7247')) return Icons.image;
+    if (name.contains('\u97f3\u4e50')) return Icons.music_note;
+    if (name.contains('\u89c6\u9891')) return Icons.videocam;
+    if (name.contains('\u56de\u6536\u7ad9')) return Icons.delete_outline;
+    return Icons.folder;
+  }
 
-    return _ChildDirNode(
-      name: child.name,
-      path: child.path,
-      depth: depth,
-      expanded: expanded,
-      hasChildren: hasKids,
-      selected: _isSelected(child.path),
-      children: children,
-      onToggle: () => _toggleExpand(child.path),
-      onTap: () => _selectAndNavigate(child.path),
-      buildChild: (c, d) => _buildChildTile(c, d),
+  void _onTapQuickAccess(QuickAccessItem item) {
+    setState(() => _selectedPath = item.path);
+    widget.onNavigate(item.path);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _treeItems = _flattenTree();
+    _tryScrollToSelected();
+
+    return Container(
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(color: Color(0xFFF8F8F8)),
+      alignment: Alignment.topLeft,
+      child: Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: false,
+        child: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            SliverToBoxAdapter(child: _QuickAccessHeader()),
+            ..._quickAccessItems.map(
+              (item) => SliverToBoxAdapter(
+                child: _QuickAccessRow(
+                  item: item,
+                  selected: _isSelected(item.path),
+                  fallbackIcon: _quickAccessFallbackIcon(item.name),
+                  onTap: () => _onTapQuickAccess(item),
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(
+              child: Divider(height: 1, thickness: 1),
+            ),
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 4),
+            ),
+            SliverFixedExtentList(
+              itemExtent: 22.0,
+              delegate: SliverChildBuilderDelegate(
+                _buildTreeRow,
+                childCount: _treeItems.length,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-// ======================================================================
-//  Widgets
-// ======================================================================
+String _norm(String path) {
+  var s = path.replaceAll('/', '\\');
+  while (s.length > 3 && s.endsWith('\\')) {
+    s = s.substring(0, s.length - 1);
+  }
+  return s.toLowerCase();
+}
 
-/// Section header with icon and title.
-class _SectionHeader extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final double topPadding;
-  const _SectionHeader({
-    required this.icon,
-    required this.title,
-    this.topPadding = 8,
+bool _pathEquals(String a, String b) => _norm(a) == _norm(b);
+
+bool _isUnder(String child, String parent) {
+  final nc = _norm(child);
+  final np = _norm(parent);
+  return nc == np || nc.startsWith(np.endsWith('\\') ? np : '$np\\');
+}
+
+class _ShellIcon extends StatelessWidget {
+  static const _iconSize = 15;
+  final String path;
+  final bool isDirectory;
+  final IconData fallback;
+
+  const _ShellIcon({
+    required this.path,
+    required this.isDirectory,
+    required this.fallback,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(8, topPadding, 8, 2),
+    final bytes = IconService.getFileIconPng(path, isDirectory, _iconSize);
+    if (bytes != null) {
+      return Image.memory(
+        bytes,
+        width: _iconSize.toDouble(),
+        height: _iconSize.toDouble(),
+        gaplessPlayback: true,
+      );
+    }
+    return Icon(fallback, size: _iconSize.toDouble(), color: Colors.amber.shade700);
+  }
+}
+
+class _QuickAccessHeader extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(8, 2, 8, 2),
       child: Row(
         children: [
-          Icon(icon, size: 13, color: const Color(0xFF666666)),
-          const SizedBox(width: 4),
+          Icon(Icons.history, size: 13, color: Color(0xFF666666)),
+          SizedBox(width: 4),
           Text(
-            title,
-            style: const TextStyle(
+            '\u5feb\u901f\u8bbf\u95ee',
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: Color(0xFF888888),
@@ -399,216 +492,17 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// A flat tile in the Quick Access section.
-class _QuickAccessTile extends StatelessWidget {
+class _QuickAccessRow extends StatelessWidget {
   final QuickAccessItem item;
   final bool selected;
+  final IconData fallbackIcon;
   final VoidCallback onTap;
 
-  const _QuickAccessTile({
+  const _QuickAccessRow({
     required this.item,
     required this.selected,
+    required this.fallbackIcon,
     required this.onTap,
-  });
-
-  IconData _fallbackIcon() {
-    final name = item.name;
-    if (name.contains('桌面')) return Icons.desktop_windows;
-    if (name.contains('下载')) return Icons.download;
-    if (name.contains('文档')) return Icons.description;
-    if (name.contains('图片')) return Icons.image;
-    if (name.contains('音乐')) return Icons.music_note;
-    if (name.contains('视频')) return Icons.videocam;
-    if (name.contains('回收站')) return Icons.delete_outline;
-    return Icons.folder;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _SidebarItem(
-      onTap: onTap,
-      leading: _ShellIcon(
-        path: item.path,
-        isDirectory: true,
-        fallback: _fallbackIcon(),
-      ),
-      title: item.name,
-      showArrow: false,
-      selected: selected,
-      trailing: item.isPinned
-          ? Icon(Icons.push_pin, size: 11, color: Colors.grey.shade500)
-          : null,
-    );
-  }
-}
-
-/// Tree node for "此电脑" root.
-class _ThisPcTreeNode extends StatelessWidget {
-  final String label;
-  final bool expanded;
-  final bool selected;
-  final VoidCallback onToggle;
-  final VoidCallback onTap;
-  final List<Widget> children;
-
-  const _ThisPcTreeNode({
-    required this.label,
-    required this.expanded,
-    required this.selected,
-    required this.onToggle,
-    required this.onTap,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _SidebarItem(
-          onTap: onTap,
-          leading: _ShellIcon(
-            path: '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}',
-            isDirectory: true,
-            fallback: Icons.computer,
-          ),
-          title: label,
-          showArrow: true,
-          expanded: expanded,
-          selected: selected,
-        ),
-        if (expanded) ...children,
-      ],
-    );
-  }
-}
-
-/// Tree node for a single drive.
-class _DriveTreeNode extends StatelessWidget {
-  final String drive;
-  final String label;
-  final bool expanded;
-  final bool hasChildren;
-  final bool selected;
-  final VoidCallback onToggle;
-  final VoidCallback onTap;
-  final List<Widget> children;
-
-  const _DriveTreeNode({
-    required this.drive,
-    required this.label,
-    required this.expanded,
-    required this.hasChildren,
-    required this.selected,
-    required this.onToggle,
-    required this.onTap,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _SidebarItem(
-          depth: 1,
-          onTap: () {
-            onTap();
-            if (hasChildren) onToggle();
-          },
-          leading: _ShellIcon(
-            path: drive,
-            isDirectory: true,
-            fallback: Icons.storage,
-          ),
-          title: label,
-          showArrow: hasChildren,
-          expanded: expanded,
-          selected: selected,
-        ),
-        if (expanded) ...children,
-      ],
-    );
-  }
-}
-
-/// A recursive directory tree node (controlled by parent).
-class _ChildDirNode extends StatelessWidget {
-  final String name;
-  final String path;
-  final int depth;
-  final bool expanded;
-  final bool hasChildren;
-  final bool selected;
-  final List<_ChildDir> children;
-  final VoidCallback onToggle;
-  final VoidCallback onTap;
-  final Widget Function(_ChildDir, int) buildChild;
-
-  const _ChildDirNode({
-    required this.name,
-    required this.path,
-    required this.depth,
-    required this.expanded,
-    required this.hasChildren,
-    required this.selected,
-    required this.children,
-    required this.onToggle,
-    required this.onTap,
-    required this.buildChild,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _SidebarItem(
-          depth: depth,
-          onTap: () {
-            onTap();
-            if (hasChildren) onToggle();
-          },
-          leading: _ShellIcon(
-            path: path,
-            isDirectory: true,
-            fallback: Icons.folder,
-          ),
-          title: name,
-          showArrow: hasChildren,
-          expanded: expanded,
-          selected: selected,
-        ),
-        if (expanded)
-          ...children.map((child) => buildChild(child, depth + 1)),
-      ],
-    );
-  }
-}
-
-/// Reusable sidebar item row.
-class _SidebarItem extends StatelessWidget {
-  final int depth;
-  final VoidCallback? onTap;
-  final Widget leading;
-  final String title;
-  final bool showArrow;
-  final bool expanded;
-  final bool selected;
-  final Widget? trailing;
-
-  const _SidebarItem({
-    this.depth = 0,
-    this.onTap,
-    required this.leading,
-    required this.title,
-    this.showArrow = false,
-    this.expanded = false,
-    this.selected = false,
-    this.trailing,
   });
 
   @override
@@ -622,39 +516,30 @@ class _SidebarItem extends StatelessWidget {
         color: selected ? const Color(0xFFCCE8FF) : null,
         child: Row(
           children: [
-            SizedBox(width: 4.0 + depth * 16.0),
-            if (showArrow)
-              Icon(
-                expanded ? Icons.expand_more : Icons.chevron_right,
-                size: 14,
-                color: const Color(0xFF888888),
-              )
-            else
-              const SizedBox(width: 14),
+            const SizedBox(width: 4),
+            const SizedBox(width: 14),
             const SizedBox(width: 2),
-            SizedBox(width: 15, child: leading),
+            SizedBox(
+              width: 15,
+              child: _ShellIcon(
+                path: item.path,
+                isDirectory: true,
+                fallback: fallbackIcon,
+              ),
+            ),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
-                title,
+                item.name,
                 style: const TextStyle(fontSize: 12),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (trailing != null) trailing!,
+            if (item.isPinned)
+              Icon(Icons.push_pin, size: 11, color: Colors.grey.shade500),
           ],
         ),
       ),
     );
   }
-}
-
-// ======================================================================
-//  Data helpers
-// ======================================================================
-
-class _ChildDir {
-  final String name;
-  final String path;
-  _ChildDir(this.name, this.path);
 }

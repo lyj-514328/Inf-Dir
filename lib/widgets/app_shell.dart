@@ -83,7 +83,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       key: ValueKey(layoutState.activeWorkspaceIndex),
                       width: _sidebarWidth,
                       child: SidebarTree(
-                        activePath: activePane?.displayPath ?? '',
+                        activePath: activePane?.currentPath ?? '',
                         onNavigate: (path) {
                           activePane?.navigateTo(path);
                         },

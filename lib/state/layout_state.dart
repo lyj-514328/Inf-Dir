@@ -10,7 +10,6 @@ class LayoutState extends ChangeNotifier {
   int _nextPaneCounter = 0;
 
   LayoutState() {
-    // 创建 4 个初始面板控制器
     final initialPaths = [
       FileService.desktopPath,
       FileService.homeDirectory,
@@ -20,17 +19,27 @@ class LayoutState extends ChangeNotifier {
     final paneIds = <String>[];
     for (final path in initialPaths) {
       final id = _nextPaneId();
-      _controllers[id] = PaneController(path);
+      _addController(id, PaneController(path));
       paneIds.add(id);
     }
 
     _tree = createDefaultLayout(paneIds);
 
-    // 默认聚焦第一个 pane
     final firstPane = _findFirstPane(_tree.activeWorkspace);
     if (firstPane != null) {
       _focusedNodeId = firstPane.id;
     }
+  }
+
+  // ── Controller factory (bubbles pane changes up to LayoutState) ──
+  void _addController(String id, PaneController ctrl) {
+    ctrl.addListener(notifyListeners);
+    _controllers[id] = ctrl;
+  }
+
+  void _removeController(String id) {
+    final ctrl = _controllers.remove(id);
+    ctrl?.removeListener(notifyListeners);
   }
 
   // ============================================================
@@ -84,7 +93,7 @@ class LayoutState extends ChangeNotifier {
     final ws = _tree.addWorkspace(name);
     // 加一个默认 pane
     final paneId = _nextPaneId();
-    _controllers[paneId] = PaneController(FileService.desktopPath);
+    _addController(paneId, PaneController(FileService.desktopPath));
     final pane = LayoutNode(
       id: _tree.genId(),
       type: NodeType.pane,
@@ -111,7 +120,7 @@ class LayoutState extends ChangeNotifier {
     final ws = _tree.workspaces[index];
     final result = _tree.closeNode(ws);
     for (final id in result.removedPanes) {
-      _controllers.remove(id);
+      _removeController(id);
     }
     _tree.workspaces.removeAt(index);
     if (_tree.activeWorkspaceIndex >= _tree.workspaces.length) {
@@ -128,9 +137,9 @@ class LayoutState extends ChangeNotifier {
   void splitPane(LayoutNode node, SplitDirection direction) {
     if (!node.isPane) return;
     final newPaneId = _nextPaneId();
-    _controllers[newPaneId] = PaneController(
+    _addController(newPaneId, PaneController(
       controllerFor(node)?.currentPath ?? FileService.desktopPath,
-    );
+    ));
     _tree.splitNode(node, direction, newPaneId);
     notifyListeners();
   }
@@ -146,7 +155,7 @@ class LayoutState extends ChangeNotifier {
 
     final result = _tree.closeNode(node);
     for (final id in result.removedPanes) {
-      _controllers.remove(id);
+      _removeController(id);
     }
 
     // 焦点转移：优先兄弟 → 展平幸存者 → 首个 pane
