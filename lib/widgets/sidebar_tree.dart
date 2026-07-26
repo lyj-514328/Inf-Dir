@@ -53,6 +53,7 @@ class _SidebarTreeState extends State<SidebarTree> {
   final Map<String, List<_ChildDir>> _childrenCache = {};
   final Map<String, bool> _hasChildrenCache = {};
   final Set<String> _loadingPaths = {};
+  final Set<String> _pendingLoads = {}; // prevent concurrent _loadChildren for same path
   String? _selectedPath;
   final ScrollController _scrollController = ScrollController();
   List<_TreeRow> _treeItems = [];
@@ -150,20 +151,23 @@ class _SidebarTreeState extends State<SidebarTree> {
 
   Future<void> _loadChildren(String path) async {
     final key = _norm(path);
-    // if (_childrenCache.containsKey(key)) return;  // CACHE DISABLED
+    if (_childrenCache.containsKey(key) || _pendingLoads.contains(key)) return;
+    _pendingLoads.add(key);
     await _afterFrame();
 
     final sid = DirectoryService.beginShellEnum(path, directoriesOnly: true);
     if (sid <= 0) {
       if (mounted) setState(() => _childrenCache[key] = []);
+      _pendingLoads.remove(key);
       return;
     }
 
     // Load first page synchronously
-    final firstPage = DirectoryService.getNextEnumPage(sid, count: 100);
+    final firstPage = DirectoryService.getNextEnumPage(sid, count: 500);
     if (firstPage == null) {
       DirectoryService.endShellEnum(sid);
       if (mounted) setState(() => _childrenCache[key] = []);
+      _pendingLoads.remove(key);
       return;
     }
 
@@ -174,6 +178,7 @@ class _SidebarTreeState extends State<SidebarTree> {
     children.sort(
         (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     _childrenCache[key] = children;
+    _pendingLoads.remove(key);
     if (mounted) setState(() {});
 
     // Background: load more pages
@@ -184,7 +189,7 @@ class _SidebarTreeState extends State<SidebarTree> {
   Future<void> _loadMoreChildren(int sid, String key) async {
     while (true) {
       await _afterFrame();
-      final page = DirectoryService.getNextEnumPage(sid, count: 100);
+      final page = DirectoryService.getNextEnumPage(sid, count: 500);
       if (page == null) break;
 
       final dirs = page
@@ -197,9 +202,16 @@ class _SidebarTreeState extends State<SidebarTree> {
       if (existing == null) {
         // Node was collapsed or navigated away
         DirectoryService.endShellEnum(sid);
+        _pendingLoads.remove(key);
         return;
       }
-      existing.addAll(dirs);
+      final existingPaths = existing.map((d) => _norm(d.path)).toSet();
+      for (final d in dirs) {
+        if (!existingPaths.contains(_norm(d.path))) {
+          existing.add(d);
+          existingPaths.add(_norm(d.path));
+        }
+      }
       existing.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       if (mounted) setState(() {});
