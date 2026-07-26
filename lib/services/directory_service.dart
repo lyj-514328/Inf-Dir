@@ -15,6 +15,20 @@ typedef _FreeDirEntriesDart = void Function(Pointer<Uint8> ptr);
 typedef _GetDisplayNameNative = Pointer<Utf16> Function(Pointer<Utf16> path);
 typedef _GetDisplayNameDart = Pointer<Utf16> Function(Pointer<Utf16> path);
 
+// Session-based paged enumeration
+typedef _BeginShellEnumNative = Int32 Function(
+    Pointer<Utf16> path, Int32 directoriesOnly);
+typedef _BeginShellEnumDart = int Function(
+    Pointer<Utf16> path, int directoriesOnly);
+
+typedef _GetNextEnumPageNative = Pointer<Uint8> Function(
+    Int32 sessionId, Int32 count, Pointer<Int32> outSize);
+typedef _GetNextEnumPageDart = Pointer<Uint8> Function(
+    int sessionId, int count, Pointer<Int32> outSize);
+
+typedef _EndShellEnumNative = Void Function(Int32 sessionId);
+typedef _EndShellEnumDart = void Function(int sessionId);
+
 class DirectoryService {
   static final _list = DynamicLibrary.process()
       .lookupFunction<_ListDirectoryNative, _ListDirectoryDart>(
@@ -27,6 +41,18 @@ class DirectoryService {
   static final _getDisplayName = DynamicLibrary.process()
       .lookupFunction<_GetDisplayNameNative, _GetDisplayNameDart>(
           'GetShellDisplayName');
+
+  static final _beginEnum = DynamicLibrary.process()
+      .lookupFunction<_BeginShellEnumNative, _BeginShellEnumDart>(
+          'BeginShellEnum');
+
+  static final _nextPage = DynamicLibrary.process()
+      .lookupFunction<_GetNextEnumPageNative, _GetNextEnumPageDart>(
+          'GetNextEnumPage');
+
+  static final _endEnum = DynamicLibrary.process()
+      .lookupFunction<_EndShellEnumNative, _EndShellEnumDart>(
+          'EndShellEnum');
 
   /// Cache for shell display names to avoid repeated FFI calls.
   static final Map<String, String> _displayNameCache = {};
@@ -55,10 +81,14 @@ class DirectoryService {
   /// folders (Recycle Bin, This PC), and drive roots.
   ///
   /// Returns an empty list on error.
-  static List<FileEntry> listDirectory(String path) {
+  static List<FileEntry> listDirectory(String path,
+      {void Function(int ffiMs, int parseMs, int sortMs, int count)? onPerf}) {
     final pathPtr = path.toNativeUtf16();
     final outSize = calloc<Int32>();
+
+    final ffiSw = Stopwatch()..start();
     final ptr = _list(pathPtr, outSize);
+    ffiSw.stop();
 
     calloc.free(pathPtr);
 
@@ -68,7 +98,26 @@ class DirectoryService {
     }
 
     try {
-      return _parseBuffer(ptr, outSize.value);
+      final parseSw = Stopwatch()..start();
+      final raw = _parseBuffer(ptr, outSize.value);
+      parseSw.stop();
+
+      final sortSw = Stopwatch()..start();
+      // Sort: directories first, then by name
+      raw.sort((a, b) {
+        if (a.isDirectory != b.isDirectory) return a.isDirectory ? -1 : 1;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+      sortSw.stop();
+
+      onPerf?.call(
+        ffiSw.elapsedMilliseconds,
+        parseSw.elapsedMilliseconds,
+        sortSw.elapsedMilliseconds,
+        raw.length,
+      );
+
+      return raw;
     } finally {
       _free(ptr);
       calloc.free(outSize);
@@ -154,12 +203,6 @@ class DirectoryService {
       ));
     }
 
-    // Sort: directories first, then by name
-    items.sort((a, b) {
-      if (a.isDirectory != b.isDirectory) return a.isDirectory ? -1 : 1;
-      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-    });
-
     return items;
   }
 
@@ -194,5 +237,41 @@ class DirectoryService {
     } catch (_) {
       return DateTime.now();
     }
+  }
+
+  // -- Session-based paged enumeration --
+
+  /// Begin a shell enumeration session. Returns a session ID (>0) or -1 on failure.
+  /// If [directoriesOnly] is true, files are skipped at the C layer.
+  static int beginShellEnum(String path, {bool directoriesOnly = false}) {
+    final pathPtr = path.toNativeUtf16();
+    final id = _beginEnum(pathPtr, directoriesOnly ? 1 : 0);
+    calloc.free(pathPtr);
+    return id;
+  }
+
+  /// Get the next page of items. Returns null when no more items.
+  /// [count] is the maximum number of items to fetch.
+  static List<FileEntry>? getNextEnumPage(int sessionId,
+      {int count = 100}) {
+    final outSize = calloc<Int32>();
+    final ptr = _nextPage(sessionId, count, outSize);
+
+    if (ptr == nullptr || outSize.value <= 0) {
+      calloc.free(outSize);
+      return null;
+    }
+
+    try {
+      return _parseBuffer(ptr, outSize.value);
+    } finally {
+      _free(ptr);
+      calloc.free(outSize);
+    }
+  }
+
+  /// End a shell enumeration session.
+  static void endShellEnum(int sessionId) {
+    _endEnum(sessionId);
   }
 }

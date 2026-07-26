@@ -4,7 +4,7 @@ import '../services/sidebar_service.dart';
 import '../services/directory_service.dart';
 import '../services/icon_service.dart';
 
-enum _RowType { thisPc, drive, directory }
+enum _RowType { thisPc, drive, directory, loadingIndicator }
 
 class _TreeRow {
   final _RowType type;
@@ -52,6 +52,7 @@ class _SidebarTreeState extends State<SidebarTree> {
   final Set<String> _expandedPaths = {};
   final Map<String, List<_ChildDir>> _childrenCache = {};
   final Map<String, bool> _hasChildrenCache = {};
+  final Set<String> _loadingPaths = {};
   String? _selectedPath;
   final ScrollController _scrollController = ScrollController();
   List<_TreeRow> _treeItems = [];
@@ -90,20 +91,27 @@ class _SidebarTreeState extends State<SidebarTree> {
   }
 
   void _syncToPath(String path) {
+    final sw = Stopwatch()..start();
     _needsScrollToSelected = true;
     for (final item in _quickAccessItems) {
       if (_pathEquals(item.path, path)) {
         setState(() => _selectedPath = item.path);
+        sw.stop();
+        debugPrint('[Perf] Sidebar _syncToPath QA hit: ${sw.elapsedMilliseconds}ms');
         return;
       }
     }
     if (path == _thisPcGuid) {
       setState(() => _selectedPath = _thisPcGuid);
+      sw.stop();
+      debugPrint('[Perf] Sidebar _syncToPath ThisPc: ${sw.elapsedMilliseconds}ms');
       return;
     }
     final drive = _findDriveFor(path);
     if (drive == null) {
       setState(() {});
+      sw.stop();
+      debugPrint('[Perf] Sidebar _syncToPath no drive: ${sw.elapsedMilliseconds}ms');
       return;
     }
     _thisPcExpanded = true;
@@ -111,6 +119,8 @@ class _SidebarTreeState extends State<SidebarTree> {
     _expandChainTo(path, drive);
     setState(() => _selectedPath = path);
     _loadChildren(drive);
+    sw.stop();
+    debugPrint('[Perf] Sidebar _syncToPath drive expand: ${sw.elapsedMilliseconds}ms');
   }
 
   String? _findDriveFor(String path) {
@@ -134,53 +144,74 @@ class _SidebarTreeState extends State<SidebarTree> {
       current = i == 0 ? '$drive${segments[i]}' : '$current\\${segments[i]}';
       final normCurrent = _norm(current);
       _expandedPaths.add(normCurrent);
-      _loadChildrenSync(current);
-    }
-  }
-
-  void _loadChildrenSync(String path) {
-    final key = _norm(path);
-    if (_childrenCache.containsKey(key)) return;
-    try {
-      final entries = DirectoryService.listDirectory(path);
-      final children = entries
-          .where((e) => e.isDirectory)
-          .map((e) => _ChildDir(e.name, e.path))
-          .toList();
-      children.sort(
-          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      _childrenCache[key] = children;
-    } catch (_) {
-      _childrenCache[key] = [];
+      _loadChildren(current);
     }
   }
 
   Future<void> _loadChildren(String path) async {
     final key = _norm(path);
-    if (_childrenCache.containsKey(key)) return;
-    // Yield until after the current frame renders, so setState takes
-    // visual effect before the synchronous native enumeration blocks.
+    // if (_childrenCache.containsKey(key)) return;  // CACHE DISABLED
     await _afterFrame();
-    try {
-      final entries = DirectoryService.listDirectory(path);
-      final children = entries
+
+    final sid = DirectoryService.beginShellEnum(path, directoriesOnly: true);
+    if (sid <= 0) {
+      if (mounted) setState(() => _childrenCache[key] = []);
+      return;
+    }
+
+    // Load first page synchronously
+    final firstPage = DirectoryService.getNextEnumPage(sid, count: 100);
+    if (firstPage == null) {
+      DirectoryService.endShellEnum(sid);
+      if (mounted) setState(() => _childrenCache[key] = []);
+      return;
+    }
+
+    final children = firstPage
+        .where((e) => e.isDirectory)
+        .map((e) => _ChildDir(e.name, e.path))
+        .toList();
+    children.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    _childrenCache[key] = children;
+    if (mounted) setState(() {});
+
+    // Background: load more pages
+    _loadingPaths.add(key);
+    _loadMoreChildren(sid, key);
+  }
+
+  Future<void> _loadMoreChildren(int sid, String key) async {
+    while (true) {
+      await _afterFrame();
+      final page = DirectoryService.getNextEnumPage(sid, count: 100);
+      if (page == null) break;
+
+      final dirs = page
           .where((e) => e.isDirectory)
           .map((e) => _ChildDir(e.name, e.path))
           .toList();
-      children.sort(
+      if (dirs.isEmpty) continue;
+
+      final existing = _childrenCache[key];
+      if (existing == null) {
+        // Node was collapsed or navigated away
+        DirectoryService.endShellEnum(sid);
+        return;
+      }
+      existing.addAll(dirs);
+      existing.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      if (mounted) setState(() => _childrenCache[key] = children);
-    } catch (_) {
-      if (mounted) setState(() => _childrenCache[key] = []);
+      if (mounted) setState(() {});
     }
+    _loadingPaths.remove(key);
+    DirectoryService.endShellEnum(sid);
+    if (mounted) setState(() {});
   }
 
   bool _hasChildren(String path) {
-    final key = _norm(path);
-    if (_hasChildrenCache.containsKey(key)) return _hasChildrenCache[key]!;
-    final has = SidebarService.directoryHasChildren(path);
-    _hasChildrenCache[key] = has;
-    return has;
+    // CACHE DISABLED
+    return SidebarService.directoryHasChildren(path);
   }
 
   /// Returns a Future that completes after the current frame.
@@ -229,14 +260,15 @@ class _SidebarTreeState extends State<SidebarTree> {
           hasChildren: hasKids,
         ));
         if (expanded) {
-          _flattenDir(children, 2, rows);
+          _flattenDir(children, 2, rows, parentPath: drive);
         }
       }
     }
     return rows;
   }
 
-  void _flattenDir(List<_ChildDir> dirs, int depth, List<_TreeRow> out) {
+  void _flattenDir(List<_ChildDir> dirs, int depth, List<_TreeRow> out,
+      {required String parentPath}) {
     for (final dir in dirs) {
       final normPath = _norm(dir.path);
       final expanded = _expandedPaths.contains(normPath);
@@ -251,8 +283,19 @@ class _SidebarTreeState extends State<SidebarTree> {
         hasChildren: hasKids,
       ));
       if (expanded && children.isNotEmpty) {
-        _flattenDir(children, depth + 1, out);
+        _flattenDir(children, depth + 1, out, parentPath: dir.path);
       }
+    }
+    // Append loading indicator if still loading more children
+    if (_loadingPaths.contains(_norm(parentPath))) {
+      out.add(_TreeRow(
+        type: _RowType.loadingIndicator,
+        path: '',
+        name: '',
+        depth: depth + 1,
+        isExpanded: false,
+        hasChildren: false,
+      ));
     }
   }
 
@@ -296,6 +339,7 @@ class _SidebarTreeState extends State<SidebarTree> {
   }
 
   void _onTapTreeRow(_TreeRow row) {
+    if (row.type == _RowType.loadingIndicator) return;
     setState(() => _selectedPath = row.path);
     widget.onNavigate(row.path);
     if (row.hasChildren) {
@@ -315,11 +359,44 @@ class _SidebarTreeState extends State<SidebarTree> {
         return Icons.storage;
       case _RowType.directory:
         return Icons.folder;
+      case _RowType.loadingIndicator:
+        return Icons.hourglass_empty;
     }
   }
 
   Widget _buildTreeRow(BuildContext context, int index) {
     final row = _treeItems[index];
+
+    if (row.type == _RowType.loadingIndicator) {
+      return Container(
+        height: 22,
+        width: double.infinity,
+        padding: EdgeInsets.only(left: 4.0 + row.depth * 16.0),
+        child: const Row(
+          children: [
+            SizedBox(width: 14),
+            SizedBox(
+              width: 15,
+              height: 15,
+              child: SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(strokeWidth: 1.5),
+              ),
+            ),
+            SizedBox(width: 4),
+            Text(
+              'Loading...',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF999999),
+                  fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+      );
+    }
+
     final isSelected =
         _selectedPath != null && _pathEquals(_selectedPath!, row.path);
     final fallback = _fallbackIcon(row.type);
@@ -382,10 +459,12 @@ class _SidebarTreeState extends State<SidebarTree> {
 
   @override
   Widget build(BuildContext context) {
+    final sw = Stopwatch()..start();
     _treeItems = _flattenTree();
+    final flattenMs = sw.elapsedMilliseconds;
     _tryScrollToSelected();
 
-    return Container(
+    final result = Container(
       clipBehavior: Clip.hardEdge,
       decoration: const BoxDecoration(color: Color(0xFFF8F8F8)),
       alignment: Alignment.topLeft,
@@ -423,6 +502,12 @@ class _SidebarTreeState extends State<SidebarTree> {
         ),
       ),
     );
+
+    sw.stop();
+    if (sw.elapsedMilliseconds > 10) {
+      debugPrint('[Perf] SidebarTree build: flatten=${flattenMs}ms, total=${sw.elapsedMilliseconds}ms');
+    }
+    return result;
   }
 }
 

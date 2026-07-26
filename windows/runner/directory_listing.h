@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <windows.h>
 
 #ifdef __cplusplus
@@ -8,10 +8,10 @@ extern "C" {
 // Unified directory listing for regular paths and Shell virtual folders.
 //
 // Handles three cases automatically:
-//   1. Regular filesystem path (e.g. "C:\Users\...")  → FindFirstFile/FindNextFile
+//   1. Regular filesystem path (e.g. "C:\Users\...")  -> FindFirstFile/FindNextFile
 //   2. Shell virtual folder (e.g. "shell:RecycleBinFolder", "::{CLSID}")
-//      → SHParseDisplayName + BindToHandler(BHID_EnumItems)
-//   3. My Computer / This PC → enumerates drive roots
+//      -> SHParseDisplayName + BindToHandler(BHID_EnumItems)
+//   3. My Computer / This PC -> enumerates drive roots
 //
 // Returns a flat buffer layout:
 //   [count: int32]
@@ -41,6 +41,31 @@ void FreeDirectoryEntries(unsigned char* ptr);
 // Returns nullptr on failure.
 __declspec(dllexport)
 wchar_t* GetShellDisplayName(const wchar_t* path);
+
+// -- Session-based paged enumeration for Shell virtual folders -----------
+// Use for large folders (Recycle Bin) where full enumeration is too slow.
+//
+// Usage:
+//   int sid = BeginShellEnum(path);
+//   while (true) {
+//       int size; unsigned char* page = GetNextEnumPage(sid, 100, &size);
+//       if (!page) break;
+//       // parse page...
+//       FreeDirectoryEntries(page);
+//   }
+//   EndShellEnum(sid);
+
+__declspec(dllexport)
+int BeginShellEnum(const wchar_t* path, int directoriesOnly);
+
+__declspec(dllexport)
+unsigned char* GetNextEnumPage(int sessionId, int count, int* outSize);
+
+__declspec(dllexport)
+void EndShellEnum(int sessionId);
+
+__declspec(dllexport)
+long long GetRecycleBinCount(const wchar_t* driveRoot);
 
 #ifdef __cplusplus
 }

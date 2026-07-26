@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
 import '../services/file_service.dart';
@@ -22,6 +24,8 @@ class PaneController extends ChangeNotifier {
   final Set<String> _selectedPaths = {};
   String? _anchorPath;
   bool _loading = false;
+  int _sessionId = -1;
+  bool _loadingMore = false;
   SortColumn _sortColumn = SortColumn.name;
   bool _sortAscending = true;
   List<double> _columnWidths = [300, 140, 100, 80]; // name, date, type, size
@@ -33,7 +37,7 @@ class PaneController extends ChangeNotifier {
 
   String get currentPath => _currentPath;
 
-  /// Friendly display path for the address bar (shell CLSIDs → names).
+  /// Friendly display path for the address bar (shell CLSIDs -> names).
   String get displayPath {
     if (_currentPath.startsWith('::') || _currentPath.startsWith('shell:')) {
       return DirectoryService.getDisplayName(_currentPath);
@@ -58,7 +62,6 @@ class PaneController extends ChangeNotifier {
   bool get sortAscending => _sortAscending;
   List<double> get columnWidths => _columnWidths;
 
-  /// 向右拖拽增大左侧列宽度，右侧列不变，整体列表宽度增加
   void resizeColumn(int colIndex, double deltaPx) {
     final left = _columnWidths[colIndex] + deltaPx;
     if (left >= 40) {
@@ -67,9 +70,7 @@ class PaneController extends ChangeNotifier {
     }
   }
 
-  /// 按 pane 宽度 + 比例 (name:date:type:size = 4:2:2:1) 计算初始列宽
   void initColumnWidths(double paneWidth) {
-    // Fixed overhead: 4 splitters(4px each) + padding(8px) + min blank(20px)
     const overhead = 4 * 4 + 8 + 20.0;
     final avail = (paneWidth - overhead).clamp(160, double.infinity);
     const totalRatio = 4 + 2 + 2 + 1;
@@ -83,7 +84,6 @@ class PaneController extends ChangeNotifier {
   }
 
   String _pathLabel(String path) {
-    // For Shell CLSID paths, ask the Shell for a friendly name
     if (path.startsWith('::') || path.startsWith('shell:')) {
       return DirectoryService.getDisplayName(path);
     }
@@ -91,15 +91,111 @@ class PaneController extends ChangeNotifier {
     return p.basename(path);
   }
 
+  void _cancelPagedLoad() {
+    if (_sessionId > 0) {
+      DirectoryService.endShellEnum(_sessionId);
+      _sessionId = -1;
+    }
+    _loadingMore = false;
+  }
+
   Future<void> _loadEntries(String path) async {
+    _cancelPagedLoad();
+
     _loading = true;
-    notifyListeners();
-    _entries = DirectoryService.listDirectory(path);
-    _applySort();
-    _loading = false;
     _selectedPaths.clear();
     _anchorPath = null;
     notifyListeners();
+
+    await _loadEntriesPaged(path);
+  }
+
+  Future<void> _loadEntriesPaged(String path) async {
+    final totalSw = Stopwatch()..start();
+
+    // Step 1: begin shell enumeration session
+    final sessionSw = Stopwatch()..start();
+    _sessionId = DirectoryService.beginShellEnum(path);
+    sessionSw.stop();
+
+    if (_sessionId <= 0) {
+      _entries = [];
+      _loading = false;
+      notifyListeners();
+      debugPrint('[Perf] Paged -- failed to start session (${sessionSw.elapsedMilliseconds}ms)');
+      return;
+    }
+
+    // Step 2: load first page
+    final firstSw = Stopwatch()..start();
+    final firstPage = DirectoryService.getNextEnumPage(_sessionId, count: 100);
+    firstSw.stop();
+
+    if (firstPage == null) {
+      _entries = [];
+      _loading = false;
+      _cancelPagedLoad();
+      notifyListeners();
+      return;
+    }
+
+    _entries = firstPage;
+    _loading = false;
+    notifyListeners();
+
+    // Step 3: wait for Flutter to build first frame
+    final buildSw = Stopwatch()..start();
+    await _afterFrame();
+    buildSw.stop();
+
+    debugPrint(
+      '[Perf] Paged page#1 -- '
+      'Session: ${sessionSw.elapsedMilliseconds}ms, '
+      'Load: ${firstSw.elapsedMilliseconds}ms, '
+      'Build: ${(buildSw.elapsedMicroseconds / 1000).toStringAsFixed(1)}ms, '
+      'Items: ${firstPage.length}',
+    );
+
+    if (!_loadingMore) {
+      _loadingMore = true;
+      _loadMorePages(totalSw, pageCount: 1);
+    }
+  }
+
+  Future<void> _loadMorePages(Stopwatch totalSw, {int pageCount = 0}) async {
+    int pages = pageCount;
+    const pageSize = 100;
+
+    while (_sessionId > 0) {
+      await _afterFrame();
+
+      final sw = Stopwatch()..start();
+      final page = DirectoryService.getNextEnumPage(_sessionId, count: pageSize);
+      sw.stop();
+
+      if (page == null) break;
+
+      _entries = [..._entries, ...page];
+      _applySort();
+      notifyListeners();
+      pages++;
+    }
+
+    totalSw.stop();
+    debugPrint(
+      '[Perf] Paged done -- '
+      '${pages} pages, '
+      '${_entries.length} total items, '
+      'Total: ${totalSw.elapsedMilliseconds}ms',
+    );
+
+    _cancelPagedLoad();
+  }
+
+  Future<void> _afterFrame() {
+    final c = Completer<void>();
+    WidgetsBinding.instance.addPostFrameCallback((_) => c.complete());
+    return c.future;
   }
 
   void sortBy(SortColumn column) {

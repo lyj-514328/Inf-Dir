@@ -43,11 +43,12 @@ class _PaneContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sw = Stopwatch()..start();
     final controller = context.watch<PaneController>();
     final layoutState = context.watch<LayoutState>();
     final isActive = layoutState.focusedNodeId == paneNode.id;
 
-    return Column(
+    final result = Column(
       children: [
         PaneTabBar(
           tabs: controller.tabs,
@@ -180,11 +181,18 @@ class _PaneContent extends StatelessWidget {
           ),
         ),
         _StatusBar(
-          total: controller.entryCount,
-          selected: controller.selectedCount,
+          loaded: controller.entryCount,
+          isLoading: controller.isLoading,
+          selectedCount: controller.selectedCount,
         ),
       ],
     );
+
+    sw.stop();
+    if (sw.elapsedMilliseconds > 10) {
+      debugPrint('[Perf] _PaneContent build: ${sw.elapsedMilliseconds}ms, entries=${controller.entries.length}');
+    }
+    return result;
   }
 
   // ── Helpers ────────────────────────────────────────────────────────
@@ -453,16 +461,26 @@ class _PaneContent extends StatelessWidget {
 }
 
 class _StatusBar extends StatelessWidget {
-  final int total;
-  final int selected;
+  final int loaded;
+  final bool isLoading;
+  final int selectedCount;
 
-  const _StatusBar({required this.total, required this.selected});
+  const _StatusBar({
+    required this.loaded,
+    required this.isLoading,
+    required this.selectedCount,
+  });
 
   @override
   Widget build(BuildContext context) {
-    String text = '$total 个对象';
-    if (selected > 0) {
-      text = '已选择 $selected 个对象  |  $text';
+    String text;
+    if (isLoading) {
+      text = '正在加载...';
+    } else {
+      text = '$loaded 个对象';
+    }
+    if (selectedCount > 0) {
+      text = '已选择 $selectedCount 个对象  |  $text';
     }
     return Container(
       height: 20,
