@@ -176,10 +176,12 @@ class PaneController extends ChangeNotifier {
       if (page == null) break;
 
       _entries = [..._entries, ...page];
-      _applySort();
       notifyListeners();
       pages++;
     }
+
+    _applySort();
+    notifyListeners();
 
     totalSw.stop();
     debugPrint(

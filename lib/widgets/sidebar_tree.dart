@@ -46,6 +46,7 @@ class SidebarTree extends StatefulWidget {
 class _SidebarTreeState extends State<SidebarTree> {
   static const _thisPcGuid = '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}';
 
+  // ── data ──
   List<QuickAccessItem> _quickAccessItems = [];
   List<String> _driveRoots = [];
   bool _thisPcExpanded = true;
@@ -53,11 +54,15 @@ class _SidebarTreeState extends State<SidebarTree> {
   final Map<String, List<_ChildDir>> _childrenCache = {};
   final Map<String, bool> _hasChildrenCache = {};
   final Set<String> _loadingPaths = {};
-  final Set<String> _pendingLoads = {}; // prevent concurrent _loadChildren for same path
   String? _selectedPath;
   final ScrollController _scrollController = ScrollController();
   List<_TreeRow> _treeItems = [];
   bool _needsScrollToSelected = false;
+
+  // ── concurrency control ──
+  int _syncGeneration = 0;
+  final Map<String, int> _activeSessIds = {}; // normPath → sid
+  final Set<String> _inFlight = {}; // intra-generation dedup (synchronous guard)
 
   @override
   void initState() {
@@ -78,6 +83,7 @@ class _SidebarTreeState extends State<SidebarTree> {
 
   @override
   void dispose() {
+    _cancelAllSessions();
     _scrollController.dispose();
     super.dispose();
   }
@@ -91,37 +97,68 @@ class _SidebarTreeState extends State<SidebarTree> {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════
+  //  Kill / Cancel
+  // ═══════════════════════════════════════════════════════════
+
+  /// Kill all in-flight sessions and remove incomplete cache entries.
+  /// Called synchronously at the start of every new sync.
+  void _cancelAllSessions() {
+    for (final entry in _activeSessIds.entries) {
+      DirectoryService.endShellEnum(entry.value);
+      // Remove incomplete cache — only first page (or fewer) was loaded
+      _childrenCache.remove(entry.key);
+    }
+    _activeSessIds.clear();
+    _inFlight.clear();
+  }
+
+  /// Cleanup a single session (called from async paths when generation is stale).
+  void _cleanupSession(String key, int sid) {
+    DirectoryService.endShellEnum(sid);
+    _activeSessIds.remove(key);
+    _loadingPaths.remove(key);
+    _childrenCache.remove(key);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  Path Sync (entry point for FilePane → SidebarTree navigation)
+  // ═══════════════════════════════════════════════════════════
+
   void _syncToPath(String path) {
-    final sw = Stopwatch()..start();
+    // 1. Kill any in-flight sync
+    _syncGeneration++;
+    _cancelAllSessions();
+    _loadingPaths.clear();
     _needsScrollToSelected = true;
+
+    // 2. Quick Access
     for (final item in _quickAccessItems) {
       if (_pathEquals(item.path, path)) {
         setState(() => _selectedPath = item.path);
-        sw.stop();
-        debugPrint('[Perf] Sidebar _syncToPath QA hit: ${sw.elapsedMilliseconds}ms');
         return;
       }
     }
+
+    // 3. This PC
     if (path == _thisPcGuid) {
       setState(() => _selectedPath = _thisPcGuid);
-      sw.stop();
-      debugPrint('[Perf] Sidebar _syncToPath ThisPc: ${sw.elapsedMilliseconds}ms');
       return;
     }
+
+    // 4. Drive-based chain expansion
     final drive = _findDriveFor(path);
     if (drive == null) {
       setState(() {});
-      sw.stop();
-      debugPrint('[Perf] Sidebar _syncToPath no drive: ${sw.elapsedMilliseconds}ms');
       return;
     }
+
     _thisPcExpanded = true;
     _expandedPaths.add(_norm(drive));
-    _expandChainTo(path, drive);
     setState(() => _selectedPath = path);
-    _loadChildren(drive);
-    sw.stop();
-    debugPrint('[Perf] Sidebar _syncToPath drive expand: ${sw.elapsedMilliseconds}ms');
+
+    final gen = _syncGeneration;
+    _expandChainTo(path, drive, gen);
   }
 
   String? _findDriveFor(String path) {
@@ -131,43 +168,86 @@ class _SidebarTreeState extends State<SidebarTree> {
     return null;
   }
 
-  void _expandChainTo(String targetPath, String drive) {
+  /// Walk from [drive] to [targetPath], loading children for each segment
+  /// that is not already cached.  Kills itself if generation is stale.
+  Future<void> _expandChainTo(
+      String targetPath, String drive, int generation) async {
+    // Build ordered list of paths: drive, drive\seg1, drive\seg1\seg2, ...
+    final paths = <String>[drive];
     final normTarget = _norm(targetPath);
     final normDrive = _norm(drive);
-    if (normTarget == normDrive) return;
-    var rel = targetPath.replaceAll('/', '\\');
-    if (rel.toLowerCase().startsWith(drive.toLowerCase())) {
-      rel = rel.substring(drive.length);
+    if (normTarget != normDrive) {
+      var rel = targetPath.replaceAll('/', '\\');
+      if (rel.toLowerCase().startsWith(drive.toLowerCase())) {
+        rel = rel.substring(drive.length);
+      }
+      final segments = rel.split('\\').where((s) => s.isNotEmpty).toList();
+      String current = drive.endsWith('\\') ? drive : '$drive\\';
+      for (int i = 0; i < segments.length; i++) {
+        current =
+            i == 0 ? '$drive${segments[i]}' : '$current\\${segments[i]}';
+        paths.add(current);
+      }
     }
-    final segments = rel.split('\\').where((s) => s.isNotEmpty).toList();
-    String current = drive.endsWith('\\') ? drive : '$drive\\';
-    for (int i = 0; i < segments.length; i++) {
-      current = i == 0 ? '$drive${segments[i]}' : '$current\\${segments[i]}';
-      final normCurrent = _norm(current);
-      _expandedPaths.add(normCurrent);
-      _loadChildren(current);
+
+    for (final p in paths) {
+      if (generation != _syncGeneration) return;
+      final key = _norm(p);
+      _expandedPaths.add(key);
+
+      if (_childrenCache.containsKey(key)) {
+        // Already loaded — skip directly to next segment
+        if (mounted && generation == _syncGeneration) setState(() {});
+        continue;
+      }
+
+      await _loadChildren(p, generation: generation);
+      if (generation != _syncGeneration) return;
+      if (mounted) setState(() {});
     }
   }
 
-  Future<void> _loadChildren(String path) async {
-    final key = _norm(path);
-    if (_childrenCache.containsKey(key) || _pendingLoads.contains(key)) return;
-    _pendingLoads.add(key);
-    await _afterFrame();
+  // ═══════════════════════════════════════════════════════════
+  //  Children Loading
+  // ═══════════════════════════════════════════════════════════
 
-    final sid = DirectoryService.beginShellEnum(path, directoriesOnly: true);
-    if (sid <= 0) {
-      if (mounted) setState(() => _childrenCache[key] = []);
-      _pendingLoads.remove(key);
+  Future<void> _loadChildren(String path, {int? generation}) async {
+    final gen = generation ?? _syncGeneration;
+    final key = _norm(path);
+
+    if (_childrenCache.containsKey(key) || _inFlight.contains(key)) return;
+    _inFlight.add(key);
+
+    await _afterFrame();
+    if (gen != _syncGeneration) {
+      _inFlight.remove(key);
       return;
     }
 
+    final sid = DirectoryService.beginShellEnum(path, directoriesOnly: true);
+    if (sid <= 0) {
+      _inFlight.remove(key);
+      if (mounted && gen == _syncGeneration) {
+        setState(() => _childrenCache[key] = []);
+      }
+      return;
+    }
+    _activeSessIds[key] = sid;
+
     // Load first page synchronously
     final firstPage = DirectoryService.getNextEnumPage(sid, count: 500);
+    if (gen != _syncGeneration) {
+      _inFlight.remove(key);
+      _cleanupSession(key, sid);
+      return;
+    }
+
     if (firstPage == null) {
-      DirectoryService.endShellEnum(sid);
-      if (mounted) setState(() => _childrenCache[key] = []);
-      _pendingLoads.remove(key);
+      _inFlight.remove(key);
+      _cleanupSession(key, sid);
+      if (mounted && gen == _syncGeneration) {
+        setState(() => _childrenCache[key] = []);
+      }
       return;
     }
 
@@ -178,17 +258,22 @@ class _SidebarTreeState extends State<SidebarTree> {
     children.sort(
         (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     _childrenCache[key] = children;
-    _pendingLoads.remove(key);
-    if (mounted) setState(() {});
+    _inFlight.remove(key); // cache populated, no longer in-flight
+    if (mounted && gen == _syncGeneration) setState(() {});
 
-    // Background: load more pages
+    // Background: load remaining pages
     _loadingPaths.add(key);
-    _loadMoreChildren(sid, key);
+    _loadMoreChildren(sid, key, gen);
   }
 
-  Future<void> _loadMoreChildren(int sid, String key) async {
+  Future<void> _loadMoreChildren(int sid, String key, int generation) async {
     while (true) {
       await _afterFrame();
+      if (generation != _syncGeneration) {
+        _cleanupSession(key, sid);
+        return;
+      }
+
       final page = DirectoryService.getNextEnumPage(sid, count: 500);
       if (page == null) break;
 
@@ -200,33 +285,40 @@ class _SidebarTreeState extends State<SidebarTree> {
 
       final existing = _childrenCache[key];
       if (existing == null) {
-        // Node was collapsed or navigated away
-        DirectoryService.endShellEnum(sid);
-        _pendingLoads.remove(key);
+        // Killed by a newer sync between frames — safety net
+        _cleanupSession(key, sid);
         return;
       }
-      final existingPaths = existing.map((d) => _norm(d.path)).toSet();
-      for (final d in dirs) {
-        if (!existingPaths.contains(_norm(d.path))) {
-          existing.add(d);
-          existingPaths.add(_norm(d.path));
-        }
-      }
+
+      existing.addAll(dirs);
+      if (mounted && generation == _syncGeneration) setState(() {});
+    }
+
+    final existing = _childrenCache[key];
+    if (existing != null) {
       existing.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      if (mounted) setState(() {});
     }
     _loadingPaths.remove(key);
+    _activeSessIds.remove(key);
     DirectoryService.endShellEnum(sid);
-    if (mounted) setState(() {});
+    if (mounted && generation == _syncGeneration) {
+      if (_selectedPath != null && _isUnder(_selectedPath!, key)) {
+        _needsScrollToSelected = true;
+      }
+      setState(() {});
+    }
   }
+
+  // ═══════════════════════════════════════════════════════════
+  //  Tree flattening & rendering  (unchanged logic below)
+  // ═══════════════════════════════════════════════════════════
 
   bool _hasChildren(String path) {
     // CACHE DISABLED
     return SidebarService.directoryHasChildren(path);
   }
 
-  /// Returns a Future that completes after the current frame.
   Future<void> _afterFrame() {
     final c = Completer<void>();
     WidgetsBinding.instance.addPostFrameCallback((_) => c.complete());
@@ -298,7 +390,6 @@ class _SidebarTreeState extends State<SidebarTree> {
         _flattenDir(children, depth + 1, out, parentPath: dir.path);
       }
     }
-    // Append loading indicator if still loading more children
     if (_loadingPaths.contains(_norm(parentPath))) {
       out.add(_TreeRow(
         type: _RowType.loadingIndicator,
@@ -311,9 +402,7 @@ class _SidebarTreeState extends State<SidebarTree> {
     }
   }
 
-  double get _quickAccessHeaderHeight {
-    return 20.0;
-  }
+  double get _quickAccessHeaderHeight => 20.0;
 
   double get _preTreeHeight {
     return 20.0 + _quickAccessItems.length * 22.0 + 1.0 + 4.0;
@@ -325,22 +414,20 @@ class _SidebarTreeState extends State<SidebarTree> {
       if (!_scrollController.hasClients) return;
 
       double? offset;
-      // Priority 1: Quick Access
-      final qaIndex =
-          _quickAccessItems.indexWhere((item) => _pathEquals(item.path, _selectedPath ?? ''));
+      final qaIndex = _quickAccessItems
+          .indexWhere((item) => _pathEquals(item.path, _selectedPath ?? ''));
       if (qaIndex >= 0) {
         offset = _quickAccessHeaderHeight + qaIndex * 22.0;
       } else {
-        // Priority 2: This PC tree
         final items = _flattenTree();
-        final treeIndex =
-            items.indexWhere((item) => _pathEquals(item.path, _selectedPath ?? ''));
+        final treeIndex = items
+            .indexWhere((item) => _pathEquals(item.path, _selectedPath ?? ''));
         if (treeIndex >= 0) {
           offset = _preTreeHeight + treeIndex * 22.0;
         }
       }
 
-      if (offset == null) return; // target not yet visible, retry on next build
+      if (offset == null) return;
 
       final viewportHeight = _scrollController.position.viewportDimension;
       final centeredOffset = offset - viewportHeight / 2 + 11.0;
@@ -517,11 +604,16 @@ class _SidebarTreeState extends State<SidebarTree> {
 
     sw.stop();
     if (sw.elapsedMilliseconds > 10) {
-      debugPrint('[Perf] SidebarTree build: flatten=${flattenMs}ms, total=${sw.elapsedMilliseconds}ms');
+      debugPrint(
+          '[Perf] SidebarTree build: flatten=${flattenMs}ms, total=${sw.elapsedMilliseconds}ms');
     }
     return result;
   }
 }
+
+// ═══════════════════════════════════════════════════════════
+//  Utility functions (unchanged)
+// ═══════════════════════════════════════════════════════════
 
 String _norm(String path) {
   var s = path.replaceAll('/', '\\');
@@ -538,6 +630,10 @@ bool _isUnder(String child, String parent) {
   final np = _norm(parent);
   return nc == np || nc.startsWith(np.endsWith('\\') ? np : '$np\\');
 }
+
+// ═══════════════════════════════════════════════════════════
+//  Private widgets (unchanged)
+// ═══════════════════════════════════════════════════════════
 
 class _ShellIcon extends StatelessWidget {
   static const _iconSize = 15;
@@ -562,7 +658,8 @@ class _ShellIcon extends StatelessWidget {
         gaplessPlayback: true,
       );
     }
-    return Icon(fallback, size: _iconSize.toDouble(), color: Colors.amber.shade700);
+    return Icon(fallback,
+        size: _iconSize.toDouble(), color: Colors.amber.shade700);
   }
 }
 
