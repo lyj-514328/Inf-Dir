@@ -1,0 +1,11 @@
+[package]
+name = "img-view"
+version = "0.1.0"
+edition = "2021"
+description = "A lightweight image viewer for Inf-Dir Quick View"
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = [
+    "png", "jpeg", "gif", "bmp", "webp", "avif", "tiff", "ico", "hdr"
+] }
+minifb = "0.27"

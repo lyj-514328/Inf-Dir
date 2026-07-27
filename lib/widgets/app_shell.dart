@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../features/quick_view/quick_view_service.dart';
 import '../state/layout_state.dart';
 import 'sidebar_tree.dart';
 import 'layout_view.dart';
@@ -47,6 +48,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (event is KeyUpEvent && event.logicalKey == LogicalKeyboardKey.altLeft ||
         event is KeyUpEvent && event.logicalKey == LogicalKeyboardKey.altRight) {
       context.read<LayoutState>().hideAltOverlay();
+    }
+    // F3 — Quick View
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.f3) {
+      final layout = context.read<LayoutState>();
+      final node = layout.focusedNode;
+      final ctrl = layout.controllerFor(node);
+      final selected = ctrl?.selectedPaths;
+      if (selected != null && selected.isNotEmpty) {
+        QuickViewService.open(selected.first);
+      }
     }
     return false; // 不拦截，继续传递给其他 handler
   }

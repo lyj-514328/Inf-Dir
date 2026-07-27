@@ -18,3 +18,8 @@ desktop.ini
 
 # Qwen
 .qwen/
+
+# Plugin build artifacts (source is tracked via submodules)
+plugins/*/target/
+plugins/*.exe
+plugins/*.dll
