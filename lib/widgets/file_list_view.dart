@@ -351,7 +351,7 @@ class _HeaderCell extends StatelessWidget {
 
 // ── File Row ─────────────────────────────────────────────────────────
 
-class _FileRow extends StatelessWidget {
+class _FileRow extends StatefulWidget {
   final FileEntry entry;
   final bool isSelected;
   final bool isActive;
@@ -373,79 +373,99 @@ class _FileRow extends StatelessWidget {
   });
 
   @override
+  State<_FileRow> createState() => _FileRowState();
+}
+
+class _FileRowState extends State<_FileRow> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
-    final bgColor = isSelected
-        ? (isActive ? const Color(0xFF0078D4) : const Color(0xFFCCCCCC))
-        : Colors.transparent;
-    final textColor = isSelected
-        ? (isActive ? Colors.white : const Color(0xFF1A1A1A))
+    final hoverColor = const Color(0x11000000);
+    final selectedBg = widget.isActive
+        ? const Color(0xFF0078D4)
+        : const Color(0xFFCCCCCC);
+    final textColor = widget.isSelected
+        ? (widget.isActive ? Colors.white : const Color(0xFF1A1A1A))
         : const Color(0xFF1A1A1A);
 
-    return GestureDetector(
-      onTap: onSingleTap,
-      onDoubleTap: onDoubleTap,
-      onSecondaryTapUp: (details) =>
-          onRightClick?.call(details.globalPosition),
-      child: SizedBox(
-        height: 22,
-        child: Row(
-          children: [
-            Container(
-              // 高亮仅覆盖数据列区域，不包含右侧空白
-              color: bgColor,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: columnWidths[0],
-                    child: Row(
-                      children: [
-                        _FileIcon(
-                          path: entry.path,
-                          isDirectory: entry.isDirectory,
-                          isSelected: isSelected && isActive,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            entry.name,
-                            style: TextStyle(fontSize: 12, color: textColor),
-                            overflow: TextOverflow.ellipsis,
+    Color bgColor;
+    if (widget.isSelected) {
+      bgColor = selectedBg;
+    } else if (_hovering) {
+      bgColor = hoverColor;
+    } else {
+      bgColor = Colors.transparent;
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        onTap: widget.onSingleTap,
+        onDoubleTap: widget.onDoubleTap,
+        onSecondaryTapUp: (details) =>
+            widget.onRightClick?.call(details.globalPosition),
+        child: SizedBox(
+          height: 22,
+          child: Row(
+            children: [
+              Container(
+                color: bgColor,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: widget.columnWidths[0],
+                      child: Row(
+                        children: [
+                          _FileIcon(
+                            path: widget.entry.path,
+                            isDirectory: widget.entry.isDirectory,
+                            isSelected: widget.isSelected && widget.isActive,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              widget.entry.name,
+                              style: TextStyle(fontSize: 12, color: textColor),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  SizedBox(
-                    width: columnWidths[1],
-                    child: Text(
-                      entry.formattedDate,
-                      style: TextStyle(fontSize: 12, color: textColor),
-                      overflow: TextOverflow.ellipsis,
+                    SizedBox(
+                      width: widget.columnWidths[1],
+                      child: Text(
+                        widget.entry.formattedDate,
+                        style: TextStyle(fontSize: 12, color: textColor),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                  SizedBox(
-                    width: columnWidths[2],
-                    child: Text(
-                      entry.type,
-                      style: TextStyle(fontSize: 12, color: textColor),
-                      overflow: TextOverflow.ellipsis,
+                    SizedBox(
+                      width: widget.columnWidths[2],
+                      child: Text(
+                        widget.entry.type,
+                        style: TextStyle(fontSize: 12, color: textColor),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                  SizedBox(
-                    width: columnWidths[3],
-                    child: Text(
-                      entry.formattedSize,
-                      style: TextStyle(fontSize: 12, color: textColor),
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
+                    SizedBox(
+                      width: widget.columnWidths[3],
+                      child: Text(
+                        widget.entry.formattedSize,
+                        style: TextStyle(fontSize: 12, color: textColor),
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            SizedBox(width: blankWidth),
-          ],
+              SizedBox(width: widget.blankWidth),
+            ],
+          ),
         ),
       ),
     );

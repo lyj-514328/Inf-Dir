@@ -499,7 +499,9 @@ class _SidebarTreeState extends State<SidebarTree> {
     final isSelected =
         _selectedPath != null && _pathEquals(_selectedPath!, row.path);
     final fallback = _fallbackIcon(row.type);
-    return InkWell(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
       onTap: () => _onTapTreeRow(row),
       hoverColor: const Color(0x11000000),
       child: Container(
@@ -537,6 +539,7 @@ class _SidebarTreeState extends State<SidebarTree> {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -701,7 +704,9 @@ class _QuickAccessRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
       onTap: onTap,
       hoverColor: const Color(0x11000000),
       child: Container(
@@ -734,6 +739,7 @@ class _QuickAccessRow extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }
