@@ -69,10 +69,6 @@ class _SidebarTreeState extends State<SidebarTree> {
     super.initState();
     _quickAccessItems = SidebarService.getQuickAccessItems();
     _driveRoots = SidebarService.getDriveRoots();
-    if (_driveRoots.isNotEmpty) {
-      _expandedPaths.add(_norm(_driveRoots.first));
-    }
-    _loadChildren(_driveRoots.first);
     for (final drive in _driveRoots) {
       _hasChildrenCache[_norm(drive)] =
           SidebarService.directoryHasChildren(drive);
@@ -129,14 +125,15 @@ class _SidebarTreeState extends State<SidebarTree> {
     // 1. Kill any in-flight sync
     _syncGeneration++;
     _cancelAllSessions();
-    _loadingPaths.clear();
     _needsScrollToSelected = true;
 
-    // 2. Quick Access
+    // 2. Quick Access — highlight the item, then fall through to expand tree
+    bool isQa = false;
     for (final item in _quickAccessItems) {
       if (_pathEquals(item.path, path)) {
         setState(() => _selectedPath = item.path);
-        return;
+        isQa = true;
+        break;
       }
     }
 
@@ -149,13 +146,13 @@ class _SidebarTreeState extends State<SidebarTree> {
     // 4. Drive-based chain expansion
     final drive = _findDriveFor(path);
     if (drive == null) {
-      setState(() {});
+      if (!isQa) setState(() {});
       return;
     }
 
     _thisPcExpanded = true;
     _expandedPaths.add(_norm(drive));
-    setState(() => _selectedPath = path);
+    if (!isQa) setState(() => _selectedPath = path);
 
     final gen = _syncGeneration;
     _expandChainTo(path, drive, gen);
@@ -217,16 +214,19 @@ class _SidebarTreeState extends State<SidebarTree> {
 
     if (_childrenCache.containsKey(key) || _inFlight.contains(key)) return;
     _inFlight.add(key);
+    _loadingPaths.add(key);
 
     await _afterFrame();
     if (gen != _syncGeneration) {
       _inFlight.remove(key);
+      _loadingPaths.remove(key);
       return;
     }
 
     final sid = DirectoryService.beginShellEnum(path, directoriesOnly: true);
     if (sid <= 0) {
       _inFlight.remove(key);
+      _loadingPaths.remove(key);
       if (mounted && gen == _syncGeneration) {
         setState(() => _childrenCache[key] = []);
       }
@@ -261,8 +261,6 @@ class _SidebarTreeState extends State<SidebarTree> {
     _inFlight.remove(key); // cache populated, no longer in-flight
     if (mounted && gen == _syncGeneration) setState(() {});
 
-    // Background: load remaining pages
-    _loadingPaths.add(key);
     _loadMoreChildren(sid, key, gen);
   }
 
