@@ -1,0 +1,12 @@
+[package]
+name = "archive-view"
+version = "0.1.0"
+edition = "2021"
+description = "List the contents of archive files (zip/7z/rar/tar/gz/xz/iso) using libarchive"
+
+[dependencies]
+eframe = "0.29"
+libarchive2 = "0.2"
+
+[profile.release]
+opt-level = 2

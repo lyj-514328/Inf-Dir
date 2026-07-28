@@ -1,0 +1,10 @@
+[package]
+name = "video-view"
+version = "0.1.0"
+edition = "2021"
+description = "A lightweight video viewer for Inf-Dir Quick View (egui + libmpv2)"
+
+[dependencies]
+eframe = { version = "0.29", default-features = false, features = ["glow"] }
+egui = "0.29"
+libmpv2 = { version = "3", features = ["render"] }

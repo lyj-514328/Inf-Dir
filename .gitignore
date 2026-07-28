@@ -23,3 +23,4 @@ desktop.ini
 plugins/*/target/
 plugins/*.exe
 plugins/*.dll
+plugins/video-view/mpv-dev/
