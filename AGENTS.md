@@ -37,6 +37,6 @@ Inf-Dir/
 
 ## 开发约定
 
-- 文件系统操作及 Shell 集成通过 `win32` 包调用 Win32 / COM / Shell API
-- 状态管理方案待定（Provider / Riverpod / 其他）
+- 文件系统操作及 Shell 集成通过原生 FFI（`dart:ffi` + `package:ffi`）直接调用 Win32 / COM / Shell API
+- 状态管理使用 Provider
 - 保持轻量，避免过度抽象
