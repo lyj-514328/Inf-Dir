@@ -1,0 +1,17 @@
+[package]
+name = "pdf-view"
+version = "0.1.0"
+edition = "2021"
+description = "A lightweight PDF viewer for Inf-Dir Quick View (egui + PDFium)"
+
+[dependencies]
+arboard = "3.6.1"
+eframe = { version = "0.29", default-features = false, features = ["glow"] }
+egui = "0.29"
+image = { version = "0.25", default-features = false }
+pdfium-render = { version = "0.9.3", default-features = false, features = ["pdfium_latest", "image_025", "thread_safe"] }
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+strip = true
