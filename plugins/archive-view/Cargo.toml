@@ -3,10 +3,11 @@ name = "archive-view"
 version = "0.1.0"
 edition = "2021"
 description = "List the contents of archive files (zip/7z/rar/tar/gz/xz/iso) using libarchive"
+build = "build.rs"
 
 [dependencies]
-eframe = "0.29"
-libarchive2 = "0.2"
+eframe = { version = "0.35", default-features = false, features = ["glow", "default_fonts"] }
+egui_ltreeview = "0.8"
 
 [profile.release]
 opt-level = 2
