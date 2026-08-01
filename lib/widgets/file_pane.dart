@@ -8,6 +8,7 @@ import '../state/layout_state.dart';
 import '../state/pane_controller.dart';
 import '../services/file_service.dart';
 import '../services/shell_context_menu.dart';
+import 'app_theme.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
 import 'nav_toolbar.dart';
@@ -58,7 +59,8 @@ class _PaneContent extends StatelessWidget {
           onAddTab: () => controller.addTab(),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppMetrics.paneGap, vertical: 1),
           child: NavToolbar(
             canGoBack: controller.canGoBack,
             canGoForward: controller.canGoForward,
@@ -71,14 +73,14 @@ class _PaneContent extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(horizontal: AppMetrics.paneGap),
           child: AddressBar(
             currentPath: controller.displayPath,
             iconPath: controller.currentPath,
             onSubmit: (path) => controller.navigateTo(path),
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: AppMetrics.paneGap),
         Expanded(
           child: Focus(
             autofocus: false,
@@ -375,7 +377,7 @@ class _PaneContent extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: context.colors.danger),
             child: const Text('删除'),
           ),
         ],
@@ -473,6 +475,7 @@ class _StatusBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     String text;
     if (isLoading) {
       text = '正在加载...';
@@ -483,13 +486,13 @@ class _StatusBar extends StatelessWidget {
       text = '已选择 $selectedCount 个对象  |  $text';
     }
     return Container(
-      height: 20,
-      color: const Color(0xFFF0F0F0),
+      height: AppMetrics.statusBarHeight,
+      color: c.surfaceSubtle,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
       child: Text(
         text,
-        style: const TextStyle(fontSize: 11, color: Color(0xFF555555)),
+        style: TextStyle(fontSize: AppMetrics.fontSmall, color: c.textSecondary),
       ),
     );
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_theme.dart';
+
 class NavToolbar extends StatelessWidget {
   final bool canGoBack;
   final bool canGoForward;
@@ -25,7 +27,7 @@ class NavToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 28,
+      height: AppMetrics.navToolbarHeight,
       child: Row(
         children: [
           _NavButton(
@@ -79,18 +81,20 @@ class _NavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Tooltip(
       message: tooltip,
       child: InkWell(
         onTap: enabled ? onPressed : null,
-        borderRadius: BorderRadius.circular(2),
+        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        hoverColor: c.surfaceHover,
         child: SizedBox(
           width: 26,
           height: 26,
           child: Icon(
             icon,
-            size: 16,
-            color: enabled ? const Color(0xFF444444) : const Color(0xFFBBBBBB),
+            size: AppMetrics.iconMd,
+            color: enabled ? c.textSecondary : c.textTertiary,
           ),
         ),
       ),

@@ -40,3 +40,4 @@ Inf-Dir/
 - 文件系统操作及 Shell 集成通过原生 FFI（`dart:ffi` + `package:ffi`）直接调用 Win32 / COM / Shell API
 - 状态管理使用 Provider
 - 保持轻量，避免过度抽象
+- 样式统一走 `lib/widgets/app_theme.dart` 的设计 token（`context.colors` / `AppMetrics`），widget 中禁止新增 `Color(0x...)` / `Colors.xxx` 字面量；明暗双主题由 `lib/state/theme_controller.dart` 切换

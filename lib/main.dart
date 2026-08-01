@@ -6,7 +6,9 @@ import 'services/directory_repository.dart';
 import 'state/app_state.dart';
 import 'state/layout_state.dart';
 import 'state/sidebar_controller.dart';
+import 'state/theme_controller.dart';
 import 'widgets/app_shell.dart';
+import 'widgets/app_theme.dart';
 
 void main() {
   runApp(
@@ -35,6 +37,7 @@ void main() {
           create: (ctx) =>
               SidebarSyncController(repository: ctx.read<DirectoryRepository>()),
         ),
+        ChangeNotifierProvider(create: (_) => ThemeController()),
       ],
       child: const InfDirApp(),
     ),
@@ -46,20 +49,13 @@ class InfDirApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.watch<ThemeController>();
     return MaterialApp(
       title: 'Inf-Dir',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0078D4),
-          brightness: Brightness.light,
-        ),
-        visualDensity: VisualDensity.compact,
-        fontFamily: 'Segoe UI',
-        dividerColor: const Color(0xFFD0D0D0),
-        scaffoldBackgroundColor: Colors.white,
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: theme.mode,
       home: const AppShell(),
     );
   }

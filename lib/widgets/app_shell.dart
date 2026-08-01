@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../state/layout_state.dart';
 import '../state/sidebar_controller.dart';
+import '../state/theme_controller.dart';
+import 'app_theme.dart';
 import 'sidebar_tree.dart';
 import 'layout_view.dart';
 
@@ -79,6 +81,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     final layoutState = context.watch<LayoutState>();
     final activePane = layoutState.allPaneNodes.isNotEmpty
         ? layoutState.controllerFor(layoutState.focusedNode)
@@ -89,21 +92,19 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         children: [
           _MenuBar(),
           _WorkspaceBar(layoutState: layoutState),
-          Container(height: 1, color: const Color(0xFFD0D0D0)),
+          Container(height: 1, color: c.border),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(3),
+              padding: const EdgeInsets.all(AppMetrics.pagePadding),
               child: Row(
                 children: [
                   Container(
                     margin: const EdgeInsets.all(1),
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+                      border: Border.all(color: c.border),
+                      color: c.surface,
                     ),
                     child: SizedBox(
                       key: ValueKey(layoutState.activeWorkspaceIndex),
@@ -146,9 +147,12 @@ class _WorkspaceBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+    final theme = context.watch<ThemeController>();
+
     return Container(
-      height: 30,
-      color: const Color(0xFFF0F0F0),
+      height: AppMetrics.workspaceBarHeight,
+      color: c.surfaceSubtle,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
         children: [
@@ -166,21 +170,33 @@ class _WorkspaceBar extends StatelessWidget {
           const SizedBox(width: 4),
           InkWell(
             onTap: () => layoutState.addWorkspace(),
-            borderRadius: BorderRadius.circular(3),
-            child: const SizedBox(
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            child: SizedBox(
               width: 26,
               height: 26,
-              child: Icon(Icons.add, size: 16, color: Color(0xFF555555)),
+              child: Icon(Icons.add, size: AppMetrics.iconMd, color: c.textSecondary),
             ),
           ),
           const Spacer(),
+          Tooltip(
+            message: '主题：${theme.label}',
+            child: InkWell(
+              onTap: theme.cycle,
+              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: Icon(theme.icon, size: AppMetrics.iconMd, color: c.textSecondary),
+              ),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
               '按住 Alt 显示面板操作',
               style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey.shade500,
+                fontSize: AppMetrics.fontSmall,
+                color: c.textTertiary,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -206,16 +222,18 @@ class _WorkspaceTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         height: 24,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: isActive ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(3),
+          color: isActive ? c.surface : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppMetrics.tabRadius),
           border: Border.all(
-            color: isActive ? const Color(0xFFB0B0B0) : Colors.transparent,
+            color: isActive ? c.borderStrong : Colors.transparent,
           ),
         ),
         child: Row(
@@ -224,8 +242,8 @@ class _WorkspaceTab extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
-                color: isActive ? const Color(0xFF333333) : const Color(0xFF777777),
+                fontSize: AppMetrics.fontSmall,
+                color: isActive ? c.textPrimary : c.textSecondary,
               ),
             ),
             if (onClose != null) ...[
@@ -233,7 +251,7 @@ class _WorkspaceTab extends StatelessWidget {
               InkWell(
                 onTap: onClose,
                 borderRadius: BorderRadius.circular(2),
-                child: const Icon(Icons.close, size: 12, color: Color(0xFF888888)),
+                child: Icon(Icons.close, size: 12, color: c.textTertiary),
               ),
             ],
           ],
@@ -246,9 +264,11 @@ class _WorkspaceTab extends StatelessWidget {
 class _MenuBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+
     return Container(
-      height: 24,
-      color: const Color(0xFFF0F0F0),
+      height: AppMetrics.menuBarHeight,
+      color: c.surfaceSubtle,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
         children: const [
@@ -274,7 +294,7 @@ class _MenuLabel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 12, color: Color(0xFF333333)),
+        style: TextStyle(fontSize: AppMetrics.fontBody, color: context.colors.textPrimary),
       ),
     );
   }
@@ -300,7 +320,7 @@ class _SideSplitter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final c = context.colors;
 
     return MouseRegion(
       cursor: SystemMouseCursors.resizeColumn,
@@ -313,9 +333,9 @@ class _SideSplitter extends StatelessWidget {
         child: Container(
           width: 2,
           color: dragging
-              ? cs.primary
+              ? c.accent
               : hovering
-                  ? cs.primary.withValues(alpha: 0.3)
+                  ? c.accent.withValues(alpha: 0.35)
                   : Colors.transparent,
         ),
       ),

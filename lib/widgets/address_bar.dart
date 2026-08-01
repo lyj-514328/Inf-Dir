@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/icon_service.dart';
+import 'app_theme.dart';
 
 class AddressBar extends StatefulWidget {
   final String currentPath;
@@ -33,11 +34,11 @@ class _AddressBarState extends State<AddressBar> {
   void _onFocusChange() {
     if (!_focusNode.hasFocus && _editing) {
       // Lost focus without submitting → revert to current path
-      setState(() {
-        _editing = false;
-        _controller.text = widget.currentPath;
-      });
+      _editing = false;
+      _controller.text = widget.currentPath;
     }
+    // 聚焦态变化 → 仅更新边框样式
+    setState(() {});
   }
 
   @override
@@ -65,21 +66,32 @@ class _AddressBarState extends State<AddressBar> {
   }
 
   Widget _buildIcon() {
+    final c = context.colors;
     final bytes = IconService.getFileIconPng(widget.iconPath, true, 16);
     if (bytes != null) {
-      return Image.memory(bytes, width: 14, height: 14, gaplessPlayback: true);
+      return Image.memory(
+        bytes,
+        width: AppMetrics.iconSm,
+        height: AppMetrics.iconSm,
+        gaplessPlayback: true,
+      );
     }
-    return Icon(Icons.folder_open, size: 14, color: Colors.amber.shade700);
+    return Icon(Icons.folder_open, size: AppMetrics.iconSm, color: c.iconFolder);
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+    final focused = _focusNode.hasFocus;
     return Container(
-      height: 26,
+      height: AppMetrics.addressBarHeight,
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFB0B0B0)),
-        borderRadius: BorderRadius.circular(2),
-        color: Colors.white,
+        border: Border.all(
+          color: focused ? c.accent : c.borderStrong,
+          width: focused ? 1.5 : 1,
+        ),
+        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        color: c.surface,
       ),
       child: Row(
         children: [
@@ -90,11 +102,18 @@ class _AddressBarState extends State<AddressBar> {
             child: TextField(
               controller: _controller,
               focusNode: _focusNode,
-              style: const TextStyle(fontSize: 12),
-              decoration: const InputDecoration(
+              style: TextStyle(
+                fontSize: AppMetrics.fontBody,
+                color: c.textPrimary,
+              ),
+              decoration: InputDecoration(
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 4),
+                contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                hintStyle: TextStyle(
+                  fontSize: AppMetrics.fontBody,
+                  color: c.textTertiary,
+                ),
               ),
               onSubmitted: (_) => _submit(),
               onTap: () => setState(() => _editing = true),

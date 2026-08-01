@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import '../models/layout_node.dart';
+import 'app_theme.dart';
 
-/// Alt 键按下时在每个面板上显示的浮动操作层
+/// Alt 键按下时在每个面板上显示的浮动操作层。
 ///
-/// - 右上角：关闭图标
-/// - 中央微弱的十字分割线 + 分割按钮（1/4 位置）
-/// - 中央：交换图标（带选中反馈）
+/// 设计：操作层是"浮在面板上的一张玻璃片"——
+/// - 面板中央一条收敛的细十字线（仅作分割方向暗示，两端渐隐）
+/// - 中央胶囊操作簇：水平切分 | 交换 | 垂直切分
+/// - 右上角关闭按钮（hover 显红，Win11 语义）
+///
+/// 颜色全部走 [AppColors] token，单一 accent 语义色。
 class AltOverlay extends StatelessWidget {
   final LayoutNode node;
   final bool isSwapSelected;
@@ -22,210 +26,215 @@ class AltOverlay extends StatelessWidget {
     required this.onSwap,
   });
 
-  // 水平分割（蓝色系）
-  static const _splitHLine = Color(0xFF5B9BD5);
-  static const _splitHBorder = Color(0xFF4A8AC4);
-  static const _splitHIcon = Color(0xFF3A7AB4);
-
-  // 垂直分割（琥珀色系）
-  static const _splitVLine = Color(0xFFE8A44A);
-  static const _splitVBorder = Color(0xFFD89338);
-  static const _splitVIcon = Color(0xFFC88228);
-
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      ignoring: false,
-      child: Stack(
-        children: [
-          // 半透明遮罩
-          Positioned.fill(
-            child: Container(color: Colors.black.withValues(alpha: 0.10)),
-          ),
+    final c = context.colors;
 
-          // ── 十字分割线 ──
-          // 水平线（蓝色，2px）
-          Positioned(
-            left: 0, right: 0,
-            top: 0, bottom: 0,
-            child: Center(
-              child: Container(
-                height: 1.5,
-                margin: const EdgeInsets.symmetric(horizontal: 10),
-                color: _splitHLine,
+    return Stack(
+      children: [
+        // 半透明压暗遮罩
+        Positioned.fill(child: Container(color: c.scrim)),
+
+        // ── 中央细十字线（60% 长度，两端渐隐）──
+        Center(
+          child: FractionallySizedBox(
+            widthFactor: 0.6,
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [
+                  c.border.withValues(alpha: 0),
+                  c.border,
+                  c.border.withValues(alpha: 0),
+                ]),
               ),
             ),
           ),
-          // 竖直线（琥珀色，2px）
-          Positioned(
-            left: 0, right: 0,
-            top: 0, bottom: 0,
-            child: Center(
-              child: Container(
-                width: 1.5,
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                color: _splitVLine,
-              ),
-            ),
-          ),
-
-          // ── 水平分割按钮（蓝色，十字线右侧 1/4 处：上下切分）──
-          Align(
-            alignment: const Alignment(0.45, 0),
-            child: _SplitBtn(
-              icon: Icons.horizontal_split,
-              tooltip: '水平切分',
-              borderColor: _splitHBorder,
-              iconColor: _splitHIcon,
-              onTap: () => onSplit(SplitDirection.vertical),
-            ),
-          ),
-
-          // ── 垂直分割按钮（琥珀色，十字线下侧 1/4 处：左右切分）──
-          Align(
-            alignment: const Alignment(0, 0.45),
-            child: _SplitBtn(
-              icon: Icons.vertical_split,
-              tooltip: '垂直切分',
-              borderColor: _splitVBorder,
-              iconColor: _splitVIcon,
-              onTap: () => onSplit(SplitDirection.horizontal),
-            ),
-          ),
-
-          // ── 右上角关闭 ──
-          Positioned(
-            top: 2,
-            right: 2,
-            child: _MiniIconBtn(
-              icon: Icons.cancel,
-              color: Colors.red.shade400,
-              tooltip: '关闭面板',
-              onTap: onClose,
-            ),
-          ),
-
-          // ── 中央交换 ──
-          Center(
-            child: GestureDetector(
-              onTap: onSwap,
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: isSwapSelected
-                      ? const Color(0xFF3A8094).withValues(alpha: 0.22)
-                      : Colors.white.withValues(alpha: 0.92),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSwapSelected
-                        ? const Color(0xFF3A8094)
-                        : const Color(0xFF5A8A9E),
-                    width: isSwapSelected ? 2 : 1.2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
+        ),
+        Center(
+          child: FractionallySizedBox(
+            heightFactor: 0.6,
+            child: Container(
+              width: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    c.border.withValues(alpha: 0),
+                    c.border,
+                    c.border.withValues(alpha: 0),
                   ],
                 ),
-                child: Icon(
-                  Icons.swap_horizontal_circle,
-                  size: 20,
-                  color: isSwapSelected
-                      ? const Color(0xFF3A8094)
-                      : const Color(0xFF4A8098),
-                ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+
+        // ── 中央胶囊操作簇 ──
+        Center(
+          child: Container(
+            height: 34,
+            decoration: BoxDecoration(
+              color: c.surface.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+              border: Border.all(color: c.border),
+              boxShadow: [
+                BoxShadow(
+                  color: c.scrim,
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _OverlayBtn(
+                  icon: Icons.horizontal_split,
+                  tooltip: '水平切分',
+                  onTap: () => onSplit(SplitDirection.vertical),
+                ),
+                _BtnDivider(),
+                _OverlayBtn(
+                  icon: Icons.swap_horiz,
+                  tooltip: '与其他面板交换',
+                  selected: isSwapSelected,
+                  onTap: onSwap,
+                ),
+                _BtnDivider(),
+                _OverlayBtn(
+                  icon: Icons.vertical_split,
+                  tooltip: '垂直切分',
+                  onTap: () => onSplit(SplitDirection.horizontal),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // ── 右上角关闭 ──
+        Positioned(
+          top: 4,
+          right: 4,
+          child: _CloseBtn(onTap: onClose),
+        ),
+      ],
     );
   }
 }
 
-/// 十字线上的分割按钮
-class _SplitBtn extends StatelessWidget {
+class _BtnDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 16,
+      color: context.colors.border,
+    );
+  }
+}
+
+/// 操作簇内的图标按钮：hover 显 accent，交换选中态为 accent 实底
+class _OverlayBtn extends StatefulWidget {
   final IconData icon;
   final String tooltip;
-  final Color borderColor;
-  final Color iconColor;
+  final bool selected;
   final VoidCallback onTap;
 
-  const _SplitBtn({
+  const _OverlayBtn({
     required this.icon,
     required this.tooltip,
-    required this.borderColor,
-    required this.iconColor,
     required this.onTap,
+    this.selected = false,
   });
 
   @override
+  State<_OverlayBtn> createState() => _OverlayBtnState();
+}
+
+class _OverlayBtnState extends State<_OverlayBtn> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+    final active = widget.selected || _hovering;
+
     return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.92),
-            shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 2,
-                offset: const Offset(0, 1),
-              ),
-            ],
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: widget.selected
+                  ? c.accent
+                  : _hovering
+                      ? c.surfaceHover
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+            ),
+            child: Icon(
+              widget.icon,
+              size: 17,
+              color: widget.selected
+                  ? Colors.white
+                  : active
+                      ? c.accent
+                      : c.textSecondary,
+            ),
           ),
-          child: Icon(icon, size: 14, color: iconColor),
         ),
       ),
     );
   }
 }
 
-/// 迷你图标按钮（关闭）
-class _MiniIconBtn extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String tooltip;
+/// 关闭按钮：默认低调，hover 显 danger 实底白图标（Win11 关闭语义）
+class _CloseBtn extends StatefulWidget {
   final VoidCallback onTap;
 
-  const _MiniIconBtn({
-    required this.icon,
-    required this.color,
-    required this.tooltip,
-    required this.onTap,
-  });
+  const _CloseBtn({required this.onTap});
+
+  @override
+  State<_CloseBtn> createState() => _CloseBtnState();
+}
+
+class _CloseBtnState extends State<_CloseBtn> {
+  bool _hovering = false;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+
     return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 22,
-          height: 22,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.88),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 3,
-                offset: const Offset(0, 1),
-              ),
-            ],
+      message: '关闭面板',
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              color: _hovering
+                  ? c.danger
+                  : c.surface.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+              border: Border.all(color: _hovering ? c.danger : c.border),
+            ),
+            child: Icon(
+              Icons.close,
+              size: 13,
+              color: _hovering ? Colors.white : c.textTertiary,
+            ),
           ),
-          child: Icon(icon, size: 14, color: color),
         ),
       ),
     );

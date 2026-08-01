@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_theme.dart';
 import 'file_pane.dart';
 import 'sidebar_tree.dart';
 
@@ -14,7 +15,7 @@ class QuadLayout extends StatelessWidget {
         SidebarTree(
           onNavigate: (_) {},
         ),
-        Container(width: 1, color: const Color(0xFFD0D0D0)),
+        Container(width: 1, color: context.colors.border),
         Expanded(
           child: Column(
             children: [

@@ -5,6 +5,7 @@ import '../services/sidebar_service.dart';
 import '../services/icon_service.dart';
 import '../state/sidebar_controller.dart';
 import '../utils/path_utils.dart';
+import 'app_theme.dart';
 
 enum _RowType { thisPc, drive, directory, loadingIndicator }
 
@@ -51,8 +52,8 @@ class _SidebarTreeState extends State<SidebarTree> {
   static const _thisPcGuid = SidebarSyncController.thisPcGuid;
 
   // ── 布局常量：整个侧栏内容按固定行高排布 ──────────────────
-  static const double _rowHeight = 22.0;
-  static const double _quickAccessHeaderHeight = 20.0;
+  static const double _rowHeight = AppMetrics.sidebarRowHeight;
+  static const double _quickAccessHeaderHeight = AppMetrics.quickAccessHeaderHeight;
   static const double _dividerHeight = 1.0;
   static const double _gapHeight = 4.0;
 
@@ -307,6 +308,7 @@ class _SidebarTreeState extends State<SidebarTree> {
       pathEquals(sidebar.selectedPath!, path);
 
   Widget _buildTreeRow(SidebarSyncController sidebar, int index) {
+    final c = context.colors;
     final row = _treeItems[index];
 
     if (row.type == _RowType.loadingIndicator) {
@@ -314,10 +316,10 @@ class _SidebarTreeState extends State<SidebarTree> {
         height: _rowHeight,
         width: double.infinity,
         padding: EdgeInsets.only(left: 4.0 + row.depth * 16.0),
-        child: const Row(
+        child: Row(
           children: [
-            SizedBox(width: 14),
-            SizedBox(
+            const SizedBox(width: 14),
+            const SizedBox(
               width: 15,
               height: 15,
               child: SizedBox(
@@ -326,12 +328,12 @@ class _SidebarTreeState extends State<SidebarTree> {
                 child: CircularProgressIndicator(strokeWidth: 1.5),
               ),
             ),
-            SizedBox(width: 4),
+            const SizedBox(width: 4),
             Text(
               'Loading...',
               style: TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF999999),
+                  fontSize: AppMetrics.fontSmall,
+                  color: c.textTertiary,
                   fontStyle: FontStyle.italic),
             ),
           ],
@@ -345,39 +347,53 @@ class _SidebarTreeState extends State<SidebarTree> {
       color: Colors.transparent,
       child: InkWell(
       onTap: () => _onTapTreeRow(sidebar, row),
-      hoverColor: const Color(0x11000000),
+      hoverColor: c.surfaceHover,
       child: Container(
         height: _rowHeight,
         width: double.infinity,
-        color: isSelected ? const Color(0xFFCCE8FF) : null,
-        child: Row(
+        color: isSelected ? c.accentSubtle : null,
+        child: Stack(
           children: [
-            SizedBox(width: 4.0 + row.depth * 16.0),
-            if (row.hasChildren)
-              Icon(
-                row.isExpanded ? Icons.expand_more : Icons.chevron_right,
-                size: 14,
-                color: const Color(0xFF888888),
-              )
-            else
-              const SizedBox(width: 14),
-            const SizedBox(width: 2),
-            SizedBox(
-              width: 15,
-              child: _ShellIcon(
-                path: row.path,
-                isDirectory: true,
-                fallback: fallback,
-              ),
+            Row(
+              children: [
+                SizedBox(width: 4.0 + row.depth * 16.0),
+                if (row.hasChildren)
+                  Icon(
+                    row.isExpanded ? Icons.expand_more : Icons.chevron_right,
+                    size: 14,
+                    color: c.textTertiary,
+                  )
+                else
+                  const SizedBox(width: 14),
+                const SizedBox(width: 2),
+                SizedBox(
+                  width: 15,
+                  child: _ShellIcon(
+                    path: row.path,
+                    isDirectory: true,
+                    fallback: fallback,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    row.name,
+                    style: TextStyle(
+                        fontSize: AppMetrics.fontBody, color: c.textPrimary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                row.name,
-                style: const TextStyle(fontSize: 12),
-                overflow: TextOverflow.ellipsis,
+            // 现代选中指示：行左侧 3px accent 竖条。
+            if (isSelected)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 3,
+                child: ColoredBox(color: c.accent),
               ),
-            ),
           ],
         ),
       ),
@@ -404,6 +420,7 @@ class _SidebarTreeState extends State<SidebarTree> {
   Widget build(BuildContext context) {
     final sidebar = context.watch<SidebarSyncController>();
     _sidebar = sidebar;
+    final c = context.colors;
 
     final sw = Stopwatch()..start();
     _treeItems = _flattenTree(sidebar);
@@ -478,7 +495,7 @@ class _SidebarTreeState extends State<SidebarTree> {
         onExit: (_) => setState(() => _hovered = false),
         child: Container(
           clipBehavior: Clip.hardEdge,
-          decoration: const BoxDecoration(color: Color(0xFFF8F8F8)),
+          decoration: BoxDecoration(color: c.surfaceSubtle),
           alignment: Alignment.topLeft,
           child: Scrollbar(
             controller: _scrollController,
@@ -535,7 +552,7 @@ class _ShellIcon extends StatelessWidget {
       );
     }
     return Icon(fallback,
-        size: _iconSize.toDouble(), color: Colors.amber.shade700);
+        size: _iconSize.toDouble(), color: context.colors.iconFolder);
   }
 }
 
@@ -544,18 +561,19 @@ class _QuickAccessHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(8, 2, 8, 2),
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
       child: Row(
         children: [
-          Icon(Icons.history, size: 13, color: Color(0xFF666666)),
-          SizedBox(width: 4),
+          Icon(Icons.history, size: 13, color: c.textSecondary),
+          const SizedBox(width: 4),
           Text(
             '快速访问',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: AppMetrics.fontSmall,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF888888),
+              color: c.textTertiary,
             ),
           ),
         ],
@@ -579,38 +597,53 @@ class _QuickAccessRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Material(
       color: Colors.transparent,
       child: InkWell(
       onTap: onTap,
-      hoverColor: const Color(0x11000000),
+      hoverColor: c.surfaceHover,
       child: Container(
-        height: 22,
+        height: AppMetrics.sidebarRowHeight,
         width: double.infinity,
-        color: selected ? const Color(0xFFCCE8FF) : null,
-        child: Row(
+        color: selected ? c.accentSubtle : null,
+        child: Stack(
           children: [
-            const SizedBox(width: 4),
-            const SizedBox(width: 14),
-            const SizedBox(width: 2),
-            SizedBox(
-              width: 15,
-              child: _ShellIcon(
-                path: item.path,
-                isDirectory: true,
-                fallback: fallbackIcon,
-              ),
+            Row(
+              children: [
+                const SizedBox(width: 4),
+                const SizedBox(width: 14),
+                const SizedBox(width: 2),
+                SizedBox(
+                  width: 15,
+                  child: _ShellIcon(
+                    path: item.path,
+                    isDirectory: true,
+                    fallback: fallbackIcon,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    item.name,
+                    style: TextStyle(
+                        fontSize: AppMetrics.fontBody, color: c.textPrimary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (item.isPinned)
+                  Icon(Icons.push_pin, size: 11, color: c.textTertiary),
+              ],
             ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                item.name,
-                style: const TextStyle(fontSize: 12),
-                overflow: TextOverflow.ellipsis,
+            // 现代选中指示：行左侧 3px accent 竖条。
+            if (selected)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 3,
+                child: ColoredBox(color: c.accent),
               ),
-            ),
-            if (item.isPinned)
-              Icon(Icons.push_pin, size: 11, color: Colors.grey.shade500),
           ],
         ),
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../state/pane_controller.dart';
 import '../services/icon_service.dart';
+import 'app_theme.dart';
 
 class PaneTabBar extends StatelessWidget {
   final List<TabInfo> tabs;
@@ -20,9 +21,10 @@ class PaneTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Container(
-      height: 26,
-      color: const Color(0xFFE8E8E8),
+      height: AppMetrics.paneTabBarHeight,
+      color: c.surfaceSubtle,
       child: Row(
         children: [
           Expanded(
@@ -34,10 +36,14 @@ class PaneTabBar extends StatelessWidget {
                 if (index == tabs.length) {
                   return InkWell(
                     onTap: onAddTab,
-                    child: const SizedBox(
+                    child: SizedBox(
                       width: 24,
-                      height: 26,
-                      child: Icon(Icons.add, size: 14, color: Color(0xFF666666)),
+                      height: AppMetrics.paneTabBarHeight,
+                      child: Icon(
+                        Icons.add,
+                        size: AppMetrics.iconSm,
+                        color: c.textSecondary,
+                      ),
                     ),
                   );
                 }
@@ -59,7 +65,7 @@ class PaneTabBar extends StatelessWidget {
   }
 }
 
-class _TabItem extends StatelessWidget {
+class _TabItem extends StatefulWidget {
   final String label;
   final String path;
   final bool isActive;
@@ -77,50 +83,94 @@ class _TabItem extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final iconBytes = IconService.getFileIconPng(path, true, 16);
-    final iconWidget = iconBytes != null
-        ? Image.memory(iconBytes, width: 14, height: 14, gaplessPlayback: true)
-        : Icon(Icons.folder, size: 14, color: Colors.amber.shade700);
+  State<_TabItem> createState() => _TabItemState();
+}
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 150),
-        decoration: BoxDecoration(
-          color: isActive ? Colors.white : const Color(0xFFE8E8E8),
-          border: Border(
-            bottom: BorderSide(
-              color: isActive ? Colors.white : const Color(0xFFD0D0D0),
-              width: 1,
-            ),
-            right: const BorderSide(color: Color(0xFFD0D0D0), width: 0.5),
-          ),
+class _TabItemState extends State<_TabItem> {
+  bool _hoveringTab = false;
+  bool _hoveringClose = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final iconBytes = IconService.getFileIconPng(widget.path, true, 16);
+    final iconWidget = iconBytes != null
+        ? Image.memory(
+            iconBytes,
+            width: AppMetrics.iconSm,
+            height: AppMetrics.iconSm,
+            gaplessPlayback: true,
+          )
+        : Icon(Icons.folder, size: AppMetrics.iconSm, color: c.iconFolder);
+
+    final isActive = widget.isActive;
+    final Color bgColor = isActive
+        ? c.surface
+        : _hoveringTab
+            ? c.surfaceHover
+            : Colors.transparent;
+
+    final BoxDecoration decoration;
+    if (isActive) {
+      decoration = BoxDecoration(
+        color: bgColor,
+        border: Border.all(color: c.borderStrong, width: 1),
+        borderRadius: BorderRadius.circular(AppMetrics.tabRadius),
+      );
+    } else {
+      decoration = BoxDecoration(
+        color: bgColor,
+        border: Border(
+          right: BorderSide(color: c.border, width: 0.5),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(width: 14, height: 14, child: iconWidget),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isActive ? const Color(0xFF1A1A1A) : const Color(0xFF666666),
-                ),
-                overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveringTab = true),
+      onExit: (_) => setState(() => _hoveringTab = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 150),
+          decoration: decoration,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: AppMetrics.iconSm,
+                height: AppMetrics.iconSm,
+                child: iconWidget,
               ),
-            ),
-            if (showClose) ...[
               const SizedBox(width: 4),
-              GestureDetector(
-                onTap: onClose,
-                child: const Icon(Icons.close, size: 12, color: Color(0xFF999999)),
+              Flexible(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: AppMetrics.fontSmall,
+                    color: isActive ? c.textPrimary : c.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+              if (widget.showClose) ...[
+                const SizedBox(width: 4),
+                MouseRegion(
+                  onEnter: (_) => setState(() => _hoveringClose = true),
+                  onExit: (_) => setState(() => _hoveringClose = false),
+                  child: GestureDetector(
+                    onTap: widget.onClose,
+                    child: Icon(
+                      Icons.close,
+                      size: 12,
+                      color: _hoveringClose ? c.danger : c.textTertiary,
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

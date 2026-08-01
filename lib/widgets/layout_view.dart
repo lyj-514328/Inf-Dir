@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/layout_node.dart';
 import '../state/layout_state.dart';
+import 'app_theme.dart';
 import 'file_pane.dart';
 import 'alt_overlay.dart';
 
@@ -80,8 +81,7 @@ class _PaneWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+    final c = context.colors;
     final layoutState = context.watch<LayoutState>();
     final controller = layoutState.controllerFor(node);
     final isFocused = layoutState.focusedNodeId == node.id;
@@ -91,15 +91,15 @@ class _PaneWrapper extends StatelessWidget {
     return Listener(
       onPointerDown: (_) => layoutState.focusNode(node),
       child: Container(
-        margin: const EdgeInsets.all(1),
+        margin: const EdgeInsets.all(AppMetrics.paneGap / 2),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
           border: Border.all(
-            color: isFocused ? cs.primary : cs.outlineVariant,
+            color: isFocused ? c.accent : c.border,
             width: 1.5,
           ),
-          color: cs.surface,
+          color: c.surface,
         ),
         child: Stack(
           children: [
@@ -152,7 +152,7 @@ class _SplitterState extends State<_Splitter> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final c = context.colors;
     final isH = widget.direction == SplitDirection.horizontal;
     final altVisible = context.watch<LayoutState>().altOverlayVisible;
 
@@ -186,14 +186,14 @@ class _SplitterState extends State<_Splitter> {
           setState(() => _dragging = false);
         },
         child: Container(
-          width: isH ? 2 : double.infinity,
-          height: isH ? double.infinity : 2,
+          width: isH ? 3 : double.infinity,
+          height: isH ? double.infinity : 3,
           color: _dragging
-              ? cs.primary
+              ? c.accent
               : _hovering
-                  ? cs.primary.withValues(alpha: 0.3)
+                  ? c.accent.withValues(alpha: 0.35)
                   : altVisible
-                      ? cs.outlineVariant.withValues(alpha: 0.4)
+                      ? c.border
                       : Colors.transparent,
         ),
       ),

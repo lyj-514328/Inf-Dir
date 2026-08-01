@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/file_entry.dart';
 import '../services/icon_service.dart';
 import '../state/pane_controller.dart';
+import 'app_theme.dart';
 
 class FileListView extends StatefulWidget {
   final List<FileEntry> entries;
@@ -127,7 +128,7 @@ class _FileListViewState extends State<FileListView> {
                   blankWidth: blankW,
                   onResizeColumn: _handleResize,
                 ),
-                Container(height: 1, color: const Color(0xFFD0D0D0)),
+                Container(height: 1, color: context.colors.border),
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
@@ -135,10 +136,13 @@ class _FileListViewState extends State<FileListView> {
                       widget.onEmptyRightClick?.call(details.globalPosition);
                     },
                     child: widget.entries.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
                               '空文件夹',
-                              style: TextStyle(color: Colors.grey, fontSize: 12),
+                              style: TextStyle(
+                                color: context.colors.textTertiary,
+                                fontSize: AppMetrics.fontBody,
+                              ),
                             ),
                           )
                         : Scrollbar(
@@ -147,7 +151,7 @@ class _FileListViewState extends State<FileListView> {
                             child: ListView.builder(
                             controller: _vScrollController,
                             itemCount: widget.entries.length,
-                            itemExtent: 22,
+                            itemExtent: AppMetrics.rowHeight,
                             padding: EdgeInsets.zero,
                             itemBuilder: (context, index) {
                               final entry = widget.entries[index];
@@ -207,12 +211,12 @@ class _ColumnHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 22,
+      height: AppMetrics.rowHeight,
       child: Row(
         children: [
           Container(
-            height: 22,
-            color: const Color(0xFFF0F0F0),
+            height: AppMetrics.rowHeight,
+            color: context.colors.surfaceSubtle,
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
               children: [
@@ -239,7 +243,7 @@ class _ColumnHeader extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(width: blankWidth, height: 22),
+          SizedBox(width: blankWidth, height: AppMetrics.rowHeight),
         ],
       ),
     );
@@ -267,7 +271,7 @@ class _HeaderSplitterState extends State<_HeaderSplitter> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final c = context.colors;
     return MouseRegion(
       cursor: SystemMouseCursors.resizeColumn,
       onEnter: (_) => setState(() => _hovering = true),
@@ -298,10 +302,10 @@ class _HeaderSplitterState extends State<_HeaderSplitter> {
             height: 14,
             decoration: BoxDecoration(
               color: _dragging
-                  ? cs.primary
+                  ? c.accent
                   : _hovering
-                      ? cs.primary.withValues(alpha: 0.4)
-                      : cs.outlineVariant.withValues(alpha: 0.5),
+                      ? c.accent.withValues(alpha: 0.4)
+                      : c.borderStrong,
               borderRadius: BorderRadius.circular(1),
             ),
           ),
@@ -330,6 +334,7 @@ class _HeaderCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     final isActive = sortColumn == column;
     return SizedBox(
       width: width,
@@ -343,9 +348,9 @@ class _HeaderCell extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: AppMetrics.fontBody,
                     fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                    color: const Color(0xFF333333),
+                    color: isActive ? c.textPrimary : c.textSecondary,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -354,7 +359,7 @@ class _HeaderCell extends StatelessWidget {
                 Icon(
                   sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
                   size: 12,
-                  color: const Color(0xFF555555),
+                  color: c.accent,
                 ),
             ],
           ),
@@ -396,19 +401,17 @@ class _FileRowState extends State<_FileRow> {
 
   @override
   Widget build(BuildContext context) {
-    final hoverColor = const Color(0x11000000);
-    final selectedBg = widget.isActive
-        ? const Color(0xFF0078D4)
-        : const Color(0xFFCCCCCC);
+    final c = context.colors;
+    final selectedBg = widget.isActive ? c.accent : c.selectedInactive;
     final textColor = widget.isSelected
-        ? (widget.isActive ? Colors.white : const Color(0xFF1A1A1A))
-        : const Color(0xFF1A1A1A);
+        ? (widget.isActive ? Colors.white : c.textPrimary)
+        : c.textPrimary;
 
     Color bgColor;
     if (widget.isSelected) {
       bgColor = selectedBg;
     } else if (_hovering) {
-      bgColor = hoverColor;
+      bgColor = c.surfaceHover;
     } else {
       bgColor = Colors.transparent;
     }
@@ -422,60 +425,79 @@ class _FileRowState extends State<_FileRow> {
         onSecondaryTapUp: (details) =>
             widget.onRightClick?.call(details.globalPosition),
         child: SizedBox(
-          height: 22,
+          height: AppMetrics.rowHeight,
           child: Row(
             children: [
-              Container(
-                color: bgColor,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: widget.columnWidths[0],
-                      child: Row(
-                        children: [
-                          _FileIcon(
-                            path: widget.entry.path,
-                            isDirectory: widget.entry.isDirectory,
-                            isSelected: widget.isSelected && widget.isActive,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              widget.entry.name,
-                              style: TextStyle(fontSize: 12, color: textColor),
-                              overflow: TextOverflow.ellipsis,
+              // 浮动选中条：圆角 + 左右内缩（Win11 资源管理器风格）
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: widget.columnWidths[0],
+                        child: Row(
+                          children: [
+                            _FileIcon(
+                              path: widget.entry.path,
+                              isDirectory: widget.entry.isDirectory,
+                              isSelected: widget.isSelected && widget.isActive,
                             ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                widget.entry.name,
+                                style: TextStyle(
+                                  fontSize: AppMetrics.fontBody,
+                                  color: textColor,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: widget.columnWidths[1],
+                        child: Text(
+                          widget.entry.formattedDate,
+                          style: TextStyle(
+                            fontSize: AppMetrics.fontBody,
+                            color: textColor,
                           ),
-                        ],
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                      width: widget.columnWidths[1],
-                      child: Text(
-                        widget.entry.formattedDate,
-                        style: TextStyle(fontSize: 12, color: textColor),
-                        overflow: TextOverflow.ellipsis,
+                      SizedBox(
+                        width: widget.columnWidths[2],
+                        child: Text(
+                          widget.entry.type,
+                          style: TextStyle(
+                            fontSize: AppMetrics.fontBody,
+                            color: textColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                      width: widget.columnWidths[2],
-                      child: Text(
-                        widget.entry.type,
-                        style: TextStyle(fontSize: 12, color: textColor),
-                        overflow: TextOverflow.ellipsis,
+                      SizedBox(
+                        width: widget.columnWidths[3],
+                        child: Text(
+                          widget.entry.formattedSize,
+                          style: TextStyle(
+                            fontSize: AppMetrics.fontBody,
+                            color: textColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                      width: widget.columnWidths[3],
-                      child: Text(
-                        widget.entry.formattedSize,
-                        style: TextStyle(fontSize: 12, color: textColor),
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               SizedBox(width: widget.blankWidth),
@@ -506,18 +528,24 @@ class _FileIcon extends StatelessWidget {
 
     if (png != null) {
       return SizedBox(
-        width: 16,
-        height: 16,
-        child: Image.memory(png, width: 16, height: 16, fit: BoxFit.contain),
+        width: AppMetrics.iconMd,
+        height: AppMetrics.iconMd,
+        child: Image.memory(
+          png,
+          width: AppMetrics.iconMd,
+          height: AppMetrics.iconMd,
+          fit: BoxFit.contain,
+        ),
       );
     }
 
+    final c = context.colors;
     return Icon(
       isDirectory ? Icons.folder : Icons.insert_drive_file,
-      size: 16,
+      size: AppMetrics.iconMd,
       color: isSelected
           ? Colors.white
-          : (isDirectory ? Colors.amber.shade700 : Colors.grey.shade600),
+          : (isDirectory ? c.iconFolder : c.iconFile),
     );
   }
 }
