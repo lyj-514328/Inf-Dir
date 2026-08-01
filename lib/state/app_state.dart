@@ -1,17 +1,19 @@
 import 'package:flutter/foundation.dart';
 import 'pane_controller.dart';
+import '../services/directory_repository.dart';
 import '../services/file_service.dart';
 
 class AppState extends ChangeNotifier {
   late final List<PaneController> panes;
   int _activePaneIndex = 0;
 
-  AppState() {
+  AppState({DirectoryRepository? repository}) {
+    final repo = repository ?? DirectoryRepository();
     panes = [
-      PaneController(FileService.desktopPath),
-      PaneController(FileService.homeDirectory),
-      PaneController(FileService.documentsPath),
-      PaneController(FileService.downloadsPath),
+      PaneController(FileService.desktopPath, repository: repo),
+      PaneController(FileService.homeDirectory, repository: repo),
+      PaneController(FileService.documentsPath, repository: repo),
+      PaneController(FileService.downloadsPath, repository: repo),
     ];
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../state/layout_state.dart';
+import '../state/sidebar_controller.dart';
 import 'sidebar_tree.dart';
 import 'layout_view.dart';
 
@@ -23,10 +24,24 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     ServicesBinding.instance.keyboard.addHandler(_onKey);
+    // 焦点 pane 路径 → 侧栏同步（§12）：监听稳定 notifier，
+    // 不再靠 didUpdateWidget 比较字符串驱动业务。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final layout = context.read<LayoutState>();
+      layout.activePanePath.addListener(_syncSidebar);
+      _syncSidebar();
+    });
+  }
+
+  void _syncSidebar() {
+    final layout = context.read<LayoutState>();
+    context.read<SidebarSyncController>().syncTo(layout.activePanePath.value);
   }
 
   @override
   void dispose() {
+    context.read<LayoutState>().activePanePath.removeListener(_syncSidebar);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -94,7 +109,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       key: ValueKey(layoutState.activeWorkspaceIndex),
                       width: _sidebarWidth,
                       child: SidebarTree(
-                        activePath: activePane?.currentPath ?? '',
                         onNavigate: (path) {
                           activePane?.navigateTo(path);
                         },

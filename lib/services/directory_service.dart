@@ -274,4 +274,50 @@ class DirectoryService {
   static void endShellEnum(int sessionId) {
     _endEnum(sessionId);
   }
+
+  /// Open a paged enumeration cursor for [path].
+  /// Returns null when the native begin call fails.
+  static DirectoryCursor? openCursor(String path,
+      {bool directoriesOnly = false}) {
+    final id = beginShellEnum(path, directoriesOnly: directoriesOnly);
+    if (id <= 0) return null;
+    return _ShellDirectoryCursor._(id);
+  }
+}
+
+/// 封装一次原生枚举 session 的小型幂等对象。
+///
+/// - close 可以重复调用；
+/// - close 后 nextPage 直接返回 null；
+/// - session id 只存在于 cursor 内部，上层不保存全局 session id。
+abstract interface class DirectoryCursor {
+  /// 取下一页；返回 null 表示没有更多（或 cursor 已关闭）。
+  List<FileEntry>? nextPage({int count = 100});
+
+  /// 幂等关闭底层 session。
+  void close();
+
+  bool get isOpen;
+}
+
+class _ShellDirectoryCursor implements DirectoryCursor {
+  int _sessionId;
+
+  _ShellDirectoryCursor._(this._sessionId);
+
+  @override
+  bool get isOpen => _sessionId > 0;
+
+  @override
+  List<FileEntry>? nextPage({int count = 100}) {
+    if (_sessionId <= 0) return null;
+    return DirectoryService.getNextEnumPage(_sessionId, count: count);
+  }
+
+  @override
+  void close() {
+    if (_sessionId <= 0) return;
+    DirectoryService.endShellEnum(_sessionId);
+    _sessionId = -1;
+  }
 }

@@ -1,8 +1,10 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/file_entry.dart';
 import '../services/sidebar_service.dart';
-import '../services/directory_service.dart';
 import '../services/icon_service.dart';
+import '../state/sidebar_controller.dart';
+import '../utils/path_utils.dart';
 
 enum _RowType { thisPc, drive, directory, loadingIndicator }
 
@@ -23,19 +25,14 @@ class _TreeRow {
   });
 }
 
-class _ChildDir {
-  final String name;
-  final String path;
-  _ChildDir(this.name, this.path);
-}
-
+/// 纯渲染层（§8 / §15 阶段五）：只展示 SidebarSyncController 的状态、
+/// 转发点击事件。不碰 FFI、不存 session id、不在 build 里做同步 probe、
+/// 不在异步函数里改 cache。
 class SidebarTree extends StatefulWidget {
-  final String activePath;
   final ValueChanged<String> onNavigate;
 
   const SidebarTree({
     super.key,
-    required this.activePath,
     required this.onNavigate,
   });
 
@@ -43,352 +40,77 @@ class SidebarTree extends StatefulWidget {
   State<SidebarTree> createState() => _SidebarTreeState();
 }
 
+/// State 只拥有 ScrollController；业务状态全部在 SidebarSyncController。
 class _SidebarTreeState extends State<SidebarTree> {
-  static const _thisPcGuid = '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}';
+  static const _thisPcGuid = SidebarSyncController.thisPcGuid;
 
-  // ── data ──
-  List<QuickAccessItem> _quickAccessItems = [];
-  List<String> _driveRoots = [];
-  bool _thisPcExpanded = true;
-  final Set<String> _expandedPaths = {};
-  final Map<String, List<_ChildDir>> _childrenCache = {};
-  final Map<String, bool> _hasChildrenCache = {};
-  final Set<String> _loadingPaths = {};
-  String? _selectedPath;
   final ScrollController _scrollController = ScrollController();
   List<_TreeRow> _treeItems = [];
-  bool _needsScrollToSelected = false;
-
-  // ── concurrency control ──
-  int _syncGeneration = 0;
-  final Map<String, int> _activeSessIds = {}; // normPath → sid
-  final Set<String> _inFlight = {}; // intra-generation dedup (synchronous guard)
-
-  @override
-  void initState() {
-    super.initState();
-    _quickAccessItems = SidebarService.getQuickAccessItems();
-    _driveRoots = SidebarService.getDriveRoots();
-    for (final drive in _driveRoots) {
-      _hasChildrenCache[_norm(drive)] =
-          SidebarService.directoryHasChildren(drive);
-    }
-    _selectedPath = widget.activePath;
-    _syncToPath(widget.activePath);
-  }
 
   @override
   void dispose() {
-    _cancelAllSessions();
     _scrollController.dispose();
     super.dispose();
   }
 
-  @override
-  void didUpdateWidget(SidebarTree oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!_pathEquals(widget.activePath, oldWidget.activePath)) {
-      _selectedPath = widget.activePath;
-      _syncToPath(widget.activePath);
-    }
-  }
-
   // ═══════════════════════════════════════════════════════════
-  //  Kill / Cancel
+  //  Tree flattening (reads controller memory state only)
   // ═══════════════════════════════════════════════════════════
 
-  /// Kill all in-flight sessions and remove incomplete cache entries.
-  /// Called synchronously at the start of every new sync.
-  void _cancelAllSessions() {
-    for (final entry in _activeSessIds.entries) {
-      DirectoryService.endShellEnum(entry.value);
-      // Remove incomplete cache — only first page (or fewer) was loaded
-      _childrenCache.remove(entry.key);
-    }
-    _activeSessIds.clear();
-    _inFlight.clear();
-  }
-
-  /// Cleanup a single session (called from async paths when generation is stale).
-  void _cleanupSession(String key, int sid) {
-    DirectoryService.endShellEnum(sid);
-    _activeSessIds.remove(key);
-    _loadingPaths.remove(key);
-    _childrenCache.remove(key);
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  //  Path Sync (entry point for FilePane → SidebarTree navigation)
-  // ═══════════════════════════════════════════════════════════
-
-  void _syncToPath(String path) {
-    // 1. Kill any in-flight sync
-    _syncGeneration++;
-    _cancelAllSessions();
-    _needsScrollToSelected = true;
-
-    // 2. Quick Access — highlight the item, then fall through to expand tree
-    bool isQa = false;
-    for (final item in _quickAccessItems) {
-      if (_pathEquals(item.path, path)) {
-        setState(() => _selectedPath = item.path);
-        isQa = true;
-        break;
-      }
-    }
-
-    // 3. This PC
-    if (path == _thisPcGuid) {
-      setState(() => _selectedPath = _thisPcGuid);
-      return;
-    }
-
-    // 4. Drive-based chain expansion
-    final drive = _findDriveFor(path);
-    if (drive == null) {
-      if (!isQa) setState(() {});
-      return;
-    }
-
-    _thisPcExpanded = true;
-    _expandedPaths.add(_norm(drive));
-    if (!isQa) setState(() => _selectedPath = path);
-
-    final gen = _syncGeneration;
-    _expandChainTo(path, drive, gen);
-  }
-
-  String? _findDriveFor(String path) {
-    for (final drive in _driveRoots) {
-      if (_isUnder(path, drive)) return drive;
-    }
-    return null;
-  }
-
-  /// Walk from [drive] to [targetPath], loading children for each segment
-  /// that is not already cached.  Kills itself if generation is stale.
-  Future<void> _expandChainTo(
-      String targetPath, String drive, int generation) async {
-    // Build ordered list of paths: drive, drive\seg1, drive\seg1\seg2, ...
-    final paths = <String>[drive];
-    final normTarget = _norm(targetPath);
-    final normDrive = _norm(drive);
-    if (normTarget != normDrive) {
-      var rel = targetPath.replaceAll('/', '\\');
-      if (rel.toLowerCase().startsWith(drive.toLowerCase())) {
-        rel = rel.substring(drive.length);
-      }
-      final segments = rel.split('\\').where((s) => s.isNotEmpty).toList();
-      String current = drive.endsWith('\\') ? drive : '$drive\\';
-      for (int i = 0; i < segments.length; i++) {
-        current =
-            i == 0 ? '$drive${segments[i]}' : '$current\\${segments[i]}';
-        paths.add(current);
-      }
-    }
-
-    for (final p in paths) {
-      if (generation != _syncGeneration) return;
-      final key = _norm(p);
-      _expandedPaths.add(key);
-
-      if (_childrenCache.containsKey(key)) {
-        // Already loaded — skip directly to next segment
-        if (mounted && generation == _syncGeneration) setState(() {});
-        continue;
-      }
-
-      await _loadChildren(p, generation: generation);
-      if (generation != _syncGeneration) return;
-      if (mounted) setState(() {});
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  //  Children Loading
-  // ═══════════════════════════════════════════════════════════
-
-  Future<void> _loadChildren(String path, {int? generation}) async {
-    final gen = generation ?? _syncGeneration;
-    final key = _norm(path);
-
-    if (_childrenCache.containsKey(key) || _inFlight.contains(key)) return;
-    _inFlight.add(key);
-    _loadingPaths.add(key);
-
-    await _afterFrame();
-    if (gen != _syncGeneration) {
-      _inFlight.remove(key);
-      _loadingPaths.remove(key);
-      return;
-    }
-
-    final sid = DirectoryService.beginShellEnum(path, directoriesOnly: true);
-    if (sid <= 0) {
-      _inFlight.remove(key);
-      _loadingPaths.remove(key);
-      if (mounted && gen == _syncGeneration) {
-        setState(() => _childrenCache[key] = []);
-      }
-      return;
-    }
-    _activeSessIds[key] = sid;
-
-    // Load first page synchronously
-    final firstPage = DirectoryService.getNextEnumPage(sid, count: 500);
-    if (gen != _syncGeneration) {
-      _inFlight.remove(key);
-      _cleanupSession(key, sid);
-      return;
-    }
-
-    if (firstPage == null) {
-      _inFlight.remove(key);
-      _cleanupSession(key, sid);
-      if (mounted && gen == _syncGeneration) {
-        setState(() => _childrenCache[key] = []);
-      }
-      return;
-    }
-
-    final children = firstPage
-        .where((e) => e.isDirectory)
-        .map((e) => _ChildDir(e.name, e.path))
-        .toList();
-    children.sort(
-        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    _childrenCache[key] = children;
-    _inFlight.remove(key); // cache populated, no longer in-flight
-    if (mounted && gen == _syncGeneration) setState(() {});
-
-    _loadMoreChildren(sid, key, gen);
-  }
-
-  Future<void> _loadMoreChildren(int sid, String key, int generation) async {
-    while (true) {
-      await _afterFrame();
-      if (generation != _syncGeneration) {
-        _cleanupSession(key, sid);
-        return;
-      }
-
-      final page = DirectoryService.getNextEnumPage(sid, count: 500);
-      if (page == null) break;
-
-      final dirs = page
-          .where((e) => e.isDirectory)
-          .map((e) => _ChildDir(e.name, e.path))
-          .toList();
-      if (dirs.isEmpty) continue;
-
-      final existing = _childrenCache[key];
-      if (existing == null) {
-        // Killed by a newer sync between frames — safety net
-        _cleanupSession(key, sid);
-        return;
-      }
-
-      existing.addAll(dirs);
-      if (mounted && generation == _syncGeneration) setState(() {});
-    }
-
-    final existing = _childrenCache[key];
-    if (existing != null) {
-      existing.sort(
-          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    }
-    _loadingPaths.remove(key);
-    _activeSessIds.remove(key);
-    DirectoryService.endShellEnum(sid);
-    if (mounted && generation == _syncGeneration) {
-      if (_selectedPath != null && _isUnder(_selectedPath!, key)) {
-        _needsScrollToSelected = true;
-      }
-      setState(() {});
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  //  Tree flattening & rendering  (unchanged logic below)
-  // ═══════════════════════════════════════════════════════════
-
-  bool _hasChildren(String path) {
-    // CACHE DISABLED
-    return SidebarService.directoryHasChildren(path);
-  }
-
-  Future<void> _afterFrame() {
-    final c = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) => c.complete());
-    return c.future;
-  }
-
-  void _toggleExpand(String path) {
-    final key = _norm(path);
-    if (_expandedPaths.contains(key)) {
-      setState(() => _expandedPaths.remove(key));
-    } else {
-      _loadChildren(path);
-      setState(() => _expandedPaths.add(key));
-    }
-  }
-
-  bool _isSelected(String path) =>
-      _selectedPath != null && _pathEquals(_selectedPath!, path);
-
-  List<_TreeRow> _flattenTree() {
+  List<_TreeRow> _flattenTree(SidebarSyncController sidebar) {
     final rows = <_TreeRow>[];
     rows.add(_TreeRow(
       type: _RowType.thisPc,
       path: _thisPcGuid,
-      name: '\u6b64\u7535\u8111',
+      name: '此电脑',
       depth: 0,
-      isExpanded: _thisPcExpanded,
-      hasChildren: _driveRoots.isNotEmpty,
+      isExpanded: sidebar.thisPcExpanded,
+      hasChildren: sidebar.driveRoots.isNotEmpty,
     ));
-    if (_thisPcExpanded) {
-      for (final drive in _driveRoots) {
-        final normDrive = _norm(drive);
-        final expanded = _expandedPaths.contains(normDrive);
-        final children = _childrenCache[normDrive] ?? [];
+    if (sidebar.thisPcExpanded) {
+      for (final drive in sidebar.driveRoots) {
+        final expanded = sidebar.isExpanded(drive);
         final label = SidebarService.formatDriveLabel(drive);
-        final hasKids = _hasChildren(drive);
         rows.add(_TreeRow(
           type: _RowType.drive,
           path: drive,
           name: label,
           depth: 1,
           isExpanded: expanded,
-          hasChildren: hasKids,
+          hasChildren: sidebar.hasChildrenFor(drive),
         ));
         if (expanded) {
-          _flattenDir(children, 2, rows, parentPath: drive);
+          _flattenDir(sidebar, sidebar.childrenFor(drive), 2, rows,
+              parentPath: drive);
         }
       }
     }
     return rows;
   }
 
-  void _flattenDir(List<_ChildDir> dirs, int depth, List<_TreeRow> out,
+  void _flattenDir(SidebarSyncController sidebar, List<FileEntry> dirs,
+      int depth, List<_TreeRow> out,
       {required String parentPath}) {
     for (final dir in dirs) {
-      final normPath = _norm(dir.path);
-      final expanded = _expandedPaths.contains(normPath);
-      final children = _childrenCache[normPath] ?? [];
-      final hasKids = _hasChildren(dir.path);
+      final expanded = sidebar.isExpanded(dir.path);
       out.add(_TreeRow(
         type: _RowType.directory,
         path: dir.path,
         name: dir.name,
         depth: depth,
         isExpanded: expanded,
-        hasChildren: hasKids,
+        // 枚举元数据自带 hasChildren，build 不需要 probe（§13.1）。
+        hasChildren: dir.hasChildren,
       ));
-      if (expanded && children.isNotEmpty) {
-        _flattenDir(children, depth + 1, out, parentPath: dir.path);
+      if (expanded) {
+        final children = sidebar.childrenFor(dir.path);
+        if (children.isNotEmpty) {
+          _flattenDir(sidebar, children, depth + 1, out,
+              parentPath: dir.path);
+        }
       }
     }
-    if (_loadingPaths.contains(_norm(parentPath))) {
+    if (sidebar.isLoading(parentPath)) {
       out.add(_TreeRow(
         type: _RowType.loadingIndicator,
         path: '',
@@ -400,53 +122,71 @@ class _SidebarTreeState extends State<SidebarTree> {
     }
   }
 
-  double get _quickAccessHeaderHeight => 20.0;
+  // ═══════════════════════════════════════════════════════════
+  //  Scroll to selected
+  // ═══════════════════════════════════════════════════════════
 
-  double get _preTreeHeight {
-    return 20.0 + _quickAccessItems.length * 22.0 + 1.0 + 4.0;
+  static const double _quickAccessHeaderHeight = 20.0;
+
+  double _preTreeHeight(SidebarSyncController sidebar) {
+    return 20.0 + sidebar.quickAccessItems.length * 22.0 + 1.0 + 4.0;
   }
 
-  void _tryScrollToSelected() {
-    if (!_needsScrollToSelected) return;
+  void _tryScrollToSelected(SidebarSyncController sidebar) {
+    if (!sidebar.needsScrollToSelected) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
+      if (!mounted || !_scrollController.hasClients) return;
 
+      final selected = sidebar.selectedPath ?? '';
       double? offset;
-      final qaIndex = _quickAccessItems
-          .indexWhere((item) => _pathEquals(item.path, _selectedPath ?? ''));
+      final qaIndex = sidebar.quickAccessItems
+          .indexWhere((item) => pathEquals(item.path, selected));
       if (qaIndex >= 0) {
         offset = _quickAccessHeaderHeight + qaIndex * 22.0;
       } else {
-        final items = _flattenTree();
-        final treeIndex = items
-            .indexWhere((item) => _pathEquals(item.path, _selectedPath ?? ''));
+        final items = _flattenTree(sidebar);
+        final treeIndex =
+            items.indexWhere((item) => pathEquals(item.path, selected));
         if (treeIndex >= 0) {
-          offset = _preTreeHeight + treeIndex * 22.0;
+          offset = _preTreeHeight(sidebar) + treeIndex * 22.0;
         }
       }
 
+      sidebar.consumeScrollRequest();
       if (offset == null) return;
 
       final viewportHeight = _scrollController.position.viewportDimension;
       final centeredOffset = offset - viewportHeight / 2 + 11.0;
       final maxScroll = _scrollController.position.maxScrollExtent;
       _scrollController.jumpTo(centeredOffset.clamp(0.0, maxScroll));
-      _needsScrollToSelected = false;
     });
   }
 
-  void _onTapTreeRow(_TreeRow row) {
+  // ═══════════════════════════════════════════════════════════
+  //  Event forwarding
+  // ═══════════════════════════════════════════════════════════
+
+  void _onTapTreeRow(SidebarSyncController sidebar, _TreeRow row) {
     if (row.type == _RowType.loadingIndicator) return;
-    setState(() => _selectedPath = row.path);
+    sidebar.select(row.path);
     widget.onNavigate(row.path);
     if (row.hasChildren) {
       if (row.type == _RowType.thisPc) {
-        setState(() => _thisPcExpanded = !_thisPcExpanded);
+        sidebar.toggleThisPc();
       } else {
-        _toggleExpand(row.path);
+        sidebar.toggleExpand(row.path);
       }
     }
   }
+
+  void _onTapQuickAccess(SidebarSyncController sidebar, QuickAccessItem item) {
+    sidebar.select(item.path);
+    widget.onNavigate(item.path);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  Build
+  // ═══════════════════════════════════════════════════════════
 
   IconData _fallbackIcon(_RowType type) {
     switch (type) {
@@ -461,7 +201,11 @@ class _SidebarTreeState extends State<SidebarTree> {
     }
   }
 
-  Widget _buildTreeRow(BuildContext context, int index) {
+  bool _isSelected(SidebarSyncController sidebar, String path) =>
+      sidebar.selectedPath != null &&
+      pathEquals(sidebar.selectedPath!, path);
+
+  Widget _buildTreeRow(SidebarSyncController sidebar, int index) {
     final row = _treeItems[index];
 
     if (row.type == _RowType.loadingIndicator) {
@@ -494,13 +238,12 @@ class _SidebarTreeState extends State<SidebarTree> {
       );
     }
 
-    final isSelected =
-        _selectedPath != null && _pathEquals(_selectedPath!, row.path);
+    final isSelected = _isSelected(sidebar, row.path);
     final fallback = _fallbackIcon(row.type);
     return Material(
       color: Colors.transparent,
       child: InkWell(
-      onTap: () => _onTapTreeRow(row),
+      onTap: () => _onTapTreeRow(sidebar, row),
       hoverColor: const Color(0x11000000),
       child: Container(
         height: 22,
@@ -542,27 +285,24 @@ class _SidebarTreeState extends State<SidebarTree> {
   }
 
   IconData _quickAccessFallbackIcon(String name) {
-    if (name.contains('\u684c\u9762')) return Icons.desktop_windows;
-    if (name.contains('\u4e0b\u8f7d')) return Icons.download;
-    if (name.contains('\u6587\u6863')) return Icons.description;
-    if (name.contains('\u56fe\u7247')) return Icons.image;
-    if (name.contains('\u97f3\u4e50')) return Icons.music_note;
-    if (name.contains('\u89c6\u9891')) return Icons.videocam;
-    if (name.contains('\u56de\u6536\u7ad9')) return Icons.delete_outline;
+    if (name.contains('桌面')) return Icons.desktop_windows;
+    if (name.contains('下载')) return Icons.download;
+    if (name.contains('文档')) return Icons.description;
+    if (name.contains('图片')) return Icons.image;
+    if (name.contains('音乐')) return Icons.music_note;
+    if (name.contains('视频')) return Icons.videocam;
+    if (name.contains('回收站')) return Icons.delete_outline;
     return Icons.folder;
-  }
-
-  void _onTapQuickAccess(QuickAccessItem item) {
-    setState(() => _selectedPath = item.path);
-    widget.onNavigate(item.path);
   }
 
   @override
   Widget build(BuildContext context) {
+    final sidebar = context.watch<SidebarSyncController>();
+
     final sw = Stopwatch()..start();
-    _treeItems = _flattenTree();
+    _treeItems = _flattenTree(sidebar);
     final flattenMs = sw.elapsedMilliseconds;
-    _tryScrollToSelected();
+    _tryScrollToSelected(sidebar);
 
     final result = Container(
       clipBehavior: Clip.hardEdge,
@@ -574,14 +314,14 @@ class _SidebarTreeState extends State<SidebarTree> {
         child: CustomScrollView(
           controller: _scrollController,
           slivers: [
-            SliverToBoxAdapter(child: _QuickAccessHeader()),
-            ..._quickAccessItems.map(
+            const SliverToBoxAdapter(child: _QuickAccessHeader()),
+            ...sidebar.quickAccessItems.map(
               (item) => SliverToBoxAdapter(
                 child: _QuickAccessRow(
                   item: item,
-                  selected: _isSelected(item.path),
+                  selected: _isSelected(sidebar, item.path),
                   fallbackIcon: _quickAccessFallbackIcon(item.name),
-                  onTap: () => _onTapQuickAccess(item),
+                  onTap: () => _onTapQuickAccess(sidebar, item),
                 ),
               ),
             ),
@@ -594,7 +334,7 @@ class _SidebarTreeState extends State<SidebarTree> {
             SliverFixedExtentList(
               itemExtent: 22.0,
               delegate: SliverChildBuilderDelegate(
-                _buildTreeRow,
+                (context, index) => _buildTreeRow(sidebar, index),
                 childCount: _treeItems.length,
               ),
             ),
@@ -610,26 +350,6 @@ class _SidebarTreeState extends State<SidebarTree> {
     }
     return result;
   }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Utility functions (unchanged)
-// ═══════════════════════════════════════════════════════════
-
-String _norm(String path) {
-  var s = path.replaceAll('/', '\\');
-  while (s.length > 3 && s.endsWith('\\')) {
-    s = s.substring(0, s.length - 1);
-  }
-  return s.toLowerCase();
-}
-
-bool _pathEquals(String a, String b) => _norm(a) == _norm(b);
-
-bool _isUnder(String child, String parent) {
-  final nc = _norm(child);
-  final np = _norm(parent);
-  return nc == np || nc.startsWith(np.endsWith('\\') ? np : '$np\\');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -665,6 +385,8 @@ class _ShellIcon extends StatelessWidget {
 }
 
 class _QuickAccessHeader extends StatelessWidget {
+  const _QuickAccessHeader();
+
   @override
   Widget build(BuildContext context) {
     return const Padding(
@@ -674,7 +396,7 @@ class _QuickAccessHeader extends StatelessWidget {
           Icon(Icons.history, size: 13, color: Color(0xFF666666)),
           SizedBox(width: 4),
           Text(
-            '\u5feb\u901f\u8bbf\u95ee',
+            '快速访问',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,

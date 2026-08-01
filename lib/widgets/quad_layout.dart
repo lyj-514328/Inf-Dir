@@ -10,9 +10,8 @@ class QuadLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // 侧边栏暂时显示空路径
+        // 侧边栏（状态来自 SidebarSyncController，无需传入路径）
         SidebarTree(
-          activePath: '',
           onNavigate: (_) {},
         ),
         Container(width: 1, color: const Color(0xFFD0D0D0)),

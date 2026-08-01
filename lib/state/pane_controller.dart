@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
 import '../services/file_service.dart';
 import '../services/directory_service.dart';
+import '../services/directory_repository.dart';
 
 enum SortColumn { name, dateModified, type, size }
 
@@ -12,6 +13,15 @@ class TabInfo {
   String path;
   String label;
   TabInfo({required this.path, required this.label});
+}
+
+/// 每次导航独立的列表请求（§11）。
+class _ListingRequest {
+  final int revision;
+  final String path;
+  final DirectoryCursor? cursor;
+
+  _ListingRequest(this.revision, this.path, this.cursor);
 }
 
 class PaneController extends ChangeNotifier {
@@ -24,15 +34,29 @@ class PaneController extends ChangeNotifier {
   final Set<String> _selectedPaths = {};
   String? _anchorPath;
   bool _loading = false;
-  int _sessionId = -1;
-  bool _loadingMore = false;
+  int _revision = 0;
+  _ListingRequest? _activeRequest;
+  final DirectoryRepository _repository;
+  final Future<void> Function() _frameYield;
   SortColumn _sortColumn = SortColumn.name;
   bool _sortAscending = true;
   List<double> _columnWidths = [300, 140, 100, 80]; // name, date, type, size
 
-  PaneController(String initialPath) : _currentPath = initialPath {
+  PaneController(
+    String initialPath, {
+    DirectoryRepository? repository,
+    Future<void> Function()? frameYield,
+  })  : _currentPath = initialPath,
+        _repository = repository ?? DirectoryRepository(),
+        _frameYield = frameYield ?? _defaultFrameYield {
     _tabs.add(TabInfo(path: initialPath, label: _pathLabel(initialPath)));
-    _loadEntries(initialPath);
+    _startListing(initialPath);
+  }
+
+  static Future<void> _defaultFrameYield() {
+    final c = Completer<void>();
+    WidgetsBinding.instance.addPostFrameCallback((_) => c.complete());
+    return c.future;
   }
 
   String get currentPath => _currentPath;
@@ -91,50 +115,67 @@ class PaneController extends ChangeNotifier {
     return p.basename(path);
   }
 
-  void _cancelPagedLoad() {
-    if (_sessionId > 0) {
-      DirectoryService.endShellEnum(_sessionId);
-      _sessionId = -1;
-    }
-    _loadingMore = false;
+  void _cancelActiveRequest() {
+    final old = _activeRequest;
+    _activeRequest = null;
+    // 只关闭自己 request 拥有的 cursor（§5）。
+    old?.cursor?.close();
   }
 
-  Future<void> _loadEntries(String path) async {
-    _cancelPagedLoad();
+  /// 只有当前 request 允许提交：revision 与 path 都必须匹配（§11）。
+  bool _isCurrent(_ListingRequest request) =>
+      identical(_activeRequest, request) &&
+      request.revision == _revision &&
+      request.path == _currentPath;
+
+  Future<void> _loadEntries(String path) => _startListing(path);
+
+  Future<void> _startListing(String path) async {
+    final revision = ++_revision;
+    _cancelActiveRequest();
 
     _loading = true;
     _selectedPaths.clear();
     _anchorPath = null;
     notifyListeners();
 
-    await _loadEntriesPaged(path);
-  }
-
-  Future<void> _loadEntriesPaged(String path) async {
     final totalSw = Stopwatch()..start();
 
-    // Step 1: begin shell enumeration session
     final sessionSw = Stopwatch()..start();
-    _sessionId = DirectoryService.beginShellEnum(path);
+    final cursor = _repository.openCursor(path);
     sessionSw.stop();
 
-    if (_sessionId <= 0) {
-      _entries = [];
-      _loading = false;
-      notifyListeners();
-      debugPrint('[Perf] Paged -- failed to start session (${sessionSw.elapsedMilliseconds}ms)');
+    final request = _ListingRequest(revision, path, cursor);
+    _activeRequest = request;
+
+    if (cursor == null) {
+      if (_isCurrent(request)) {
+        _entries = [];
+        _loading = false;
+        notifyListeners();
+        _activeRequest = null;
+      }
+      debugPrint(
+          '[Perf] Paged -- failed to start session (${sessionSw.elapsedMilliseconds}ms)');
       return;
     }
 
-    // Step 2: load first page
+    // 第一页
     final firstSw = Stopwatch()..start();
-    final firstPage = DirectoryService.getNextEnumPage(_sessionId, count: 100);
+    final firstPage = cursor.nextPage(count: 100);
     firstSw.stop();
+
+    if (!_isCurrent(request)) {
+      // 旧 request 晚返回：只关闭自己的 cursor，不动当前状态（§11）。
+      cursor.close();
+      return;
+    }
 
     if (firstPage == null) {
       _entries = [];
       _loading = false;
-      _cancelPagedLoad();
+      cursor.close();
+      _activeRequest = null;
       notifyListeners();
       return;
     }
@@ -143,9 +184,8 @@ class PaneController extends ChangeNotifier {
     _loading = false;
     notifyListeners();
 
-    // Step 3: wait for Flutter to build first frame
     final buildSw = Stopwatch()..start();
-    await _afterFrame();
+    await _frameYield();
     buildSw.stop();
 
     debugPrint(
@@ -156,23 +196,20 @@ class PaneController extends ChangeNotifier {
       'Items: ${firstPage.length}',
     );
 
-    if (!_loadingMore) {
-      _loadingMore = true;
-      _loadMorePages(totalSw, pageCount: 1);
-    }
-  }
-
-  Future<void> _loadMorePages(Stopwatch totalSw, {int pageCount = 0}) async {
-    int pages = pageCount;
+    int pages = 1;
     const pageSize = 100;
 
-    while (_sessionId > 0) {
-      await _afterFrame();
+    // 剩余分页：只使用本 request 的 cursor，每个异步边界后重新校验。
+    while (_isCurrent(request)) {
+      await _frameYield();
+      if (!_isCurrent(request)) break;
 
       final sw = Stopwatch()..start();
-      final page = DirectoryService.getNextEnumPage(_sessionId, count: pageSize);
+      final page = cursor.nextPage(count: pageSize);
       sw.stop();
 
+      // 页允许返回，但结果不能提交给已易主的 UI（§2.3）。
+      if (!_isCurrent(request)) break;
       if (page == null) break;
 
       _entries = [..._entries, ...page];
@@ -180,24 +217,28 @@ class PaneController extends ChangeNotifier {
       pages++;
     }
 
-    _applySort();
-    notifyListeners();
+    cursor.close();
 
-    totalSw.stop();
-    debugPrint(
-      '[Perf] Paged done -- '
-      '${pages} pages, '
-      '${_entries.length} total items, '
-      'Total: ${totalSw.elapsedMilliseconds}ms',
-    );
+    if (_isCurrent(request)) {
+      _activeRequest = null;
+      _applySort();
+      notifyListeners();
 
-    _cancelPagedLoad();
+      totalSw.stop();
+      debugPrint(
+        '[Perf] Paged done -- '
+        '$pages pages, '
+        '${_entries.length} total items, '
+        'Total: ${totalSw.elapsedMilliseconds}ms',
+      );
+    }
   }
 
-  Future<void> _afterFrame() {
-    final c = Completer<void>();
-    WidgetsBinding.instance.addPostFrameCallback((_) => c.complete());
-    return c.future;
+  @override
+  void dispose() {
+    _revision++;
+    _cancelActiveRequest();
+    super.dispose();
   }
 
   void sortBy(SortColumn column) {
@@ -273,7 +314,10 @@ class PaneController extends ChangeNotifier {
 
   void goHome() => navigateTo(FileService.homeDirectory);
 
-  void refresh() => _loadEntries(_currentPath);
+  void refresh() {
+    _repository.invalidate(_currentPath);
+    _startListing(_currentPath);
+  }
 
   void addTab([String? path]) {
     final tabPath = path ?? _currentPath;
