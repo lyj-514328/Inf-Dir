@@ -13,6 +13,13 @@ class TabInfo {
   String path;
   String label;
   TabInfo({required this.path, required this.label});
+
+  @override
+  bool operator ==(Object other) =>
+      other is TabInfo && other.path == path && other.label == label;
+
+  @override
+  int get hashCode => Object.hash(path, label);
 }
 
 /// 每次导航独立的列表请求（§11）。

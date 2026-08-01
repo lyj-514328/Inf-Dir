@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../models/file_entry.dart';
 import '../services/icon_service.dart';
@@ -419,13 +420,19 @@ class _FileRowState extends State<_FileRow> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: GestureDetector(
-        onTap: widget.onSingleTap,
-        onDoubleTap: widget.onDoubleTap,
-        onSecondaryTapUp: (details) =>
-            widget.onRightClick?.call(details.globalPosition),
-        child: SizedBox(
-          height: AppMetrics.rowHeight,
+      child: Listener(
+        onPointerDown: (event) {
+          // 鼠标按下即选中：避免 onTap 等待双击判定（kDoubleTapTimeout）的延迟
+          if (event.buttons & kPrimaryMouseButton != 0) {
+            widget.onSingleTap();
+          }
+        },
+        child: GestureDetector(
+          onDoubleTap: widget.onDoubleTap,
+          onSecondaryTapUp: (details) =>
+              widget.onRightClick?.call(details.globalPosition),
+          child: SizedBox(
+            height: AppMetrics.rowHeight,
           child: Row(
             children: [
               // 浮动选中条：圆角 + 左右内缩（Win11 资源管理器风格）
@@ -503,6 +510,7 @@ class _FileRowState extends State<_FileRow> {
               SizedBox(width: widget.blankWidth),
             ],
           ),
+        ),
         ),
       ),
     );

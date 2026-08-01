@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -45,40 +46,21 @@ class _PaneContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sw = Stopwatch()..start();
-    final controller = context.watch<PaneController>();
+    final controller = context.read<PaneController>();
     final layoutState = context.watch<LayoutState>();
     final isActive = layoutState.focusedNodeId == paneNode.id;
 
     final result = Column(
       children: [
-        PaneTabBar(
-          tabs: controller.tabs,
-          activeIndex: controller.activeTabIndex,
-          onSwitchTab: controller.switchTab,
-          onCloseTab: controller.closeTab,
-          onAddTab: () => controller.addTab(),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(
+        const _PaneTabBarSection(),
+        const Padding(
+          padding: EdgeInsets.symmetric(
               horizontal: AppMetrics.paneGap, vertical: 1),
-          child: NavToolbar(
-            canGoBack: controller.canGoBack,
-            canGoForward: controller.canGoForward,
-            canGoUp: controller.canGoUp,
-            onBack: controller.goBack,
-            onForward: controller.goForward,
-            onUp: controller.goUp,
-            onHome: controller.goHome,
-            onRefresh: controller.refresh,
-          ),
+          child: _NavToolbarSection(),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppMetrics.paneGap),
-          child: AddressBar(
-            currentPath: controller.displayPath,
-            iconPath: controller.currentPath,
-            onSubmit: (path) => controller.navigateTo(path),
-          ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppMetrics.paneGap),
+          child: _AddressBarSection(),
         ),
         const SizedBox(height: AppMetrics.paneGap),
         Expanded(
@@ -151,42 +133,10 @@ class _PaneContent extends StatelessWidget {
               }
               return KeyEventResult.ignored;
             },
-            child: FileListView(
-              entries: controller.entries,
-              selectedPaths: controller.selectedPaths,
-              isActive: isActive,
-              loading: controller.isLoading,
-              sortColumn: controller.sortColumn,
-              sortAscending: controller.sortAscending,
-              onSort: controller.sortBy,
-              columnWidths: controller.columnWidths,
-              onResizeColumn: controller.resizeColumn,
-              onInitWidths: controller.initColumnWidths,
-              onSingleTap: (path) {
-                final ctrl = HardwareKeyboard.instance.isControlPressed;
-                final shift = HardwareKeyboard.instance.isShiftPressed;
-                if (shift) {
-                  controller.selectRange(path);
-                } else if (ctrl) {
-                  controller.toggleSelection(path);
-                } else {
-                  controller.selectSingle(path);
-                }
-              },
-              onDoubleTap: (path) =>
-                  _handleDoubleTap(context, controller, path),
-              onItemRightClick: (path, pos) =>
-                  _showNativeMenu(context, [path], pos),
-              onEmptyRightClick: (pos) =>
-                  _showNativeMenu(context, [], pos),
-            ),
+            child: _FileListSection(isActive: isActive),
           ),
         ),
-        _StatusBar(
-          loaded: controller.entryCount,
-          isLoading: controller.isLoading,
-          selectedCount: controller.selectedCount,
-        ),
+        const _StatusBarSection(),
       ],
     );
 
@@ -197,115 +147,13 @@ class _PaneContent extends StatelessWidget {
     return result;
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────
-
-  FileEntry? _findEntry(PaneController controller, String path) {
-    for (final e in controller.entries) {
-      if (e.path == path) return e;
-    }
-    return null;
-  }
-
-  String _basename(String path) {
-    final idx = path.lastIndexOf(RegExp(r'[\\/]'));
-    return idx >= 0 ? path.substring(idx + 1) : path;
-  }
-
   // ── Open / Navigate ────────────────────────────────────────────────
-
-  void _handleDoubleTap(
-      BuildContext context, PaneController controller, String path) {
-    // In the Recycle Bin, double-click does nothing useful; use right-click
-    if (FileService.isRecycleBinPath(controller.currentPath)) return;
-
-    final entry = _findEntry(controller, path);
-    if (entry == null) return;
-    if (entry.isDirectory) {
-      controller.navigateTo(path);
-    } else {
-      FileService.openFile(path);
-    }
-  }
 
   void _openSelected(BuildContext context, PaneController controller) {
     // In the Recycle Bin, Enter does nothing
     if (FileService.isRecycleBinPath(controller.currentPath)) return;
     if (controller.selectedPaths.isEmpty) return;
     _handleDoubleTap(context, controller, controller.selectedPaths.first);
-  }
-
-  // ── Native Shell Context Menu ──────────────────────────────────────
-
-  void _showNativeMenu(
-      BuildContext context, List<String> selectedPaths, Offset position) {
-    final controller = context.read<PaneController>();
-
-    // If right-clicking an unselected item, select only it
-    if (selectedPaths.length == 1 &&
-        !controller.selectedPaths.contains(selectedPaths.first)) {
-      controller.clearSelection();
-      controller.toggleSelection(selectedPaths.first);
-    } else if (selectedPaths.isEmpty) {
-      controller.clearSelection();
-    }
-
-    // Use all currently selected paths for the menu
-    final paths = selectedPaths.isEmpty ? <String>[] : controller.selectedPaths.toList();
-
-    // Convert logical (window-relative) → screen physical coordinates
-    final dpr = View.of(context).devicePixelRatio;
-    final (screenX, screenY) = ShellContextMenu.toScreenCoords(
-      position.dx, position.dy, dpr,
-    );
-
-    final verb = ShellContextMenu.show(
-      folderPath: controller.currentPath,
-      selectedPaths: paths,
-      screenX: screenX,
-      screenY: screenY,
-    );
-
-    if (!context.mounted) return;
-    _handleVerb(context, verb, paths);
-  }
-
-  void _handleVerb(
-      BuildContext context, String? verb, List<String> selectedPaths) {
-    if (verb == null) return;
-
-    final appState = context.read<AppState>();
-    final controller = context.read<PaneController>();
-
-    switch (verb) {
-      case 'open':
-      case 'explore':
-        // Intercepted — navigate for dirs, open for files
-        if (selectedPaths.length == 1) {
-          _handleDoubleTap(context, controller, selectedPaths.first);
-        }
-      case 'rename':
-        // Intercepted — show our rename dialog
-        _renameSelected(context);
-      case 'copy':
-        // Shell put CF_HDROP on clipboard; sync our app clipboard
-        if (selectedPaths.isNotEmpty) {
-          appState.copyPaths(selectedPaths);
-        }
-        controller.refresh();
-      case 'cut':
-        if (selectedPaths.isNotEmpty) {
-          appState.cutPaths(selectedPaths);
-        }
-        controller.refresh();
-      case 'delete':
-        controller.refresh();
-      case 'paste':
-        appState.clearClipboard();
-        controller.refresh();
-      default:
-        // Properties, shell extensions, etc. — just refresh
-        controller.refresh();
-    }
   }
 
   // ── Keyboard-triggered operations ──────────────────────────────────
@@ -392,74 +240,295 @@ class _PaneContent extends StatelessWidget {
     }
     controller.refresh();
   }
+}
 
-  Future<void> _renameSelected(BuildContext context) async {
-    final controller = context.read<PaneController>();
+// ── Sections：按需重建，避免选中/加载时整个面板 rebuild ──────────────
 
-    // In Recycle Bin, items cannot be renamed
-    if (FileService.isRecycleBinPath(controller.currentPath)) return;
+class _PaneTabBarSection extends StatelessWidget {
+  const _PaneTabBarSection();
 
-    if (controller.selectedPaths.length != 1) return;
-    final oldPath = controller.selectedPaths.first;
-    final oldName = _basename(oldPath);
-
-    final newName = await _showInputDialog(
-      context,
-      title: '重命名',
-      initialValue: oldName,
-      confirmText: '确定',
-    );
-
-    if (newName == null || newName.isEmpty || newName == oldName) return;
-
-    try {
-      await FileService.renameEntry(oldPath, newName);
-      controller.refresh();
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('重命名失败: $e'),
-              duration: const Duration(seconds: 2)),
+  @override
+  Widget build(BuildContext context) {
+    return Selector<PaneController, (List<TabInfo>, int)>(
+      selector: (_, c) => (c.tabs, c.activeTabIndex),
+      shouldRebuild: (a, b) => !listEquals(a.$1, b.$1) || a.$2 != b.$2,
+      builder: (context, sel, _) {
+        final controller = context.read<PaneController>();
+        return PaneTabBar(
+          tabs: sel.$1,
+          activeIndex: sel.$2,
+          onSwitchTab: controller.switchTab,
+          onCloseTab: controller.closeTab,
+          onAddTab: () => controller.addTab(),
         );
-      }
-    }
+      },
+    );
   }
+}
 
-  Future<String?> _showInputDialog(
-    BuildContext context, {
-    required String title,
-    required String initialValue,
-    required String confirmText,
-  }) {
-    final textController = TextEditingController(text: initialValue);
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title, style: const TextStyle(fontSize: 14)),
-        content: TextField(
-          controller: textController,
-          autofocus: true,
-          style: const TextStyle(fontSize: 13),
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, textController.text),
-            child: Text(confirmText),
-          ),
-        ],
+class _NavToolbarSection extends StatelessWidget {
+  const _NavToolbarSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<PaneController, (bool, bool, bool)>(
+      selector: (_, c) => (c.canGoBack, c.canGoForward, c.canGoUp),
+      builder: (context, sel, _) {
+        final controller = context.read<PaneController>();
+        return NavToolbar(
+          canGoBack: sel.$1,
+          canGoForward: sel.$2,
+          canGoUp: sel.$3,
+          onBack: controller.goBack,
+          onForward: controller.goForward,
+          onUp: controller.goUp,
+          onHome: controller.goHome,
+          onRefresh: controller.refresh,
+        );
+      },
+    );
+  }
+}
+
+class _AddressBarSection extends StatelessWidget {
+  const _AddressBarSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<PaneController, (String, String)>(
+      selector: (_, c) => (c.displayPath, c.currentPath),
+      builder: (context, sel, _) {
+        final controller = context.read<PaneController>();
+        return AddressBar(
+          currentPath: sel.$1,
+          iconPath: sel.$2,
+          onSubmit: (path) => controller.navigateTo(path),
+        );
+      },
+    );
+  }
+}
+
+class _FileListSection extends StatelessWidget {
+  final bool isActive;
+
+  const _FileListSection({required this.isActive});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<PaneController>();
+    return FileListView(
+      entries: controller.entries,
+      selectedPaths: controller.selectedPaths,
+      isActive: isActive,
+      loading: controller.isLoading,
+      sortColumn: controller.sortColumn,
+      sortAscending: controller.sortAscending,
+      onSort: controller.sortBy,
+      columnWidths: controller.columnWidths,
+      onResizeColumn: controller.resizeColumn,
+      onInitWidths: controller.initColumnWidths,
+      onSingleTap: (path) {
+        final ctrl = HardwareKeyboard.instance.isControlPressed;
+        final shift = HardwareKeyboard.instance.isShiftPressed;
+        if (shift) {
+          controller.selectRange(path);
+        } else if (ctrl) {
+          controller.toggleSelection(path);
+        } else {
+          controller.selectSingle(path);
+        }
+      },
+      onDoubleTap: (path) => _handleDoubleTap(context, controller, path),
+      onItemRightClick: (path, pos) => _showNativeMenu(context, [path], pos),
+      onEmptyRightClick: (pos) => _showNativeMenu(context, [], pos),
+    );
+  }
+}
+
+class _StatusBarSection extends StatelessWidget {
+  const _StatusBarSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<PaneController, (int, bool, int)>(
+      selector: (_, c) => (c.entryCount, c.isLoading, c.selectedCount),
+      builder: (context, sel, _) => _StatusBar(
+        loaded: sel.$1,
+        isLoading: sel.$2,
+        selectedCount: sel.$3,
       ),
     );
   }
+}
+
+// ── 顶层辅助函数 ──────────────────────────────────────────────────────
+
+FileEntry? _findEntry(PaneController controller, String path) {
+  for (final e in controller.entries) {
+    if (e.path == path) return e;
+  }
+  return null;
+}
+
+String _basename(String path) {
+  final idx = path.lastIndexOf(RegExp(r'[\\/]'));
+  return idx >= 0 ? path.substring(idx + 1) : path;
+}
+
+void _handleDoubleTap(
+    BuildContext context, PaneController controller, String path) {
+  // In the Recycle Bin, double-click does nothing useful; use right-click
+  if (FileService.isRecycleBinPath(controller.currentPath)) return;
+
+  final entry = _findEntry(controller, path);
+  if (entry == null) return;
+  if (entry.isDirectory) {
+    controller.navigateTo(path);
+  } else {
+    FileService.openFile(path);
+  }
+}
+
+void _showNativeMenu(
+    BuildContext context, List<String> selectedPaths, Offset position) {
+  final controller = context.read<PaneController>();
+
+  // If right-clicking an unselected item, select only it
+  if (selectedPaths.length == 1 &&
+      !controller.selectedPaths.contains(selectedPaths.first)) {
+    controller.clearSelection();
+    controller.toggleSelection(selectedPaths.first);
+  } else if (selectedPaths.isEmpty) {
+    controller.clearSelection();
+  }
+
+  // Use all currently selected paths for the menu
+  final paths =
+      selectedPaths.isEmpty ? <String>[] : controller.selectedPaths.toList();
+
+  // Convert logical (window-relative) → screen physical coordinates
+  final dpr = View.of(context).devicePixelRatio;
+  final (screenX, screenY) = ShellContextMenu.toScreenCoords(
+    position.dx, position.dy, dpr,
+  );
+
+  final verb = ShellContextMenu.show(
+    folderPath: controller.currentPath,
+    selectedPaths: paths,
+    screenX: screenX,
+    screenY: screenY,
+  );
+
+  if (!context.mounted) return;
+  _handleVerb(context, verb, paths);
+}
+
+void _handleVerb(
+    BuildContext context, String? verb, List<String> selectedPaths) {
+  if (verb == null) return;
+
+  final appState = context.read<AppState>();
+  final controller = context.read<PaneController>();
+
+  switch (verb) {
+    case 'open':
+    case 'explore':
+      // Intercepted — navigate for dirs, open for files
+      if (selectedPaths.length == 1) {
+        _handleDoubleTap(context, controller, selectedPaths.first);
+      }
+    case 'rename':
+      // Intercepted — show our rename dialog
+      _renameSelected(context);
+    case 'copy':
+      // Shell put CF_HDROP on clipboard; sync our app clipboard
+      if (selectedPaths.isNotEmpty) {
+        appState.copyPaths(selectedPaths);
+      }
+      controller.refresh();
+    case 'cut':
+      if (selectedPaths.isNotEmpty) {
+        appState.cutPaths(selectedPaths);
+      }
+      controller.refresh();
+    case 'delete':
+      controller.refresh();
+    case 'paste':
+      appState.clearClipboard();
+      controller.refresh();
+    default:
+      // Properties, shell extensions, etc. — just refresh
+      controller.refresh();
+  }
+}
+
+Future<void> _renameSelected(BuildContext context) async {
+  final controller = context.read<PaneController>();
+
+  // In Recycle Bin, items cannot be renamed
+  if (FileService.isRecycleBinPath(controller.currentPath)) return;
+
+  if (controller.selectedPaths.length != 1) return;
+  final oldPath = controller.selectedPaths.first;
+  final oldName = _basename(oldPath);
+
+  final newName = await _showInputDialog(
+    context,
+    title: '重命名',
+    initialValue: oldName,
+    confirmText: '确定',
+  );
+
+  if (newName == null || newName.isEmpty || newName == oldName) return;
+
+  try {
+    await FileService.renameEntry(oldPath, newName);
+    controller.refresh();
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('重命名失败: $e'),
+            duration: const Duration(seconds: 2)),
+      );
+    }
+  }
+}
+
+Future<String?> _showInputDialog(
+  BuildContext context, {
+  required String title,
+  required String initialValue,
+  required String confirmText,
+}) {
+  final textController = TextEditingController(text: initialValue);
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(title, style: const TextStyle(fontSize: 14)),
+      content: TextField(
+        controller: textController,
+        autofocus: true,
+        style: const TextStyle(fontSize: 13),
+        decoration: const InputDecoration(
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+        onSubmitted: (v) => Navigator.pop(ctx, v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, textController.text),
+          child: Text(confirmText),
+        ),
+      ],
+    ),
+  );
 }
 
 class _StatusBar extends StatelessWidget {
