@@ -43,6 +43,9 @@ class SidebarSyncController extends ChangeNotifier {
   /// 视图消费的一次性滚动请求。
   bool needsScrollToSelected = false;
 
+  /// 用户手动滚动后，本次同步不再自动跟随（可被新 syncTo 重置）。
+  bool scrollFollowDismissed = false;
+
   RequestToken? _syncToken;
   final Map<String, RequestToken> _expandTokens = {};
 
@@ -120,6 +123,7 @@ class SidebarSyncController extends ChangeNotifier {
     final token = repository.startRequest();
     _syncToken = token;
     needsScrollToSelected = true;
+    scrollFollowDismissed = false;
 
     // Quick Access：命中则高亮，同时继续展开树。
     for (final item in quickAccessItems) {
@@ -184,10 +188,12 @@ class SidebarSyncController extends ChangeNotifier {
     } else {
       // 完整结束：数据进 complete cache，partial 卸载。
       partialNodes.remove(key);
-      final selected = selectedPath;
-      if (selected != null && isUnder(selected, key)) {
-        needsScrollToSelected = true;
-      }
+    }
+    // 任何 partial 状态变化都可能改变 selected 行之前的行数（loading
+    // 指示器出现/消失、行数增减），所以 partial 增长时也重新武装滚动
+    // 请求；由 SidebarTree 判定落点稳定后才消费（§18 缺陷修复）。
+    if (!scrollFollowDismissed && selectedPath != null) {
+      needsScrollToSelected = true;
     }
     _notifySafe();
   }
@@ -196,6 +202,12 @@ class SidebarSyncController extends ChangeNotifier {
     repository.cancelRequest(token);
     partialNodes.removeWhere((_, node) => node.ownerRequestId == token.id);
     if (rollbackSyncExpansion) syncExpandedPaths.clear();
+  }
+
+  /// 用户手动滚动：消费滚动请求并停止本次同步的自动跟随。
+  void dismissScrollFollow() {
+    needsScrollToSelected = false;
+    scrollFollowDismissed = true;
   }
 
   // ── 视图交互 ────────────────────────────────────────────────

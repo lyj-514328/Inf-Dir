@@ -28,6 +28,11 @@ class _TreeRow {
 /// 纯渲染层（§8 / §15 阶段五）：只展示 SidebarSyncController 的状态、
 /// 转发点击事件。不碰 FFI、不存 session id、不在 build 里做同步 probe、
 /// 不在异步函数里改 cache。
+///
+/// 虚拟化方案（docs §18 的替代）：不用 sliver，整个内容区是一个
+/// SingleChildScrollView + 纯算术高度的 SizedBox，内部用 Stack/Positioned
+/// 只物化可见窗口 ±缓存带的行。maxScrollExtent 由总行数纯算，永远准确，
+/// 不存在 SliverMultiBoxAdaptorElement 的 layout 跳过问题。
 class SidebarTree extends StatefulWidget {
   final ValueChanged<String> onNavigate;
 
@@ -40,17 +45,98 @@ class SidebarTree extends StatefulWidget {
   State<SidebarTree> createState() => _SidebarTreeState();
 }
 
-/// State 只拥有 ScrollController；业务状态全部在 SidebarSyncController。
+/// State 只拥有 ScrollController 与虚拟化窗口状态；业务状态全在
+/// SidebarSyncController。
 class _SidebarTreeState extends State<SidebarTree> {
   static const _thisPcGuid = SidebarSyncController.thisPcGuid;
 
+  // ── 布局常量：整个侧栏内容按固定行高排布 ──────────────────
+  static const double _rowHeight = 22.0;
+  static const double _quickAccessHeaderHeight = 20.0;
+  static const double _dividerHeight = 1.0;
+  static const double _gapHeight = 4.0;
+
+  /// 视口外额外物化的行数（缓存带）。
+  static const int _cacheRows = 8;
+
   final ScrollController _scrollController = ScrollController();
   List<_TreeRow> _treeItems = [];
+
+  // build 时更新的窗口状态；滚动监听据此重建可见行。
+  int _qaCount = 0;
+  int _treeCount = 0;
+  int _firstVisibleTreeIndex = 0;
+  int _lastVisibleTreeIndex = 0;
+
+  /// 最近一次程序自动 jumpTo 的 pixels；用户手动滚动会使其失效。
+  double? _lastAutoJumpPixels;
+  SidebarSyncController? _sidebar;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  虚拟化：index ↔ offset 纯算术
+  // ═══════════════════════════════════════════════════════════
+
+  /// 内容区布局 index 空间（顶部起）：
+  ///   [0] 快速访问头          _quickAccessHeaderHeight
+  ///   [1, qaCount) 快速访问行 22 × qaCount
+  ///   divider                _dividerHeight
+  ///   gap                    _gapHeight
+  ///   之后是树行               22 × treeCount
+  /// 总高度是纯函数，不依赖 layout 结果，maxScrollExtent 永远准确。
+
+  double _treeStartOffset(int qaCount) =>
+      _quickAccessHeaderHeight + qaCount * _rowHeight + _dividerHeight + _gapHeight;
+
+  double _totalHeight(int qaCount, int treeCount) =>
+      _treeStartOffset(qaCount) + treeCount * _rowHeight;
+
+  (int, int) _visibleWindow(double scrollOffset, double viewportHeight) {
+    final startOffset = _treeStartOffset(_qaCount);
+    final start = (((scrollOffset - startOffset) / _rowHeight).floor() -
+            _cacheRows)
+        .clamp(0, _treeCount)
+        .toInt();
+    final end = (((scrollOffset + viewportHeight - startOffset) / _rowHeight)
+            .ceil() +
+        _cacheRows)
+        .clamp(0, _treeCount)
+        .toInt();
+    return (start, end);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+
+    // 用户手动滚动（非程序 jumpTo）：停止本次同步的自动跟随。
+    if (_lastAutoJumpPixels != null && position.pixels != _lastAutoJumpPixels) {
+      _lastAutoJumpPixels = null;
+      final sidebar = _sidebar;
+      if (sidebar != null && sidebar.needsScrollToSelected) {
+        sidebar.dismissScrollFollow();
+      }
+    }
+
+    final (start, end) =
+        _visibleWindow(position.pixels, position.viewportDimension);
+    if (start != _firstVisibleTreeIndex || end != _lastVisibleTreeIndex) {
+      setState(() {
+        _firstVisibleTreeIndex = start;
+        _lastVisibleTreeIndex = end;
+      });
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -126,12 +212,12 @@ class _SidebarTreeState extends State<SidebarTree> {
   //  Scroll to selected
   // ═══════════════════════════════════════════════════════════
 
-  static const double _quickAccessHeaderHeight = 20.0;
-
-  double _preTreeHeight(SidebarSyncController sidebar) {
-    return 20.0 + sidebar.quickAccessItems.length * 22.0 + 1.0 + 4.0;
-  }
-
+  /// 滚动请求采用「落点稳定才消费」的重试语义：
+  /// - 目标行尚未挂上树（祖先仍在加载）→ 保留请求，等下次 partial 更新重试；
+  /// - 目标行之前还有 loading 节点 → 行号还会变，跳但保留请求；
+  /// - 目标行之前无 loading → 行号稳定，跳转并消费。
+  /// 目标行 offset 是纯算术，jumpTo 后触发 _onScroll 重建窗口，
+  /// 目标行在该帧物化。不再依赖 maxScrollExtent（sliver 时代它可能过期）。
   void _tryScrollToSelected(SidebarSyncController sidebar) {
     if (!sidebar.needsScrollToSelected) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -142,24 +228,36 @@ class _SidebarTreeState extends State<SidebarTree> {
       final qaIndex = sidebar.quickAccessItems
           .indexWhere((item) => pathEquals(item.path, selected));
       if (qaIndex >= 0) {
-        offset = _quickAccessHeaderHeight + qaIndex * 22.0;
+        // 快速访问行固定，offset 永远稳定，直接消费。
+        offset = _quickAccessHeaderHeight + qaIndex * _rowHeight;
+        sidebar.consumeScrollRequest();
       } else {
-        final items = _flattenTree(sidebar);
         final treeIndex =
-            items.indexWhere((item) => pathEquals(item.path, selected));
-        if (treeIndex >= 0) {
-          offset = _preTreeHeight(sidebar) + treeIndex * 22.0;
+            _treeItems.indexWhere((item) => pathEquals(item.path, selected));
+        if (treeIndex < 0) return; // 目标行未挂上树：保留请求，等待重试。
+        offset = _treeStartOffset(_qaCount) + treeIndex * _rowHeight;
+        if (!_hasLoadingBefore(treeIndex)) {
+          sidebar.consumeScrollRequest();
         }
       }
 
-      sidebar.consumeScrollRequest();
-      if (offset == null) return;
-
-      final viewportHeight = _scrollController.position.viewportDimension;
-      final centeredOffset = offset - viewportHeight / 2 + 11.0;
-      final maxScroll = _scrollController.position.maxScrollExtent;
-      _scrollController.jumpTo(centeredOffset.clamp(0.0, maxScroll));
+      final position = _scrollController.position;
+      final viewportHeight = position.viewportDimension;
+      final maxScroll = (_totalHeight(_qaCount, _treeCount) - viewportHeight)
+          .clamp(0.0, double.infinity);
+      final centeredOffset = offset - viewportHeight / 2 + _rowHeight / 2;
+      final target = centeredOffset.clamp(0.0, maxScroll);
+      _lastAutoJumpPixels = target;
+      position.jumpTo(target);
     });
+  }
+
+  /// selected 行之前是否存在加载中的节点（loadingIndicator 行）。
+  bool _hasLoadingBefore(int treeIndex) {
+    for (var i = 0; i < treeIndex; i++) {
+      if (_treeItems[i].type == _RowType.loadingIndicator) return true;
+    }
+    return false;
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -185,7 +283,7 @@ class _SidebarTreeState extends State<SidebarTree> {
   }
 
   // ═══════════════════════════════════════════════════════════
-  //  Build
+  //  Row builders
   // ═══════════════════════════════════════════════════════════
 
   IconData _fallbackIcon(_RowType type) {
@@ -210,7 +308,7 @@ class _SidebarTreeState extends State<SidebarTree> {
 
     if (row.type == _RowType.loadingIndicator) {
       return Container(
-        height: 22,
+        height: _rowHeight,
         width: double.infinity,
         padding: EdgeInsets.only(left: 4.0 + row.depth * 16.0),
         child: const Row(
@@ -246,7 +344,7 @@ class _SidebarTreeState extends State<SidebarTree> {
       onTap: () => _onTapTreeRow(sidebar, row),
       hoverColor: const Color(0x11000000),
       child: Container(
-        height: 22,
+        height: _rowHeight,
         width: double.infinity,
         color: isSelected ? const Color(0xFFCCE8FF) : null,
         child: Row(
@@ -295,53 +393,103 @@ class _SidebarTreeState extends State<SidebarTree> {
     return Icons.folder;
   }
 
+  // ═══════════════════════════════════════════════════════════
+  //  Build
+  // ═══════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
     final sidebar = context.watch<SidebarSyncController>();
+    _sidebar = sidebar;
 
     final sw = Stopwatch()..start();
     _treeItems = _flattenTree(sidebar);
+    _qaCount = sidebar.quickAccessItems.length;
+    _treeCount = _treeItems.length;
     final flattenMs = sw.elapsedMilliseconds;
     _tryScrollToSelected(sidebar);
 
-    final result = Container(
-      clipBehavior: Clip.hardEdge,
-      decoration: const BoxDecoration(color: Color(0xFFF8F8F8)),
-      alignment: Alignment.topLeft,
-      child: Scrollbar(
-        controller: _scrollController,
-        thumbVisibility: false,
-        child: CustomScrollView(
+    final result = LayoutBuilder(builder: (context, constraints) {
+      final viewportHeight = constraints.maxHeight;
+      final scrollOffset = _scrollController.hasClients
+          ? _scrollController.position.pixels
+          : 0.0;
+      final (first, last) = _visibleWindow(scrollOffset, viewportHeight);
+      _firstVisibleTreeIndex = first;
+      _lastVisibleTreeIndex = last;
+
+      final stackChildren = <Widget>[];
+
+      stackChildren.add(Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        height: _quickAccessHeaderHeight,
+        child: const _QuickAccessHeader(),
+      ));
+      for (var i = 0; i < _qaCount; i++) {
+        final item = sidebar.quickAccessItems[i];
+        stackChildren.add(Positioned(
+          top: _quickAccessHeaderHeight + i * _rowHeight,
+          left: 0,
+          right: 0,
+          height: _rowHeight,
+          child: _QuickAccessRow(
+            item: item,
+            selected: _isSelected(sidebar, item.path),
+            fallbackIcon: _quickAccessFallbackIcon(item.name),
+            onTap: () => _onTapQuickAccess(sidebar, item),
+          ),
+        ));
+      }
+
+      final qaBottom = _quickAccessHeaderHeight + _qaCount * _rowHeight;
+      stackChildren.add(Positioned(
+        top: qaBottom,
+        left: 0,
+        right: 0,
+        height: _dividerHeight,
+        child: const Divider(height: 1, thickness: 1),
+      ));
+      stackChildren.add(Positioned(
+        top: qaBottom + _dividerHeight,
+        left: 0,
+        right: 0,
+        height: _gapHeight,
+        child: const SizedBox(),
+      ));
+
+      final treeStartOffset = _treeStartOffset(_qaCount);
+      for (var i = first; i < last; i++) {
+        stackChildren.add(Positioned(
+          top: treeStartOffset + i * _rowHeight,
+          left: 0,
+          right: 0,
+          height: _rowHeight,
+          child: _buildTreeRow(sidebar, i),
+        ));
+      }
+
+      return Container(
+        clipBehavior: Clip.hardEdge,
+        decoration: const BoxDecoration(color: Color(0xFFF8F8F8)),
+        alignment: Alignment.topLeft,
+        child: Scrollbar(
           controller: _scrollController,
-          slivers: [
-            const SliverToBoxAdapter(child: _QuickAccessHeader()),
-            ...sidebar.quickAccessItems.map(
-              (item) => SliverToBoxAdapter(
-                child: _QuickAccessRow(
-                  item: item,
-                  selected: _isSelected(sidebar, item.path),
-                  fallbackIcon: _quickAccessFallbackIcon(item.name),
-                  onTap: () => _onTapQuickAccess(sidebar, item),
-                ),
+          thumbVisibility: false,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            child: SizedBox(
+              height: _totalHeight(_qaCount, _treeCount),
+              child: Stack(
+                clipBehavior: Clip.hardEdge,
+                children: stackChildren,
               ),
             ),
-            const SliverToBoxAdapter(
-              child: Divider(height: 1, thickness: 1),
-            ),
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 4),
-            ),
-            SliverFixedExtentList(
-              itemExtent: 22.0,
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildTreeRow(sidebar, index),
-                childCount: _treeItems.length,
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
-    );
+      );
+    });
 
     sw.stop();
     if (sw.elapsedMilliseconds > 10) {
