@@ -49,6 +49,10 @@ class _FileListViewState extends State<FileListView> {
   double _paneWidth = 0;
   bool _widthsInitialized = false;
   final ScrollController _hScrollController = ScrollController();
+  final ScrollController _vScrollController = ScrollController();
+
+  /// 鼠标悬停在列表面板上时显示滚动条。
+  bool _scrollbarHovered = false;
 
   double get _totalColWidth =>
       widget.columnWidths.reduce((a, b) => a + b) + 4 * _splitterW + _hPad;
@@ -73,6 +77,7 @@ class _FileListViewState extends State<FileListView> {
   @override
   void dispose() {
     _hScrollController.dispose();
+    _vScrollController.dispose();
     super.dispose();
   }
 
@@ -100,8 +105,12 @@ class _FileListViewState extends State<FileListView> {
         final blankW = _blankWidth;
         final listW = _listWidth;
 
-        return Scrollbar(
+        return MouseRegion(
+          onEnter: (_) => setState(() => _scrollbarHovered = true),
+          onExit: (_) => setState(() => _scrollbarHovered = false),
+          child: Scrollbar(
           controller: _hScrollController,
+          thumbVisibility: _scrollbarHovered,
           child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           controller: _hScrollController,
@@ -132,7 +141,11 @@ class _FileListViewState extends State<FileListView> {
                               style: TextStyle(color: Colors.grey, fontSize: 12),
                             ),
                           )
-                        : ListView.builder(
+                        : Scrollbar(
+                            controller: _vScrollController,
+                            thumbVisibility: _scrollbarHovered,
+                            child: ListView.builder(
+                            controller: _vScrollController,
                             itemCount: widget.entries.length,
                             itemExtent: 22,
                             padding: EdgeInsets.zero,
@@ -151,12 +164,14 @@ class _FileListViewState extends State<FileListView> {
                               );
                             },
                           ),
+                        ),
                   ),
                 ),
               ],
             ),
           ),
-          ),
+        ),
+        ),
         );
       },
     );

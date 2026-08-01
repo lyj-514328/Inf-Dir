@@ -72,6 +72,9 @@ class _SidebarTreeState extends State<SidebarTree> {
   double? _lastAutoJumpPixels;
   SidebarSyncController? _sidebar;
 
+  /// 鼠标悬停在侧栏面板上时显示滚动条。
+  bool _hovered = false;
+
   @override
   void initState() {
     super.initState();
@@ -470,20 +473,24 @@ class _SidebarTreeState extends State<SidebarTree> {
         ));
       }
 
-      return Container(
-        clipBehavior: Clip.hardEdge,
-        decoration: const BoxDecoration(color: Color(0xFFF8F8F8)),
-        alignment: Alignment.topLeft,
-        child: Scrollbar(
-          controller: _scrollController,
-          thumbVisibility: false,
-          child: SingleChildScrollView(
+      return MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: Container(
+          clipBehavior: Clip.hardEdge,
+          decoration: const BoxDecoration(color: Color(0xFFF8F8F8)),
+          alignment: Alignment.topLeft,
+          child: Scrollbar(
             controller: _scrollController,
-            child: SizedBox(
-              height: _totalHeight(_qaCount, _treeCount),
-              child: Stack(
-                clipBehavior: Clip.hardEdge,
-                children: stackChildren,
+            thumbVisibility: _hovered,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              child: SizedBox(
+                height: _totalHeight(_qaCount, _treeCount),
+                child: Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: stackChildren,
+                ),
               ),
             ),
           ),
