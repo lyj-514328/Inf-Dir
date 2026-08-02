@@ -1,8 +1,11 @@
 #include "file_icon.h"
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <commoncontrols.h>
 #include <objbase.h>
 #include <gdiplus.h>
+#include <propsys.h>
+#include <propvarutil.h>
 #include <string>
 
 // -- GDI+ lazy init ---------------------------------------------------
@@ -146,4 +149,140 @@ unsigned char* GetFileIconPngW(const wchar_t* path, int size, int* outSize) {
 extern "C" __declspec(dllexport)
 void FreeIconPngW(unsigned char* ptr) {
     if (ptr) CoTaskMemFree(ptr);
+}
+
+// -- HICON to 32-bit top-down HBITMAP to PNG -------------------------
+
+static unsigned char* IconToPng(HICON hIcon, int size, int* outSize) {
+    *outSize = 0;
+    if (!hIcon || !EnsureGdiplus()) return nullptr;
+
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = size;
+    bmi.bmiHeader.biHeight = -size; // top-down
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    void* bits = nullptr;
+    HDC screenDC = GetDC(nullptr);
+    HBITMAP hBmp = CreateDIBSection(screenDC, &bmi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    ReleaseDC(nullptr, screenDC);
+    if (!hBmp) return nullptr;
+
+    HDC memDC = CreateCompatibleDC(nullptr);
+    HGDIOBJ old = SelectObject(memDC, hBmp);
+    DrawIconEx(memDC, 0, 0, hIcon, size, size, 0, nullptr, DI_NORMAL);
+    SelectObject(memDC, old);
+    DeleteDC(memDC);
+
+    // Top-down 32-bit ARGB, no row flip needed
+    Gdiplus::Bitmap bmp(size, size, size * 4, PixelFormat32bppARGB, (BYTE*)bits);
+
+    IStream* stm = nullptr;
+    if (CreateStreamOnHGlobal(nullptr, TRUE, &stm) != S_OK) {
+        DeleteObject(hBmp);
+        return nullptr;
+    }
+
+    unsigned char* buf = nullptr;
+    if (bmp.Save(stm, &g_pngClsid) == Gdiplus::Ok) {
+        HGLOBAL hg = nullptr;
+        GetHGlobalFromStream(stm, &hg);
+        SIZE_T sz = GlobalSize(hg);
+        void* src = GlobalLock(hg);
+        buf = (unsigned char*)CoTaskMemAlloc(sz);
+        if (buf) {
+            memcpy(buf, src, sz);
+            *outSize = (int)sz;
+        }
+        GlobalUnlock(hg);
+    }
+
+    stm->Release();
+    DeleteObject(hBmp);
+    return buf;
+}
+
+// -- Shell overlay (SHGetFileInfo + SHGFI_OVERLAYINDEX) ----------------
+// Same approach as the Files app: let the shell resolve which overlay
+// applies, then pull it from the system image list via the overlay index
+// packed in the high byte of SHFILEINFO::iIcon.
+
+extern "C" __declspec(dllexport)
+unsigned char* GetFileOverlayPngW(const wchar_t* path, int size, int* outSize) {
+    if (!path || !outSize || size <= 0) return nullptr;
+    *outSize = 0;
+
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if (FAILED(hr)) return nullptr;
+    bool comInitialized = (hr == S_OK);
+
+    SHFILEINFOW sfi = {};
+    DWORD_PTR result = SHGetFileInfoW(path, 0, &sfi, sizeof(sfi),
+        SHGFI_OVERLAYINDEX | SHGFI_ICON | SHGFI_SYSICONINDEX | SHGFI_ICONLOCATION);
+    if (!result) {
+        if (comInitialized) CoUninitialize();
+        return nullptr;
+    }
+    if (sfi.hIcon) DestroyIcon(sfi.hIcon);
+
+    int overlayIdx = (int)(sfi.iIcon >> 24);
+    if (overlayIdx == 0) {
+        if (comInitialized) CoUninitialize();
+        return nullptr;
+    }
+
+    unsigned char* png = nullptr;
+    IImageList* piml = nullptr;
+    if (SUCCEEDED(SHGetImageList(SHIL_LARGE, IID_IImageList, (void**)&piml)) && piml) {
+        int overlayImageIdx = 0;
+        if (SUCCEEDED(piml->GetOverlayImage(overlayIdx, &overlayImageIdx))) {
+            HICON hOverlay = nullptr;
+            if (SUCCEEDED(piml->GetIcon(overlayImageIdx, ILD_TRANSPARENT, &hOverlay)) && hOverlay) {
+                png = IconToPng(hOverlay, size, outSize);
+                DestroyIcon(hOverlay);
+            }
+        }
+        piml->Release();
+    }
+
+    if (comInitialized) CoUninitialize();
+    return png;
+}
+
+// -- Cloud placeholder sync status (IPropertyStore) --------------------
+// Returns -1 when the item is not a cloud placeholder (property absent).
+// Non-negative values map to STORAGE_PROVIDER_ITEM_SYNC_STATUS /
+// CloudDriveSyncStatus: 0-5 folder states, 6 = NotSynced, 8 = FileOnline,
+// 9 = FileSync, 14 = FileOffline, 15 = FileOfflinePinned.
+
+extern "C" __declspec(dllexport)
+int GetFileCloudStatusW(const wchar_t* path) {
+    if (!path) return -1;
+
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if (FAILED(hr)) return -1;
+    bool comInitialized = (hr == S_OK);
+
+    int status = -1;
+
+    IPropertyStore* pps = nullptr;
+    hr = SHGetPropertyStoreFromParsingName(path, nullptr, GPS_DEFAULT, IID_PPV_ARGS(&pps));
+    if (SUCCEEDED(hr) && pps) {
+        PROPERTYKEY pk;
+        if (SUCCEEDED(PSGetPropertyKeyFromName(L"System.FilePlaceholderStatus", &pk))) {
+            PROPVARIANT pv;
+            PropVariantInit(&pv);
+            if (SUCCEEDED(pps->GetValue(pk, &pv)) && pv.vt == VT_UI4) {
+                status = (int)pv.ulVal;
+            }
+            PropVariantClear(&pv);
+        }
+        pps->Release();
+    }
+
+    if (comInitialized) CoUninitialize();
+    return status;
 }

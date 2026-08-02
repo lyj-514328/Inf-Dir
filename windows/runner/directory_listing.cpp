@@ -251,6 +251,10 @@ static void EnumerateFilesystem(const wchar_t* path,
         if (wcscmp(ffd.cFileName, L".") == 0 || wcscmp(ffd.cFileName, L"..") == 0)
             continue;
 
+        // Skip hidden / system files (desktop.ini, Thumbs.db, etc.)
+        if (ffd.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM))
+            continue;
+
         std::wstring name = ffd.cFileName;
         std::wstring fullPath = path;
         if (!fullPath.empty() && fullPath.back() != L'\\')
@@ -708,6 +712,8 @@ unsigned char* GetNextEnumPage(int sessionId, int count, int* outSize) {
         auto shouldInclude = [&](const WIN32_FIND_DATAW& fd) -> bool {
             if (wcscmp(fd.cFileName, L".") == 0 ||
                 wcscmp(fd.cFileName, L"..") == 0)
+                return false;
+            if (fd.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM))
                 return false;
             if (session->directoriesOnly &&
                 !(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))

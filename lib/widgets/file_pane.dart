@@ -458,8 +458,9 @@ void _handleVerb(
       appState.clearClipboard();
       controller.refresh();
     default:
-      // Properties, shell extensions, etc. — just refresh
-      controller.refresh();
+      // Properties, copy-as-path, shell extensions, etc.
+      // No filesystem change — no refresh needed.
+      break;
   }
 }
 

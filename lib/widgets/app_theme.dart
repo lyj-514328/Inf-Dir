@@ -47,6 +47,9 @@ class AppColors extends ThemeExtension<AppColors> {
   /// 删除确认、关闭 hover
   final Color danger;
 
+  /// 成功 / 已同步（云状态绿勾）
+  final Color success;
+
   /// fallback 文件夹图标
   final Color iconFolder;
 
@@ -70,6 +73,7 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.accentSubtle,
     required this.selectedInactive,
     required this.danger,
+    required this.success,
     required this.iconFolder,
     required this.iconFile,
     required this.scrim,
@@ -90,6 +94,7 @@ class AppColors extends ThemeExtension<AppColors> {
     accentSubtle: Color(0xFFE5F1FB),
     selectedInactive: Color(0xFFE3E3E3),
     danger: Color(0xFFC42B1C),
+    success: Color(0xFF2E7D32),
     iconFolder: Color(0xFFE8A33D),
     iconFile: Color(0xFF8A8A8A),
     scrim: Color(0x0F000000),
@@ -110,6 +115,7 @@ class AppColors extends ThemeExtension<AppColors> {
     accentSubtle: Color(0xFF094771),
     selectedInactive: Color(0xFF3A3A3A),
     danger: Color(0xFFF1707B),
+    success: Color(0xFF66BB6A),
     iconFolder: Color(0xFFE8A33D),
     iconFile: Color(0xFF9D9D9D),
     scrim: Color(0x4D000000),
@@ -130,6 +136,7 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? accentSubtle,
     Color? selectedInactive,
     Color? danger,
+    Color? success,
     Color? iconFolder,
     Color? iconFile,
     Color? scrim,
@@ -148,6 +155,7 @@ class AppColors extends ThemeExtension<AppColors> {
       accentSubtle: accentSubtle ?? this.accentSubtle,
       selectedInactive: selectedInactive ?? this.selectedInactive,
       danger: danger ?? this.danger,
+      success: success ?? this.success,
       iconFolder: iconFolder ?? this.iconFolder,
       iconFile: iconFile ?? this.iconFile,
       scrim: scrim ?? this.scrim,
@@ -172,6 +180,7 @@ class AppColors extends ThemeExtension<AppColors> {
       selectedInactive:
           Color.lerp(selectedInactive, other.selectedInactive, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
+      success: Color.lerp(success, other.success, t)!,
       iconFolder: Color.lerp(iconFolder, other.iconFolder, t)!,
       iconFile: Color.lerp(iconFile, other.iconFile, t)!,
       scrim: Color.lerp(scrim, other.scrim, t)!,

@@ -10,14 +10,26 @@ typedef _GetPngDart = Pointer<Uint8> Function(
 typedef _FreePngNative = Void Function(Pointer<Uint8> ptr);
 typedef _FreePngDart = void Function(Pointer<Uint8> ptr);
 
+typedef _GetCloudStatusNative = Int32 Function(Pointer<Utf16> path);
+typedef _GetCloudStatusDart = int Function(Pointer<Utf16> path);
+
 class IconService {
   static final _GetPngDart _getPng = DynamicLibrary.process()
       .lookupFunction<_GetPngNative, _GetPngDart>('GetFileIconPngW');
+
+  static final _GetPngDart _getOverlayPng = DynamicLibrary.process()
+      .lookupFunction<_GetPngNative, _GetPngDart>('GetFileOverlayPngW');
+
+  static final _GetCloudStatusDart _getCloudStatus = DynamicLibrary.process()
+      .lookupFunction<_GetCloudStatusNative, _GetCloudStatusDart>(
+          'GetFileCloudStatusW');
 
   static final _FreePngDart _freePng = DynamicLibrary.process()
       .lookupFunction<_FreePngNative, _FreePngDart>('FreeIconPngW');
 
   static final Map<String, Uint8List> _pngCache = {};
+  static final Map<String, Uint8List?> _overlayCache = {};
+  static final Map<String, int> _cloudStatusCache = {};
 
   static Uint8List? getFileIconPng(String path, bool isDirectory, int size) {
     final cacheKey = '${isDirectory ? 'D' : 'F'}:$path:$size';
@@ -43,7 +55,52 @@ class IconService {
     }
   }
 
+  /// Shell overlay icon (shortcut arrow, OneDrive badge, etc.) or null.
+  static Uint8List? getFileOverlayPng(String path, int size) {
+    final cacheKey = '$path:$size';
+    if (_overlayCache.containsKey(cacheKey)) return _overlayCache[cacheKey];
+
+    final pathPtr = path.toNativeUtf16();
+    final outSize = calloc<Int32>();
+    try {
+      final ptr = _getOverlayPng(pathPtr, size, outSize);
+      if (ptr == nullptr || outSize.value <= 0) {
+        _overlayCache[cacheKey] = null;
+        return null;
+      }
+      final len = outSize.value;
+      final bytes = Uint8List(len);
+      for (int i = 0; i < len; i++) {
+        bytes[i] = ptr[i];
+      }
+      _freePng(ptr);
+      _overlayCache[cacheKey] = bytes;
+      return bytes;
+    } finally {
+      calloc.free(pathPtr);
+      calloc.free(outSize);
+    }
+  }
+
+  /// Cloud placeholder sync status (-1 = not a cloud file).
+  /// Non-negative values map to CloudDriveSyncStatus.
+  static int getCloudStatus(String path) {
+    final cached = _cloudStatusCache[path];
+    if (cached != null) return cached;
+
+    final pathPtr = path.toNativeUtf16();
+    try {
+      final status = _getCloudStatus(pathPtr);
+      _cloudStatusCache[path] = status;
+      return status;
+    } finally {
+      calloc.free(pathPtr);
+    }
+  }
+
   static void clearCache() {
     _pngCache.clear();
+    _overlayCache.clear();
+    _cloudStatusCache.clear();
   }
 }

@@ -517,7 +517,7 @@ class _FileRowState extends State<_FileRow> {
   }
 }
 
-// ── File Icon (real system icon via SHGetFileInfo) ───────────────────
+// ── File Icon (real system icon + shell overlay + cloud badge) ───────
 
 class _FileIcon extends StatelessWidget {
   final String path;
@@ -532,28 +532,96 @@ class _FileIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final png = IconService.getFileIconPng(path, isDirectory, 32);
+    final c = context.colors;
+    const iconSize = AppMetrics.iconMd; // 16
+    const badgeSize = 10.0;
 
-    if (png != null) {
-      return SizedBox(
-        width: AppMetrics.iconMd,
-        height: AppMetrics.iconMd,
-        child: Image.memory(
-          png,
-          width: AppMetrics.iconMd,
-          height: AppMetrics.iconMd,
-          fit: BoxFit.contain,
-        ),
-      );
+    final png = IconService.getFileIconPng(path, isDirectory, 32);
+    final overlayPng = IconService.getFileOverlayPng(path, 16);
+    final cloudStatus = IconService.getCloudStatus(path);
+
+    final Widget base = png != null
+        ? Image.memory(
+            png,
+            width: iconSize,
+            height: iconSize,
+            fit: BoxFit.contain,
+          )
+        : Icon(
+            isDirectory ? Icons.folder : Icons.insert_drive_file,
+            size: iconSize,
+            color: isSelected
+                ? Colors.white
+                : (isDirectory ? c.iconFolder : c.iconFile),
+          );
+
+    final hasOverlay = overlayPng != null;
+    final hasCloud = cloudStatus >= 0 && cloudStatus != 6; // 6 = NotSynced
+
+    if (!hasOverlay && !hasCloud) {
+      return SizedBox(width: iconSize, height: iconSize, child: base);
     }
 
+    return SizedBox(
+      width: iconSize,
+      height: iconSize,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          base,
+          if (hasOverlay)
+            Positioned(
+              left: -2,
+              bottom: -2,
+              child: Image.memory(
+                overlayPng!,
+                width: badgeSize,
+                height: badgeSize,
+                fit: BoxFit.contain,
+              ),
+            ),
+          if (hasCloud)
+            Positioned(
+              right: -3,
+              bottom: -3,
+              child: _CloudBadge(status: cloudStatus),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Cloud sync status badge ─────────────────────────────────────────
+
+class _CloudBadge extends StatelessWidget {
+  final int status;
+
+  const _CloudBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
     final c = context.colors;
-    return Icon(
-      isDirectory ? Icons.folder : Icons.insert_drive_file,
-      size: AppMetrics.iconMd,
-      color: isSelected
-          ? Colors.white
-          : (isDirectory ? c.iconFolder : c.iconFile),
+    // CloudDriveSyncStatus: 0-5 folder, 8 FileOnline, 9 FileSync,
+    // 14 FileOffline, 15 FileOfflinePinned. 6 (NotSynced) filtered upstream.
+    final (icon, color) = switch (status) {
+      3 || 15 => (Icons.check_circle, c.success), // pinned / always available
+      2 || 14 => (Icons.cloud_done, c.accent), // offline full / file offline
+      1 => (Icons.cloud_sync, c.accent), // partial sync
+      9 => (Icons.sync, c.accent), // syncing
+      8 || 0 => (Icons.cloud, c.textSecondary), // online only
+      4 => (Icons.remove_circle_outline, c.textTertiary), // excluded
+      _ => (Icons.cloud, c.textTertiary),
+    };
+
+    return Container(
+      width: 12,
+      height: 12,
+      decoration: BoxDecoration(
+        color: c.surface,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, size: 10, color: color),
     );
   }
 }
