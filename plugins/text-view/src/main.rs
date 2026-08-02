@@ -187,6 +187,26 @@ fn main() -> ExitCode {
         options,
         Box::new(move |cc| {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
+
+            // CJK fallback: load a system Chinese font so CJK glyphs render
+            let mut fonts = egui::FontDefinitions::default();
+            let candidates = [
+                r"C:\Windows\Fonts\msyh.ttc",   // Microsoft YaHei
+                r"C:\Windows\Fonts\simhei.ttf",  // SimHei
+                r"C:\Windows\Fonts\simsun.ttc",  // SimSun
+            ];
+            for path in candidates {
+                if let Ok(data) = std::fs::read(path) {
+                    fonts.font_data.insert("cjk".to_owned(), egui::FontData::from_owned(data));
+                    fonts.families
+                        .entry(egui::FontFamily::Monospace)
+                        .or_default()
+                        .push("cjk".to_owned());
+                    break;
+                }
+            }
+            cc.egui_ctx.set_fonts(fonts);
+
             Ok(Box::new(viewer))
         }),
     ) {

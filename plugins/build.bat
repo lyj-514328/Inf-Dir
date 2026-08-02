@@ -18,7 +18,7 @@ REM --- Add MinGW-w64 (ucrt64) to PATH for GNU target ---
 if exist "C:\msys64\ucrt64\bin" (
     set "PATH=C:\msys64\ucrt64\bin;%PATH%"
 ) else (
-    echo [WARN] C:\msys64\ucrt64\bin not found, video-view (GNU target) may fail.
+    echo [WARN] C:\msys64\ucrt64\bin not found, video-view ^(GNU target^) may fail.
 )
 
 REM --- Ensure rustup target ---
@@ -136,8 +136,8 @@ copy /Y "%SCRIPT_DIR%archive-view\target\release\archive-view.exe" "%SCRIPT_DIR%
 copy /Y "%LIBARCHIVE_DEPS%\bin\archive.dll" "%SCRIPT_DIR%" >nul
 copy /Y "%SCRIPT_DIR%video-view\target\x86_64-pc-windows-gnu\release\video-view.exe" "%SCRIPT_DIR%" >nul
 copy /Y "%MPV_DEV_DIR%\libmpv-2.dll" "%SCRIPT_DIR%" >nul
-copy /Y "%SCRIPT_DIR%pdf-view\target\x86_64-pc-windows-gnu\release\pdf-view.exe" "%SCRIPT_DIR%" >nul
-copy /Y "%SCRIPT_DIR%pdf-view\target\x86_64-pc-windows-gnu\release\pdfium.dll" "%SCRIPT_DIR%" >nul
+copy /Y "%SCRIPT_DIR%pdf-view\target\release\pdf-view.exe" "%SCRIPT_DIR%" >nul
+copy /Y "%SCRIPT_DIR%pdf-view\target\release\pdfium.dll" "%SCRIPT_DIR%" >nul
 
 echo.
 echo [DONE] All plugins built and installed to: %SCRIPT_DIR%

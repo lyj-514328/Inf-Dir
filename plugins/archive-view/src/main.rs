@@ -222,6 +222,7 @@ fn draw_folder_icon(painter: &egui::Painter, rect: egui::Rect) {
         ),
         r,
         egui::Stroke::new(1.0, stroke),
+        egui::StrokeKind::Middle,
     );
 }
 
@@ -236,7 +237,7 @@ fn draw_file_icon(painter: &egui::Painter, rect: egui::Rect, color: egui::Color3
         ((color.b() as u16 + 255) / 2) as u8,
     );
     painter.rect_filled(rect, r, light);
-    painter.rect_stroke(rect, r, egui::Stroke::new(1.0, color));
+    painter.rect_stroke(rect, r, egui::Stroke::new(1.0, color), egui::StrokeKind::Middle);
     let fold_pts = [
         egui::pos2(rect.max.x - fold, rect.min.y),
         egui::pos2(rect.max.x, rect.min.y + fold),
@@ -330,7 +331,7 @@ impl eframe::App for ArchiveApp {
             .frame(
                 egui::Frame::NONE
                     .fill(egui::Color32::from_rgb(38, 50, 66))
-                    .inner_margin(egui::Margin::symmetric(12.0, 7.0)),
+                    .inner_margin(egui::Margin::symmetric(12, 7)),
             )
             .show(ui, |ui| {
                 ui.horizontal_centered(|ui| {

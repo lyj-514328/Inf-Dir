@@ -1,23 +1,13 @@
 @echo off
 setlocal
 
-set "UCRT64_BIN=C:\msys64\ucrt64\bin"
-set "OUTPUT_DIR=target\x86_64-pc-windows-gnu\release"
+set "OUTPUT_DIR=target\release"
 set "PDFIUM_VERSION=7881"
 set "PDFIUM_URL=https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%%2F%PDFIUM_VERSION%/pdfium-win-x64.tgz"
 set "PDFIUM_ARCHIVE=target\pdfium-win-x64.tgz"
 set "PDFIUM_DIR=target\pdfium-win-x64"
 
-if not exist "%UCRT64_BIN%\gcc.exe" (
-    echo [ERROR] UCRT64 GCC not found at %UCRT64_BIN%\gcc.exe
-    exit /b 1
-)
-
-set "PATH=%UCRT64_BIN%;%PATH%"
-rustup target add x86_64-pc-windows-gnu
-if errorlevel 1 exit /b 1
-
-cargo build --release --target x86_64-pc-windows-gnu
+cargo build --release
 if errorlevel 1 exit /b 1
 
 if exist "pdfium.dll" (
