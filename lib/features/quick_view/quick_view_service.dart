@@ -30,9 +30,41 @@ class QuickViewService {
         '.avif', '.tiff', '.tif', '.ico', '.hdr',
       ],
     ),
-    // 后续添加：
-    // ViewerConfig(name: '文本查看器', exeName: 'text-view.exe', exts: ['.txt', '.md', '.log', '.csv']),
-    // ViewerConfig(name: 'PDF 查看器', exeName: 'pdf-view.exe', exts: ['.pdf']),
+    ViewerConfig(
+      name: '文本查看器',
+      exeName: 'text-view.exe',
+      args: '--width 960 --height 720 {file}',
+      exts: [
+        '.txt', '.md', '.log', '.csv', '.json', '.xml', '.yaml', '.yml',
+        '.ini', '.conf', '.cfg', '.bat', '.cmd', '.ps1', '.sh',
+        '.dart', '.py', '.js', '.ts', '.rs', '.go', '.c', '.cpp',
+        '.h', '.hpp', '.java', '.cs', '.html', '.css', '.sql',
+        '.toml', '.gradle', '.properties', '.env', '.gitignore',
+      ],
+    ),
+    ViewerConfig(
+      name: 'PDF 查看器',
+      exeName: 'pdf-view.exe',
+      args: '--width 960 --height 720 {file}',
+      exts: ['.pdf'],
+    ),
+    ViewerConfig(
+      name: '视频查看器',
+      exeName: 'video-view.exe',
+      args: '--width 960 --height 720 {file}',
+      exts: [
+        '.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv',
+        '.wmv', '.m4v', '.mpg', '.mpeg', '.ts', '.3gp',
+      ],
+    ),
+    ViewerConfig(
+      name: '压缩包查看器',
+      exeName: 'archive-view.exe',
+      exts: [
+        '.zip', '.7z', '.rar', '.tar', '.gz', '.xz',
+        '.bz2', '.iso', '.cab', '.arj', '.lzh',
+      ],
+    ),
   ];
 
   /// 根据文件路径查找匹配的 viewer。
