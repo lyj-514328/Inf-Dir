@@ -28,7 +28,7 @@ REM ============================================================
 REM  1. Prepare mpv-dev for video-view
 REM ============================================================
 if not exist "%MPV_DEV_DIR%\libmpv-2.dll" (
-    echo [1/6] Downloading mpv-dev...
+    echo [1/7] Downloading mpv-dev...
     if not exist "%MPV_DEV_7Z%" (
         curl -L -o "%MPV_DEV_7Z%" "%MPV_DEV_URL%"
         if errorlevel 1 (
@@ -36,7 +36,7 @@ if not exist "%MPV_DEV_DIR%\libmpv-2.dll" (
             exit /b 1
         )
     )
-    echo [1/6] Extracting mpv-dev...
+    echo [1/7] Extracting mpv-dev...
     if not exist "%MPV_DEV_DIR%" mkdir "%MPV_DEV_DIR%"
     7z x "%MPV_DEV_7Z%" -o"%MPV_DEV_DIR%" -y >nul
     if errorlevel 1 (
@@ -45,14 +45,14 @@ if not exist "%MPV_DEV_DIR%\libmpv-2.dll" (
     )
     del "%MPV_DEV_7Z%" 2>nul
 ) else (
-    echo [1/6] mpv-dev already present, skipping.
+    echo [1/7] mpv-dev already present, skipping.
 )
 
 REM ============================================================
 REM  2. Prepare libarchive for archive-view
 REM ============================================================
 if not exist "%LIBARCHIVE_DEPS%\lib\libarchive.lib" (
-    echo [2/6] Downloading libarchive...
+    echo [2/7] Downloading libarchive...
     if not exist "%LIBARCHIVE_ZIP%" (
         curl -L -o "%LIBARCHIVE_ZIP%" "%LIBARCHIVE_URL%"
         if errorlevel 1 (
@@ -60,7 +60,7 @@ if not exist "%LIBARCHIVE_DEPS%\lib\libarchive.lib" (
             exit /b 1
         )
     )
-    echo [2/6] Extracting libarchive...
+    echo [2/7] Extracting libarchive...
     set "LA_TMP=%SCRIPT_DIR%archive-view\_la_tmp"
     if not exist "!LA_TMP!" mkdir "!LA_TMP!"
     7z x "%LIBARCHIVE_ZIP%" -o"!LA_TMP!" -y >nul
@@ -78,13 +78,13 @@ if not exist "%LIBARCHIVE_DEPS%\lib\libarchive.lib" (
     rmdir /s /q "!LA_TMP!" 2>nul
     del "%LIBARCHIVE_ZIP%" 2>nul
 ) else (
-    echo [2/6] libarchive already present, skipping.
+    echo [2/7] libarchive already present, skipping.
 )
 
 REM ============================================================
 REM  3. Build img-view (MSVC)
 REM ============================================================
-echo [3/6] Building img-view...
+echo [3/7] Building img-view...
 pushd "%SCRIPT_DIR%img-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] img-view build failed. & popd & exit /b 1 )
@@ -93,7 +93,7 @@ popd
 REM ============================================================
 REM  4. Build text-view (MSVC)
 REM ============================================================
-echo [4/6] Building text-view...
+echo [4/7] Building text-view...
 pushd "%SCRIPT_DIR%text-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] text-view build failed. & popd & exit /b 1 )
@@ -102,7 +102,7 @@ popd
 REM ============================================================
 REM  5. Build archive-view (MSVC)
 REM ============================================================
-echo [5/6] Building archive-view...
+echo [5/7] Building archive-view...
 pushd "%SCRIPT_DIR%archive-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] archive-view build failed. & popd & exit /b 1 )
@@ -111,10 +111,19 @@ popd
 REM ============================================================
 REM  6. Build video-view (GNU / MinGW-w64)
 REM ============================================================
-echo [6/6] Building video-view...
+echo [6/7] Building video-view...
 pushd "%SCRIPT_DIR%video-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] video-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
+REM  7. Build pdf-view (GNU / MinGW-w64 + PDFium)
+REM ============================================================
+echo [7/7] Building pdf-view...
+pushd "%SCRIPT_DIR%pdf-view"
+call build.bat
+if errorlevel 1 ( echo [ERROR] pdf-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
@@ -127,6 +136,8 @@ copy /Y "%SCRIPT_DIR%archive-view\target\release\archive-view.exe" "%SCRIPT_DIR%
 copy /Y "%LIBARCHIVE_DEPS%\bin\archive.dll" "%SCRIPT_DIR%" >nul
 copy /Y "%SCRIPT_DIR%video-view\target\x86_64-pc-windows-gnu\release\video-view.exe" "%SCRIPT_DIR%" >nul
 copy /Y "%MPV_DEV_DIR%\libmpv-2.dll" "%SCRIPT_DIR%" >nul
+copy /Y "%SCRIPT_DIR%pdf-view\target\x86_64-pc-windows-gnu\release\pdf-view.exe" "%SCRIPT_DIR%" >nul
+copy /Y "%SCRIPT_DIR%pdf-view\target\x86_64-pc-windows-gnu\release\pdfium.dll" "%SCRIPT_DIR%" >nul
 
 echo.
 echo [DONE] All plugins built and installed to: %SCRIPT_DIR%
