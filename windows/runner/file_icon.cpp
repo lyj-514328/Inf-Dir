@@ -252,11 +252,23 @@ unsigned char* GetFileOverlayPngW(const wchar_t* path, int size, int* outSize) {
     return png;
 }
 
-// -- Cloud placeholder sync status (IPropertyStore) --------------------
-// Returns -1 when the item is not a cloud placeholder (property absent).
-// Non-negative values map to STORAGE_PROVIDER_ITEM_SYNC_STATUS /
-// CloudDriveSyncStatus: 0-5 folder states, 6 = NotSynced, 8 = FileOnline,
-// 9 = FileSync, 14 = FileOffline, 15 = FileOfflinePinned.
+// -- Cloud sync status (IPropertyStore) ---------------------------------
+// Semantic codes: -1 not cloud, 0 online only, 1 locally available,
+// 2 pinned, 3 syncing, 4 excluded.
+
+static bool ReadUintShellProperty(IPropertyStore* pps, const wchar_t* propName, UINT* out) {
+    PROPERTYKEY pk;
+    if (FAILED(PSGetPropertyKeyFromName(propName, &pk))) return false;
+    PROPVARIANT pv;
+    PropVariantInit(&pv);
+    bool ok = false;
+    if (SUCCEEDED(pps->GetValue(pk, &pv)) && pv.vt == VT_UI4) {
+        *out = pv.ulVal;
+        ok = true;
+    }
+    PropVariantClear(&pv);
+    return ok;
+}
 
 extern "C" __declspec(dllexport)
 int GetFileCloudStatusW(const wchar_t* path) {
@@ -271,16 +283,43 @@ int GetFileCloudStatusW(const wchar_t* path) {
     IPropertyStore* pps = nullptr;
     hr = SHGetPropertyStoreFromParsingName(path, nullptr, GPS_DEFAULT, IID_PPV_ARGS(&pps));
     if (SUCCEEDED(hr) && pps) {
-        PROPERTYKEY pk;
-        if (SUCCEEDED(PSGetPropertyKeyFromName(L"System.FilePlaceholderStatus", &pk))) {
-            PROPVARIANT pv;
-            PropVariantInit(&pv);
-            if (SUCCEEDED(pps->GetValue(pk, &pv)) && pv.vt == VT_UI4) {
-                status = (int)pv.ulVal;
-            }
-            PropVariantClear(&pv);
-        }
+        UINT sps = 0, ph = 0;
+        bool hasSps = ReadUintShellProperty(pps, L"System.StorageProviderState", &sps);
+        bool hasPh = ReadUintShellProperty(pps, L"System.FilePlaceholderStatus", &ph);
         pps->Release();
+
+        // Modern storage-provider state wins: it distinguishes "excluded"
+        // (9), which the legacy placeholder status reports as plain
+        // locally-available (14).
+        if (hasSps) {
+            switch (sps) {
+                case 1: status = 0; break; // online only
+                case 2: status = 1; break; // locally available
+                case 3: status = 2; break; // pinned / always on device
+                case 9: status = 4; break; // excluded from sync
+                default: break;
+            }
+        }
+        if (status < 0 && hasPh) {
+            switch (ph) {
+                case 8:  // FileOnline
+                case 0:  // FolderOnline
+                    status = 0; break;
+                case 14: // FileOffline
+                case 2:  // FolderOfflineFull
+                case 1:  // FolderOfflinePartial
+                case 5:  // FolderEmpty
+                    status = 1; break;
+                case 15: // FileOfflinePinned
+                case 3:  // FolderOfflinePinned
+                    status = 2; break;
+                case 9:  // FileSync
+                    status = 3; break;
+                case 4:  // FolderExcluded
+                    status = 4; break;
+                default: break;
+            }
+        }
     }
 
     if (comInitialized) CoUninitialize();

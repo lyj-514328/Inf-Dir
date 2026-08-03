@@ -7,6 +7,7 @@ import '../models/layout_node.dart';
 import '../state/app_state.dart';
 import '../state/layout_state.dart';
 import '../state/pane_controller.dart';
+import '../services/cloud_drive_service.dart';
 import '../services/file_service.dart';
 import '../services/shell_context_menu.dart';
 import 'app_theme.dart';
@@ -328,6 +329,8 @@ class _FileListSection extends StatelessWidget {
       columnWidths: controller.columnWidths,
       onResizeColumn: controller.resizeColumn,
       onInitWidths: controller.initColumnWidths,
+      // 当前目录位于云同步区（OneDrive 等）时显示"状态"列，同资源管理器。
+      showStatusColumn: CloudDriveService.isCloudZone(controller.currentPath),
       onSingleTap: (path) {
         final ctrl = HardwareKeyboard.instance.isControlPressed;
         final shift = HardwareKeyboard.instance.isShiftPressed;

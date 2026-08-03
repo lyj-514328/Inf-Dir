@@ -18,11 +18,17 @@ unsigned char* GetFileIconPngW(const wchar_t* path, int size, int* outSize);
 __declspec(dllexport)
 unsigned char* GetFileOverlayPngW(const wchar_t* path, int size, int* outSize);
 
-// Returns the cloud placeholder sync status for a file/folder.
-// Reads System.FilePlaceholderStatus via IPropertyStore.
-// Returns -1 if the item is not a cloud placeholder or on failure.
-// Non-negative values map to CloudDriveSyncStatus (0-5 folder states,
-// 6 = NotSynced, 8 = FileOnline, 9 = FileSync, 14/15 = FileOffline).
+// Returns the cloud sync status for a file/folder as a semantic code:
+//   -1 = not a cloud item
+//    0 = online only ("Available when online")
+//    1 = locally available
+//    2 = pinned ("Always available on this device")
+//    3 = syncing
+//    4 = excluded from sync ("Excluded (not synced)")
+// Prefers the modern System.StorageProviderState (1/2/3/9); falls back to the
+// legacy System.FilePlaceholderStatus when the provider doesn't supply it.
+// FilePlaceholderStatus alone cannot tell "excluded" from "locally available"
+// (both report 14), which is why the modern property wins.
 __declspec(dllexport)
 int GetFileCloudStatusW(const wchar_t* path);
 

@@ -4,6 +4,7 @@
 #include <knownfolders.h>
 #include <objbase.h>
 #include <propkey.h>
+#include <sddl.h>
 #include <vector>
 #include <string>
 
@@ -169,6 +170,153 @@ unsigned char* GetDriveInfo(const wchar_t* driveRoot, int* outSize) {
     std::vector<unsigned char> buf;
     AppendString(buf, friendlyName);
     AppendString(buf, fsType);
+
+    SIZE_T totalSz = buf.size();
+    unsigned char* result = (unsigned char*)CoTaskMemAlloc(totalSz);
+    if (!result) return nullptr;
+    memcpy(result, buf.data(), totalSz);
+    *outSize = (int)totalSz;
+    return result;
+}
+
+// Reads a REG_SZ / REG_EXPAND_SZ string value.
+static std::wstring ReadRegStringValue(HKEY key, const wchar_t* valueName) {
+    wchar_t buf[1024] = {};
+    DWORD size = sizeof(buf);
+    if (RegGetValueW(key, nullptr, valueName, RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ,
+                     nullptr, buf, &size) != ERROR_SUCCESS)
+        return L"";
+    return std::wstring(buf);
+}
+
+static std::wstring ExpandIfNecessary(const std::wstring& s) {
+    if (s.find(L'%') == std::wstring::npos) return s;
+    DWORD needed = ExpandEnvironmentStringsW(s.c_str(), nullptr, 0);
+    if (needed == 0) return s;
+    std::wstring out(needed, L'\0');
+    ExpandEnvironmentStringsW(s.c_str(), out.data(), needed);
+    out.resize(wcslen(out.c_str()));
+    return out;
+}
+
+static std::wstring GetCurrentUserSidString() {
+    std::wstring result;
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
+        return result;
+
+    DWORD size = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &size);
+    if (size > 0) {
+        std::vector<unsigned char> buf(size);
+        if (GetTokenInformation(token, TokenUser, buf.data(), size, &size)) {
+            TOKEN_USER* tokenUser = reinterpret_cast<TOKEN_USER*>(buf.data());
+            LPWSTR sidStr = nullptr;
+            if (ConvertSidToStringSidW(tokenUser->User.Sid, &sidStr)) {
+                result = sidStr;
+                LocalFree(sidStr);
+            }
+        }
+    }
+    CloseHandle(token);
+    return result;
+}
+
+// DisplayNameResource may be an indirect string ("@module,-resId"); resolve it.
+static std::wstring ResolveDisplayName(const std::wstring& raw, const std::wstring& fallback) {
+    std::wstring name = ExpandIfNecessary(raw);
+    if (!name.empty() && name[0] == L'@') {
+        wchar_t resolved[512];
+        if (SUCCEEDED(SHLoadIndirectString(name.c_str(), resolved, 512, nullptr)))
+            name = resolved;
+        else
+            name.clear();
+    }
+    return name.empty() ? fallback : name;
+}
+
+extern "C" __declspec(dllexport)
+unsigned char* GetCloudDriveRoots(int* outSize) {
+    if (!outSize) return nullptr;
+    *outSize = 0;
+
+    std::vector<std::wstring> names;
+    std::vector<std::wstring> paths;
+
+    // Official discovery: enumerate the CfAPI sync roots that Windows itself
+    // registers under SyncRootManager. Any compliant cloud client (OneDrive,
+    // Dropbox, Baidu Netdisk, ...) shows up here without vendor-specific code.
+    const std::wstring userSid = GetCurrentUserSidString();
+
+    HKEY managerKey = nullptr;
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE,
+                      L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SyncRootManager",
+                      0, KEY_READ, &managerKey) == ERROR_SUCCESS) {
+        for (DWORD i = 0;; i++) {
+            wchar_t syncRootId[1024];
+            DWORD idLen = 1024;
+            if (RegEnumKeyExW(managerKey, i, syncRootId, &idLen,
+                              nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
+                break;
+
+            HKEY syncRootKey = nullptr;
+            if (RegOpenKeyExW(managerKey, syncRootId, 0, KEY_READ, &syncRootKey) != ERROR_SUCCESS)
+                continue;
+
+            // Sync folder: UserSyncRoots value named after the current user's SID.
+            std::wstring syncFolder;
+            HKEY userSyncRoots = nullptr;
+            if (RegOpenKeyExW(syncRootKey, L"UserSyncRoots", 0, KEY_READ, &userSyncRoots) == ERROR_SUCCESS) {
+                if (!userSid.empty())
+                    syncFolder = ReadRegStringValue(userSyncRoots, userSid.c_str());
+                if (syncFolder.empty()) {
+                    // Provider not keyed by SID: fall back to the first value.
+                    wchar_t valueName[512];
+                    DWORD valueNameLen = 512;
+                    if (RegEnumValueW(userSyncRoots, 0, valueName, &valueNameLen,
+                                      nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
+                        syncFolder = ReadRegStringValue(userSyncRoots, valueName);
+                }
+                RegCloseKey(userSyncRoots);
+            }
+
+            // Display name: DisplayNameResource, falling back to the provider
+            // segment of the sync root id (text before the first '!').
+            std::wstring idStr(syncRootId);
+            std::wstring fallbackName = idStr.substr(0, idStr.find(L'!'));
+            std::wstring displayName = ResolveDisplayName(
+                ReadRegStringValue(syncRootKey, L"DisplayNameResource"), fallbackName);
+            RegCloseKey(syncRootKey);
+
+            syncFolder = ExpandIfNecessary(syncFolder);
+            if (syncFolder.empty() || !PathIsDirectoryW(syncFolder.c_str()))
+                continue;
+
+            bool duplicate = false;
+            for (const auto& existing : paths) {
+                if (_wcsicmp(existing.c_str(), syncFolder.c_str()) == 0) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate) continue;
+
+            names.push_back(displayName);
+            paths.push_back(syncFolder);
+        }
+        RegCloseKey(managerKey);
+    }
+
+    // Buffer layout (same shape as GetQuickAccessItems, without pinned flag):
+    //   [count: int32]
+    //   for each: [nameLen] [name] [pathLen] [path]
+    std::vector<unsigned char> buf;
+    int count = (int)names.size();
+    buf.insert(buf.end(), (unsigned char*)&count, (unsigned char*)&count + sizeof(count));
+    for (int i = 0; i < count; i++) {
+        AppendString(buf, names[i]);
+        AppendString(buf, paths[i]);
+    }
 
     SIZE_T totalSz = buf.size();
     unsigned char* result = (unsigned char*)CoTaskMemAlloc(totalSz);

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inf_dir/services/cloud_drive_service.dart';
 import 'package:inf_dir/services/directory_repository.dart';
 import 'package:inf_dir/state/sidebar_controller.dart';
 import 'package:inf_dir/utils/path_utils.dart';
@@ -9,6 +10,7 @@ SidebarSyncController makeController(
   FakeCursorSource source,
   ManualPump pump, {
   List<String> driveRoots = const ['C:\\'],
+  List<CloudDrive> cloudDrives = const [],
 }) {
   final repo = DirectoryRepository(
     cursorFactory: source.open,
@@ -19,6 +21,7 @@ SidebarSyncController makeController(
     repository: repo,
     quickAccessItems: const [],
     driveRoots: driveRoots,
+    cloudDrives: cloudDrives,
     probeDriveChildren: false,
   );
 }
@@ -247,6 +250,71 @@ void main() {
       expect(controller.isExpanded('C:\\M'), isFalse);
       expect(controller.partialNodes, isEmpty);
       await runToIdle(pump);
+      controller.dispose();
+    });
+  });
+
+  group('SidebarSyncController 云盘节点', () {
+    test('syncTo 云盘内路径展开云盘节点链，不打扰驱动器链', () async {
+      final source = FakeCursorSource({
+        'C:\\Users\\Alice\\OneDrive': [
+          [dirEntry('C:\\Users\\Alice\\OneDrive\\Docs', hasChildren: true)],
+          null,
+        ],
+        'C:\\Users\\Alice\\OneDrive\\Docs': [
+          [dirEntry('C:\\Users\\Alice\\OneDrive\\Docs\\a')],
+          null,
+        ],
+      });
+      final pump = ManualPump();
+      final controller = makeController(
+        source,
+        pump,
+        cloudDrives: const [
+          CloudDrive('OneDrive', 'C:\\Users\\Alice\\OneDrive'),
+        ],
+      );
+
+      controller.syncTo('C:\\Users\\Alice\\OneDrive\\Docs');
+      await runToIdle(pump);
+
+      expect(controller.selectedPath, 'C:\\Users\\Alice\\OneDrive\\Docs');
+      expect(controller.isExpanded('C:\\Users\\Alice\\OneDrive'), isTrue);
+      expect(
+          controller.isExpanded('C:\\Users\\Alice\\OneDrive\\Docs'), isTrue);
+      // 云盘分支不应顺带展开 C:\ 驱动器链
+      expect(controller.isExpanded('C:\\'), isFalse);
+      expect(controller.childrenFor('C:\\Users\\Alice\\OneDrive').single.name,
+          'Docs');
+      controller.dispose();
+    });
+
+    test('syncTo 普通路径仍走驱动器链，云盘节点不受影响', () async {
+      final source = FakeCursorSource({
+        'C:\\': [
+          [dirEntry('C:\\Data', hasChildren: true)],
+          null,
+        ],
+        'C:\\Data': [
+          [dirEntry('C:\\Data\\x')],
+          null,
+        ],
+      });
+      final pump = ManualPump();
+      final controller = makeController(
+        source,
+        pump,
+        cloudDrives: const [
+          CloudDrive('OneDrive', 'C:\\Users\\Alice\\OneDrive'),
+        ],
+      );
+
+      controller.syncTo('C:\\Data\\x');
+      await runToIdle(pump);
+
+      expect(controller.selectedPath, 'C:\\Data\\x');
+      expect(controller.isExpanded('C:\\'), isTrue);
+      expect(controller.isExpanded('C:\\Users\\Alice\\OneDrive'), isFalse);
       controller.dispose();
     });
   });

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/file_entry.dart';
+import '../services/cloud_drive_service.dart';
 import '../services/directory_repository.dart';
 import '../services/sidebar_service.dart';
 import '../utils/path_utils.dart';
@@ -27,6 +28,9 @@ class SidebarSyncController extends ChangeNotifier {
 
   final List<QuickAccessItem> quickAccessItems;
   final List<String> driveRoots;
+
+  /// 云盘同步根（OneDrive 等），作为顶层节点挂在"此电脑"之后。
+  final List<CloudDrive> cloudDrives;
 
   bool thisPcExpanded = true;
   String? selectedPath;
@@ -59,15 +63,21 @@ class SidebarSyncController extends ChangeNotifier {
     required this.repository,
     List<QuickAccessItem>? quickAccessItems,
     List<String>? driveRoots,
+    List<CloudDrive>? cloudDrives,
     bool probeDriveChildren = true,
   })  : quickAccessItems =
             quickAccessItems ?? SidebarService.getQuickAccessItems(),
-        driveRoots = driveRoots ?? SidebarService.getDriveRoots() {
+        driveRoots = driveRoots ?? SidebarService.getDriveRoots(),
+        cloudDrives = cloudDrives ?? CloudDriveService.getCloudDrives() {
     if (probeDriveChildren) {
       // 驱动器 hasChildren 一次性 probe（初始化阶段，不在 build 里）。
       for (final drive in this.driveRoots) {
         repository.seedHasChildren(
             drive, SidebarService.directoryHasChildren(drive));
+      }
+      for (final cloud in this.cloudDrives) {
+        repository.seedHasChildren(
+            cloud.path, SidebarService.directoryHasChildren(cloud.path));
       }
     }
   }
@@ -139,6 +149,16 @@ class SidebarSyncController extends ChangeNotifier {
       return;
     }
 
+    // 云盘路径优先走云盘分支：展开云盘节点链，不打扰"此电脑"驱动器链。
+    final cloud = _findCloudFor(path);
+    if (cloud != null) {
+      selectedPath = path;
+      syncExpandedPaths.add(normPath(cloud.path));
+      _notifySafe();
+      _loadChain(token, path, cloud.path);
+      return;
+    }
+
     final drive = _findDriveFor(path);
     if (drive == null) {
       _notifySafe();
@@ -156,6 +176,13 @@ class SidebarSyncController extends ChangeNotifier {
   String? _findDriveFor(String path) {
     for (final drive in driveRoots) {
       if (isUnder(path, drive)) return drive;
+    }
+    return null;
+  }
+
+  CloudDrive? _findCloudFor(String path) {
+    for (final cloud in cloudDrives) {
+      if (isUnder(path, cloud.path)) return cloud;
     }
     return null;
   }

@@ -82,8 +82,8 @@ class IconService {
     }
   }
 
-  /// Cloud placeholder sync status (-1 = not a cloud file).
-  /// Non-negative values map to CloudDriveSyncStatus.
+  /// 云同步状态语义编码（-1 = 非云条目）：
+  /// 0 仅联机 / 1 本地可用 / 2 固定保留 / 3 同步中 / 4 已排除（不同步）。
   static int getCloudStatus(String path) {
     final cached = _cloudStatusCache[path];
     if (cached != null) return cached;

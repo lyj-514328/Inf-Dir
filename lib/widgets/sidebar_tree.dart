@@ -7,7 +7,7 @@ import '../state/sidebar_controller.dart';
 import '../utils/path_utils.dart';
 import 'app_theme.dart';
 
-enum _RowType { thisPc, drive, directory, loadingIndicator }
+enum _RowType { thisPc, drive, cloudDrive, directory, loadingIndicator }
 
 class _TreeRow {
   final _RowType type;
@@ -175,6 +175,23 @@ class _SidebarTreeState extends State<SidebarTree> {
         }
       }
     }
+    // 云盘同步根：顶层节点，排在"此电脑"子树之后（资源管理器里 OneDrive
+    // 与"此电脑"平级）。云盘根是真实目录，展开/子节点复用目录分支逻辑。
+    for (final cloud in sidebar.cloudDrives) {
+      final expanded = sidebar.isExpanded(cloud.path);
+      rows.add(_TreeRow(
+        type: _RowType.cloudDrive,
+        path: cloud.path,
+        name: cloud.name,
+        depth: 0,
+        isExpanded: expanded,
+        hasChildren: sidebar.hasChildrenFor(cloud.path),
+      ));
+      if (expanded) {
+        _flattenDir(sidebar, sidebar.childrenFor(cloud.path), 1, rows,
+            parentPath: cloud.path);
+      }
+    }
     return rows;
   }
 
@@ -296,6 +313,8 @@ class _SidebarTreeState extends State<SidebarTree> {
         return Icons.computer;
       case _RowType.drive:
         return Icons.storage;
+      case _RowType.cloudDrive:
+        return Icons.cloud;
       case _RowType.directory:
         return Icons.folder;
       case _RowType.loadingIndicator:

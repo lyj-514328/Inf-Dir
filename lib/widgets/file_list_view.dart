@@ -5,6 +5,9 @@ import '../services/icon_service.dart';
 import '../state/pane_controller.dart';
 import 'app_theme.dart';
 
+/// 云同步"状态"列的固定宽度（不参与列宽拖拽）。
+const double _statusColWidth = 48;
+
 class FileListView extends StatefulWidget {
   final List<FileEntry> entries;
   final Set<String> selectedPaths;
@@ -20,6 +23,9 @@ class FileListView extends StatefulWidget {
   final List<double> columnWidths;
   final Function(int colIndex, double deltaPx) onResizeColumn;
   final Function(double paneWidth)? onInitWidths;
+
+  /// 当前目录位于云同步区时，追加只读的"状态"列（资源管理器同款）。
+  final bool showStatusColumn;
 
   const FileListView({
     super.key,
@@ -37,6 +43,7 @@ class FileListView extends StatefulWidget {
     required this.columnWidths,
     required this.onResizeColumn,
     this.onInitWidths,
+    this.showStatusColumn = false,
   });
 
   @override
@@ -57,7 +64,10 @@ class _FileListViewState extends State<FileListView> {
   bool _scrollbarHovered = false;
 
   double get _totalColWidth =>
-      widget.columnWidths.reduce((a, b) => a + b) + 4 * _splitterW + _hPad;
+      widget.columnWidths.reduce((a, b) => a + b) +
+      4 * _splitterW +
+      _hPad +
+      (widget.showStatusColumn ? _statusColWidth : 0);
 
   double get _blankWidth {
     final b = _paneWidth - _totalColWidth;
@@ -128,6 +138,7 @@ class _FileListViewState extends State<FileListView> {
                   columnWidths: widget.columnWidths,
                   blankWidth: blankW,
                   onResizeColumn: _handleResize,
+                  showStatusColumn: widget.showStatusColumn,
                 ),
                 Container(height: 1, color: context.colors.border),
                 Expanded(
@@ -162,6 +173,7 @@ class _FileListViewState extends State<FileListView> {
                                 isActive: widget.isActive,
                                 columnWidths: widget.columnWidths,
                                 blankWidth: blankW,
+                                showStatusColumn: widget.showStatusColumn,
                                 onSingleTap: () => widget.onSingleTap(entry.path),
                                 onDoubleTap: () => widget.onDoubleTap(entry.path),
                                 onRightClick: (pos) =>
@@ -192,6 +204,7 @@ class _ColumnHeader extends StatelessWidget {
   final List<double> columnWidths;
   final double blankWidth;
   final Function(int colIndex, double deltaPx) onResizeColumn;
+  final bool showStatusColumn;
 
   const _ColumnHeader({
     required this.sortColumn,
@@ -200,6 +213,7 @@ class _ColumnHeader extends StatelessWidget {
     required this.columnWidths,
     required this.blankWidth,
     required this.onResizeColumn,
+    this.showStatusColumn = false,
   });
 
   static const _columns = [
@@ -236,11 +250,27 @@ class _ColumnHeader extends StatelessWidget {
                     onSort: onSort,
                   ),
                 ],
-                // 大小列与空白列之间的分隔条
+                // 大小列之后的分隔条（无状态列时即大小列与空白列之间）
                 _HeaderSplitter(
                   colIndex: 3,
                   onResizeColumn: onResizeColumn,
                 ),
+                if (showStatusColumn)
+                  SizedBox(
+                    width: _statusColWidth,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Text(
+                        '状态',
+                        style: TextStyle(
+                          fontSize: AppMetrics.fontBody,
+                          fontWeight: FontWeight.w500,
+                          color: context.colors.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -378,6 +408,7 @@ class _FileRow extends StatefulWidget {
   final bool isActive;
   final List<double> columnWidths;
   final double blankWidth;
+  final bool showStatusColumn;
   final VoidCallback onSingleTap;
   final VoidCallback onDoubleTap;
   final ValueChanged<Offset>? onRightClick;
@@ -388,6 +419,7 @@ class _FileRow extends StatefulWidget {
     this.isActive = true,
     required this.columnWidths,
     required this.blankWidth,
+    this.showStatusColumn = false,
     required this.onSingleTap,
     required this.onDoubleTap,
     this.onRightClick,
@@ -503,6 +535,11 @@ class _FileRowState extends State<_FileRow> {
                           textAlign: TextAlign.right,
                         ),
                       ),
+                      if (widget.showStatusColumn)
+                        SizedBox(
+                          width: _statusColWidth,
+                          child: _CloudStatusCell(path: widget.entry.path),
+                        ),
                     ],
                   ),
                 ),
@@ -556,7 +593,7 @@ class _FileIcon extends StatelessWidget {
           );
 
     final hasOverlay = overlayPng != null;
-    final hasCloud = cloudStatus >= 0 && cloudStatus != 6; // 6 = NotSynced
+    final hasCloud = cloudStatus >= 0; // -1 = 非云条目
 
     if (!hasOverlay && !hasCloud) {
       return SizedBox(width: iconSize, height: iconSize, child: base);
@@ -592,7 +629,29 @@ class _FileIcon extends StatelessWidget {
   }
 }
 
-// ── Cloud sync status badge ─────────────────────────────────────────
+// ── Cloud sync status badge / status column ────────────────────────
+
+/// 云同步状态语义编码（见 IconService.getCloudStatus）：
+/// 0 仅联机 / 1 本地可用 / 2 固定保留 / 3 同步中 / 4 已排除。
+/// 图标角标（_CloudBadge）与详情视图"状态"列（_CloudStatusCell）共用。
+(IconData, Color) _cloudStatusVisual(int status, AppColors c) =>
+    switch (status) {
+      2 => (Icons.check_circle, c.success), // pinned / always available
+      1 => (Icons.cloud_done, c.accent), // locally available
+      3 => (Icons.sync, c.accent), // syncing
+      0 => (Icons.cloud, c.textSecondary), // online only
+      4 => (Icons.remove_circle_outline, c.textTertiary), // excluded
+      _ => (Icons.cloud, c.textTertiary),
+    };
+
+String _cloudStatusText(int status) => switch (status) {
+      2 => '始终保留在此设备上',
+      1 => '本地可用',
+      3 => '正在同步',
+      0 => '仅联机可用',
+      4 => '已排除（不同步）',
+      _ => '云文件',
+    };
 
 class _CloudBadge extends StatelessWidget {
   final int status;
@@ -602,17 +661,7 @@ class _CloudBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    // CloudDriveSyncStatus: 0-5 folder, 8 FileOnline, 9 FileSync,
-    // 14 FileOffline, 15 FileOfflinePinned. 6 (NotSynced) filtered upstream.
-    final (icon, color) = switch (status) {
-      3 || 15 => (Icons.check_circle, c.success), // pinned / always available
-      2 || 14 => (Icons.cloud_done, c.accent), // offline full / file offline
-      1 => (Icons.cloud_sync, c.accent), // partial sync
-      9 => (Icons.sync, c.accent), // syncing
-      8 || 0 => (Icons.cloud, c.textSecondary), // online only
-      4 => (Icons.remove_circle_outline, c.textTertiary), // excluded
-      _ => (Icons.cloud, c.textTertiary),
-    };
+    final (icon, color) = _cloudStatusVisual(status, c);
 
     return Container(
       width: 12,
@@ -622,6 +671,27 @@ class _CloudBadge extends StatelessWidget {
         shape: BoxShape.circle,
       ),
       child: Icon(icon, size: 10, color: color),
+    );
+  }
+}
+
+/// 详情视图"状态"列单元：按云同步状态渲染图标（带 tooltip）。
+/// 非云条目（-1）留空，与资源管理器一致。
+class _CloudStatusCell extends StatelessWidget {
+  final String path;
+
+  const _CloudStatusCell({required this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = IconService.getCloudStatus(path);
+    if (status < 0) return const SizedBox.shrink();
+    final (icon, color) = _cloudStatusVisual(status, context.colors);
+    return Center(
+      child: Tooltip(
+        message: _cloudStatusText(status),
+        child: Icon(icon, size: 14, color: color),
+      ),
     );
   }
 }
