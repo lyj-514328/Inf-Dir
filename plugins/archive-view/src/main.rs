@@ -172,84 +172,6 @@ fn mode_string(mode: u32, is_dir: bool) -> String {
     format!("{t}{:03o}", mode & 0o777)
 }
 
-fn file_ext_color(name: &str) -> egui::Color32 {
-    let ext = name.rsplit('.').next().unwrap_or("").to_lowercase();
-    match ext.as_str() {
-        "zip" | "7z" | "rar" | "tar" | "gz" | "xz" | "bz2" | "iso" | "cab" => {
-            egui::Color32::from_rgb(156, 39, 176)
-        }
-        "png" | "jpg" | "jpeg" | "gif" | "bmp" | "svg" | "ico" | "webp" => {
-            egui::Color32::from_rgb(76, 175, 80)
-        }
-        "mp3" | "wav" | "flac" | "ogg" | "mp4" | "avi" | "mkv" | "mov" => {
-            egui::Color32::from_rgb(233, 30, 99)
-        }
-        "exe" | "dll" | "msi" | "bat" | "cmd" | "ps1" => {
-            egui::Color32::from_rgb(63, 81, 181)
-        }
-        "rs" | "c" | "cpp" | "h" | "py" | "js" | "ts" | "java" | "go" | "toml" | "json"
-        | "yaml" | "yml" | "xml" | "html" | "css" => egui::Color32::from_rgb(0, 150, 136),
-        "txt" | "md" | "log" | "csv" => egui::Color32::from_rgb(96, 125, 139),
-        _ => egui::Color32::from_rgb(100, 160, 230),
-    }
-}
-
-fn draw_folder_icon(painter: &egui::Painter, rect: egui::Rect) {
-    let w = rect.width();
-    let h = rect.height();
-    let tab_w = w * 0.42;
-    let tab_h = h * 0.22;
-    let r = 1.5;
-    let fill = egui::Color32::from_rgb(255, 202, 40);
-    let stroke = egui::Color32::from_rgb(230, 160, 20);
-    painter.rect_filled(
-        egui::Rect::from_min_size(rect.min, egui::vec2(tab_w, tab_h + r)),
-        r,
-        fill,
-    );
-    painter.rect_filled(
-        egui::Rect::from_min_size(
-            egui::pos2(rect.min.x, rect.min.y + tab_h),
-            egui::vec2(w, h - tab_h),
-        ),
-        r,
-        fill,
-    );
-    painter.rect_stroke(
-        egui::Rect::from_min_size(
-            egui::pos2(rect.min.x, rect.min.y + tab_h),
-            egui::vec2(w, h - tab_h),
-        ),
-        r,
-        egui::Stroke::new(1.0, stroke),
-        egui::StrokeKind::Middle,
-    );
-}
-
-fn draw_file_icon(painter: &egui::Painter, rect: egui::Rect, color: egui::Color32) {
-    let w = rect.width();
-    let h = rect.height();
-    let fold = w * 0.3;
-    let r = 1.0;
-    let light = egui::Color32::from_rgb(
-        ((color.r() as u16 + 255) / 2) as u8,
-        ((color.g() as u16 + 255) / 2) as u8,
-        ((color.b() as u16 + 255) / 2) as u8,
-    );
-    painter.rect_filled(rect, r, light);
-    painter.rect_stroke(rect, r, egui::Stroke::new(1.0, color), egui::StrokeKind::Middle);
-    let fold_pts = [
-        egui::pos2(rect.max.x - fold, rect.min.y),
-        egui::pos2(rect.max.x, rect.min.y + fold),
-        egui::pos2(rect.max.x - fold, rect.min.y + fold),
-    ];
-    painter.add(egui::Shape::convex_polygon(
-        fold_pts.to_vec(),
-        color,
-        egui::Stroke::new(0.5, color),
-    ));
-}
-
 struct TreeNode {
     name: String,
     children: Vec<usize>,
@@ -352,9 +274,7 @@ impl eframe::App for ArchiveApp {
         let tree_bg = egui::Color32::from_rgb(240, 244, 248);
         let text_color = egui::Color32::from_rgb(38, 50, 66);
         let text_secondary = egui::Color32::from_rgb(110, 122, 138);
-        let folder_color = egui::Color32::from_rgb(245, 166, 35);
         let hover_bg = egui::Color32::from_rgb(227, 237, 250);
-        let alt_row_bg = egui::Color32::from_rgb(241, 245, 249);
         let header_bg = egui::Color32::from_rgb(232, 238, 244);
         let divider_color = egui::Color32::from_rgb(213, 221, 230);
         let accent = egui::Color32::from_rgb(21, 101, 192);
