@@ -99,11 +99,17 @@ try {
     }
     case 'pptx':
     case 'pptm': {
-      const { PptxViewer } = await import('./pptx.mjs');
-      const canvas = document.createElement('canvas');
-      stage.appendChild(canvas);
-      const viewer = new PptxViewer(canvas, {
+      // 连续滚动视图：虚拟化翻页、幻灯片居中、Ctrl+滚轮缩放、窗口 resize 自适应
+      const { PptxScrollViewer } = await import('./pptx.mjs');
+      const viewer = new PptxScrollViewer(stage, {
         wasmUrl: new URL('./pptx_parser_bg.wasm', location.href),
+        enableTextSelection: true,
+        background: '#e8eaed',
+        onVisibleSlideChange: (top, total) => {
+          pageBadge.textContent = `${top + 1} / ${total}`;
+          pageBadge.classList.remove('hidden');
+        },
+        onError: (e) => fail(e),
       });
       await viewer.load(fileUrl);
       break;
