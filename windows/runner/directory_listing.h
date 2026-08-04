@@ -67,6 +67,11 @@ void EndShellEnum(int sessionId);
 __declspec(dllexport)
 long long GetRecycleBinCount(const wchar_t* driveRoot);
 
+// Toggle hidden/system file filtering (default off). Applies to
+// subsequent enumerations; open sessions re-read the flag each page.
+__declspec(dllexport)
+void SetShowHiddenFiles(int show);
+
 #ifdef __cplusplus
 }
 #endif

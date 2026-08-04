@@ -117,6 +117,20 @@ class DirectoryRepository {
     _hasChildrenCache.remove(key);
   }
 
+  /// 全局失效（设置变化后调用）：取消所有活动任务并清空全部缓存，
+  /// 之后上层需要重新发起枚举。
+  void invalidateAll() {
+    final tasks = _activeTasks.values.toList();
+    _activeTasks.clear();
+    for (final t in tasks) {
+      t.cursor.close();
+      if (!t.done.isCompleted) t.done.complete(null);
+    }
+    _completeCache.clear();
+    _hasChildrenCache.clear();
+    _probingHasChildren.clear();
+  }
+
   // ── hasChildren（§13）──────────────────────────────────────
 
   /// 枚举元数据优先：加载 children 时把 FileEntry.hasChildren 种入缓存。

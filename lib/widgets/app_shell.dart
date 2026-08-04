@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../features/quick_view/quick_view_service.dart';
+import '../state/app_state.dart';
 import '../state/layout_state.dart';
 import '../state/sidebar_controller.dart';
 import '../state/theme_controller.dart';
@@ -91,7 +92,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       body: Column(
         children: [
           _MenuBar(),
-          _WorkspaceBar(layoutState: layoutState),
+          _WorkspaceBar(
+            layoutState: layoutState,
+            showHiddenFiles: context.watch<AppState>().showHiddenFiles,
+            onToggleHiddenFiles: () {
+              final app = context.read<AppState>();
+              app.setShowHiddenFiles(!app.showHiddenFiles);
+              // 缓存已清空，侧栏重新同步当前路径以应用新过滤。
+              _syncSidebar();
+            },
+          ),
           Container(height: 1, color: c.border),
           Expanded(
             child: Padding(
@@ -142,8 +152,14 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 /// 工作区标签栏
 class _WorkspaceBar extends StatelessWidget {
   final LayoutState layoutState;
+  final bool showHiddenFiles;
+  final VoidCallback onToggleHiddenFiles;
 
-  const _WorkspaceBar({required this.layoutState});
+  const _WorkspaceBar({
+    required this.layoutState,
+    required this.showHiddenFiles,
+    required this.onToggleHiddenFiles,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -178,6 +194,23 @@ class _WorkspaceBar extends StatelessWidget {
             ),
           ),
           const Spacer(),
+          Tooltip(
+            message: showHiddenFiles ? '隐藏文件：显示中' : '隐藏文件：已隐藏',
+            child: InkWell(
+              onTap: onToggleHiddenFiles,
+              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: Icon(
+                  showHiddenFiles ? Icons.visibility : Icons.visibility_off,
+                  size: AppMetrics.iconMd,
+                  color:
+                      showHiddenFiles ? c.accent : c.textSecondary,
+                ),
+              ),
+            ),
+          ),
           Tooltip(
             message: '主题：${theme.label}',
             child: InkWell(

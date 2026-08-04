@@ -29,6 +29,9 @@ typedef _GetNextEnumPageDart = Pointer<Uint8> Function(
 typedef _EndShellEnumNative = Void Function(Int32 sessionId);
 typedef _EndShellEnumDart = void Function(int sessionId);
 
+typedef _SetShowHiddenFilesNative = Void Function(Int32 show);
+typedef _SetShowHiddenFilesDart = void Function(int show);
+
 class DirectoryService {
   static final _list = DynamicLibrary.process()
       .lookupFunction<_ListDirectoryNative, _ListDirectoryDart>(
@@ -53,6 +56,13 @@ class DirectoryService {
   static final _endEnum = DynamicLibrary.process()
       .lookupFunction<_EndShellEnumNative, _EndShellEnumDart>(
           'EndShellEnum');
+
+  static final _setShowHiddenFiles = DynamicLibrary.process()
+      .lookupFunction<_SetShowHiddenFilesNative, _SetShowHiddenFilesDart>(
+          'SetShowHiddenFiles');
+
+  /// Toggle hidden/system file filtering at the native layer.
+  static void setShowHiddenFiles(bool show) => _setShowHiddenFiles(show ? 1 : 0);
 
   /// Cache for shell display names to avoid repeated FFI calls.
   static final Map<String, String> _displayNameCache = {};

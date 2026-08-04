@@ -13,6 +13,12 @@
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "propsys.lib")
 
+// -- Global options ----------------------------------------------------
+
+// Show hidden/system files (desktop.ini, Thumbs.db, etc.).
+// Default off; toggled from Dart via SetShowHiddenFiles.
+static bool g_showHiddenFiles = false;
+
 // -- Helper: append primitives to byte buffer --------------------------
 
 static void AppendString(std::vector<unsigned char>& buf, const std::wstring& s) {
@@ -252,7 +258,8 @@ static void EnumerateFilesystem(const wchar_t* path,
             continue;
 
         // Skip hidden / system files (desktop.ini, Thumbs.db, etc.)
-        if (ffd.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM))
+        if (!g_showHiddenFiles &&
+            (ffd.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM)))
             continue;
 
         std::wstring name = ffd.cFileName;
@@ -713,7 +720,8 @@ unsigned char* GetNextEnumPage(int sessionId, int count, int* outSize) {
             if (wcscmp(fd.cFileName, L".") == 0 ||
                 wcscmp(fd.cFileName, L"..") == 0)
                 return false;
-            if (fd.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM))
+            if (fd.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM) &&
+                !g_showHiddenFiles)
                 return false;
             if (session->directoriesOnly &&
                 !(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
@@ -795,5 +803,10 @@ long long GetRecycleBinCount(const wchar_t* driveRoot) {
         return info.i64NumItems;
     }
     return -1;
+}
+
+extern "C" __declspec(dllexport)
+void SetShowHiddenFiles(int show) {
+    g_showHiddenFiles = (show != 0);
 }
 
