@@ -16,3 +16,6 @@
 [submodule "ai_refs/mq-dir"]
 	path = ai_refs/mq-dir
 	url = https://github.com/h5nam/mq-dir.git
+[submodule "ai_refs/office-open-xml-viewer"]
+	path = ai_refs/office-open-xml-viewer
+	url = https://github.com/yukiyokotani/office-open-xml-viewer.git

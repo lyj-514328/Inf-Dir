@@ -33,14 +33,29 @@
   #status.hidden { display: none; }
   #stage { width: 100%; height: 100%; }
   #stage canvas { display: block; }
+  #page-badge {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 12px;
+    z-index: 20;
+    pointer-events: none;
+  }
+  #page-badge.hidden { display: none; }
 </style>
 </head>
 <body>
 <div id="status">加载中…</div>
 <div id="stage"></div>
+<div id="page-badge" class="hidden"></div>
 <script type="module">
 const statusEl = document.getElementById('status');
 const stage = document.getElementById('stage');
+const pageBadge = document.getElementById('page-badge');
 const params = new URLSearchParams(location.search);
 const filePath = params.get('path') ?? '';
 const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
@@ -58,11 +73,17 @@ try {
   switch (ext) {
     case 'docx':
     case 'docm': {
-      const { DocxViewer } = await import('./docx.mjs');
-      const canvas = document.createElement('canvas');
-      stage.appendChild(canvas);
-      const viewer = new DocxViewer(canvas, {
+      // 连续滚动视图：虚拟化翻页、页面居中、Ctrl+滚轮缩放、窗口 resize 自动重排
+      const { DocxScrollViewer } = await import('./docx.mjs');
+      const viewer = new DocxScrollViewer(stage, {
         wasmUrl: new URL('./docx_parser_bg.wasm', location.href),
+        enableTextSelection: true,
+        background: '#e8eaed',
+        onVisiblePageChange: (top, total) => {
+          pageBadge.textContent = `${top + 1} / ${total}`;
+          pageBadge.classList.remove('hidden');
+        },
+        onError: (e) => fail(e),
       });
       await viewer.load(fileUrl);
       break;
