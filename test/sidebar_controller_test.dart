@@ -136,6 +136,42 @@ void main() {
       controller.dispose();
     });
 
+    test('路径切换后已完整加载的分支保持展开（不再整体收起）', () async {
+      final source = FakeCursorSource({
+        'C:\\': [
+          [
+            dirEntry('C:\\bstlog', hasChildren: true),
+            dirEntry('C:\\Users', hasChildren: true),
+          ],
+          null,
+        ],
+        'C:\\bstlog': [
+          [dirEntry('C:\\bstlog\\a')],
+          null,
+        ],
+        'C:\\Users': [
+          [dirEntry('C:\\Users\\Alice')],
+          null,
+        ],
+      });
+      final pump = ManualPump();
+      final controller = makeController(source, pump);
+
+      // 类似 C:\bstlog 与 ~（C:\Users\Alice）来回切换
+      controller.syncTo('C:\\bstlog');
+      await runToIdle(pump);
+      expect(controller.isExpanded('C:\\bstlog'), isTrue);
+
+      controller.syncTo('C:\\Users\\Alice');
+      await runToIdle(pump);
+
+      // 旧分支不再被收起
+      expect(controller.isExpanded('C:\\bstlog'), isTrue);
+      expect(controller.isExpanded('C:\\Users'), isTrue);
+      expect(controller.isExpanded('C:\\Users\\Alice'), isTrue);
+      controller.dispose();
+    });
+
     test('旧 request 的 partial 不覆盖新 request 接管的节点', () async {
       final source = FakeCursorSource({
         'C:\\': [

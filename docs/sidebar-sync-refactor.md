@@ -48,7 +48,8 @@
 3. 幂等关闭该 request 拥有的 DirectoryCursor；
 4. 从活动树状态删除该 request 产生的 partial children；
 5. 删除该 request 产生的 loading indicator；
-6. 回滚该 request 自动添加的 expanded paths；
+6. 回滚该 request 自动添加的 expanded paths（仅未加载完成的分支；已完整
+   加载的分支保留展开，避免路径切换时把之前访问过的树分支收起）；
 7. 保留此前已经 complete 的目录 cache；
 8. 忽略之后恢复的旧 Future 结果。
 
@@ -212,7 +213,9 @@ A 只能清理自己的 partial state，不能碰 C 的 X 节点。
 ## 10. 自动展开与手动展开
 
 展开状态拆成 userExpandedPaths 与 syncExpandedPaths，渲染时取并集。
-取消同步时只清除旧 request 的 syncExpandedPaths，保留 userExpandedPaths。
+取消同步时只清除旧 request 的 syncExpandedPaths 中尚未加载完成的分支，
+保留 userExpandedPaths；已完整加载的自动展开分支也保留（否则 file pane
+在 C:\bstlog 与 ~ 之间切换时，两条分支会被来回收起）。
 
 ## 11. PaneController
 

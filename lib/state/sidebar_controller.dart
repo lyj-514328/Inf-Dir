@@ -38,7 +38,8 @@ class SidebarSyncController extends ChangeNotifier {
   /// 用户手动展开（§10）。
   final Set<String> userExpandedPaths = {};
 
-  /// 路径同步自动展开（§10），取消同步时整体回滚。
+  /// 路径同步自动展开（§10），取消同步时只回滚未加载完成的分支；
+  /// 已完整加载的分支保留展开（避免路径切换把树收起）。
   final Set<String> syncExpandedPaths = {};
 
   /// pathKey → partial 节点（owner + children + loading）。
@@ -228,7 +229,13 @@ class SidebarSyncController extends ChangeNotifier {
   void _rollback(RequestToken token, {required bool rollbackSyncExpansion}) {
     repository.cancelRequest(token);
     partialNodes.removeWhere((_, node) => node.ownerRequestId == token.id);
-    if (rollbackSyncExpansion) syncExpandedPaths.clear();
+    if (rollbackSyncExpansion) {
+      // 只回滚尚未加载完成的自动展开（被取消的半载链）；已完整加载的
+      // 分支保留展开，否则每次导航切换都会把之前访问过的分支整个收起
+      // （§3.6 例外）。
+      syncExpandedPaths
+          .removeWhere((p) => repository.cachedChildren(p) == null);
+    }
   }
 
   /// 用户手动滚动：消费滚动请求并停止本次同步的自动跟随。
