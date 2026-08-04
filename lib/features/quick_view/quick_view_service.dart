@@ -49,6 +49,12 @@ class QuickViewService {
       exts: ['.pdf'],
     ),
     ViewerConfig(
+      name: 'Office 查看器',
+      exeName: 'office-view.exe',
+      args: '--width 960 --height 720 {file}',
+      exts: ['.docx', '.xlsx', '.pptx', '.docm', '.xlsm', '.pptm'],
+    ),
+    ViewerConfig(
       name: '视频查看器',
       exeName: 'video-view.exe',
       args: '--width 960 --height 720 {file}',

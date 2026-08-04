@@ -25,3 +25,7 @@ plugins/*.exe
 plugins/*.dll
 plugins/video-view/mpv-dev/
 plugins/archive-view/libarchive/
+plugins/office-view-web/
+plugins/office-view/_ooxml.tgz
+plugins/office-view.exe.WebView2/
+plugins/*.log
