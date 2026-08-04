@@ -241,6 +241,22 @@ class _ColumnHeader extends StatelessWidget {
                       colIndex: i - 1,
                       onResizeColumn: onResizeColumn,
                     ),
+                  if (i == 1 && showStatusColumn)
+                    SizedBox(
+                      width: _statusColWidth,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Text(
+                          '状态',
+                          style: TextStyle(
+                            fontSize: AppMetrics.fontBody,
+                            fontWeight: FontWeight.w500,
+                            color: context.colors.textSecondary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
                   _HeaderCell(
                     label: _columns[i].label,
                     width: columnWidths[i],
@@ -250,27 +266,11 @@ class _ColumnHeader extends StatelessWidget {
                     onSort: onSort,
                   ),
                 ],
-                // 大小列之后的分隔条（无状态列时即大小列与空白列之间）
+                // 大小列与空白列之间的分隔条
                 _HeaderSplitter(
                   colIndex: 3,
                   onResizeColumn: onResizeColumn,
                 ),
-                if (showStatusColumn)
-                  SizedBox(
-                    width: _statusColWidth,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: Text(
-                        '状态',
-                        style: TextStyle(
-                          fontSize: AppMetrics.fontBody,
-                          fontWeight: FontWeight.w500,
-                          color: context.colors.textSecondary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -501,6 +501,11 @@ class _FileRowState extends State<_FileRow> {
                           ],
                         ),
                       ),
+                      if (widget.showStatusColumn)
+                        SizedBox(
+                          width: _statusColWidth,
+                          child: _CloudStatusCell(path: widget.entry.path),
+                        ),
                       SizedBox(
                         width: widget.columnWidths[1],
                         child: Text(
@@ -535,11 +540,6 @@ class _FileRowState extends State<_FileRow> {
                           textAlign: TextAlign.right,
                         ),
                       ),
-                      if (widget.showStatusColumn)
-                        SizedBox(
-                          width: _statusColWidth,
-                          child: _CloudStatusCell(path: widget.entry.path),
-                        ),
                     ],
                   ),
                 ),
@@ -554,7 +554,7 @@ class _FileRowState extends State<_FileRow> {
   }
 }
 
-// ── File Icon (real system icon + shell overlay + cloud badge) ───────
+// ── File Icon (real system icon + shell overlay) ─────────────────────
 
 class _FileIcon extends StatelessWidget {
   final String path;
@@ -575,7 +575,6 @@ class _FileIcon extends StatelessWidget {
 
     final png = IconService.getFileIconPng(path, isDirectory, 32);
     final overlayPng = IconService.getFileOverlayPng(path, 16);
-    final cloudStatus = IconService.getCloudStatus(path);
 
     final Widget base = png != null
         ? Image.memory(
@@ -592,10 +591,7 @@ class _FileIcon extends StatelessWidget {
                 : (isDirectory ? c.iconFolder : c.iconFile),
           );
 
-    final hasOverlay = overlayPng != null;
-    final hasCloud = cloudStatus >= 0; // -1 = 非云条目
-
-    if (!hasOverlay && !hasCloud) {
+    if (overlayPng == null) {
       return SizedBox(width: iconSize, height: iconSize, child: base);
     }
 
@@ -606,34 +602,26 @@ class _FileIcon extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           base,
-          if (hasOverlay)
-            Positioned(
-              left: -2,
-              bottom: -2,
-              child: Image.memory(
-                overlayPng!,
-                width: badgeSize,
-                height: badgeSize,
-                fit: BoxFit.contain,
-              ),
+          Positioned(
+            left: -2,
+            bottom: -2,
+            child: Image.memory(
+              overlayPng,
+              width: badgeSize,
+              height: badgeSize,
+              fit: BoxFit.contain,
             ),
-          if (hasCloud)
-            Positioned(
-              right: -3,
-              bottom: -3,
-              child: _CloudBadge(status: cloudStatus),
-            ),
+          ),
         ],
       ),
     );
   }
 }
 
-// ── Cloud sync status badge / status column ────────────────────────
+// ── Cloud sync status column ───────────────────────────────────────
 
 /// 云同步状态语义编码（见 IconService.getCloudStatus）：
 /// 0 仅联机 / 1 本地可用 / 2 固定保留 / 3 同步中 / 4 已排除。
-/// 图标角标（_CloudBadge）与详情视图"状态"列（_CloudStatusCell）共用。
 (IconData, Color) _cloudStatusVisual(int status, AppColors c) =>
     switch (status) {
       2 => (Icons.check_circle, c.success), // pinned / always available
@@ -652,28 +640,6 @@ String _cloudStatusText(int status) => switch (status) {
       4 => '已排除（不同步）',
       _ => '云文件',
     };
-
-class _CloudBadge extends StatelessWidget {
-  final int status;
-
-  const _CloudBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    final (icon, color) = _cloudStatusVisual(status, c);
-
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(
-        color: c.surface,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(icon, size: 10, color: color),
-    );
-  }
-}
 
 /// 详情视图"状态"列单元：按云同步状态渲染图标（带 tooltip）。
 /// 非云条目（-1）留空，与资源管理器一致。

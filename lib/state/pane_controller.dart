@@ -10,9 +10,9 @@ import '../services/directory_repository.dart';
 enum SortColumn { name, dateModified, type, size }
 
 class TabInfo {
-  String path;
-  String label;
-  TabInfo({required this.path, required this.label});
+  final String path;
+  final String label;
+  const TabInfo({required this.path, required this.label});
 
   @override
   bool operator ==(Object other) =>
@@ -120,6 +120,12 @@ class PaneController extends ChangeNotifier {
     }
     if (path.length <= 3) return path;
     return p.basename(path);
+  }
+
+  void _updateActiveTabPath(String path) {
+    if (_activeTabIndex < _tabs.length) {
+      _tabs[_activeTabIndex] = TabInfo(path: path, label: _pathLabel(path));
+    }
   }
 
   void _cancelActiveRequest() {
@@ -283,10 +289,7 @@ class PaneController extends ChangeNotifier {
       _forwardStack.clear();
     }
     _currentPath = path;
-    if (_activeTabIndex < _tabs.length) {
-      _tabs[_activeTabIndex].path = path;
-      _tabs[_activeTabIndex].label = _pathLabel(path);
-    }
+    _updateActiveTabPath(path);
     await _loadEntries(path);
   }
 
@@ -295,10 +298,7 @@ class PaneController extends ChangeNotifier {
     _forwardStack.add(_currentPath);
     final prev = _backStack.removeLast();
     _currentPath = prev;
-    if (_activeTabIndex < _tabs.length) {
-      _tabs[_activeTabIndex].path = prev;
-      _tabs[_activeTabIndex].label = _pathLabel(prev);
-    }
+    _updateActiveTabPath(prev);
     _loadEntries(prev);
   }
 
@@ -307,10 +307,7 @@ class PaneController extends ChangeNotifier {
     _backStack.add(_currentPath);
     final next = _forwardStack.removeLast();
     _currentPath = next;
-    if (_activeTabIndex < _tabs.length) {
-      _tabs[_activeTabIndex].path = next;
-      _tabs[_activeTabIndex].label = _pathLabel(next);
-    }
+    _updateActiveTabPath(next);
     _loadEntries(next);
   }
 

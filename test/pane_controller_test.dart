@@ -160,5 +160,30 @@ void main() {
       expect(pc.entries.length, 3);
       pc.dispose();
     });
+
+    test('导航、后退和前进会用新快照同步当前标签', () async {
+      final pc = makePane('C:\\A');
+      final initialTabs = pc.tabs;
+
+      pc.navigateTo('C:\\B');
+      expect(initialTabs.single.path, 'C:\\A');
+      expect(initialTabs.single.label, 'A');
+      expect(pc.tabs.single.path, 'C:\\B');
+      expect(pc.tabs.single.label, 'B');
+      await runToIdle(pump);
+
+      final navigatedTabs = pc.tabs;
+      pc.goBack();
+      expect(navigatedTabs.single.path, 'C:\\B');
+      expect(pc.tabs.single.path, 'C:\\A');
+      expect(pc.tabs.single.label, 'A');
+      await runToIdle(pump);
+
+      pc.goForward();
+      expect(pc.tabs.single.path, 'C:\\B');
+      expect(pc.tabs.single.label, 'B');
+      await runToIdle(pump);
+      pc.dispose();
+    });
   });
 }
