@@ -155,8 +155,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       borderRadius: BorderRadius.circular(
                         AppMetrics.paneRadius,
                       ),
-                      border: Border.all(color: c.border),
                       color: c.surface,
+                    ),
+                    foregroundDecoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(
+                        AppMetrics.paneRadius,
+                      ),
+                      border: Border.all(color: c.border),
                     ),
                     child: SizedBox(
                       key: ValueKey(layoutState.activeWorkspaceIndex),

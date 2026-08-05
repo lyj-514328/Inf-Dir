@@ -95,11 +95,14 @@ class _PaneWrapper extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+          color: c.surface,
+        ),
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
           border: Border.all(
             color: isFocused ? c.accent : c.border,
             width: 1.5,
           ),
-          color: c.surface,
         ),
         child: Stack(
           children: [
