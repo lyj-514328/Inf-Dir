@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/services/cloud_drive_service.dart';
 import 'package:inf_dir/services/directory_repository.dart';
+import 'package:inf_dir/state/layout_state.dart';
 import 'package:inf_dir/state/sidebar_controller.dart';
 import 'package:inf_dir/utils/path_utils.dart';
 
@@ -11,6 +13,7 @@ SidebarSyncController makeController(
   ManualPump pump, {
   List<String> driveRoots = const ['C:\\'],
   List<CloudDrive> cloudDrives = const [],
+  ValueListenable<ActivePaneLocation?>? activeLocation,
 }) {
   final repo = DirectoryRepository(
     cursorFactory: source.open,
@@ -19,6 +22,7 @@ SidebarSyncController makeController(
   );
   return SidebarSyncController(
     repository: repo,
+    activeLocation: activeLocation,
     quickAccessItems: const [],
     driveRoots: driveRoots,
     cloudDrives: cloudDrives,
@@ -79,8 +83,7 @@ void main() {
       controller.dispose();
     });
 
-    test('取消同步：partial 卸载、loading 移除、自动展开回滚、手动展开保留',
-        () async {
+    test('取消同步：partial 卸载、loading 移除、自动展开回滚、手动展开保留', () async {
       final source = FakeCursorSource({
         'C:\\': [
           [dirEntry('C:\\A', hasChildren: true)],
@@ -106,8 +109,10 @@ void main() {
       // 用户手动展开一个节点（不随同步回滚）
       controller.toggleExpand('C:\\Manual');
       await runToIdle(pump);
-      expect(controller.userExpandedPaths.contains(normPath('C:\\Manual')),
-          isTrue);
+      expect(
+        controller.userExpandedPaths.contains(normPath('C:\\Manual')),
+        isTrue,
+      );
 
       // 同步到 A 深处，让 c:\a 处于 partial 状态
       controller.syncTo('C:\\A\\a1');
@@ -124,12 +129,17 @@ void main() {
 
       // partial 与自动展开已回滚
       expect(controller.partialNodes, isEmpty);
-      expect(controller.syncExpandedPaths
-          .where((p) => p != normPath('C:\\') && p != normPath('C:\\B')),
-          isEmpty);
+      expect(
+        controller.syncExpandedPaths.where(
+          (p) => p != normPath('C:\\') && p != normPath('C:\\B'),
+        ),
+        isEmpty,
+      );
       // 手动展开保留
-      expect(controller.userExpandedPaths.contains(normPath('C:\\Manual')),
-          isTrue);
+      expect(
+        controller.userExpandedPaths.contains(normPath('C:\\Manual')),
+        isTrue,
+      );
       expect(controller.isExpanded('C:\\Manual'), isTrue);
       // B 的链已加载
       expect(controller.selectedPath, 'C:\\B');
@@ -156,7 +166,7 @@ void main() {
       await settle();
       // c:\ 已完成，c:\a 挂起在第一页前
       final firstPartialOwner =
-          controller.partialNodes[normPath('C:\\A')]?.ownerRequestId;
+          controller.partialNodes[normPath('C:\\A')]?.loadId;
 
       controller.syncTo('C:\\A'); // 再次同步同一路径 → 新 request
       await runToIdle(pump);
@@ -166,7 +176,7 @@ void main() {
       expect(controller.childrenFor('C:\\A').single.name, 'a1');
       final owner = controller.partialNodes[normPath('C:\\A')];
       if (firstPartialOwner != null && owner != null) {
-        expect(owner.ownerRequestId, isNot(firstPartialOwner));
+        expect(owner.loadId, isNot(firstPartialOwner));
       }
       controller.dispose();
     });
@@ -254,6 +264,72 @@ void main() {
     });
   });
 
+  test('活动 Pane 位置流驱动 Sidebar reveal', () async {
+    final source = FakeCursorSource({
+      'C:\\': [
+        [dirEntry('C:\\A', hasChildren: true)],
+        null,
+      ],
+      'C:\\A': [
+        [dirEntry('C:\\A\\a1')],
+        null,
+      ],
+    });
+    final pump = ManualPump();
+    final location = ValueNotifier<ActivePaneLocation?>(null);
+    final controller = makeController(source, pump, activeLocation: location);
+
+    location.value = const ActivePaneLocation(paneId: 'pane_0', path: 'C:\\A');
+    await runToIdle(pump);
+
+    expect(controller.selectedPath, 'C:\\A');
+    expect(controller.isExpanded('C:\\A'), isTrue);
+    expect(controller.childrenFor('C:\\A').single.name, 'a1');
+
+    controller.dispose();
+    location.dispose();
+  });
+
+  test('同步 reveal 取消不会关闭手动展开仍持有的同路径 lease', () async {
+    final source = FakeCursorSource({
+      'C:\\': [
+        [dirEntry('C:\\A', hasChildren: true)],
+        null,
+      ],
+      'C:\\A': [
+        [dirEntry('C:\\A\\a1')],
+        [dirEntry('C:\\A\\a2')],
+        null,
+      ],
+      'C:\\B': [
+        [dirEntry('C:\\B\\b1')],
+        null,
+      ],
+    });
+    final pump = ManualPump();
+    final controller = makeController(source, pump);
+
+    controller.toggleExpand('C:\\A');
+    await settle();
+    pump.pump();
+    await settle();
+    final manualCursor = source.last;
+    expect(manualCursor.nextPageCalls, 1);
+
+    controller.syncTo('C:\\A');
+    await settle();
+    pump.pumpAll();
+    await settle();
+
+    controller.syncTo('C:\\B');
+    await runToIdle(pump);
+
+    expect(controller.userExpandedPaths.contains(normPath('C:\\A')), isTrue);
+    expect(controller.childrenFor('C:\\A').map((e) => e.name), ['a1', 'a2']);
+    expect(manualCursor.isOpen, isFalse);
+    controller.dispose();
+  });
+
   group('SidebarSyncController 云盘节点', () {
     test('syncTo 云盘内路径展开云盘节点链，不打扰驱动器链', () async {
       final source = FakeCursorSource({
@@ -280,12 +356,13 @@ void main() {
 
       expect(controller.selectedPath, 'C:\\Users\\Alice\\OneDrive\\Docs');
       expect(controller.isExpanded('C:\\Users\\Alice\\OneDrive'), isTrue);
-      expect(
-          controller.isExpanded('C:\\Users\\Alice\\OneDrive\\Docs'), isTrue);
+      expect(controller.isExpanded('C:\\Users\\Alice\\OneDrive\\Docs'), isTrue);
       // 云盘分支不应顺带展开 C:\ 驱动器链
       expect(controller.isExpanded('C:\\'), isFalse);
-      expect(controller.childrenFor('C:\\Users\\Alice\\OneDrive').single.name,
-          'Docs');
+      expect(
+        controller.childrenFor('C:\\Users\\Alice\\OneDrive').single.name,
+        'Docs',
+      );
       controller.dispose();
     });
 

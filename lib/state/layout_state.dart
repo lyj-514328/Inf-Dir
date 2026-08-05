@@ -3,20 +3,38 @@ import '../models/layout_node.dart';
 import 'pane_controller.dart';
 import '../services/directory_repository.dart';
 import '../services/file_service.dart';
+import '../utils/path_utils.dart';
+
+class ActivePaneLocation {
+  final String paneId;
+  final String path;
+
+  const ActivePaneLocation({required this.paneId, required this.path});
+
+  @override
+  bool operator ==(Object other) =>
+      other is ActivePaneLocation &&
+      other.paneId == paneId &&
+      pathEquals(other.path, path);
+
+  @override
+  int get hashCode => Object.hash(paneId, normPath(path));
+}
 
 class LayoutState extends ChangeNotifier {
   late final LayoutTree _tree;
   final Map<String, PaneController> _controllers = {};
+  final Map<String, VoidCallback> _panePathListeners = {};
   String _focusedNodeId = '';
   int _nextPaneCounter = 0;
   final DirectoryRepository _repository;
 
-  /// 焦点 pane 的当前路径（§12）：焦点切换或焦点 pane 导航时更新。
-  /// 用独立的 ValueNotifier，避免无关 notify 也触发侧栏同步。
-  final ValueNotifier<String> activePanePath = ValueNotifier<String>('');
+  /// 活动 Pane 的不可变位置投影。只有焦点或路径变化会更新。
+  final ValueNotifier<ActivePaneLocation?> activePaneLocation =
+      ValueNotifier<ActivePaneLocation?>(null);
 
   LayoutState({DirectoryRepository? repository})
-      : _repository = repository ?? DirectoryRepository() {
+    : _repository = repository ?? DirectoryRepository() {
     final initialPaths = [
       FileService.desktopPath,
       FileService.homeDirectory,
@@ -36,36 +54,56 @@ class LayoutState extends ChangeNotifier {
     if (firstPane != null) {
       _focusedNodeId = firstPane.id;
     }
-    _updateActivePanePath();
+    _updateActivePaneLocation();
   }
 
-  // ── Controller factory (bubbles pane changes up to LayoutState) ──
+  // ── Controller factory ───────────────────────────────────────
   void _addController(String id, PaneController ctrl) {
-    ctrl.addListener(_onPaneChanged);
     _controllers[id] = ctrl;
+    void onPathChanged() => _onPanePathChanged(id);
+    _panePathListeners[id] = onPathChanged;
+    ctrl.pathListenable.addListener(onPathChanged);
   }
 
   void _removeController(String id) {
     final ctrl = _controllers.remove(id);
-    ctrl?.removeListener(_onPaneChanged);
+    final listener = _panePathListeners.remove(id);
+    if (ctrl != null && listener != null) {
+      ctrl.pathListenable.removeListener(listener);
+    }
+    ctrl?.dispose();
   }
 
-  void _onPaneChanged() {
-    _updateActivePanePath();
-    notifyListeners();
+  void _onPanePathChanged(String paneId) {
+    if (activePaneLocation.value?.paneId == paneId) {
+      _updateActivePaneLocation();
+    }
   }
 
-  void _updateActivePanePath() {
+  void _updateActivePaneLocation() {
     final node = _findNodeById(_focusedNodeId);
-    final path = node != null ? (controllerFor(node)?.currentPath ?? '') : '';
-    if (activePanePath.value != path) {
-      activePanePath.value = path;
+    final paneId = node?.paneId;
+    final controller = node != null ? controllerFor(node) : null;
+    final next = paneId != null && controller != null
+        ? ActivePaneLocation(paneId: paneId, path: controller.currentPath)
+        : null;
+    if (activePaneLocation.value != next) {
+      activePaneLocation.value = next;
     }
   }
 
   @override
   void dispose() {
-    activePanePath.dispose();
+    for (final entry in _controllers.entries.toList()) {
+      final listener = _panePathListeners[entry.key];
+      if (listener != null) {
+        entry.value.pathListenable.removeListener(listener);
+      }
+      entry.value.dispose();
+    }
+    _panePathListeners.clear();
+    _controllers.clear();
+    activePaneLocation.dispose();
     super.dispose();
   }
 
@@ -108,9 +146,14 @@ class LayoutState extends ChangeNotifier {
   void focusNode(LayoutNode node) {
     if (_focusedNodeId != node.id) {
       _focusedNodeId = node.id;
-      _updateActivePanePath();
+      _updateActivePaneLocation();
       notifyListeners();
     }
+  }
+
+  void navigateActivePane(String path) {
+    final node = _findNodeById(_focusedNodeId);
+    if (node != null) controllerFor(node)?.navigateTo(path);
   }
 
   // ============================================================
@@ -122,7 +165,9 @@ class LayoutState extends ChangeNotifier {
     // 加一个默认 pane
     final paneId = _nextPaneId();
     _addController(
-        paneId, PaneController(FileService.desktopPath, repository: _repository));
+      paneId,
+      PaneController(FileService.desktopPath, repository: _repository),
+    );
     final pane = LayoutNode(
       id: _tree.genId(),
       type: NodeType.pane,
@@ -132,7 +177,7 @@ class LayoutState extends ChangeNotifier {
     ws.children.add(pane);
     _tree.activeWorkspaceIndex = _tree.workspaces.length - 1;
     _focusedNodeId = pane.id;
-    _updateActivePanePath();
+    _updateActivePaneLocation();
     notifyListeners();
   }
 
@@ -142,7 +187,7 @@ class LayoutState extends ChangeNotifier {
     _tree.activeWorkspaceIndex = index;
     final firstPane = _findFirstPane(_tree.activeWorkspace);
     if (firstPane != null) _focusedNodeId = firstPane.id;
-    _updateActivePanePath();
+    _updateActivePaneLocation();
     notifyListeners();
   }
 
@@ -159,7 +204,7 @@ class LayoutState extends ChangeNotifier {
     }
     final firstPane = _findFirstPane(_tree.activeWorkspace);
     if (firstPane != null) _focusedNodeId = firstPane.id;
-    _updateActivePanePath();
+    _updateActivePaneLocation();
     notifyListeners();
   }
 
@@ -169,10 +214,13 @@ class LayoutState extends ChangeNotifier {
   void splitPane(LayoutNode node, SplitDirection direction) {
     if (!node.isPane) return;
     final newPaneId = _nextPaneId();
-    _addController(newPaneId, PaneController(
-      controllerFor(node)?.currentPath ?? FileService.desktopPath,
-      repository: _repository,
-    ));
+    _addController(
+      newPaneId,
+      PaneController(
+        controllerFor(node)?.currentPath ?? FileService.desktopPath,
+        repository: _repository,
+      ),
+    );
     _tree.splitNode(node, direction, newPaneId);
     notifyListeners();
   }
@@ -202,7 +250,7 @@ class LayoutState extends ChangeNotifier {
       if (firstPane != null) _focusedNodeId = firstPane.id;
     }
 
-    _updateActivePanePath();
+    _updateActivePaneLocation();
     notifyListeners();
   }
 

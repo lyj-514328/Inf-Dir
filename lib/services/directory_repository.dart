@@ -6,8 +6,8 @@ import 'directory_service.dart';
 import 'sidebar_service.dart';
 
 /// 打开目录枚举 cursor 的工厂。默认走 FFI，测试注入 fake。
-typedef CursorFactory = DirectoryCursor? Function(String path,
-    {bool directoriesOnly});
+typedef CursorFactory =
+    DirectoryCursor? Function(String path, {bool directoriesOnly});
 
 /// 帧边界让步函数。生产环境用 postFrameCallback，测试用 microtask / 手动 pump。
 typedef FrameYield = Future<void> Function();
@@ -17,30 +17,60 @@ typedef HasChildrenProbe = bool Function(String path);
 
 /// partial children 发布回调：
 /// [pathKey] 已规范化；[loading] 为 false 表示枚举完整结束（进入 complete cache）。
-typedef OnPartialChildren = void Function(String pathKey,
-    List<FileEntry> children, bool loading, int ownerRequestId);
+typedef OnPartialChildren =
+    void Function(
+      String pathKey,
+      List<FileEntry> children,
+      bool loading,
+      int loadId,
+    );
 
-/// latest-wins 请求令牌（§6）。
-class RequestToken {
-  final int id;
-  bool cancelled = false;
+/// 调用方持有的目录加载租约。释放一个租约不会影响同路径的其它消费者。
+class DirectoryLoadLease {
+  final DirectoryRepository _repository;
+  final int _subscriberId;
+  final String pathKey;
+  final int loadId;
+  final Future<List<FileEntry>?> done;
+  bool _released = false;
 
-  RequestToken(this.id);
+  DirectoryLoadLease._(
+    this._repository,
+    this._subscriberId,
+    this.pathKey,
+    this.loadId,
+    this.done,
+  );
 
-  void cancel() => cancelled = true;
-  bool get isActive => !cancelled;
+  bool get isReleased => _released;
+
+  void release() {
+    if (_released) return;
+    _released = true;
+    _repository._release(this);
+  }
 }
 
-/// 一个进行中的目录加载任务（§7.2）。
-class DirectoryLoadTask {
-  final int requestId;
-  final String pathKey;
-  final DirectoryCursor cursor;
-  List<FileEntry> partialChildren = const [];
-  bool complete = false;
+class _LoadSubscriber {
+  final int id;
+  final OnPartialChildren? onPartial;
   final Completer<List<FileEntry>?> done = Completer<List<FileEntry>?>();
 
-  DirectoryLoadTask(this.requestId, this.pathKey, this.cursor);
+  _LoadSubscriber(this.id, this.onPartial);
+}
+
+/// 一个路径只有一个加载任务；任务拥有 cursor，消费者通过 lease 订阅。
+class _DirectoryLoad {
+  final int id;
+  final String pathKey;
+  final DirectoryCursor cursor;
+  final int pageSize;
+  final Map<int, _LoadSubscriber> subscribers = {};
+  List<FileEntry> partialChildren = const [];
+  bool complete = false;
+  bool cancelRequested = false;
+
+  _DirectoryLoad(this.id, this.pathKey, this.cursor, this.pageSize);
 }
 
 /// 目录数据仓库：complete cache、in-flight task ownership、
@@ -55,47 +85,28 @@ class DirectoryRepository {
   /// 只有枚举完整结束才写入（§7.1）。
   final Map<String, List<FileEntry>> _completeCache = {};
 
-  /// pathKey → 进行中的任务，带明确 owner requestId（§7.2）。
-  final Map<String, DirectoryLoadTask> _activeTasks = {};
+  /// pathKey → 进行中的共享加载任务。
+  final Map<String, _DirectoryLoad> _activeLoads = {};
 
   final Map<String, bool> _hasChildrenCache = {};
   final Set<String> _probingHasChildren = {};
 
-  int _nextRequestId = 0;
+  int _nextLoadId = 0;
+  int _nextSubscriberId = 0;
 
   DirectoryRepository({
     CursorFactory? cursorFactory,
     FrameYield? yieldFrame,
     HasChildrenProbe? hasChildrenProbe,
-  })  : _cursorFactory = cursorFactory ?? DirectoryService.openCursor,
-        _yieldFrame = yieldFrame ?? _defaultYieldFrame,
-        _hasChildrenProbe = hasChildrenProbe ?? _defaultHasChildrenProbe;
+  }) : _cursorFactory = cursorFactory ?? DirectoryService.openCursor,
+       _yieldFrame = yieldFrame ?? _defaultYieldFrame,
+       _hasChildrenProbe = hasChildrenProbe ?? _defaultHasChildrenProbe;
 
   static Future<void> _defaultYieldFrame() =>
       Future<void>.delayed(Duration.zero);
 
   static bool _defaultHasChildrenProbe(String path) =>
       SidebarService.directoryHasChildren(path);
-
-  // ── request 生命周期 ─────────────────────────────────────────
-
-  RequestToken startRequest() => RequestToken(++_nextRequestId);
-
-  /// 取消一个 request：停止翻页、幂等关闭它拥有的 cursor、
-  /// 从 activeTasks 移除它的任务。complete cache 保留（§3）。
-  void cancelRequest(RequestToken token) {
-    token.cancel();
-    final owned = _activeTasks.entries
-        .where((e) => e.value.requestId == token.id)
-        .toList();
-    for (final e in owned) {
-      // owner 校验：只清理仍由该 task 占有的条目
-      if (identical(_activeTasks[e.key], e.value)) {
-        _activeTasks.remove(e.key);
-        e.value.cursor.close();
-      }
-    }
-  }
 
   // ── cursor ─────────────────────────────────────────────────
 
@@ -106,9 +117,15 @@ class DirectoryRepository {
   // ── complete cache ─────────────────────────────────────────
 
   /// 已完整加载的 children（仅目录），key 内部规范化。
-  List<FileEntry>? cachedChildren(String path) => _completeCache[normPath(path)];
+  List<FileEntry>? cachedChildren(String path) =>
+      _completeCache[normPath(path)];
 
-  bool isTaskActive(String path) => _activeTasks.containsKey(normPath(path));
+  bool isTaskActive(String path) => _activeLoads.containsKey(normPath(path));
+
+  bool isLoadActive(String path, int loadId) {
+    final load = _activeLoads[normPath(path)];
+    return load != null && load.id == loadId;
+  }
 
   /// 定点失效（refresh / rename / delete 后调用，§13.4）。
   void invalidate(String path) {
@@ -153,28 +170,43 @@ class DirectoryRepository {
 
   // ── 分页加载（§7.3）─────────────────────────────────────────
 
-  /// 加载 [path] 的直接子目录（directoriesOnly）。
-  ///
-  /// 返回完整 children；request 被取消时返回 null。
-  /// 每页顺序：await frame → check token → nextPage → check token →
-  /// 不可变 List 替换 → check owner → publish partial。
-  Future<List<FileEntry>?> loadChildren(
+  /// 获取 [path] 直接子目录的加载租约。同路径并发调用复用一个 cursor。
+  DirectoryLoadLease acquireChildren(
     String path, {
-    required RequestToken token,
     OnPartialChildren? onPartial,
     int pageSize = 100,
-  }) async {
+  }) {
     final key = normPath(path);
+    final subscriber = _LoadSubscriber(++_nextSubscriberId, onPartial);
 
     final cached = _completeCache[key];
-    if (cached != null) return cached;
+    if (cached != null) {
+      subscriber.done.complete(cached);
+      return DirectoryLoadLease._(
+        this,
+        subscriber.id,
+        key,
+        0,
+        subscriber.done.future,
+      );
+    }
 
-    // 同一路径已有活动任务：不再开新 cursor，等待其完成（ownership 不变）。
-    final existing = _activeTasks[key];
+    final existing = _activeLoads[key];
     if (existing != null) {
-      final result = await existing.done.future;
-      if (!token.isActive) return null;
-      return result;
+      existing.subscribers[subscriber.id] = subscriber;
+      final lease = DirectoryLoadLease._(
+        this,
+        subscriber.id,
+        key,
+        existing.id,
+        subscriber.done.future,
+      );
+      scheduleMicrotask(() {
+        if (!lease.isReleased && identical(_activeLoads[key], existing)) {
+          onPartial?.call(key, existing.partialChildren, true, existing.id);
+        }
+      });
+      return lease;
     }
 
     final cursor = _cursorFactory(path, directoriesOnly: true);
@@ -183,22 +215,84 @@ class DirectoryRepository {
       const empty = <FileEntry>[];
       _completeCache[key] = empty;
       _hasChildrenCache[key] = false;
-      return empty;
+      subscriber.done.complete(empty);
+      return DirectoryLoadLease._(
+        this,
+        subscriber.id,
+        key,
+        0,
+        subscriber.done.future,
+      );
     }
 
-    final task = DirectoryLoadTask(token.id, key, cursor);
-    _activeTasks[key] = task;
-    onPartial?.call(key, const [], true, token.id);
+    final load = _DirectoryLoad(++_nextLoadId, key, cursor, pageSize);
+    load.subscribers[subscriber.id] = subscriber;
+    _activeLoads[key] = load;
+    final lease = DirectoryLoadLease._(
+      this,
+      subscriber.id,
+      key,
+      load.id,
+      subscriber.done.future,
+    );
+    scheduleMicrotask(() => _runLoad(load));
+    return lease;
+  }
+
+  void _release(DirectoryLoadLease lease) {
+    if (lease.loadId == 0) return;
+    final load = _activeLoads[lease.pathKey];
+    if (load == null || load.id != lease.loadId) return;
+
+    final subscriber = load.subscribers.remove(lease._subscriberId);
+    if (subscriber != null && !subscriber.done.isCompleted) {
+      subscriber.done.complete(null);
+    }
+    if (load.subscribers.isEmpty) {
+      load.cancelRequested = true;
+      if (identical(_activeLoads[lease.pathKey], load)) {
+        _activeLoads.remove(lease.pathKey);
+      }
+      load.cursor.close();
+    }
+  }
+
+  bool _canContinue(_DirectoryLoad load) =>
+      !load.cancelRequested &&
+      load.subscribers.isNotEmpty &&
+      identical(_activeLoads[load.pathKey], load);
+
+  void _publish(_DirectoryLoad load, bool loading) {
+    for (final subscriber in List.of(load.subscribers.values)) {
+      subscriber.onPartial?.call(
+        load.pathKey,
+        load.partialChildren,
+        loading,
+        load.id,
+      );
+    }
+  }
+
+  void _completeSubscribers(_DirectoryLoad load, List<FileEntry>? result) {
+    for (final subscriber in load.subscribers.values) {
+      if (!subscriber.done.isCompleted) subscriber.done.complete(result);
+    }
+    load.subscribers.clear();
+  }
+
+  Future<void> _runLoad(_DirectoryLoad load) async {
+    if (!_canContinue(load)) return;
+    _publish(load, true);
 
     try {
       while (true) {
         await _yieldFrame();
-        if (!token.isActive) return null;
+        if (!_canContinue(load)) return;
 
-        final page = cursor.nextPage(count: pageSize);
+        final page = load.cursor.nextPage(count: load.pageSize);
 
-        // 同步 FFI 无法中途打断：页允许返回，但取消后立即丢弃（§3）。
-        if (!token.isActive) return null;
+        // 同步 FFI 无法中途打断：当前页允许返回，租约已全部释放则丢弃。
+        if (!_canContinue(load)) return;
         if (page == null) break;
 
         final dirs = page.where((e) => e.isDirectory).toList();
@@ -207,34 +301,30 @@ class DirectoryRepository {
         }
 
         // 不可变 List 替换，不在原地修改 Widget 正在读取的 List。
-        final merged = [...task.partialChildren, ...dirs];
+        final merged = [...load.partialChildren, ...dirs];
         merged.sort(
-            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-        task.partialChildren = List.unmodifiable(merged);
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+        load.partialChildren = List.unmodifiable(merged);
 
-        // owner 校验：路径可能已被新 request 接管（§7.2）。
-        if (!identical(_activeTasks[key], task)) return null;
-
-        onPartial?.call(key, task.partialChildren, true, token.id);
+        _publish(load, true);
       }
 
-      // 枚举完整结束 → 进入 complete cache（取消时不会走到这里）。
-      task.complete = true;
-      _completeCache[key] = task.partialChildren;
-      _hasChildrenCache[key] = task.partialChildren.isNotEmpty;
-      if (identical(_activeTasks[key], task)) {
-        _activeTasks.remove(key);
-        onPartial?.call(key, task.partialChildren, false, token.id);
+      if (!_canContinue(load)) return;
+      load.complete = true;
+      _completeCache[load.pathKey] = load.partialChildren;
+      _hasChildrenCache[load.pathKey] = load.partialChildren.isNotEmpty;
+      if (identical(_activeLoads[load.pathKey], load)) {
+        _activeLoads.remove(load.pathKey);
       }
-      task.done.complete(task.partialChildren);
-      return task.partialChildren;
+      _publish(load, false);
+      _completeSubscribers(load, load.partialChildren);
     } finally {
-      // 每个 task 只关闭自己的 cursor（§5）。
-      cursor.close();
-      if (identical(_activeTasks[key], task) && !task.complete) {
-        _activeTasks.remove(key);
+      load.cursor.close();
+      if (identical(_activeLoads[load.pathKey], load)) {
+        _activeLoads.remove(load.pathKey);
       }
-      if (!task.done.isCompleted) task.done.complete(null);
+      if (!load.complete) _completeSubscribers(load, null);
     }
   }
 }

@@ -6,15 +6,33 @@ import '../models/file_entry.dart';
 import '../services/cloud_drive_service.dart';
 import '../services/directory_repository.dart';
 import '../services/sidebar_service.dart';
+import 'layout_state.dart';
 import '../utils/path_utils.dart';
 
 /// 每路径的 partial 节点：带 owner request id（§9）。
 class PartialNode {
-  final int ownerRequestId;
+  final int loadId;
   final List<FileEntry> children;
   final bool loading;
 
-  const PartialNode(this.ownerRequestId, this.children, this.loading);
+  const PartialNode(this.loadId, this.children, this.loading);
+}
+
+class _RevealSession {
+  final int generation;
+  final Set<DirectoryLoadLease> leases = {};
+  bool cancelled = false;
+
+  _RevealSession(this.generation);
+
+  void cancel() {
+    if (cancelled) return;
+    cancelled = true;
+    for (final lease in leases.toList()) {
+      lease.release();
+    }
+    leases.clear();
+  }
 }
 
 /// 侧栏树状态控制器（§8 / §10 / §12）。
@@ -25,6 +43,7 @@ class SidebarSyncController extends ChangeNotifier {
   static const thisPcGuid = '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}';
 
   final DirectoryRepository repository;
+  final ValueListenable<ActivePaneLocation?>? activeLocation;
 
   final List<QuickAccessItem> quickAccessItems;
   final List<String> driveRoots;
@@ -33,7 +52,14 @@ class SidebarSyncController extends ChangeNotifier {
   final List<CloudDrive> cloudDrives;
 
   bool thisPcExpanded = true;
-  String? selectedPath;
+  String? _directRevealPath;
+
+  /// 正式运行时从活动 Pane 位置派生；无位置流时仅供单元测试直接驱动。
+  String? get selectedPath =>
+      activeLocation != null ? activeLocation!.value?.path : _directRevealPath;
+
+  /// Increments for each latest-wins reveal session.
+  int get revealGeneration => _revealSession?.generation ?? 0;
 
   /// 用户手动展开（§10）。
   final Set<String> userExpandedPaths = {};
@@ -50,8 +76,9 @@ class SidebarSyncController extends ChangeNotifier {
   /// 用户手动滚动后，本次同步不再自动跟随（可被新 syncTo 重置）。
   bool scrollFollowDismissed = false;
 
-  RequestToken? _syncToken;
-  final Map<String, RequestToken> _expandTokens = {};
+  _RevealSession? _revealSession;
+  final Map<String, DirectoryLoadLease> _expandLeases = {};
+  int _nextRevealGeneration = 0;
 
   // 同一轮事件的重复 syncTo 用 microtask 合并，只提交最后一个（§12）。
   String? _pendingSyncPath;
@@ -61,24 +88,42 @@ class SidebarSyncController extends ChangeNotifier {
 
   SidebarSyncController({
     required this.repository,
+    this.activeLocation,
     List<QuickAccessItem>? quickAccessItems,
     List<String>? driveRoots,
     List<CloudDrive>? cloudDrives,
     bool probeDriveChildren = true,
-  })  : quickAccessItems =
-            quickAccessItems ?? SidebarService.getQuickAccessItems(),
-        driveRoots = driveRoots ?? SidebarService.getDriveRoots(),
-        cloudDrives = cloudDrives ?? CloudDriveService.getCloudDrives() {
+  }) : quickAccessItems =
+           quickAccessItems ?? SidebarService.getQuickAccessItems(),
+       driveRoots = driveRoots ?? SidebarService.getDriveRoots(),
+       cloudDrives = cloudDrives ?? CloudDriveService.getCloudDrives() {
     if (probeDriveChildren) {
       // 驱动器 hasChildren 一次性 probe（初始化阶段，不在 build 里）。
       for (final drive in this.driveRoots) {
         repository.seedHasChildren(
-            drive, SidebarService.directoryHasChildren(drive));
+          drive,
+          SidebarService.directoryHasChildren(drive),
+        );
       }
       for (final cloud in this.cloudDrives) {
         repository.seedHasChildren(
-            cloud.path, SidebarService.directoryHasChildren(cloud.path));
+          cloud.path,
+          SidebarService.directoryHasChildren(cloud.path),
+        );
       }
+    }
+    activeLocation?.addListener(_onActiveLocationChanged);
+    _onActiveLocationChanged();
+  }
+
+  void _onActiveLocationChanged() {
+    final path = activeLocation?.value?.path;
+    if (path != null) {
+      syncTo(path);
+    } else if (activeLocation != null) {
+      _cancelRevealSession(clearSyncExpansion: true);
+      _directRevealPath = null;
+      _notifySafe();
     }
   }
 
@@ -87,8 +132,7 @@ class SidebarSyncController extends ChangeNotifier {
 
   bool isExpanded(String path) => expandedPaths.contains(normPath(path));
 
-  bool isLoading(String path) =>
-      partialNodes[normPath(path)]?.loading ?? false;
+  bool isLoading(String path) => partialNodes[normPath(path)]?.loading ?? false;
 
   /// 视图读取 children：complete cache 优先，其次 partial。
   List<FileEntry> childrenFor(String path) {
@@ -125,26 +169,15 @@ class SidebarSyncController extends ChangeNotifier {
   }
 
   void _startSync(String path) {
-    // 取消旧 request：回滚它的 partial、loading 和自动展开（§3）。
-    final old = _syncToken;
-    _syncToken = null;
-    if (old != null) _rollback(old, rollbackSyncExpansion: true);
+    _cancelRevealSession(clearSyncExpansion: true);
 
-    final token = repository.startRequest();
-    _syncToken = token;
+    final session = _RevealSession(++_nextRevealGeneration);
+    _revealSession = session;
+    _directRevealPath = path;
     needsScrollToSelected = true;
     scrollFollowDismissed = false;
 
-    // Quick Access：命中则高亮，同时继续展开树。
-    for (final item in quickAccessItems) {
-      if (pathEquals(item.path, path)) {
-        selectedPath = item.path;
-        break;
-      }
-    }
-
     if (path == thisPcGuid) {
-      selectedPath = thisPcGuid;
       _notifySafe();
       return;
     }
@@ -152,10 +185,9 @@ class SidebarSyncController extends ChangeNotifier {
     // 云盘路径优先走云盘分支：展开云盘节点链，不打扰"此电脑"驱动器链。
     final cloud = _findCloudFor(path);
     if (cloud != null) {
-      selectedPath = path;
-      syncExpandedPaths.add(normPath(cloud.path));
+      syncExpandedPaths.addAll(pathChain(cloud.path, path).map(normPath));
       _notifySafe();
-      _loadChain(token, path, cloud.path);
+      _loadChain(session, path, cloud.path);
       return;
     }
 
@@ -166,11 +198,10 @@ class SidebarSyncController extends ChangeNotifier {
     }
 
     thisPcExpanded = true;
-    syncExpandedPaths.add(normPath(drive));
-    selectedPath = path;
+    syncExpandedPaths.addAll(pathChain(drive, path).map(normPath));
     _notifySafe();
 
-    _loadChain(token, path, drive);
+    _loadChain(session, path, drive);
   }
 
   String? _findDriveFor(String path) {
@@ -189,32 +220,47 @@ class SidebarSyncController extends ChangeNotifier {
 
   /// 按路径链顺序确保每个 ancestor 的 children 已加载（§8）。
   Future<void> _loadChain(
-      RequestToken token, String targetPath, String drive) async {
+    _RevealSession session,
+    String targetPath,
+    String drive,
+  ) async {
     for (final p in pathChain(drive, targetPath)) {
-      if (!token.isActive || !identical(token, _syncToken)) return;
-      syncExpandedPaths.add(normPath(p));
-      _notifySafe();
+      if (session.cancelled || !identical(session, _revealSession)) return;
 
       if (repository.cachedChildren(p) != null) continue;
 
-      await repository.loadChildren(p, token: token, onPartial: _onPartial);
-      if (!token.isActive || !identical(token, _syncToken)) return;
+      final lease = repository.acquireChildren(p, onPartial: _onPartial);
+      session.leases.add(lease);
+      final result = await lease.done;
+      session.leases.remove(lease);
+      lease.release();
+      if (session.cancelled || !identical(session, _revealSession)) return;
+      if (result == null) return;
       _notifySafe();
     }
   }
 
-  void _onPartial(String key, List<FileEntry> children, bool loading,
-      int ownerRequestId) {
+  void _onPartial(
+    String key,
+    List<FileEntry> children,
+    bool loading,
+    int loadId,
+  ) {
     if (_disposed) return;
     final existing = partialNodes[key];
-    // 旧 request 不得覆盖新 request 已接管的节点（§9）。
-    if (existing != null && existing.ownerRequestId != ownerRequestId) return;
+    if (existing != null &&
+        existing.loadId != loadId &&
+        repository.isLoadActive(key, existing.loadId)) {
+      return;
+    }
 
     if (loading) {
-      partialNodes[key] = PartialNode(ownerRequestId, children, true);
+      partialNodes[key] = PartialNode(loadId, children, true);
     } else {
       // 完整结束：数据进 complete cache，partial 卸载。
-      partialNodes.remove(key);
+      if (partialNodes[key]?.loadId == loadId) {
+        partialNodes.remove(key);
+      }
     }
     // 任何 partial 状态变化都可能改变 selected 行之前的行数（loading
     // 指示器出现/消失、行数增减），所以 partial 增长时也重新武装滚动
@@ -225,10 +271,18 @@ class SidebarSyncController extends ChangeNotifier {
     _notifySafe();
   }
 
-  void _rollback(RequestToken token, {required bool rollbackSyncExpansion}) {
-    repository.cancelRequest(token);
-    partialNodes.removeWhere((_, node) => node.ownerRequestId == token.id);
-    if (rollbackSyncExpansion) syncExpandedPaths.clear();
+  void _removeInactivePartials() {
+    partialNodes.removeWhere(
+      (key, node) => !repository.isLoadActive(key, node.loadId),
+    );
+  }
+
+  void _cancelRevealSession({required bool clearSyncExpansion}) {
+    final old = _revealSession;
+    _revealSession = null;
+    old?.cancel();
+    _removeInactivePartials();
+    if (clearSyncExpansion) syncExpandedPaths.clear();
   }
 
   /// 用户手动滚动：消费滚动请求并停止本次同步的自动跟随。
@@ -238,12 +292,6 @@ class SidebarSyncController extends ChangeNotifier {
   }
 
   // ── 视图交互 ────────────────────────────────────────────────
-
-  void select(String path) {
-    if (_disposed) return;
-    selectedPath = path;
-    _notifySafe();
-  }
 
   void toggleThisPc() {
     if (_disposed) return;
@@ -256,22 +304,24 @@ class SidebarSyncController extends ChangeNotifier {
   void toggleExpand(String path) {
     if (_disposed) return;
     final key = normPath(path);
-    if (userExpandedPaths.contains(key) ||
-        syncExpandedPaths.contains(key)) {
+    if (userExpandedPaths.contains(key) || syncExpandedPaths.contains(key)) {
       // 用户收起优先：两份集合都移除（自动展开的节点用户也可手动收起）。
       userExpandedPaths.remove(key);
       syncExpandedPaths.remove(key);
-      final token = _expandTokens.remove(key);
-      if (token != null) _rollback(token, rollbackSyncExpansion: false);
+      _expandLeases.remove(key)?.release();
+      _removeInactivePartials();
     } else {
       userExpandedPaths.add(key);
       if (repository.cachedChildren(key) == null &&
-          !repository.isTaskActive(key)) {
-        final token = repository.startRequest();
-        _expandTokens[key] = token;
-        repository
-            .loadChildren(path, token: token, onPartial: _onPartial)
-            .whenComplete(() => _expandTokens.remove(key));
+          !_expandLeases.containsKey(key)) {
+        final lease = repository.acquireChildren(path, onPartial: _onPartial);
+        _expandLeases[key] = lease;
+        lease.done.whenComplete(() {
+          if (identical(_expandLeases[key], lease)) {
+            _expandLeases.remove(key);
+          }
+          lease.release();
+        });
       }
     }
     _notifySafe();
@@ -286,13 +336,12 @@ class SidebarSyncController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    final sync = _syncToken;
-    _syncToken = null;
-    if (sync != null) repository.cancelRequest(sync);
-    for (final token in _expandTokens.values) {
-      repository.cancelRequest(token);
+    activeLocation?.removeListener(_onActiveLocationChanged);
+    _cancelRevealSession(clearSyncExpansion: false);
+    for (final lease in _expandLeases.values) {
+      lease.release();
     }
-    _expandTokens.clear();
+    _expandLeases.clear();
     super.dispose();
   }
 }

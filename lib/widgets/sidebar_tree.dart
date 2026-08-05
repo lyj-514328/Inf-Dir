@@ -287,7 +287,6 @@ class _SidebarTreeState extends State<SidebarTree> {
 
   void _onTapTreeRow(SidebarSyncController sidebar, _TreeRow row) {
     if (row.type == _RowType.loadingIndicator) return;
-    sidebar.select(row.path);
     widget.onNavigate(row.path);
     if (row.hasChildren) {
       if (row.type == _RowType.thisPc) {
@@ -299,7 +298,6 @@ class _SidebarTreeState extends State<SidebarTree> {
   }
 
   void _onTapQuickAccess(SidebarSyncController sidebar, QuickAccessItem item) {
-    sidebar.select(item.path);
     widget.onNavigate(item.path);
   }
 

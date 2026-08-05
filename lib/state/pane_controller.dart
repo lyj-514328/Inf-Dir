@@ -33,6 +33,7 @@ class _ListingRequest {
 
 class PaneController extends ChangeNotifier {
   String _currentPath;
+  final ValueNotifier<String> _pathNotifier;
   List<FileEntry> _entries = [];
   final List<String> _backStack = [];
   final List<String> _forwardStack = [];
@@ -53,9 +54,10 @@ class PaneController extends ChangeNotifier {
     String initialPath, {
     DirectoryRepository? repository,
     Future<void> Function()? frameYield,
-  })  : _currentPath = initialPath,
-        _repository = repository ?? DirectoryRepository(),
-        _frameYield = frameYield ?? _defaultFrameYield {
+  }) : _currentPath = initialPath,
+       _pathNotifier = ValueNotifier<String>(initialPath),
+       _repository = repository ?? DirectoryRepository(),
+       _frameYield = frameYield ?? _defaultFrameYield {
     _tabs.add(TabInfo(path: initialPath, label: _pathLabel(initialPath)));
     _startListing(initialPath);
   }
@@ -67,6 +69,7 @@ class PaneController extends ChangeNotifier {
   }
 
   String get currentPath => _currentPath;
+  ValueListenable<String> get pathListenable => _pathNotifier;
 
   /// Friendly display path for the address bar (shell CLSIDs -> names).
   String get displayPath {
@@ -75,6 +78,7 @@ class PaneController extends ChangeNotifier {
     }
     return _currentPath;
   }
+
   List<FileEntry> get entries => _entries;
   bool get canGoBack => _backStack.isNotEmpty;
   bool get canGoForward => _forwardStack.isNotEmpty;
@@ -128,6 +132,11 @@ class PaneController extends ChangeNotifier {
     }
   }
 
+  void _setCurrentPath(String path) {
+    _currentPath = path;
+    if (_pathNotifier.value != path) _pathNotifier.value = path;
+  }
+
   void _cancelActiveRequest() {
     final old = _activeRequest;
     _activeRequest = null;
@@ -169,7 +178,8 @@ class PaneController extends ChangeNotifier {
         _activeRequest = null;
       }
       debugPrint(
-          '[Perf] Paged -- failed to start session (${sessionSw.elapsedMilliseconds}ms)');
+        '[Perf] Paged -- failed to start session (${sessionSw.elapsedMilliseconds}ms)',
+      );
       return;
     }
 
@@ -251,6 +261,7 @@ class PaneController extends ChangeNotifier {
   void dispose() {
     _revision++;
     _cancelActiveRequest();
+    _pathNotifier.dispose();
     super.dispose();
   }
 
@@ -288,7 +299,7 @@ class PaneController extends ChangeNotifier {
       _backStack.add(_currentPath);
       _forwardStack.clear();
     }
-    _currentPath = path;
+    _setCurrentPath(path);
     _updateActiveTabPath(path);
     await _loadEntries(path);
   }
@@ -297,7 +308,7 @@ class PaneController extends ChangeNotifier {
     if (_backStack.isEmpty) return;
     _forwardStack.add(_currentPath);
     final prev = _backStack.removeLast();
-    _currentPath = prev;
+    _setCurrentPath(prev);
     _updateActiveTabPath(prev);
     _loadEntries(prev);
   }
@@ -306,7 +317,7 @@ class PaneController extends ChangeNotifier {
     if (_forwardStack.isEmpty) return;
     _backStack.add(_currentPath);
     final next = _forwardStack.removeLast();
-    _currentPath = next;
+    _setCurrentPath(next);
     _updateActiveTabPath(next);
     _loadEntries(next);
   }
@@ -328,7 +339,7 @@ class PaneController extends ChangeNotifier {
     _tabs.add(TabInfo(path: tabPath, label: _pathLabel(tabPath)));
     _activeTabIndex = _tabs.length - 1;
     if (tabPath != _currentPath) {
-      _currentPath = tabPath;
+      _setCurrentPath(tabPath);
       _loadEntries(tabPath);
     } else {
       notifyListeners();
@@ -339,7 +350,7 @@ class PaneController extends ChangeNotifier {
     if (index < 0 || index >= _tabs.length || index == _activeTabIndex) return;
     _activeTabIndex = index;
     final tabPath = _tabs[index].path;
-    _currentPath = tabPath;
+    _setCurrentPath(tabPath);
     _backStack.clear();
     _forwardStack.clear();
     _loadEntries(tabPath);
@@ -354,7 +365,7 @@ class PaneController extends ChangeNotifier {
       _activeTabIndex--;
     }
     final tabPath = _tabs[_activeTabIndex].path;
-    _currentPath = tabPath;
+    _setCurrentPath(tabPath);
     _loadEntries(tabPath);
   }
 

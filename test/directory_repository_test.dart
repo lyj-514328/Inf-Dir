@@ -23,17 +23,20 @@ void main() {
       });
       final pump = ManualPump();
       final repo = makeRepo(source, pump);
-      final token = repo.startRequest();
       final partials = <List<String>>[];
       final loadingStates = <bool>[];
 
-      final future = repo.loadChildren('C:\\A', token: token,
-          onPartial: (key, children, loading, owner) {
-        partials.add(children.map((e) => e.name).toList());
-        loadingStates.add(loading);
-        expect(owner, token.id);
-        expect(key, normPath('C:\\A'));
-      });
+      late DirectoryLoadLease lease;
+      lease = repo.acquireChildren(
+        'C:\\A',
+        onPartial: (key, children, loading, owner) {
+          partials.add(children.map((e) => e.name).toList());
+          loadingStates.add(loading);
+          expect(owner, lease.loadId);
+          expect(key, normPath('C:\\A'));
+        },
+      );
+      final future = lease.done;
 
       // 第一页前的 loading 占位（同步发布）
       await settle();
@@ -69,9 +72,8 @@ void main() {
       });
       final pump = ManualPump();
       final repo = makeRepo(source, pump);
-      final tokenA = repo.startRequest();
-
-      final futureA = repo.loadChildren('C:\\A', token: tokenA);
+      final leaseA = repo.acquireChildren('C:\\A');
+      final futureA = leaseA.done;
       await settle();
       pump.pump(); // A 翻过第一页
       await settle();
@@ -79,9 +81,9 @@ void main() {
       expect(cursorA.nextPageCalls, 1);
 
       // 切换到 B：取消 A
-      repo.cancelRequest(tokenA);
-      final tokenB = repo.startRequest();
-      final futureB = repo.loadChildren('C:\\B', token: tokenB);
+      leaseA.release();
+      final leaseB = repo.acquireChildren('C:\\B');
+      final futureB = leaseB.done;
 
       await runToIdle(pump);
 
@@ -109,24 +111,24 @@ void main() {
       final pump = ManualPump();
       final repo = makeRepo(source, pump);
 
-      final tokenA1 = repo.startRequest();
-      final futureA1 = repo.loadChildren('C:\\A', token: tokenA1);
+      final leaseA1 = repo.acquireChildren('C:\\A');
+      final futureA1 = leaseA1.done;
       await settle();
       pump.pump();
       await settle();
       final cursorA1 = source.last;
 
       // 切到 B
-      repo.cancelRequest(tokenA1);
-      final tokenB = repo.startRequest();
-      final futureB = repo.loadChildren('C:\\B', token: tokenB);
+      leaseA1.release();
+      final leaseB = repo.acquireChildren('C:\\B');
+      final futureB = leaseB.done;
       await settle();
       final cursorB = source.last;
 
       // 立即又切回 A
-      repo.cancelRequest(tokenB);
-      final tokenA2 = repo.startRequest();
-      final futureA2 = repo.loadChildren('C:\\A', token: tokenA2);
+      leaseB.release();
+      final leaseA2 = repo.acquireChildren('C:\\A');
+      final futureA2 = leaseA2.done;
       await settle();
       final cursorA2 = source.last;
       expect(identical(cursorA2, cursorA1), isFalse);
@@ -153,14 +155,14 @@ void main() {
       final repo = makeRepo(source, pump);
 
       await runToIdle(pump);
-      final t1 = repo.startRequest();
-      final f1 = repo.loadChildren('C:\\A', token: t1);
+      final lease1 = repo.acquireChildren('C:\\A');
+      final f1 = lease1.done;
       await runToIdle(pump);
       await f1;
       expect(source.created.length, 1);
 
-      final t2 = repo.startRequest();
-      final cached = await repo.loadChildren('C:\\A', token: t2);
+      final lease2 = repo.acquireChildren('C:\\A');
+      final cached = await lease2.done;
       expect(cached, isNotNull);
       expect(source.created.length, 1); // 没有新 cursor
     });
@@ -179,17 +181,17 @@ void main() {
       final pump = ManualPump();
       final repo = makeRepo(source, pump);
 
-      final t1 = repo.startRequest();
-      final f1 = repo.loadChildren('C:\\A', token: t1);
+      final lease1 = repo.acquireChildren('C:\\A');
+      final f1 = lease1.done;
       await runToIdle(pump);
       await f1;
       expect(repo.cachedChildren('C:\\A'), isNotNull);
 
       // B 开始后被取消
-      final t2 = repo.startRequest();
-      final f2 = repo.loadChildren('C:\\B', token: t2);
+      final lease2 = repo.acquireChildren('C:\\B');
+      final f2 = lease2.done;
       await settle();
-      repo.cancelRequest(t2);
+      lease2.release();
       await runToIdle(pump);
       expect(await f2, isNull);
 
@@ -207,10 +209,10 @@ void main() {
       final pump = ManualPump();
       final repo = makeRepo(source, pump);
 
-      final t1 = repo.startRequest();
-      final t2 = repo.startRequest();
-      final f1 = repo.loadChildren('C:\\A', token: t1);
-      final f2 = repo.loadChildren('C:\\A', token: t2);
+      final lease1 = repo.acquireChildren('C:\\A');
+      final lease2 = repo.acquireChildren('C:\\A');
+      final f1 = lease1.done;
+      final f2 = lease2.done;
       await runToIdle(pump);
 
       expect(source.created.length, 1);
@@ -218,13 +220,43 @@ void main() {
       expect((await f2)!.length, 1);
     });
 
+    test('同路径一个 lease 释放后，其他消费者继续分页', () async {
+      final source = FakeCursorSource({
+        'C:\\A': [
+          [dirEntry('C:\\A\\a1')],
+          [dirEntry('C:\\A\\a2')],
+          null,
+        ],
+      });
+      final pump = ManualPump();
+      final repo = makeRepo(source, pump);
+
+      final lease1 = repo.acquireChildren('C:\\A');
+      final lease2 = repo.acquireChildren('C:\\A');
+      await settle();
+      pump.pump();
+      await settle();
+
+      final cursor = source.last;
+      expect(cursor.nextPageCalls, 1);
+      lease1.release();
+      expect(await lease1.done, isNull);
+      expect(cursor.isOpen, isTrue);
+
+      await runToIdle(pump);
+      expect((await lease2.done)!.map((e) => e.name), ['a1', 'a2']);
+      expect(repo.cachedChildren('C:\\A')!.length, 2);
+      expect(cursor.isOpen, isFalse);
+      expect(source.created.length, 1);
+    });
+
     test('native begin 失败：按空目录完成并缓存', () async {
       final source = FakeCursorSource({}); // 没有该路径 → begin 失败
       final pump = ManualPump();
       final repo = makeRepo(source, pump);
 
-      final token = repo.startRequest();
-      final result = await repo.loadChildren('C:\\Nowhere', token: token);
+      final lease = repo.acquireChildren('C:\\Nowhere');
+      final result = await lease.done;
       expect(result, isEmpty);
       expect(repo.cachedChildren('C:\\Nowhere'), isEmpty);
       expect(source.created, isEmpty);
@@ -237,8 +269,8 @@ void main() {
       final pump = ManualPump();
       final repo = makeRepo(source, pump);
 
-      final token = repo.startRequest();
-      final future = repo.loadChildren('C:\\Empty', token: token);
+      final lease = repo.acquireChildren('C:\\Empty');
+      final future = lease.done;
       await runToIdle(pump);
       final result = await future;
 
@@ -257,8 +289,8 @@ void main() {
       final pump = ManualPump();
       final repo = makeRepo(source, pump);
 
-      final t1 = repo.startRequest();
-      final f1 = repo.loadChildren('C:\\A', token: t1);
+      final lease1 = repo.acquireChildren('C:\\A');
+      final f1 = lease1.done;
       await runToIdle(pump);
       await f1;
       expect(source.created.length, 1);
@@ -266,8 +298,8 @@ void main() {
       repo.invalidate('C:\\A');
       expect(repo.cachedChildren('C:\\A'), isNull);
 
-      final t2 = repo.startRequest();
-      final f2 = repo.loadChildren('C:\\A', token: t2);
+      final lease2 = repo.acquireChildren('C:\\A');
+      final f2 = lease2.done;
       await runToIdle(pump);
       await f2;
       expect(source.created.length, 2);

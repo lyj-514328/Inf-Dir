@@ -5,7 +5,7 @@
 当前链路是：
 
     FilePane PointerDown
-      -> LayoutState.activePanePath
+      -> LayoutState.activePaneLocation
       -> SidebarSyncController.syncTo(path)
       -> DirectoryRepository 分页加载 + per-path cache
       -> DirectoryCursor (begin / nextPage / close)
@@ -59,7 +59,7 @@ Dart 调用同步 FFI 时，点击事件无法在 native 调用中途执行。�
 
     LayoutState
         |
-        | activePanePath
+        | activePaneLocation
         v
     SidebarSyncController
         |
@@ -399,3 +399,29 @@ isolate / 异步 page callback。
 用户手动滚动后本次同步不再自动跟随（§15.5）。若此时树继续展开且
 用户希望重新跟随，需再次导航触发 syncTo。可接受，符合"用户干预优先"
 的交互约定。
+
+## 20. Current implementation on `refactor/sidebar-navigation-sync`
+
+This section supersedes the earlier `RequestToken` sketch above. The branch uses
+the following ownership and data-flow contract:
+
+- `LayoutState.activePaneLocation` is the single observable active-pane value.
+  It contains the pane id and canonical path and is updated from the focused
+  `PaneController` path notifier.
+- `SidebarSyncController` subscribes to that value. `selectedPath` is derived
+  from it, while `syncTo` remains the internal latest-wins reveal entry point.
+  `AppShell` no longer mirrors pane paths into the sidebar imperatively.
+- `DirectoryRepository` owns one `_DirectoryLoad` per canonical path. Each
+  caller receives a `DirectoryLoadLease`; releasing one lease only removes that
+  subscriber. The cursor is closed and future pages stop only after the final
+  lease is released.
+- A synchronous native page cannot be interrupted in the middle of the FFI call.
+  After it returns, the loader checks ownership and discards the page when the
+  load has no subscribers or has been superseded. Completed results remain in
+  the repository cache.
+- Sidebar reveal and manual expansion can share the same path load. Cancelling
+  a reveal session releases only its leases, so an active manual expansion keeps
+  receiving later pages.
+- FilePane listing still owns an independent cursor and listing revision. This
+  keeps the UI list refresh lifecycle separate from sidebar reveal pagination;
+  the shared repository contract is used for directory data and cancellation.

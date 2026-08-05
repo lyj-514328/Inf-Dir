@@ -19,8 +19,7 @@ void main() {
           create: (_) => DirectoryRepository(
             yieldFrame: () {
               final c = Completer<void>();
-              WidgetsBinding.instance
-                  .addPostFrameCallback((_) => c.complete());
+              WidgetsBinding.instance.addPostFrameCallback((_) => c.complete());
               return c.future;
             },
           ),
@@ -34,8 +33,10 @@ void main() {
               LayoutState(repository: ctx.read<DirectoryRepository>()),
         ),
         ChangeNotifierProvider(
-          create: (ctx) =>
-              SidebarSyncController(repository: ctx.read<DirectoryRepository>()),
+          create: (ctx) => SidebarSyncController(
+            repository: ctx.read<DirectoryRepository>(),
+            activeLocation: ctx.read<LayoutState>().activePaneLocation,
+          ),
         ),
         ChangeNotifierProvider(create: (_) => ThemeController()),
       ],

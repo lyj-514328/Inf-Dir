@@ -10,11 +10,8 @@ void main() {
     late ManualPump pump;
     late DirectoryRepository repo;
 
-    PaneController makePane(String path) => PaneController(
-          path,
-          repository: repo,
-          frameYield: pump.yieldFrame,
-        );
+    PaneController makePane(String path) =>
+        PaneController(path, repository: repo, frameYield: pump.yieldFrame);
 
     setUp(() {
       source = FakeCursorSource({
@@ -95,8 +92,8 @@ void main() {
       final cursorsBefore = source.created.length;
 
       // 预填 complete cache（sidebar 侧）
-      final token = repo.startRequest();
-      final f = repo.loadChildren('C:\\A', token: token);
+      final lease = repo.acquireChildren('C:\\A');
+      final f = lease.done;
       await runToIdle(pump);
       await f;
       expect(repo.cachedChildren('C:\\A'), isNotNull);
