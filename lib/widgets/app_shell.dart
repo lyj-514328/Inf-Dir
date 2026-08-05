@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../features/quick_view/viewer_associations_dialog.dart';
+import '../models/layout_node.dart';
 import '../state/app_state.dart';
 import '../state/layout_state.dart';
 import '../state/sidebar_controller.dart';
@@ -128,6 +129,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       body: Column(
         children: [
           _MenuBar(
+            layoutState: layoutState,
             onViewerAssociations: () => showViewerAssociationsDialog(context),
           ),
           _WorkspaceBar(
@@ -349,8 +351,9 @@ class _WorkspaceTab extends StatelessWidget {
 }
 
 class _MenuBar extends StatelessWidget {
-  const _MenuBar({required this.onViewerAssociations});
+  const _MenuBar({required this.layoutState, required this.onViewerAssociations});
 
+  final LayoutState layoutState;
   final VoidCallback onViewerAssociations;
 
   @override
@@ -365,9 +368,36 @@ class _MenuBar extends StatelessWidget {
         children: [
           const _MenuLabel('文件(F)'),
           const _MenuLabel('编辑(E)'),
-          const _MenuLabel('视图(V)'),
+          _MenuDropdown(
+            label: '视图(V)',
+            buildEntries: () => [
+              _MenuEntry(
+                '关闭面板',
+                enabled: layoutState.allPaneNodes.length > 1,
+                onTap: () => layoutState.closePane(layoutState.focusedNode),
+              ),
+              _MenuEntry(
+                '水平切分',
+                onTap: () => layoutState.splitPane(
+                  layoutState.focusedNode,
+                  SplitDirection.vertical,
+                ),
+              ),
+              _MenuEntry(
+                '垂直切分',
+                onTap: () => layoutState.splitPane(
+                  layoutState.focusedNode,
+                  SplitDirection.horizontal,
+                ),
+              ),
+            ],
+          ),
           const _MenuLabel('收藏夹(A)'),
-          _MenuLabel('选项(O)', onTap: onViewerAssociations),
+          _MenuDropdown(
+            label: '选项(O)',
+            buildEntries: () =>
+                [_MenuEntry('查看器管理', onTap: onViewerAssociations)],
+          ),
           const _MenuLabel('信息(H)'),
         ],
       ),
@@ -375,23 +405,111 @@ class _MenuBar extends StatelessWidget {
   }
 }
 
+/// 无下拉的纯文本菜单项
 class _MenuLabel extends StatelessWidget {
   final String label;
-  final VoidCallback? onTap;
 
-  const _MenuLabel(this.label, {this.onTap});
+  const _MenuLabel(this.label);
 
   @override
   Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: AppMetrics.fontBody,
+          color: context.colors.textPrimary,
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuEntry {
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _MenuEntry(this.label, {required this.onTap, this.enabled = true});
+}
+
+/// 带下拉菜单的菜单栏按钮，菜单展开于按钮正下方
+class _MenuDropdown extends StatefulWidget {
+  final String label;
+  final List<_MenuEntry> Function() buildEntries;
+
+  const _MenuDropdown({required this.label, required this.buildEntries});
+
+  @override
+  State<_MenuDropdown> createState() => _MenuDropdownState();
+}
+
+class _MenuDropdownState extends State<_MenuDropdown> {
+  final GlobalKey _labelKey = GlobalKey();
+  bool _open = false;
+
+  Future<void> _show() async {
+    final box = _labelKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
+
+    final entries = widget.buildEntries();
+    setState(() => _open = true);
+    final picked = await showMenu<int>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(
+          origin.dx,
+          origin.dy + box.size.height + 2,
+          box.size.width,
+          0,
+        ),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        for (var i = 0; i < entries.length; i++)
+          PopupMenuItem<int>(
+            value: i,
+            enabled: entries[i].enabled,
+            height: 26,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              entries[i].label,
+              style: TextStyle(
+                fontSize: AppMetrics.fontBody,
+                color: entries[i].enabled
+                    ? context.colors.textPrimary
+                    : context.colors.textTertiary,
+              ),
+            ),
+          ),
+      ],
+    );
+    if (!mounted) return;
+    setState(() => _open = false);
+    if (picked != null) entries[picked].onTap();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+
     return InkWell(
-      onTap: onTap,
-      child: Padding(
+      key: _labelKey,
+      onTap: _open ? null : _show,
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: _open ? c.surfaceHover : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        ),
         child: Text(
-          label,
+          widget.label,
           style: TextStyle(
             fontSize: AppMetrics.fontBody,
-            color: context.colors.textPrimary,
+            color: c.textPrimary,
           ),
         ),
       ),

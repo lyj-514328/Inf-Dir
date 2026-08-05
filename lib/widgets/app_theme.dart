@@ -291,6 +291,20 @@ abstract final class AppTheme {
         ),
         textStyle: TextStyle(fontSize: AppMetrics.fontSmall, color: c.textPrimary),
       ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: c.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 6,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+          side: BorderSide(color: c.border),
+        ),
+        menuPadding: const EdgeInsets.symmetric(vertical: 4),
+        textStyle: TextStyle(
+          fontSize: AppMetrics.fontBody,
+          color: c.textPrimary,
+        ),
+      ),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: c.accent),
     );
   }
