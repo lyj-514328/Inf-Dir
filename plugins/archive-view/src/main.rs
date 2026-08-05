@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use eframe::egui;
-use egui_ltreeview::TreeView;
+use egui_ltreeview::{NodeBuilder, TreeView, TreeViewState};
 
 extern "C" {
     fn archive_read_new() -> *mut c_void;
@@ -46,7 +46,10 @@ fn read_archive(path: &str) -> Result<Vec<ArchiveEntry>, String> {
         archive_read_support_filter_all(a);
         archive_read_support_format_all(a);
 
-        let w_path: Vec<u16> = std::ffi::OsStr::new(path).encode_wide().chain([0]).collect();
+        let w_path: Vec<u16> = std::ffi::OsStr::new(path)
+            .encode_wide()
+            .chain([0])
+            .collect();
         if archive_read_open_filename_w(a, w_path.as_ptr(), 10240) != ARCHIVE_OK {
             let msg = error_msg(a);
             archive_read_free(a);
@@ -98,11 +101,7 @@ fn read_archive(path: &str) -> Result<Vec<ArchiveEntry>, String> {
 
         archive_read_free(a);
 
-        entries.sort_by(|a, b| {
-            a.pathname
-                .to_lowercase()
-                .cmp(&b.pathname.to_lowercase())
-        });
+        entries.sort_by_key(|entry| entry.pathname.to_lowercase());
         Ok(entries)
     }
 }
@@ -174,30 +173,42 @@ fn mode_string(mode: u32, is_dir: bool) -> String {
 
 struct TreeNode {
     name: String,
+    parent: Option<usize>,
     children: Vec<usize>,
+    files: Vec<usize>,
     entry_index: Option<usize>,
 }
 
-fn build_tree(entries: &[ArchiveEntry]) -> (Vec<TreeNode>, Vec<usize>) {
+fn build_tree(entries: &[ArchiveEntry]) -> Vec<TreeNode> {
     let mut nodes: Vec<TreeNode> = vec![TreeNode {
         name: "/".to_string(),
+        parent: None,
         children: Vec::new(),
+        files: Vec::new(),
         entry_index: None,
     }];
     let mut dir_map: HashMap<String, usize> = HashMap::new();
     dir_map.insert(String::new(), 0);
 
     for (idx, entry) in entries.iter().enumerate() {
-        let path = entry.pathname.trim_end_matches('/');
-        if path.is_empty() {
+        let parts: Vec<&str> = entry
+            .pathname
+            .split(['/', '\\'])
+            .filter(|part| !part.is_empty())
+            .collect();
+        if parts.is_empty() {
             continue;
         }
 
-        let parts: Vec<&str> = path.split('/').collect();
         let mut parent = 0usize;
         let mut current_path = String::new();
+        let directory_parts = if entry.is_dir {
+            parts.len()
+        } else {
+            parts.len() - 1
+        };
 
-        for (depth, part) in parts.iter().enumerate() {
+        for (depth, part) in parts.iter().take(directory_parts).enumerate() {
             if current_path.is_empty() {
                 current_path = part.to_string();
             } else {
@@ -206,39 +217,327 @@ fn build_tree(entries: &[ArchiveEntry]) -> (Vec<TreeNode>, Vec<usize>) {
 
             if let Some(&existing) = dir_map.get(&current_path) {
                 parent = existing;
+                if entry.is_dir && depth == directory_parts - 1 {
+                    nodes[existing].entry_index = Some(idx);
+                }
             } else {
-                let is_last = depth == parts.len() - 1;
+                let is_explicit_dir = entry.is_dir && depth == directory_parts - 1;
                 let node_idx = nodes.len();
                 nodes.push(TreeNode {
                     name: part.to_string(),
+                    parent: Some(parent),
                     children: Vec::new(),
-                    entry_index: if is_last { Some(idx) } else { None },
+                    files: Vec::new(),
+                    entry_index: is_explicit_dir.then_some(idx),
                 });
                 nodes[parent].children.push(node_idx);
                 dir_map.insert(current_path.clone(), node_idx);
                 parent = node_idx;
             }
         }
+
+        if !entry.is_dir {
+            nodes[parent].files.push(idx);
+        }
     }
 
-    let roots = nodes[0].children.clone();
-    (nodes, roots)
+    nodes
+}
+
+fn entry_name(pathname: &str) -> &str {
+    pathname
+        .trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(pathname)
+}
+
+#[derive(Clone, Copy)]
+enum DirItem {
+    Directory(usize),
+    File(usize),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FileIconKind {
+    Folder,
+    Image,
+    Video,
+    Audio,
+    Pdf,
+    Archive,
+    Document,
+    Spreadsheet,
+    Presentation,
+    Code,
+    Text,
+    Font,
+    Executable,
+    Generic,
+}
+
+fn file_icon_kind(name: &str) -> FileIconKind {
+    let extension = name
+        .rsplit_once('.')
+        .filter(|(stem, _)| !stem.is_empty())
+        .map(|(_, extension)| extension.to_ascii_lowercase());
+
+    match extension.as_deref().unwrap_or_default() {
+        "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" | "svg" | "ico" | "tif" | "tiff"
+        | "heic" | "avif" | "raw" | "psd" => FileIconKind::Image,
+        "mp4" | "mkv" | "avi" | "mov" | "wmv" | "webm" | "m4v" | "flv" | "mpg" | "mpeg" | "3gp" => {
+            FileIconKind::Video
+        }
+        "mp3" | "wav" | "flac" | "aac" | "ogg" | "m4a" | "wma" | "opus" | "mid" | "midi" => {
+            FileIconKind::Audio
+        }
+        "pdf" => FileIconKind::Pdf,
+        "zip" | "7z" | "rar" | "tar" | "gz" | "gzip" | "bz2" | "xz" | "zst" | "cab" | "iso"
+        | "tgz" | "tbz2" | "txz" => FileIconKind::Archive,
+        "doc" | "docx" | "odt" | "rtf" | "pages" => FileIconKind::Document,
+        "xls" | "xlsx" | "csv" | "ods" | "numbers" => FileIconKind::Spreadsheet,
+        "ppt" | "pptx" | "odp" | "key" => FileIconKind::Presentation,
+        "rs" | "dart" | "py" | "js" | "jsx" | "ts" | "tsx" | "java" | "kt" | "kts" | "c" | "cc"
+        | "cpp" | "h" | "hpp" | "cs" | "go" | "php" | "rb" | "swift" | "sh" | "ps1" | "bat"
+        | "cmd" | "html" | "htm" | "css" | "scss" | "sass" | "less" | "vue" | "svelte" | "sql"
+        | "yaml" | "yml" | "toml" | "json" | "xml" => FileIconKind::Code,
+        "txt" | "md" | "log" | "ini" | "cfg" | "conf" | "nfo" => FileIconKind::Text,
+        "ttf" | "otf" | "woff" | "woff2" => FileIconKind::Font,
+        "exe" | "msi" | "dll" | "sys" | "com" | "appx" => FileIconKind::Executable,
+        _ => FileIconKind::Generic,
+    }
+}
+
+fn paint_file_icon(painter: &egui::Painter, rect: egui::Rect, kind: FileIconKind) {
+    let icon = egui::Rect::from_center_size(rect.center(), egui::vec2(16.0, 16.0));
+
+    if kind == FileIconKind::Folder {
+        let tab = egui::Rect::from_min_max(
+            icon.min + egui::vec2(1.0, 2.5),
+            icon.min + egui::vec2(7.5, 6.0),
+        );
+        let body = egui::Rect::from_min_max(
+            icon.min + egui::vec2(1.0, 5.0),
+            icon.max - egui::vec2(1.0, 1.5),
+        );
+        painter.rect_filled(tab, 1.5, egui::Color32::from_rgb(239, 181, 64));
+        painter.rect_filled(body, 2.0, egui::Color32::from_rgb(224, 156, 35));
+        painter.line_segment(
+            [body.left_top(), body.right_top()],
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(190, 124, 24)),
+        );
+        return;
+    }
+
+    let color = match kind {
+        FileIconKind::Image => egui::Color32::from_rgb(53, 145, 96),
+        FileIconKind::Video => egui::Color32::from_rgb(130, 88, 183),
+        FileIconKind::Audio => egui::Color32::from_rgb(190, 75, 143),
+        FileIconKind::Pdf => egui::Color32::from_rgb(207, 67, 61),
+        FileIconKind::Archive => egui::Color32::from_rgb(126, 105, 75),
+        FileIconKind::Document => egui::Color32::from_rgb(53, 112, 190),
+        FileIconKind::Spreadsheet => egui::Color32::from_rgb(42, 132, 84),
+        FileIconKind::Presentation => egui::Color32::from_rgb(205, 98, 49),
+        FileIconKind::Code => egui::Color32::from_rgb(49, 120, 140),
+        FileIconKind::Text => egui::Color32::from_rgb(102, 116, 132),
+        FileIconKind::Font => egui::Color32::from_rgb(89, 91, 168),
+        FileIconKind::Executable => egui::Color32::from_rgb(83, 94, 108),
+        FileIconKind::Generic => egui::Color32::from_rgb(126, 140, 155),
+        FileIconKind::Folder => unreachable!(),
+    };
+    let min = icon.min + egui::vec2(2.0, 1.0);
+    let max = icon.max - egui::vec2(2.0, 1.0);
+    let fold = 4.0;
+    painter.add(egui::Shape::convex_polygon(
+        vec![
+            min,
+            egui::pos2(max.x - fold, min.y),
+            egui::pos2(max.x, min.y + fold),
+            max,
+            egui::pos2(min.x, max.y),
+        ],
+        color,
+        egui::Stroke::new(0.8, egui::Color32::from_black_alpha(65)),
+    ));
+    painter.add(egui::Shape::convex_polygon(
+        vec![
+            egui::pos2(max.x - fold, min.y),
+            egui::pos2(max.x - fold, min.y + fold),
+            egui::pos2(max.x, min.y + fold),
+        ],
+        egui::Color32::from_white_alpha(105),
+        egui::Stroke::NONE,
+    ));
+
+    let white = egui::Color32::from_white_alpha(235);
+    let stroke = egui::Stroke::new(1.1, white);
+    match kind {
+        FileIconKind::Image => {
+            painter.circle_filled(icon.min + egui::vec2(6.0, 6.0), 1.2, white);
+            painter.line_segment(
+                [
+                    icon.min + egui::vec2(4.0, 12.0),
+                    icon.min + egui::vec2(7.0, 8.5),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    icon.min + egui::vec2(7.0, 8.5),
+                    icon.min + egui::vec2(11.5, 12.0),
+                ],
+                stroke,
+            );
+        }
+        FileIconKind::Video => {
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    icon.min + egui::vec2(6.0, 5.0),
+                    icon.min + egui::vec2(11.5, 8.0),
+                    icon.min + egui::vec2(6.0, 11.0),
+                ],
+                white,
+                egui::Stroke::NONE,
+            ));
+        }
+        FileIconKind::Audio => {
+            painter.line_segment(
+                [
+                    icon.min + egui::vec2(9.5, 4.5),
+                    icon.min + egui::vec2(9.5, 10.5),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    icon.min + egui::vec2(9.5, 4.5),
+                    icon.min + egui::vec2(12.0, 4.0),
+                ],
+                stroke,
+            );
+            painter.circle_filled(icon.min + egui::vec2(7.5, 11.0), 1.8, white);
+        }
+        FileIconKind::Archive => {
+            for y in [5.0, 7.5, 10.0] {
+                painter.rect_filled(
+                    egui::Rect::from_center_size(
+                        icon.min + egui::vec2(8.0, y),
+                        egui::vec2(2.2, 1.5),
+                    ),
+                    0.2,
+                    white,
+                );
+            }
+        }
+        FileIconKind::Document | FileIconKind::Text => {
+            for y in [6.0, 8.5, 11.0] {
+                painter.line_segment(
+                    [
+                        icon.min + egui::vec2(5.0, y),
+                        icon.min + egui::vec2(11.0, y),
+                    ],
+                    stroke,
+                );
+            }
+        }
+        FileIconKind::Spreadsheet => {
+            for x in [6.5, 9.5] {
+                painter.line_segment(
+                    [
+                        icon.min + egui::vec2(x, 5.0),
+                        icon.min + egui::vec2(x, 12.0),
+                    ],
+                    egui::Stroke::new(0.8, white),
+                );
+            }
+            for y in [7.3, 9.7] {
+                painter.line_segment(
+                    [
+                        icon.min + egui::vec2(4.5, y),
+                        icon.min + egui::vec2(11.5, y),
+                    ],
+                    egui::Stroke::new(0.8, white),
+                );
+            }
+        }
+        FileIconKind::Presentation => {
+            painter.rect_stroke(
+                egui::Rect::from_min_max(
+                    icon.min + egui::vec2(4.5, 5.0),
+                    icon.min + egui::vec2(11.5, 10.0),
+                ),
+                0.5,
+                egui::Stroke::new(0.9, white),
+                egui::StrokeKind::Inside,
+            );
+            painter.line_segment(
+                [
+                    icon.min + egui::vec2(8.0, 10.0),
+                    icon.min + egui::vec2(8.0, 12.0),
+                ],
+                stroke,
+            );
+        }
+        FileIconKind::Pdf | FileIconKind::Code | FileIconKind::Font | FileIconKind::Executable => {
+            let mark = match kind {
+                FileIconKind::Pdf => "PDF",
+                FileIconKind::Code => "<>",
+                FileIconKind::Font => "A",
+                FileIconKind::Executable => "EX",
+                _ => unreachable!(),
+            };
+            painter.text(
+                icon.center() + egui::vec2(0.0, 2.0),
+                egui::Align2::CENTER_CENTER,
+                mark,
+                egui::FontId::proportional(if kind == FileIconKind::Pdf { 5.3 } else { 7.0 }),
+                white,
+            );
+        }
+        FileIconKind::Generic | FileIconKind::Folder => {}
+    }
+}
+
+fn folder_icon(ui: &mut egui::Ui) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+    paint_file_icon(ui.painter(), rect, FileIconKind::Folder);
 }
 
 struct ArchiveApp {
     path: String,
     entries: Vec<ArchiveEntry>,
     nodes: Vec<TreeNode>,
-    roots: Vec<usize>,
     selected_dir: usize,
+    pending_tree_selection: Option<usize>,
     col_widths: [f32; 4],
     tree_width: f32,
     drag_origin_widths: [f32; 4],
 }
 
 impl ArchiveApp {
-    fn dir_children(&self, node_idx: usize) -> Vec<usize> {
-        self.nodes[node_idx].children.clone()
+    fn select_dir(&mut self, node_idx: usize) {
+        if node_idx < self.nodes.len() {
+            self.selected_dir = node_idx;
+            self.pending_tree_selection = Some(node_idx);
+        }
+    }
+
+    fn select_parent(&mut self) -> bool {
+        let Some(parent_idx) = self.nodes[self.selected_dir].parent else {
+            return false;
+        };
+        self.select_dir(parent_idx);
+        true
+    }
+
+    fn dir_contents(&self, node_idx: usize) -> Vec<DirItem> {
+        let node = &self.nodes[node_idx];
+        node.children
+            .iter()
+            .copied()
+            .map(DirItem::Directory)
+            .chain(node.files.iter().copied().map(DirItem::File))
+            .collect()
     }
 }
 
@@ -257,6 +556,24 @@ impl eframe::App for ArchiveApp {
             )
             .show(ui, |ui| {
                 ui.horizontal_centered(|ui| {
+                    let can_go_up = self.nodes[self.selected_dir].parent.is_some();
+                    let arrow_color = if can_go_up {
+                        egui::Color32::WHITE
+                    } else {
+                        egui::Color32::from_rgb(105, 119, 136)
+                    };
+                    let up_button =
+                        egui::Button::new(egui::RichText::new("↑").color(arrow_color).size(18.0))
+                            .min_size(egui::vec2(30.0, 26.0))
+                            .fill(egui::Color32::from_rgb(49, 65, 84))
+                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(79, 96, 116)));
+                    let up_response = ui
+                        .add_enabled(can_go_up, up_button)
+                        .on_hover_text("Up one level");
+                    if up_response.clicked() {
+                        self.select_parent();
+                    }
+                    ui.add_space(4.0);
                     ui.heading(
                         egui::RichText::new(&self.path)
                             .color(egui::Color32::WHITE)
@@ -292,10 +609,8 @@ impl eframe::App for ArchiveApp {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
 
-                    let (tree_rect, _) = ui.allocate_exact_size(
-                        egui::vec2(tree_w, available.y),
-                        egui::Sense::hover(),
-                    );
+                    let (tree_rect, _) = ui
+                        .allocate_exact_size(egui::vec2(tree_w, available.y), egui::Sense::hover());
                     ui.scope_builder(
                         egui::UiBuilder::new()
                             .id_salt("tree_panel")
@@ -313,18 +628,29 @@ impl eframe::App for ArchiveApp {
                                 .auto_shrink([false, false])
                                 .show(ui, |ui| {
                                     let id = ui.make_persistent_id("archive_tree");
+                                    let mut state =
+                                        TreeViewState::<usize>::load(ui, id).unwrap_or_default();
+                                    if let Some(node_idx) = self.pending_tree_selection.take() {
+                                        state.set_one_selected(node_idx);
+                                        let mut ancestor = Some(node_idx);
+                                        while let Some(idx) = ancestor {
+                                            state.set_openness(idx, true);
+                                            ancestor = self.nodes[idx].parent;
+                                        }
+                                        state.store(ui, id);
+                                    } else if state.selected().is_empty() {
+                                        state.set_one_selected(0);
+                                        state.set_openness(0, true);
+                                        state.store(ui, id);
+                                    }
                                     let (_response, actions) =
                                         TreeView::new(id).show(ui, |builder| {
-                                            for &root in &self.roots {
-                                                self.build_tree_node(builder, root);
-                                            }
+                                            self.build_tree_node(builder, 0);
                                         });
                                     for action in actions {
                                         if let egui_ltreeview::Action::SetSelected(ids) = action {
                                             if let Some(&node_idx) = ids.first() {
-                                                if node_idx < self.nodes.len()
-                                                    && !self.nodes[node_idx].children.is_empty()
-                                                {
+                                                if node_idx < self.nodes.len() {
                                                     self.selected_dir = node_idx;
                                                 }
                                             }
@@ -351,8 +677,8 @@ impl eframe::App for ArchiveApp {
                         });
                     }
                     if splitter.1.dragged() {
-                        self.tree_width = (self.tree_width + splitter.1.drag_delta().x)
-                            .clamp(80.0, tree_max);
+                        self.tree_width =
+                            (self.tree_width + splitter.1.drag_delta().x).clamp(80.0, tree_max);
                     }
 
                     let (table_rect, _) = ui.allocate_exact_size(
@@ -366,7 +692,7 @@ impl eframe::App for ArchiveApp {
                             .layout(egui::Layout::top_down(egui::Align::Min)),
                         |ui| {
                             let row_height = ui.spacing().interact_size.y + 4.0;
-                            let children = self.dir_children(self.selected_dir);
+                            let contents = self.dir_contents(self.selected_dir);
                             let headers = ["Name", "Size", "Modified", "Mode"];
 
                             // Column x positions shared by the header and the rows.
@@ -393,8 +719,8 @@ impl eframe::App for ArchiveApp {
                             }
 
                             // Column dividers with drag handles.
-                            for i in 0..3 {
-                                let boundary = cumulative_x[i] + self.col_widths[i];
+                            for (i, &column_x) in cumulative_x.iter().take(3).enumerate() {
+                                let boundary = column_x + self.col_widths[i];
                                 let handle_rect = egui::Rect::from_min_size(
                                     egui::pos2(boundary - 3.0, hdr_rect.min.y),
                                     egui::vec2(6.0, row_height),
@@ -436,31 +762,49 @@ impl eframe::App for ArchiveApp {
                                 .id_salt("table_scroll")
                                 .auto_shrink([false, false])
                                 .show(ui, |ui| {
-                                    for &child_idx in &children {
-                                        let node = &self.nodes[child_idx];
-                                        let entry = node.entry_index.map(|i| &self.entries[i]);
-
-                                        let is_dir = !node.children.is_empty()
-                                            || entry.map(|e| e.is_dir).unwrap_or(false);
-                                        let name = if is_dir {
-                                            format!("{}/", node.name)
-                                        } else {
-                                            node.name.clone()
+                                    for item in &contents {
+                                        let (
+                                            row_id,
+                                            name,
+                                            size,
+                                            mtime,
+                                            mode,
+                                            icon_kind,
+                                            target_dir,
+                                        ) = match *item {
+                                            DirItem::Directory(node_idx) => {
+                                                let node = &self.nodes[node_idx];
+                                                let entry = node
+                                                    .entry_index
+                                                    .map(|entry_idx| &self.entries[entry_idx]);
+                                                (
+                                                    ui.make_persistent_id(("dir_row", node_idx)),
+                                                    node.name.clone(),
+                                                    String::new(),
+                                                    entry.and_then(|entry| entry.mtime),
+                                                    entry
+                                                        .map(|entry| {
+                                                            mode_string(entry.mode, entry.is_dir)
+                                                        })
+                                                        .unwrap_or_default(),
+                                                    FileIconKind::Folder,
+                                                    Some(node_idx),
+                                                )
+                                            }
+                                            DirItem::File(entry_idx) => {
+                                                let entry = &self.entries[entry_idx];
+                                                let name = entry_name(&entry.pathname).to_string();
+                                                (
+                                                    ui.make_persistent_id(("file_row", entry_idx)),
+                                                    name.clone(),
+                                                    human_size(entry.size),
+                                                    entry.mtime,
+                                                    mode_string(entry.mode, false),
+                                                    file_icon_kind(&name),
+                                                    None,
+                                                )
+                                            }
                                         };
-                                        let size = if is_dir {
-                                            String::new()
-                                        } else {
-                                            entry
-                                                .map(|e| human_size(e.size))
-                                                .unwrap_or_default()
-                                        };
-                                        let mtime = entry
-                                            .and_then(|e| e.mtime)
-                                            .map(Some)
-                                            .unwrap_or(None);
-                                        let mode = entry
-                                            .map(|e| mode_string(e.mode, e.is_dir))
-                                            .unwrap_or_default();
 
                                         let row_rect = ui.allocate_space(egui::vec2(
                                             ui.available_width(),
@@ -468,34 +812,39 @@ impl eframe::App for ArchiveApp {
                                         ));
                                         let row_rect = row_rect.1;
 
-                                        let response = ui.interact(
-                                            row_rect,
-                                            ui.make_persistent_id(child_idx),
-                                            egui::Sense::click(),
-                                        );
+                                        let response =
+                                            ui.interact(row_rect, row_id, egui::Sense::click());
                                         if response.hovered() {
-                                            ui.painter()
-                                                .rect_filled(row_rect, 0.0, hover_bg);
+                                            ui.painter().rect_filled(row_rect, 0.0, hover_bg);
                                         }
-                                        if response.double_clicked() && is_dir {
-                                            self.selected_dir = child_idx;
+                                        if response.double_clicked() {
+                                            if let Some(node_idx) = target_dir {
+                                                self.select_dir(node_idx);
+                                            }
                                         }
 
-                                        let cols = [
-                                            &name,
-                                            &size,
-                                            &format_mtime(mtime),
-                                            &mode,
-                                        ];
+                                        let modified = format_mtime(mtime);
+                                        let cols = [&name, &size, &modified, &mode];
                                         for (i, text) in cols.iter().enumerate() {
                                             let w = self.col_widths[i];
                                             let cell_rect = egui::Rect::from_min_size(
                                                 egui::pos2(cumulative_x[i], row_rect.min.y),
                                                 egui::vec2(w, row_height),
                                             );
-                                            ui.painter().text(
+                                            if i == 0 {
+                                                let icon_rect = egui::Rect::from_center_size(
+                                                    egui::pos2(
+                                                        cell_rect.min.x + 14.0,
+                                                        cell_rect.center().y,
+                                                    ),
+                                                    egui::vec2(18.0, 18.0),
+                                                );
+                                                paint_file_icon(ui.painter(), icon_rect, icon_kind);
+                                            }
+                                            ui.painter().with_clip_rect(cell_rect).text(
                                                 egui::pos2(
-                                                    cell_rect.min.x + 4.0,
+                                                    cell_rect.min.x
+                                                        + if i == 0 { 27.0 } else { 4.0 },
                                                     cell_rect.center().y,
                                                 ),
                                                 egui::Align2::LEFT_CENTER,
@@ -517,16 +866,122 @@ impl ArchiveApp {
     fn build_tree_node(&self, builder: &mut egui_ltreeview::TreeViewBuilder<usize>, idx: usize) {
         let node = &self.nodes[idx];
         if node.children.is_empty() {
-            builder.leaf(idx, &node.name);
+            builder.node(
+                NodeBuilder::leaf(idx)
+                    .icon(folder_icon)
+                    .label(node.name.clone()),
+            );
         } else {
-            builder.dir(idx, &node.name);
+            builder.node(
+                NodeBuilder::dir(idx)
+                    .default_open(idx == 0)
+                    .icon(folder_icon)
+                    .label(node.name.clone()),
+            );
             for &child in &node.children {
-                if !self.nodes[child].children.is_empty() {
-                    self.build_tree_node(builder, child);
-                }
+                self.build_tree_node(builder, child);
             }
             builder.close_dir();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(pathname: &str, is_dir: bool) -> ArchiveEntry {
+        ArchiveEntry {
+            pathname: pathname.to_string(),
+            size: if is_dir { 0 } else { 128 },
+            mode: if is_dir { AE_IFDIR } else { 0 },
+            mtime: None,
+            is_dir,
+        }
+    }
+
+    fn child_named(nodes: &[TreeNode], parent: usize, name: &str) -> usize {
+        nodes[parent]
+            .children
+            .iter()
+            .copied()
+            .find(|&idx| nodes[idx].name == name)
+            .unwrap_or_else(|| panic!("missing directory {name}"))
+    }
+
+    #[test]
+    fn tree_contains_root_and_directories_only() {
+        let entries = vec![
+            entry("root.txt", false),
+            entry("docs/", true),
+            entry("docs/readme.md", false),
+            entry("docs/images/logo.png", false),
+            entry("empty/", true),
+        ];
+
+        let nodes = build_tree(&entries);
+        let docs = child_named(&nodes, 0, "docs");
+        let images = child_named(&nodes, docs, "images");
+        let empty = child_named(&nodes, 0, "empty");
+
+        assert_eq!(nodes.len(), 4);
+        assert_eq!(nodes[0].name, "/");
+        assert_eq!(nodes[0].parent, None);
+        assert_eq!(nodes[0].files, vec![0]);
+        assert_eq!(nodes[docs].parent, Some(0));
+        assert_eq!(nodes[docs].entry_index, Some(1));
+        assert_eq!(nodes[docs].files, vec![2]);
+        assert_eq!(nodes[images].parent, Some(docs));
+        assert_eq!(nodes[images].files, vec![3]);
+        assert_eq!(nodes[empty].parent, Some(0));
+        assert!(nodes[empty].children.is_empty());
+        assert!(nodes[empty].files.is_empty());
+    }
+
+    #[test]
+    fn tree_synthesizes_implicit_directories_and_windows_separators() {
+        let entries = vec![entry("src\\nested\\main.rs", false)];
+
+        let nodes = build_tree(&entries);
+        let src = child_named(&nodes, 0, "src");
+        let nested = child_named(&nodes, src, "nested");
+
+        assert_eq!(nodes[nested].files, vec![0]);
+        assert_eq!(entry_name(&entries[0].pathname), "main.rs");
+    }
+
+    #[test]
+    fn parent_navigation_stops_at_root_and_syncs_tree_selection() {
+        let entries = vec![entry("docs/readme.md", false)];
+        let nodes = build_tree(&entries);
+        let docs = child_named(&nodes, 0, "docs");
+        let mut app = ArchiveApp {
+            path: String::new(),
+            entries,
+            nodes,
+            selected_dir: 0,
+            pending_tree_selection: None,
+            col_widths: [0.0; 4],
+            tree_width: 0.0,
+            drag_origin_widths: [0.0; 4],
+        };
+
+        app.select_dir(docs);
+        assert_eq!(app.selected_dir, docs);
+        assert_eq!(app.pending_tree_selection, Some(docs));
+        assert!(app.select_parent());
+        assert_eq!(app.selected_dir, 0);
+        assert_eq!(app.pending_tree_selection, Some(0));
+        assert!(!app.select_parent());
+        assert_eq!(app.selected_dir, 0);
+    }
+
+    #[test]
+    fn file_icons_are_selected_case_insensitively() {
+        assert_eq!(file_icon_kind("photo.PNG"), FileIconKind::Image);
+        assert_eq!(file_icon_kind("report.PDF"), FileIconKind::Pdf);
+        assert_eq!(file_icon_kind("backup.tar.gz"), FileIconKind::Archive);
+        assert_eq!(file_icon_kind("README"), FileIconKind::Generic);
     }
 }
 
@@ -551,16 +1006,16 @@ fn main() -> ExitCode {
         }
     };
 
-    let (nodes, roots) = build_tree(&entries);
-    let selected_dir = if roots.len() == 1 { roots[0] } else { 0 };
+    let nodes = build_tree(&entries);
+    let selected_dir = 0;
 
     let title = format!("archive-view — {path}");
     let app = ArchiveApp {
         path: path.clone(),
         entries,
         nodes,
-        roots,
         selected_dir,
+        pending_tree_selection: None,
         col_widths: [300.0, 100.0, 100.0, 100.0],
         tree_width: 280.0,
         drag_origin_widths: [0.0; 4],
@@ -580,9 +1035,10 @@ fn main() -> ExitCode {
             let mut fonts = egui::FontDefinitions::default();
             let font_path = "C:\\Windows\\Fonts\\msyh.ttc";
             if let Ok(data) = std::fs::read(font_path) {
-                fonts
-                    .font_data
-                    .insert("msyh".to_owned(), Arc::new(egui::FontData::from_owned(data)));
+                fonts.font_data.insert(
+                    "msyh".to_owned(),
+                    Arc::new(egui::FontData::from_owned(data)),
+                );
                 fonts
                     .families
                     .entry(egui::FontFamily::Proportional)
