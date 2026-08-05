@@ -40,6 +40,7 @@ class PaneController extends ChangeNotifier {
   int _activeTabIndex = 0;
   final Set<String> _selectedPaths = {};
   String? _anchorPath;
+  String? _focusedPath;
   bool _loading = false;
   int _revision = 0;
   _ListingRequest? _activeRequest;
@@ -53,9 +54,9 @@ class PaneController extends ChangeNotifier {
     String initialPath, {
     DirectoryRepository? repository,
     Future<void> Function()? frameYield,
-  })  : _currentPath = initialPath,
-        _repository = repository ?? DirectoryRepository(),
-        _frameYield = frameYield ?? _defaultFrameYield {
+  }) : _currentPath = initialPath,
+       _repository = repository ?? DirectoryRepository(),
+       _frameYield = frameYield ?? _defaultFrameYield {
     _tabs.add(TabInfo(path: initialPath, label: _pathLabel(initialPath)));
     _startListing(initialPath);
   }
@@ -75,6 +76,7 @@ class PaneController extends ChangeNotifier {
     }
     return _currentPath;
   }
+
   List<FileEntry> get entries => _entries;
   bool get canGoBack => _backStack.isNotEmpty;
   bool get canGoForward => _forwardStack.isNotEmpty;
@@ -87,6 +89,7 @@ class PaneController extends ChangeNotifier {
   List<TabInfo> get tabs => List.unmodifiable(_tabs);
   int get activeTabIndex => _activeTabIndex;
   Set<String> get selectedPaths => _selectedPaths;
+  String? get focusedPath => _focusedPath;
   int get entryCount => _entries.length;
   int get selectedCount => _selectedPaths.length;
   SortColumn get sortColumn => _sortColumn;
@@ -150,6 +153,7 @@ class PaneController extends ChangeNotifier {
     _loading = true;
     _selectedPaths.clear();
     _anchorPath = null;
+    _focusedPath = null;
     notifyListeners();
 
     final totalSw = Stopwatch()..start();
@@ -169,7 +173,8 @@ class PaneController extends ChangeNotifier {
         _activeRequest = null;
       }
       debugPrint(
-          '[Perf] Paged -- failed to start session (${sessionSw.elapsedMilliseconds}ms)');
+        '[Perf] Paged -- failed to start session (${sessionSw.elapsedMilliseconds}ms)',
+      );
       return;
     }
 
@@ -362,6 +367,7 @@ class PaneController extends ChangeNotifier {
     _selectedPaths.clear();
     _selectedPaths.add(path);
     _anchorPath = path;
+    _focusedPath = path;
     notifyListeners();
   }
 
@@ -372,10 +378,12 @@ class PaneController extends ChangeNotifier {
       _selectedPaths.add(path);
     }
     _anchorPath = path;
+    _focusedPath = path;
     notifyListeners();
   }
 
   void selectRange(String path) {
+    _focusedPath = path;
     _anchorPath ??= path;
 
     int anchorIndex = -1;
@@ -404,13 +412,15 @@ class PaneController extends ChangeNotifier {
     for (final e in _entries) {
       _selectedPaths.add(e.path);
     }
+    _focusedPath ??= _entries.isEmpty ? null : _entries.first.path;
     notifyListeners();
   }
 
   void clearSelection() {
-    if (_selectedPaths.isNotEmpty) {
+    if (_selectedPaths.isNotEmpty || _focusedPath != null) {
       _selectedPaths.clear();
       _anchorPath = null;
+      _focusedPath = null;
       notifyListeners();
     }
   }

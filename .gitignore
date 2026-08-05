@@ -23,6 +23,7 @@ desktop.ini
 plugins/*/target/
 plugins/*.exe
 plugins/*.dll
+plugins/dist/
 plugins/video-view/mpv-dev/
 plugins/archive-view/libarchive/
 plugins/office-view-web/

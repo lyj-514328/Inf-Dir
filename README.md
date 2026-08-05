@@ -2,6 +2,11 @@
 
 A new Flutter project.
 
+## Development documents
+
+- [Viewer plugin system](docs/plugin-system.md)
+- [Sidebar synchronization](docs/sidebar-sync-refactor.md)
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

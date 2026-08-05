@@ -1,0 +1,17 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.office-view",
+  "name": "Office 查看器",
+  "version": "0.1.0",
+  "entrypoint": "office-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [".docx", ".xlsx", ".pptx", ".docm", ".xlsm", ".pptm"],
+      "mimeTypes": [
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      ]
+    }
+  }
+}

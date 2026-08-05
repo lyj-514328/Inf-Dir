@@ -106,3 +106,10 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# Viewer plugins are built separately by plugins/build.bat. When the dist
+# directory exists, install each self-contained plugin package beside the app.
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/../plugins/dist/"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/plugins"
+  OPTIONAL
+  COMPONENT Runtime)

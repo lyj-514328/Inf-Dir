@@ -7,6 +7,7 @@ REM  Prerequisites: rustup, cargo, 7z (scoop install 7zip)
 REM ============================================================
 
 set "SCRIPT_DIR=%~dp0"
+set "DIST_DIR=%SCRIPT_DIR%dist"
 set "MPV_DEV_URL=https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260610/mpv-dev-x86_64-20260610-git-304426c.7z"
 set "MPV_DEV_7Z=%SCRIPT_DIR%video-view\mpv-dev.7z"
 set "MPV_DEV_DIR=%SCRIPT_DIR%video-view\mpv-dev"
@@ -181,16 +182,40 @@ REM ============================================================
 REM  Install artifacts to plugins/
 REM ============================================================
 echo Installing artifacts...
-copy /Y "%SCRIPT_DIR%img-view\target\release\img-view.exe" "%SCRIPT_DIR%" >nul
-copy /Y "%SCRIPT_DIR%text-view\target\release\text-view.exe" "%SCRIPT_DIR%" >nul
-copy /Y "%SCRIPT_DIR%archive-view\target\release\archive-view.exe" "%SCRIPT_DIR%" >nul
-copy /Y "%LIBARCHIVE_DEPS%\bin\archive.dll" "%SCRIPT_DIR%" >nul
-copy /Y "%SCRIPT_DIR%office-view\target\release\office-view.exe" "%SCRIPT_DIR%" >nul
-copy /Y "%SCRIPT_DIR%video-view\target\x86_64-pc-windows-gnu\release\video-view.exe" "%SCRIPT_DIR%" >nul
-copy /Y "%MPV_DEV_DIR%\libmpv-2.dll" "%SCRIPT_DIR%" >nul
-copy /Y "%SCRIPT_DIR%pdf-view\target\release\pdf-view.exe" "%SCRIPT_DIR%" >nul
-copy /Y "%SCRIPT_DIR%pdf-view\target\release\pdfium.dll" "%SCRIPT_DIR%" >nul
+if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
+
+for %%D in (
+    inf-dir.image-view
+    inf-dir.text-view
+    inf-dir.archive-view
+    inf-dir.office-view
+    inf-dir.video-view
+    inf-dir.pdf-view
+) do if not exist "%DIST_DIR%\%%D" mkdir "%DIST_DIR%\%%D"
+
+copy /Y "%SCRIPT_DIR%img-view\plugin.json" "%DIST_DIR%\inf-dir.image-view\" >nul
+copy /Y "%SCRIPT_DIR%img-view\target\release\img-view.exe" "%DIST_DIR%\inf-dir.image-view\" >nul
+
+copy /Y "%SCRIPT_DIR%text-view\plugin.json" "%DIST_DIR%\inf-dir.text-view\" >nul
+copy /Y "%SCRIPT_DIR%text-view\target\release\text-view.exe" "%DIST_DIR%\inf-dir.text-view\" >nul
+
+copy /Y "%SCRIPT_DIR%archive-view\plugin.json" "%DIST_DIR%\inf-dir.archive-view\" >nul
+copy /Y "%SCRIPT_DIR%archive-view\target\release\archive-view.exe" "%DIST_DIR%\inf-dir.archive-view\" >nul
+copy /Y "%LIBARCHIVE_DEPS%\bin\archive.dll" "%DIST_DIR%\inf-dir.archive-view\" >nul
+
+copy /Y "%SCRIPT_DIR%office-view\plugin.json" "%DIST_DIR%\inf-dir.office-view\" >nul
+copy /Y "%SCRIPT_DIR%office-view\target\release\office-view.exe" "%DIST_DIR%\inf-dir.office-view\" >nul
+if exist "%DIST_DIR%\inf-dir.office-view\office-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.office-view\office-view-web"
+xcopy /E /I /Y /Q "%OOXML_WEB%" "%DIST_DIR%\inf-dir.office-view\office-view-web" >nul
+
+copy /Y "%SCRIPT_DIR%video-view\plugin.json" "%DIST_DIR%\inf-dir.video-view\" >nul
+copy /Y "%SCRIPT_DIR%video-view\target\x86_64-pc-windows-gnu\release\video-view.exe" "%DIST_DIR%\inf-dir.video-view\" >nul
+copy /Y "%MPV_DEV_DIR%\libmpv-2.dll" "%DIST_DIR%\inf-dir.video-view\" >nul
+
+copy /Y "%SCRIPT_DIR%pdf-view\plugin.json" "%DIST_DIR%\inf-dir.pdf-view\" >nul
+copy /Y "%SCRIPT_DIR%pdf-view\target\release\pdf-view.exe" "%DIST_DIR%\inf-dir.pdf-view\" >nul
+copy /Y "%SCRIPT_DIR%pdf-view\target\release\pdfium.dll" "%DIST_DIR%\inf-dir.pdf-view\" >nul
 
 echo.
-echo [DONE] All plugins built and installed to: %SCRIPT_DIR%
+echo [DONE] All plugins built and installed to: %DIST_DIR%
 endlocal

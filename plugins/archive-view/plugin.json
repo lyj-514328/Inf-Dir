@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.archive-view",
+  "name": "压缩包查看器",
+  "version": "0.1.0",
+  "entrypoint": "archive-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [
+        ".zip", ".7z", ".rar", ".tar", ".gz", ".xz", ".bz2",
+        ".iso", ".cab", ".arj", ".lzh"
+      ],
+      "mimeTypes": [
+        "application/zip", "application/x-7z-compressed",
+        "application/vnd.rar", "application/x-tar", "application/gzip"
+      ]
+    }
+  }
+}

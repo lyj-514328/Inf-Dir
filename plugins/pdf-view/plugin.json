@@ -1,0 +1,13 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.pdf-view",
+  "name": "PDF 查看器",
+  "version": "0.1.0",
+  "entrypoint": "pdf-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [".pdf"],
+      "mimeTypes": ["application/pdf"]
+    }
+  }
+}

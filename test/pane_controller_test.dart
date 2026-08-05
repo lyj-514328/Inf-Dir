@@ -10,11 +10,8 @@ void main() {
     late ManualPump pump;
     late DirectoryRepository repo;
 
-    PaneController makePane(String path) => PaneController(
-          path,
-          repository: repo,
-          frameYield: pump.yieldFrame,
-        );
+    PaneController makePane(String path) =>
+        PaneController(path, repository: repo, frameYield: pump.yieldFrame);
 
     setUp(() {
       source = FakeCursorSource({
@@ -122,6 +119,21 @@ void main() {
       expect(pc.entries, isEmpty);
       expect(pc.isLoading, isFalse);
       expect(source.last.isOpen, isFalse);
+      pc.dispose();
+    });
+
+    test('focusedPath 跟随最近操作项并在清空时重置', () {
+      final pc = makePane('C:\\A');
+      pc.selectSingle('C:\\A\\f1.txt');
+      expect(pc.focusedPath, 'C:\\A\\f1.txt');
+
+      pc.selectSingle('C:\\A\\a1');
+      expect(pc.focusedPath, 'C:\\A\\a1');
+
+      pc.toggleSelection('C:\\A\\a1');
+      expect(pc.selectedPaths, isEmpty);
+      pc.clearSelection();
+      expect(pc.focusedPath, isNull);
       pc.dispose();
     });
 

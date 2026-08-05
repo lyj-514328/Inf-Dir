@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.video-view",
+  "name": "视频查看器",
+  "version": "0.1.0",
+  "entrypoint": "video-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [
+        ".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv", ".wmv",
+        ".m4v", ".mpg", ".mpeg", ".ts", ".3gp"
+      ],
+      "mimeTypes": ["video/*"]
+    }
+  }
+}

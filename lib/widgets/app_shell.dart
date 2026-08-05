@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../features/quick_view/quick_view_service.dart';
+import '../features/quick_view/viewer_associations_dialog.dart';
 import '../state/app_state.dart';
 import '../state/layout_state.dart';
 import '../state/sidebar_controller.dart';
@@ -45,6 +48,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     context.read<LayoutState>().activePanePath.removeListener(_syncSidebar);
+    ServicesBinding.instance.keyboard.removeHandler(_onKey);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -59,25 +63,48 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   bool _onKey(KeyEvent event) {
-    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.altLeft ||
-        event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.altRight) {
+    if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.altLeft ||
+        event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.altRight) {
       context.read<LayoutState>().showAltOverlay();
     }
     if (event is KeyUpEvent && event.logicalKey == LogicalKeyboardKey.altLeft ||
-        event is KeyUpEvent && event.logicalKey == LogicalKeyboardKey.altRight) {
+        event is KeyUpEvent &&
+            event.logicalKey == LogicalKeyboardKey.altRight) {
       context.read<LayoutState>().hideAltOverlay();
     }
     // F3 — Quick View
-    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.f3) {
+    final keyboard = HardwareKeyboard.instance;
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.f3 &&
+        !keyboard.isAltPressed &&
+        !keyboard.isControlPressed &&
+        !keyboard.isShiftPressed) {
+      final route = ModalRoute.of(context);
+      if (route != null && !route.isCurrent) return false;
       final layout = context.read<LayoutState>();
       final node = layout.focusedNode;
       final ctrl = layout.controllerFor(node);
-      final selected = ctrl?.selectedPaths;
-      if (selected != null && selected.isNotEmpty) {
-        QuickViewService.open(selected.first);
+      final path =
+          ctrl?.focusedPath ??
+          (ctrl != null && ctrl.selectedPaths.isNotEmpty
+              ? ctrl.selectedPaths.first
+              : null);
+      if (path != null) {
+        unawaited(_openQuickView(path));
       }
+      return true;
     }
-    return false; // 不拦截，继续传递给其他 handler
+    return false;
+  }
+
+  Future<void> _openQuickView(String path) async {
+    final result = await context.read<QuickViewService>().open(path);
+    if (!mounted || result.started) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(result.message)));
   }
 
   @override
@@ -91,7 +118,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     return Scaffold(
       body: Column(
         children: [
-          _MenuBar(),
+          _MenuBar(
+            onViewerAssociations: () => showViewerAssociationsDialog(context),
+          ),
           _WorkspaceBar(
             layoutState: layoutState,
             showHiddenFiles: context.watch<AppState>().showHiddenFiles,
@@ -112,7 +141,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     margin: const EdgeInsets.all(1),
                     clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+                      borderRadius: BorderRadius.circular(
+                        AppMetrics.paneRadius,
+                      ),
                       border: Border.all(color: c.border),
                       color: c.surface,
                     ),
@@ -131,7 +162,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     dragging: _sidebarDragging,
                     onHoverChanged: (v) => setState(() => _sidebarHovering = v),
                     onDragStart: () => setState(() => _sidebarDragging = true),
-                    onDragUpdate: (delta) => setState(() => _sidebarWidth = (_sidebarWidth + delta).clamp(150, double.infinity)),
+                    onDragUpdate: (delta) => setState(
+                      () => _sidebarWidth = (_sidebarWidth + delta).clamp(
+                        150,
+                        double.infinity,
+                      ),
+                    ),
                     onDragEnd: () {
                       setState(() => _sidebarDragging = false);
                     },
@@ -190,7 +226,11 @@ class _WorkspaceBar extends StatelessWidget {
             child: SizedBox(
               width: 26,
               height: 26,
-              child: Icon(Icons.add, size: AppMetrics.iconMd, color: c.textSecondary),
+              child: Icon(
+                Icons.add,
+                size: AppMetrics.iconMd,
+                color: c.textSecondary,
+              ),
             ),
           ),
           const Spacer(),
@@ -205,8 +245,7 @@ class _WorkspaceBar extends StatelessWidget {
                 child: Icon(
                   showHiddenFiles ? Icons.visibility : Icons.visibility_off,
                   size: AppMetrics.iconMd,
-                  color:
-                      showHiddenFiles ? c.accent : c.textSecondary,
+                  color: showHiddenFiles ? c.accent : c.textSecondary,
                 ),
               ),
             ),
@@ -219,7 +258,11 @@ class _WorkspaceBar extends StatelessWidget {
               child: SizedBox(
                 width: 22,
                 height: 22,
-                child: Icon(theme.icon, size: AppMetrics.iconMd, color: c.textSecondary),
+                child: Icon(
+                  theme.icon,
+                  size: AppMetrics.iconMd,
+                  color: c.textSecondary,
+                ),
               ),
             ),
           ),
@@ -295,6 +338,10 @@ class _WorkspaceTab extends StatelessWidget {
 }
 
 class _MenuBar extends StatelessWidget {
+  const _MenuBar({required this.onViewerAssociations});
+
+  final VoidCallback onViewerAssociations;
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
@@ -304,13 +351,13 @@ class _MenuBar extends StatelessWidget {
       color: c.surfaceSubtle,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(
-        children: const [
-          _MenuLabel('文件(F)'),
-          _MenuLabel('编辑(E)'),
-          _MenuLabel('视图(V)'),
-          _MenuLabel('收藏夹(A)'),
-          _MenuLabel('选项(O)'),
-          _MenuLabel('信息(H)'),
+        children: [
+          const _MenuLabel('文件(F)'),
+          const _MenuLabel('编辑(E)'),
+          const _MenuLabel('视图(V)'),
+          const _MenuLabel('收藏夹(A)'),
+          _MenuLabel('选项(O)', onTap: onViewerAssociations),
+          const _MenuLabel('信息(H)'),
         ],
       ),
     );
@@ -319,15 +366,23 @@ class _MenuBar extends StatelessWidget {
 
 class _MenuLabel extends StatelessWidget {
   final String label;
-  const _MenuLabel(this.label);
+  final VoidCallback? onTap;
+
+  const _MenuLabel(this.label, {this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: AppMetrics.fontBody, color: context.colors.textPrimary),
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: AppMetrics.fontBody,
+            color: context.colors.textPrimary,
+          ),
+        ),
       ),
     );
   }
@@ -368,8 +423,8 @@ class _SideSplitter extends StatelessWidget {
           color: dragging
               ? c.accent
               : hovering
-                  ? c.accent.withValues(alpha: 0.35)
-                  : Colors.transparent,
+              ? c.accent.withValues(alpha: 0.35)
+              : Colors.transparent,
         ),
       ),
     );

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'features/quick_view/quick_view_service.dart';
 import 'services/directory_repository.dart';
 import 'state/app_state.dart';
 import 'state/layout_state.dart';
@@ -19,8 +20,7 @@ void main() {
           create: (_) => DirectoryRepository(
             yieldFrame: () {
               final c = Completer<void>();
-              WidgetsBinding.instance
-                  .addPostFrameCallback((_) => c.complete());
+              WidgetsBinding.instance.addPostFrameCallback((_) => c.complete());
               return c.future;
             },
           ),
@@ -34,10 +34,12 @@ void main() {
               LayoutState(repository: ctx.read<DirectoryRepository>()),
         ),
         ChangeNotifierProvider(
-          create: (ctx) =>
-              SidebarSyncController(repository: ctx.read<DirectoryRepository>()),
+          create: (ctx) => SidebarSyncController(
+            repository: ctx.read<DirectoryRepository>(),
+          ),
         ),
         ChangeNotifierProvider(create: (_) => ThemeController()),
+        ChangeNotifierProvider(create: (_) => QuickViewService()),
       ],
       child: const InfDirApp(),
     ),
