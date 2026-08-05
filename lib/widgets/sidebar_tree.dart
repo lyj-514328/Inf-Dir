@@ -348,12 +348,16 @@ class _SidebarTreeState extends State<SidebarTree> {
               ),
             ),
             const SizedBox(width: 4),
-            Text(
-              'Loading...',
-              style: TextStyle(
-                  fontSize: AppMetrics.fontSmall,
-                  color: c.textTertiary,
-                  fontStyle: FontStyle.italic),
+            Expanded(
+              child: Text(
+                'Loading...',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: AppMetrics.fontSmall,
+                    color: c.textTertiary,
+                    fontStyle: FontStyle.italic),
+              ),
             ),
           ],
         ),
