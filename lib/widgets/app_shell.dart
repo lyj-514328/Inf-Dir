@@ -25,6 +25,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   bool _sidebarHovering = false;
   bool _sidebarDragging = false;
 
+  /// 侧栏点击触发的导航：随后的 syncTo 不应让侧栏滚动到选中节点。
+  /// navigateTo 同步触发 activePanePath → _syncSidebar，故在此消费。
+  bool _suppressSidebarScroll = false;
+
   @override
   void initState() {
     super.initState();
@@ -42,7 +46,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _syncSidebar() {
     final layout = context.read<LayoutState>();
-    context.read<SidebarSyncController>().syncTo(layout.activePanePath.value);
+    final suppress = _suppressSidebarScroll;
+    _suppressSidebarScroll = false;
+    context.read<SidebarSyncController>().syncTo(
+          layout.activePanePath.value,
+          scrollToSelected: !suppress,
+        );
   }
 
   @override
@@ -152,7 +161,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       width: _sidebarWidth,
                       child: SidebarTree(
                         onNavigate: (path) {
+                          _suppressSidebarScroll = true;
                           activePane?.navigateTo(path);
+                          _suppressSidebarScroll = false;
                         },
                       ),
                     ),

@@ -56,6 +56,7 @@ class SidebarSyncController extends ChangeNotifier {
 
   // 同一轮事件的重复 syncTo 用 microtask 合并，只提交最后一个（§12）。
   String? _pendingSyncPath;
+  bool _pendingScrollToSelected = true;
   bool _syncCoalesceScheduled = false;
 
   bool _disposed = false;
@@ -111,21 +112,26 @@ class SidebarSyncController extends ChangeNotifier {
 
   // ── 路径同步（latest-wins，§6 / §8 / §12）────────────────────
 
-  void syncTo(String path) {
+  /// [scrollToSelected] 为 false 时表示本次同步由用户点击侧栏触发：
+  /// 展开/选中照常，但不自动滚动到选中节点（用户刚点过，位置已知）。
+  void syncTo(String path, {bool scrollToSelected = true}) {
     if (_disposed || path.isEmpty) return;
     _pendingSyncPath = path;
+    _pendingScrollToSelected = scrollToSelected;
     if (_syncCoalesceScheduled) return;
     _syncCoalesceScheduled = true;
     scheduleMicrotask(() {
       _syncCoalesceScheduled = false;
       if (_disposed) return;
       final target = _pendingSyncPath;
+      final scroll = _pendingScrollToSelected;
       _pendingSyncPath = null;
-      if (target != null) _startSync(target);
+      _pendingScrollToSelected = true;
+      if (target != null) _startSync(target, scrollToSelected: scroll);
     });
   }
 
-  void _startSync(String path) {
+  void _startSync(String path, {required bool scrollToSelected}) {
     // 取消旧 request：回滚它的 partial、loading 和自动展开（§3）。
     final old = _syncToken;
     _syncToken = null;
@@ -133,8 +139,14 @@ class SidebarSyncController extends ChangeNotifier {
 
     final token = repository.startRequest();
     _syncToken = token;
-    needsScrollToSelected = true;
-    scrollFollowDismissed = false;
+    if (scrollToSelected) {
+      needsScrollToSelected = true;
+      scrollFollowDismissed = false;
+    } else {
+      // 点击触发：不跟随滚动，同时取消上一轮同步遗留的滚动请求。
+      needsScrollToSelected = false;
+      scrollFollowDismissed = true;
+    }
 
     // Quick Access：命中则高亮，同时继续展开树。
     for (final item in quickAccessItems) {
