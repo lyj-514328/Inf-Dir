@@ -1,13 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import '../services/file_service.dart';
 import '../services/home_service.dart';
 import '../services/icon_service.dart';
-import '../services/sidebar_service.dart';
 import '../state/pane_controller.dart';
-import '../state/sidebar_controller.dart';
 import 'app_theme.dart';
+
+enum _HomeListTab { recent, favorites, shared }
+
+enum _RowAction { openLocation, copyPath, addFavorite, removeFavorite }
 
 class HomeView extends StatefulWidget {
   final PaneController controller;
@@ -24,7 +29,10 @@ class HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<HomeView> {
+  List<RecentFile> _recommended = const [];
   List<RecentFile> _recentFiles = const [];
+  List<RecentFile> _favorites = const [];
+  _HomeListTab _activeTab = _HomeListTab.recent;
   int _loadId = 0;
   final ScrollController _scrollController = ScrollController();
 
@@ -32,7 +40,7 @@ class _HomeViewState extends State<HomeView> {
   void initState() {
     super.initState();
     widget.controller.addListener(_onControllerChanged);
-    _loadRecentFiles();
+    _loadHomeData();
   }
 
   @override
@@ -41,7 +49,7 @@ class _HomeViewState extends State<HomeView> {
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onControllerChanged);
       widget.controller.addListener(_onControllerChanged);
-      _loadRecentFiles();
+      _loadHomeData();
     }
   }
 
@@ -53,56 +61,49 @@ class _HomeViewState extends State<HomeView> {
   }
 
   void _onControllerChanged() {
-    if (widget.controller.isHome) _loadRecentFiles();
+    if (widget.controller.isHome) _loadHomeData();
   }
 
-  void _loadRecentFiles() {
+  void _loadHomeData() {
     final loadId = ++_loadId;
     Future<void>.delayed(Duration.zero, () {
-      final items = HomeService.getRecentFiles();
+      final recommended = HomeService.getRecommendedFiles(limit: 8);
+      final recent = HomeService.getRecentFiles(limit: 50);
+      final favorites = HomeService.getFavorites(limit: 50);
       if (!mounted || loadId != _loadId) return;
-      setState(() => _recentFiles = items);
+      setState(() {
+        _recommended = recommended;
+        _recentFiles = recent;
+        _favorites = favorites;
+      });
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final quickAccess = context.watch<SidebarSyncController>().quickAccessItems;
-
     return LayoutBuilder(
       builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth > 40
+            ? constraints.maxWidth - 40
+            : constraints.maxWidth;
         return Scrollbar(
           controller: _scrollController,
           child: SingleChildScrollView(
             controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '主文件夹',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: context.colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                _HomeSectionTitle(icon: Icons.bolt, label: '快速访问'),
+                _HomeSectionHeader(label: '推荐'),
                 const SizedBox(height: 10),
-                _buildQuickAccess(
-                  context,
-                  quickAccess,
-                  constraints.maxWidth > 40 ? constraints.maxWidth - 40 : 0,
+                _buildRecommendations(context, availableWidth),
+                const SizedBox(height: 22),
+                _HomeTabBar(
+                  activeTab: _activeTab,
+                  onChanged: (tab) => setState(() => _activeTab = tab),
                 ),
-                const SizedBox(height: 24),
-                _HomeSectionTitle(icon: Icons.star_border, label: '收藏夹'),
-                const SizedBox(height: 8),
-                _buildFavoritesPlaceholder(context),
-                const SizedBox(height: 24),
-                _HomeSectionTitle(icon: Icons.history, label: '最近使用的文件'),
-                const SizedBox(height: 8),
-                _buildRecentFiles(context),
+                const SizedBox(height: 10),
+                _buildActivityList(context),
               ],
             ),
           ),
@@ -111,57 +112,49 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  Widget _buildQuickAccess(
-    BuildContext context,
-    List<QuickAccessItem> items,
-    double availableWidth,
-  ) {
-    if (items.isEmpty) {
-      return _emptyLine(context, '暂无快速访问项');
+  Widget _buildRecommendations(BuildContext context, double availableWidth) {
+    if (_recommended.isEmpty) {
+      return _emptyLine(context, '暂无推荐文件');
     }
 
-    final columnCount = (availableWidth / 220).floor().clamp(1, 4);
-    final calculatedWidth =
-        (availableWidth - (columnCount - 1) * 10) / columnCount;
-    final cardWidth = availableWidth < 160
-        ? availableWidth
-        : calculatedWidth.clamp(160.0, 280.0);
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        for (final item in items)
-          SizedBox(
-            width: cardWidth,
-            child: _QuickAccessCard(
-              item: item,
-              onTap: () => widget.onNavigate(item.path),
+    const gap = 12.0;
+    final fitWidth = (availableWidth - gap * 7) / 8;
+    final cardWidth = fitWidth >= 180 ? fitWidth : 228.0;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var i = 0; i < _recommended.length && i < 8; i++) ...[
+            SizedBox(
+              width: cardWidth,
+              child: _RecommendedCard(
+                item: _recommended[i],
+                onTap: () => FileService.openFile(_recommended[i].path),
+              ),
             ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildFavoritesPlaceholder(BuildContext context) {
-    final c = context.colors;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: c.surfaceSubtle,
-        border: Border.all(color: c.border),
-        borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
-      ),
-      child: Text(
-        '收藏一些文件后，它们将在此处显示。',
-        style: TextStyle(fontSize: AppMetrics.fontBody, color: c.textSecondary),
+            if (i < _recommended.length - 1 && i < 7)
+              const SizedBox(width: gap),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _buildRecentFiles(BuildContext context) {
-    if (_recentFiles.isEmpty) {
-      return _emptyLine(context, '暂无最近使用的文件');
+  Widget _buildActivityList(BuildContext context) {
+    final items = switch (_activeTab) {
+      _HomeListTab.recent => _recentFiles,
+      _HomeListTab.favorites => _favorites,
+      _HomeListTab.shared => const <RecentFile>[],
+    };
+
+    if (_activeTab == _HomeListTab.shared) {
+      return _emptyLine(context, '暂无已共享文件');
+    }
+    if (items.isEmpty) {
+      return _emptyLine(
+        context,
+        _activeTab == _HomeListTab.recent ? '暂无最近使用的文件' : '暂无收藏文件',
+      );
     }
 
     return Container(
@@ -169,14 +162,31 @@ class _HomeViewState extends State<HomeView> {
         border: Border.all(color: context.colors.border),
         borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          for (var i = 0; i < _recentFiles.length; i++) ...[
-            _RecentFileRow(
-              item: _recentFiles[i],
-              onTap: () => FileService.openFile(_recentFiles[i].path),
+          _ActivityHeader(),
+          for (var i = 0; i < items.length; i++) ...[
+            _ActivityRow(
+              item: items[i],
+              isFavorite:
+                  _activeTab == _HomeListTab.favorites ||
+                  HomeService.isFavorite(items[i].path),
+              onTap: () => FileService.openFile(items[i].path),
+              onOpenLocation: () =>
+                  FileService.openContainingFolder(items[i].path),
+              onCopyPath: () =>
+                  Clipboard.setData(ClipboardData(text: items[i].path)),
+              onFavoriteChanged: () {
+                if (HomeService.isFavorite(items[i].path)) {
+                  HomeService.removeFavorite(items[i].path);
+                } else {
+                  HomeService.addFavorite(items[i].path);
+                }
+                _loadHomeData();
+              },
             ),
-            if (i < _recentFiles.length - 1)
+            if (i < items.length - 1)
               Divider(height: 1, color: context.colors.border),
           ],
         ],
@@ -198,19 +208,22 @@ class _HomeViewState extends State<HomeView> {
   }
 }
 
-class _HomeSectionTitle extends StatelessWidget {
-  final IconData icon;
+class _HomeSectionHeader extends StatelessWidget {
   final String label;
 
-  const _HomeSectionTitle({required this.icon, required this.label});
+  const _HomeSectionHeader({required this.label});
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     return Row(
       children: [
-        Icon(icon, size: AppMetrics.iconMd, color: c.textSecondary),
-        const SizedBox(width: 7),
+        Icon(
+          Icons.keyboard_arrow_down,
+          size: AppMetrics.iconMd,
+          color: c.textSecondary,
+        ),
+        const SizedBox(width: 8),
         Text(
           label,
           style: TextStyle(
@@ -224,11 +237,95 @@ class _HomeSectionTitle extends StatelessWidget {
   }
 }
 
-class _QuickAccessCard extends StatelessWidget {
-  final QuickAccessItem item;
+class _HomeTabBar extends StatelessWidget {
+  final _HomeListTab activeTab;
+  final ValueChanged<_HomeListTab> onChanged;
+
+  const _HomeTabBar({required this.activeTab, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _HomeTab(
+          icon: Icons.history,
+          label: '最近使用的文件',
+          active: activeTab == _HomeListTab.recent,
+          onTap: () => onChanged(_HomeListTab.recent),
+        ),
+        const SizedBox(width: 8),
+        _HomeTab(
+          icon: Icons.star_border,
+          label: '收藏夹',
+          active: activeTab == _HomeListTab.favorites,
+          onTap: () => onChanged(_HomeListTab.favorites),
+        ),
+        const SizedBox(width: 8),
+        _HomeTab(
+          icon: Icons.people_outline,
+          label: '已共享',
+          active: activeTab == _HomeListTab.shared,
+          onTap: () => onChanged(_HomeListTab.shared),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeTab extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
   final VoidCallback onTap;
 
-  const _QuickAccessCard({required this.item, required this.onTap});
+  const _HomeTab({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Material(
+      color: active ? c.accent : c.surfaceSubtle,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        hoverColor: c.surfaceHover,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: AppMetrics.iconSm,
+                color: active ? c.surface : c.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: AppMetrics.fontSmall,
+                  color: active ? c.surface : c.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecommendedCard extends StatelessWidget {
+  final RecentFile item;
+  final VoidCallback onTap;
+
+  const _RecommendedCard({required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -240,46 +337,99 @@ class _QuickAccessCard extends StatelessWidget {
         hoverColor: c.surfaceHover,
         borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 72),
-          padding: const EdgeInsets.all(12),
+          height: 178,
           decoration: BoxDecoration(
             border: Border.all(color: c.border),
             borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
           ),
-          child: Row(
+          clipBehavior: Clip.antiAlias,
+          child: Column(
             children: [
-              _HomeIcon(
-                path: item.path,
-                isDirectory: true,
-                fallback: _quickAccessIcon(item.name),
-                size: 40,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+                child: Row(
                   children: [
-                    Text(
-                      item.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontBody,
-                        color: c.textPrimary,
+                    Icon(
+                      Icons.open_in_new,
+                      size: AppMetrics.iconSm,
+                      color: c.accent,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '你经常打开此',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: AppMetrics.fontSmall,
+                              color: c.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            _formatDate(item.modified),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: AppMetrics.fontCaption,
+                              color: c.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      item.path.startsWith('::') ||
-                              item.path.startsWith('shell:')
-                          ? '系统位置'
-                          : '本地存储',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontSmall,
-                        color: c.textSecondary,
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  color: c.surfaceSubtle,
+                  alignment: Alignment.center,
+                  child: _HomeIcon(
+                    path: item.path,
+                    isDirectory: false,
+                    fallback: Icons.insert_drive_file_outlined,
+                    size: 64,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 7, 10, 8),
+                child: Row(
+                  children: [
+                    _HomeIcon(
+                      path: item.path,
+                      isDirectory: false,
+                      fallback: Icons.insert_drive_file_outlined,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: AppMetrics.fontSmall,
+                              color: c.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            _shortPath(item.path),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: AppMetrics.fontCaption,
+                              color: c.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -291,103 +441,204 @@ class _QuickAccessCard extends StatelessWidget {
       ),
     );
   }
-
-  static IconData _quickAccessIcon(String name) {
-    if (name.contains('桌面')) return Icons.desktop_windows;
-    if (name.contains('下载')) return Icons.download;
-    if (name.contains('文档')) return Icons.description;
-    if (name.contains('图片')) return Icons.image;
-    if (name.contains('音乐')) return Icons.music_note;
-    if (name.contains('视频')) return Icons.videocam;
-    return Icons.folder;
-  }
 }
 
-class _RecentFileRow extends StatelessWidget {
-  final RecentFile item;
-  final VoidCallback onTap;
-
-  const _RecentFileRow({required this.item, required this.onTap});
+class _ActivityHeader extends StatelessWidget {
+  const _ActivityHeader();
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: c.surfaceHover,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final showDate = constraints.maxWidth >= 420;
-            final showPath = constraints.maxWidth >= 680;
-            return SizedBox(
-              height: 48,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    _HomeIcon(
-                      path: item.path,
-                      isDirectory: false,
-                      fallback: Icons.insert_drive_file_outlined,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        item.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: AppMetrics.fontBody,
-                          color: c.textPrimary,
-                        ),
-                      ),
-                    ),
-                    if (showDate) ...[
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        width: 130,
-                        child: Text(
-                          _formatDate(item.modified),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: AppMetrics.fontSmall,
-                            color: c.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (showPath) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 4,
-                        child: Text(
-                          item.path,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: AppMetrics.fontSmall,
-                            color: c.textTertiary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+    return Container(
+      height: 34,
+      color: c.surfaceSubtle,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children:
+            [
+              const Expanded(flex: 5, child: Text('名称')),
+              const Expanded(flex: 2, child: Text('访问日期')),
+              const Expanded(flex: 1, child: Text('账户')),
+              const Expanded(flex: 2, child: Text('活动')),
+              const SizedBox(width: 72),
+            ].map((child) {
+              return DefaultTextStyle(
+                style: TextStyle(
+                  fontSize: AppMetrics.fontSmall,
+                  color: c.textSecondary,
                 ),
+                child: child,
+              );
+            }).toList(),
+      ),
+    );
+  }
+}
+
+class _ActivityRow extends StatefulWidget {
+  final RecentFile item;
+  final bool isFavorite;
+  final VoidCallback onTap;
+  final VoidCallback onOpenLocation;
+  final VoidCallback onCopyPath;
+  final VoidCallback onFavoriteChanged;
+
+  const _ActivityRow({
+    required this.item,
+    required this.isFavorite,
+    required this.onTap,
+    required this.onOpenLocation,
+    required this.onCopyPath,
+    required this.onFavoriteChanged,
+  });
+
+  @override
+  State<_ActivityRow> createState() => _ActivityRowState();
+}
+
+class _ActivityRowState extends State<_ActivityRow> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Material(
+        color: _hovering ? c.surfaceHover : c.surface,
+        child: InkWell(
+          onTap: widget.onTap,
+          hoverColor: c.surfaceHover,
+          child: SizedBox(
+            height: 52,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 620;
+                  return Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Row(
+                          children: [
+                            _HomeIcon(
+                              path: widget.item.path,
+                              isDirectory: false,
+                              fallback: Icons.insert_drive_file_outlined,
+                              size: 27,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.item.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: AppMetrics.fontBody,
+                                      color: c.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    _shortPath(widget.item.path),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: AppMetrics.fontCaption,
+                                      color: c.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!compact) ...[
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            _formatDate(widget.item.modified),
+                            style: TextStyle(
+                              fontSize: AppMetrics.fontSmall,
+                              color: c.textSecondary,
+                            ),
+                          ),
+                        ),
+                        const Expanded(flex: 1, child: Text('本地')),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            widget.isFavorite ? '已收藏' : '最近访问',
+                            style: TextStyle(
+                              fontSize: AppMetrics.fontSmall,
+                              color: c.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                      SizedBox(
+                        width: 72,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            if (_hovering)
+                              PopupMenuButton<_RowAction>(
+                                tooltip: '更多操作',
+                                padding: EdgeInsets.zero,
+                                icon: Icon(
+                                  Icons.more_horiz,
+                                  size: AppMetrics.iconMd,
+                                  color: c.textSecondary,
+                                ),
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(
+                                    value: _RowAction.openLocation,
+                                    child: Text('打开文件位置'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: _RowAction.copyPath,
+                                    child: Text('复制路径'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: widget.isFavorite
+                                        ? _RowAction.removeFavorite
+                                        : _RowAction.addFavorite,
+                                    child: Text(
+                                      widget.isFavorite ? '取消收藏' : '添加到收藏夹',
+                                    ),
+                                  ),
+                                ],
+                                onSelected: (action) {
+                                  switch (action) {
+                                    case _RowAction.openLocation:
+                                      widget.onOpenLocation();
+                                    case _RowAction.copyPath:
+                                      widget.onCopyPath();
+                                    case _RowAction.addFavorite:
+                                    case _RowAction.removeFavorite:
+                                      widget.onFavoriteChanged();
+                                  }
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ),
         ),
       ),
     );
   }
-
-  String _formatDate(DateTime date) =>
-      '${date.year}/${date.month}/${date.day} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 }
 
 class _HomeIcon extends StatelessWidget {
@@ -406,11 +657,33 @@ class _HomeIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final png = IconService.getFileIconPng(
-      path,
-      isDirectory,
-      (size * 1.5).round(),
-    );
+    final ext = p.extension(path).toLowerCase();
+    if (!isDirectory &&
+        const {
+          '.png',
+          '.jpg',
+          '.jpeg',
+          '.gif',
+          '.bmp',
+          '.webp',
+        }.contains(ext) &&
+        File(path).existsSync()) {
+      return Image.file(
+        File(path),
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) =>
+            Icon(fallback, size: size, color: c.iconFile),
+      );
+    }
+
+    Uint8List? png;
+    try {
+      png = IconService.getFileIconPng(path, isDirectory, (size * 1.5).round());
+    } on Object {
+      png = null;
+    }
     if (png != null) {
       return Image.memory(png, width: size, height: size, fit: BoxFit.contain);
     }
@@ -420,4 +693,13 @@ class _HomeIcon extends StatelessWidget {
       color: isDirectory ? c.iconFolder : c.iconFile,
     );
   }
+}
+
+String _formatDate(DateTime date) =>
+    '${date.year}/${date.month}/${date.day} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+String _shortPath(String path) {
+  if (path.toLowerCase().endsWith('.lnk')) return '最近使用';
+  final parent = p.dirname(path);
+  return parent == path ? path : parent;
 }

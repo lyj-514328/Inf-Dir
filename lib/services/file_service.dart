@@ -65,6 +65,11 @@ class FileService {
     await Process.run('cmd', ['/c', 'start', '', filePath]);
   }
 
+  static Future<void> openContainingFolder(String filePath) async {
+    if (!Platform.isWindows) return;
+    await Process.run('explorer.exe', ['/select,"$filePath"']);
+  }
+
   static Future<void> deleteEntry(String path) async {
     final type = FileSystemEntity.typeSync(path);
     if (type == FileSystemEntityType.directory) {
