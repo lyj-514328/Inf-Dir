@@ -28,5 +28,7 @@ plugins/video-view/mpv-dev/
 plugins/archive-view/libarchive/
 plugins/office-view-web/
 plugins/office-view/_ooxml.tgz
+plugins/markdown-view-web/
+plugins/markdown-view/_web_tmp/
 plugins/office-view.exe.WebView2/
 plugins/*.log

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Markdown 查看器</title>
+<link rel="stylesheet" href="./github-markdown.css" />
+<link rel="stylesheet" href="./katex.min.css" />
+<link rel="stylesheet" href="./hljs-github.min.css" media="(prefers-color-scheme: light)" />
+<link rel="stylesheet" href="./hljs-github-dark.min.css" media="(prefers-color-scheme: dark)" />
+<link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+<div id="status">加载中…</div>
+<main id="content" class="markdown-body"></main>
+<script src="./markdown-it.min.js"></script>
+<script src="./highlight.min.js"></script>
+<script defer src="./katex.min.js"></script>
+<script defer src="./katex-auto-render.min.js"></script>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

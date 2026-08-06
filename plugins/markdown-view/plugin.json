@@ -1,0 +1,13 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.markdown-view",
+  "name": "Markdown 查看器",
+  "version": "0.1.0",
+  "entrypoint": "markdown-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [".md", ".markdown", ".mdown", ".mkd"],
+      "mimeTypes": ["text/markdown", "text/x-markdown"]
+    }
+  }
+}

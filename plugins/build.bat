@@ -18,6 +18,12 @@ set "OOXML_VERSION=0.75.4"
 set "OOXML_URL=https://registry.npmjs.org/@silurus/ooxml/-/ooxml-%OOXML_VERSION%.tgz"
 set "OOXML_TGZ=%SCRIPT_DIR%office-view\_ooxml.tgz"
 set "OOXML_WEB=%SCRIPT_DIR%office-view-web"
+set "MDIT_VERSION=14.1.0"
+set "KATEX_VERSION=0.16.11"
+set "HLJS_VERSION=11.10.0"
+set "GHCSS_VERSION=5.7.0"
+set "MERMAID_VERSION=11.4.1"
+set "MD_WEB=%SCRIPT_DIR%markdown-view-web"
 
 REM --- Add MinGW-w64 (ucrt64) to PATH for GNU target ---
 if exist "C:\msys64\ucrt64\bin" (
@@ -33,7 +39,7 @@ REM ============================================================
 REM  1. Prepare mpv-dev for video-view
 REM ============================================================
 if not exist "%MPV_DEV_DIR%\libmpv-2.dll" (
-    echo [1/9] Downloading mpv-dev...
+    echo [1/11] Downloading mpv-dev...
     if not exist "%MPV_DEV_7Z%" (
         curl -L -o "%MPV_DEV_7Z%" "%MPV_DEV_URL%"
         if errorlevel 1 (
@@ -41,7 +47,7 @@ if not exist "%MPV_DEV_DIR%\libmpv-2.dll" (
             exit /b 1
         )
     )
-    echo [1/9] Extracting mpv-dev...
+    echo [1/11] Extracting mpv-dev...
     if not exist "%MPV_DEV_DIR%" mkdir "%MPV_DEV_DIR%"
     7z x "%MPV_DEV_7Z%" -o"%MPV_DEV_DIR%" -y >nul
     if errorlevel 1 (
@@ -50,14 +56,14 @@ if not exist "%MPV_DEV_DIR%\libmpv-2.dll" (
     )
     del "%MPV_DEV_7Z%" 2>nul
 ) else (
-    echo [1/9] mpv-dev already present, skipping.
+    echo [1/11] mpv-dev already present, skipping.
 )
 
 REM ============================================================
 REM  2. Prepare libarchive for archive-view
 REM ============================================================
 if not exist "%LIBARCHIVE_DEPS%\lib\libarchive.lib" (
-    echo [2/9] Downloading libarchive...
+    echo [2/11] Downloading libarchive...
     if not exist "%LIBARCHIVE_ZIP%" (
         curl -L -o "%LIBARCHIVE_ZIP%" "%LIBARCHIVE_URL%"
         if errorlevel 1 (
@@ -65,7 +71,7 @@ if not exist "%LIBARCHIVE_DEPS%\lib\libarchive.lib" (
             exit /b 1
         )
     )
-    echo [2/9] Extracting libarchive...
+    echo [2/11] Extracting libarchive...
     set "LA_TMP=%SCRIPT_DIR%archive-view\_la_tmp"
     if not exist "!LA_TMP!" mkdir "!LA_TMP!"
     7z x "%LIBARCHIVE_ZIP%" -o"!LA_TMP!" -y >nul
@@ -83,14 +89,14 @@ if not exist "%LIBARCHIVE_DEPS%\lib\libarchive.lib" (
     rmdir /s /q "!LA_TMP!" 2>nul
     del "%LIBARCHIVE_ZIP%" 2>nul
 ) else (
-    echo [2/9] libarchive already present, skipping.
+    echo [2/11] libarchive already present, skipping.
 )
 
 REM ============================================================
 REM  3. Prepare @silurus/ooxml web assets for office-view
 REM ============================================================
 if not exist "%OOXML_WEB%\docx.mjs" (
-    echo [3/9] Downloading @silurus/ooxml %OOXML_VERSION%...
+    echo [3/11] Downloading @silurus/ooxml %OOXML_VERSION%...
     if not exist "%OOXML_TGZ%" (
         curl -L -o "%OOXML_TGZ%" "%OOXML_URL%"
         if errorlevel 1 (
@@ -98,7 +104,7 @@ if not exist "%OOXML_WEB%\docx.mjs" (
             exit /b 1
         )
     )
-    echo [3/9] Extracting @silurus/ooxml...
+    echo [3/11] Extracting @silurus/ooxml...
     set "OOXML_TMP=%SCRIPT_DIR%office-view\_ooxml_tmp"
     if exist "!OOXML_TMP!" rmdir /s /q "!OOXML_TMP!"
     mkdir "!OOXML_TMP!"
@@ -121,58 +127,180 @@ if not exist "%OOXML_WEB%\docx.mjs" (
     rmdir /s /q "!OOXML_TMP!" 2>nul
     del "%OOXML_TGZ%" 2>nul
 ) else (
-    echo [3/9] @silurus/ooxml assets already present, skipping.
+    echo [3/11] @silurus/ooxml assets already present, skipping.
 )
 
 REM ============================================================
-REM  4. Build img-view (MSVC)
+REM  4. Prepare markdown-view web assets (markdown-it / KaTeX /
+REM     highlight.js / github-markdown-css / mermaid)
 REM ============================================================
-echo [4/9] Building img-view...
+if not exist "%MD_WEB%\markdown-it.min.js" (
+    echo [4/11] Downloading markdown-view web assets...
+    set "MD_TMP=%SCRIPT_DIR%markdown-view\_web_tmp"
+    if exist "!MD_TMP!" rmdir /s /q "!MD_TMP!"
+    mkdir "!MD_TMP!"
+    if not exist "%MD_WEB%" mkdir "%MD_WEB%"
+
+    curl -L -o "!MD_TMP!\markdown-it.tgz" "https://registry.npmjs.org/markdown-it/-/markdown-it-%MDIT_VERSION%.tgz"
+    if errorlevel 1 (
+        echo [ERROR] Failed to download markdown-it.
+        exit /b 1
+    )
+    curl -L -o "!MD_TMP!\katex.tgz" "https://registry.npmjs.org/katex/-/katex-%KATEX_VERSION%.tgz"
+    if errorlevel 1 (
+        echo [ERROR] Failed to download katex.
+        exit /b 1
+    )
+    curl -L -o "!MD_TMP!\hljs.tgz" "https://registry.npmjs.org/@highlightjs/cdn-assets/-/cdn-assets-%HLJS_VERSION%.tgz"
+    if errorlevel 1 (
+        echo [ERROR] Failed to download highlight.js.
+        exit /b 1
+    )
+    curl -L -o "!MD_TMP!\ghcss.tgz" "https://registry.npmjs.org/github-markdown-css/-/github-markdown-css-%GHCSS_VERSION%.tgz"
+    if errorlevel 1 (
+        echo [ERROR] Failed to download github-markdown-css.
+        exit /b 1
+    )
+    curl -L -o "!MD_TMP!\mermaid.tgz" "https://registry.npmjs.org/mermaid/-/mermaid-%MERMAID_VERSION%.tgz"
+    if errorlevel 1 (
+        echo [ERROR] Failed to download mermaid.
+        exit /b 1
+    )
+
+    echo [4/11] Extracting markdown-view web assets...
+    7z x "!MD_TMP!\markdown-it.tgz" -o"!MD_TMP!\p-mdit" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract markdown-it.
+        exit /b 1
+    )
+    7z x "!MD_TMP!\p-mdit\markdown-it.tar" -o"!MD_TMP!\p-mdit\pkg" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract markdown-it tar.
+        exit /b 1
+    )
+    copy /Y "!MD_TMP!\p-mdit\pkg\package\dist\markdown-it.min.js" "%MD_WEB%\" >nul
+
+    7z x "!MD_TMP!\katex.tgz" -o"!MD_TMP!\p-katex" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract katex.
+        exit /b 1
+    )
+    7z x "!MD_TMP!\p-katex\katex.tar" -o"!MD_TMP!\p-katex\pkg" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract katex tar.
+        exit /b 1
+    )
+    copy /Y "!MD_TMP!\p-katex\pkg\package\dist\katex.min.css" "%MD_WEB%\" >nul
+    copy /Y "!MD_TMP!\p-katex\pkg\package\dist\katex.min.js" "%MD_WEB%\" >nul
+    copy /Y "!MD_TMP!\p-katex\pkg\package\dist\contrib\auto-render.min.js" "%MD_WEB%\katex-auto-render.min.js" >nul
+    xcopy /E /I /Y /Q "!MD_TMP!\p-katex\pkg\package\dist\fonts" "%MD_WEB%\fonts" >nul
+
+    7z x "!MD_TMP!\hljs.tgz" -o"!MD_TMP!\p-hljs" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract highlight.js.
+        exit /b 1
+    )
+    7z x "!MD_TMP!\p-hljs\hljs.tar" -o"!MD_TMP!\p-hljs\pkg" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract highlight.js tar.
+        exit /b 1
+    )
+    copy /Y "!MD_TMP!\p-hljs\pkg\package\highlight.min.js" "%MD_WEB%\" >nul
+    copy /Y "!MD_TMP!\p-hljs\pkg\package\styles\github.min.css" "%MD_WEB%\hljs-github.min.css" >nul
+    copy /Y "!MD_TMP!\p-hljs\pkg\package\styles\github-dark.min.css" "%MD_WEB%\hljs-github-dark.min.css" >nul
+
+    7z x "!MD_TMP!\ghcss.tgz" -o"!MD_TMP!\p-ghcss" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract github-markdown-css.
+        exit /b 1
+    )
+    7z x "!MD_TMP!\p-ghcss\ghcss.tar" -o"!MD_TMP!\p-ghcss\pkg" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract github-markdown-css tar.
+        exit /b 1
+    )
+    copy /Y "!MD_TMP!\p-ghcss\pkg\package\github-markdown.css" "%MD_WEB%\" >nul
+
+    7z x "!MD_TMP!\mermaid.tgz" -o"!MD_TMP!\p-mermaid" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract mermaid.
+        exit /b 1
+    )
+    7z x "!MD_TMP!\p-mermaid\mermaid.tar" -o"!MD_TMP!\p-mermaid\pkg" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract mermaid tar.
+        exit /b 1
+    )
+    copy /Y "!MD_TMP!\p-mermaid\pkg\package\dist\mermaid.min.js" "%MD_WEB%\" >nul
+
+    rmdir /s /q "!MD_TMP!" 2>nul
+) else (
+    echo [4/11] markdown-view web assets already present, skipping.
+)
+
+REM Glue files are always refreshed so edits take effect without re-downloading.
+copy /Y "%SCRIPT_DIR%markdown-view\web\index.html" "%MD_WEB%\" >nul
+copy /Y "%SCRIPT_DIR%markdown-view\web\app.js" "%MD_WEB%\" >nul
+copy /Y "%SCRIPT_DIR%markdown-view\web\app.css" "%MD_WEB%\" >nul
+
+REM ============================================================
+REM  5. Build img-view (MSVC)
+REM ============================================================
+echo [5/11] Building img-view...
 pushd "%SCRIPT_DIR%img-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] img-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  5. Build text-view (MSVC)
+REM  6. Build text-view (MSVC)
 REM ============================================================
-echo [5/9] Building text-view...
+echo [6/11] Building text-view...
 pushd "%SCRIPT_DIR%text-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] text-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  6. Build archive-view (MSVC)
+REM  7. Build archive-view (MSVC)
 REM ============================================================
-echo [6/9] Building archive-view...
+echo [7/11] Building archive-view...
 pushd "%SCRIPT_DIR%archive-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] archive-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  7. Build office-view (MSVC + WebView2)
+REM  8. Build office-view (MSVC + WebView2)
 REM ============================================================
-echo [7/9] Building office-view...
+echo [8/11] Building office-view...
 pushd "%SCRIPT_DIR%office-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] office-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  8. Build video-view (GNU / MinGW-w64)
+REM  9. Build markdown-view (MSVC + WebView2)
 REM ============================================================
-echo [8/9] Building video-view...
+echo [9/11] Building markdown-view...
+pushd "%SCRIPT_DIR%markdown-view"
+cargo build --release
+if errorlevel 1 ( echo [ERROR] markdown-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
+REM  10. Build video-view (GNU / MinGW-w64)
+REM ============================================================
+echo [10/11] Building video-view...
 pushd "%SCRIPT_DIR%video-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] video-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  9. Build pdf-view (GNU / MinGW-w64 + PDFium)
+REM  11. Build pdf-view (GNU / MinGW-w64 + PDFium)
 REM ============================================================
-echo [9/9] Building pdf-view...
+echo [11/11] Building pdf-view...
 pushd "%SCRIPT_DIR%pdf-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] pdf-view build failed. & popd & exit /b 1 )
@@ -189,6 +317,7 @@ for %%D in (
     inf-dir.text-view
     inf-dir.archive-view
     inf-dir.office-view
+    inf-dir.markdown-view
     inf-dir.video-view
     inf-dir.pdf-view
 ) do if not exist "%DIST_DIR%\%%D" mkdir "%DIST_DIR%\%%D"
@@ -207,6 +336,11 @@ copy /Y "%SCRIPT_DIR%office-view\plugin.json" "%DIST_DIR%\inf-dir.office-view\" 
 copy /Y "%SCRIPT_DIR%office-view\target\release\office-view.exe" "%DIST_DIR%\inf-dir.office-view\" >nul
 if exist "%DIST_DIR%\inf-dir.office-view\office-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.office-view\office-view-web"
 xcopy /E /I /Y /Q "%OOXML_WEB%" "%DIST_DIR%\inf-dir.office-view\office-view-web" >nul
+
+copy /Y "%SCRIPT_DIR%markdown-view\plugin.json" "%DIST_DIR%\inf-dir.markdown-view\" >nul
+copy /Y "%SCRIPT_DIR%markdown-view\target\release\markdown-view.exe" "%DIST_DIR%\inf-dir.markdown-view\" >nul
+if exist "%DIST_DIR%\inf-dir.markdown-view\markdown-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.markdown-view\markdown-view-web"
+xcopy /E /I /Y /Q "%MD_WEB%" "%DIST_DIR%\inf-dir.markdown-view\markdown-view-web" >nul
 
 copy /Y "%SCRIPT_DIR%video-view\plugin.json" "%DIST_DIR%\inf-dir.video-view\" >nul
 copy /Y "%SCRIPT_DIR%video-view\target\x86_64-pc-windows-gnu\release\video-view.exe" "%DIST_DIR%\inf-dir.video-view\" >nul

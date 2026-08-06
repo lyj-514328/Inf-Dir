@@ -1,0 +1,113 @@
+* { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  background: #ffffff;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  body { background: #0d1117; }
+}
+
+#status {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #444;
+  font-size: 14px;
+  z-index: 10;
+  pointer-events: none;
+  white-space: pre-wrap;
+}
+
+#status.error {
+  color: #b00020;
+  pointer-events: auto;
+  padding: 24px;
+}
+
+#status.hidden { display: none; }
+
+#content {
+  width: min(100% - 64px, 920px);
+  padding: 32px 0 64px;
+}
+
+/* 任务列表复选框 */
+#content .task-list-item {
+  list-style-type: none;
+}
+
+#content .task-list-item input {
+  margin: 0 0.35em 0.25em -1.4em;
+  vertical-align: middle;
+}
+
+/* mermaid 容器 */
+#content .mermaid {
+  margin: 16px 0;
+  text-align: center;
+}
+
+#content .mermaid-error {
+  color: #b00020;
+  white-space: pre-wrap;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+/* GFM Alerts（[!NOTE] 等） */
+#content .markdown-alert {
+  border-left: 0.25em solid;
+  padding: 0.5em 1em;
+}
+
+#content .markdown-alert > :first-child { margin-top: 0.25em; }
+#content .markdown-alert > :last-child { margin-bottom: 0.25em; }
+
+#content .markdown-alert-title {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+#content .markdown-alert-note { border-color: #0969da; }
+#content .markdown-alert-tip { border-color: #1a7f37; }
+#content .markdown-alert-important { border-color: #8250df; }
+#content .markdown-alert-warning { border-color: #9a6700; }
+#content .markdown-alert-caution { border-color: #cf222e; }
+
+#content .markdown-alert-note .markdown-alert-title { color: #0969da; }
+#content .markdown-alert-tip .markdown-alert-title { color: #1a7f37; }
+#content .markdown-alert-important .markdown-alert-title { color: #8250df; }
+#content .markdown-alert-warning .markdown-alert-title { color: #9a6700; }
+#content .markdown-alert-caution .markdown-alert-title { color: #cf222e; }
+
+@media (prefers-color-scheme: dark) {
+  #status { color: #aaa; }
+  #status.error { color: #f85149; }
+
+  #content .markdown-alert-note { border-color: #4493f8; }
+  #content .markdown-alert-tip { border-color: #3fb950; }
+  #content .markdown-alert-important { border-color: #a371f7; }
+  #content .markdown-alert-warning { border-color: #d29922; }
+  #content .markdown-alert-caution { border-color: #f85149; }
+
+  #content .markdown-alert-note .markdown-alert-title { color: #4493f8; }
+  #content .markdown-alert-tip .markdown-alert-title { color: #3fb950; }
+  #content .markdown-alert-important .markdown-alert-title { color: #a371f7; }
+  #content .markdown-alert-warning .markdown-alert-title { color: #d29922; }
+  #content .markdown-alert-caution .markdown-alert-title { color: #f85149; }
+}
