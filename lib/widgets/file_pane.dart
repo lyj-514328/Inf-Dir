@@ -13,6 +13,8 @@ import '../services/shell_context_menu.dart';
 import 'app_theme.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
+import 'file_command_bar.dart';
+import 'file_search_field.dart';
 import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
 import 'home_view.dart';
@@ -60,11 +62,17 @@ class _PaneContent extends StatelessWidget {
             horizontal: AppMetrics.paneGap,
             vertical: 1,
           ),
-          child: _NavToolbarSection(),
+          child: _PaneLocationSection(),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: AppMetrics.paneGap),
-          child: _AddressBarSection(),
+          child: _PaneCommandBarSection(
+            onCut: _cutSelected,
+            onCopy: _copySelected,
+            onPaste: _paste,
+            onRename: _renameSelected,
+            onDelete: _deleteSelected,
+          ),
         ),
         const SizedBox(height: AppMetrics.paneGap),
         Expanded(
@@ -286,6 +294,26 @@ class _PaneTabBarSection extends StatelessWidget {
   }
 }
 
+class _PaneLocationSection extends StatelessWidget {
+  const _PaneLocationSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: AppMetrics.navToolbarHeight,
+      child: Row(
+        children: [
+          const _NavToolbarSection(),
+          const SizedBox(width: 6),
+          const Expanded(flex: 5, child: _AddressBarSection()),
+          const SizedBox(width: 6),
+          const Expanded(flex: 2, child: FileSearchField()),
+        ],
+      ),
+    );
+  }
+}
+
 class _NavToolbarSection extends StatelessWidget {
   const _NavToolbarSection();
 
@@ -306,6 +334,55 @@ class _NavToolbarSection extends StatelessWidget {
           onRefresh: controller.refresh,
         );
       },
+    );
+  }
+}
+
+class _PaneCommandBarSection extends StatelessWidget {
+  final void Function(BuildContext) onCut;
+  final void Function(BuildContext) onCopy;
+  final Future<void> Function(BuildContext) onPaste;
+  final Future<void> Function(BuildContext) onRename;
+  final Future<void> Function(BuildContext) onDelete;
+
+  const _PaneCommandBarSection({
+    required this.onCut,
+    required this.onCopy,
+    required this.onPaste,
+    required this.onRename,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isHome = context.select<PaneController, bool>((c) => c.isHome);
+    final currentPath = context.select<PaneController, String>(
+      (c) => c.currentPath,
+    );
+    final selectionCount = context.select<PaneController, int>(
+      (c) => c.selectedPaths.length,
+    );
+    final hasClipboard = context.select<AppState, bool>((s) => s.hasClipboard);
+    final canSelect = !isHome && selectionCount > 0;
+    final canRename =
+        canSelect &&
+        selectionCount == 1 &&
+        !FileService.isRecycleBinPath(currentPath);
+    final canDelete = canSelect && !FileService.isRecycleBinPath(currentPath);
+    final canPaste =
+        !isHome && !FileService.isRecycleBinPath(currentPath) && hasClipboard;
+
+    return FileCommandBar(
+      canCut: canSelect && !FileService.isRecycleBinPath(currentPath),
+      canCopy: canSelect,
+      canPaste: canPaste,
+      canRename: canRename,
+      canDelete: canDelete,
+      onCut: () => onCut(context),
+      onCopy: () => onCopy(context),
+      onPaste: () => onPaste(context),
+      onRename: () => onRename(context),
+      onDelete: () => onDelete(context),
     );
   }
 }
