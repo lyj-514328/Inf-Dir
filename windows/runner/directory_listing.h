@@ -17,6 +17,7 @@ extern "C" {
 //   [count: int32]
 //   for each item:
 //     [nameLen: int32] [nameChars: wchar_t[]]          -- display name
+//     [nameSortKeyLen: int32] [nameSortKey: byte[]]    -- Windows natural sort key
 //     [pathLen: int32] [pathChars: wchar_t[]]          -- full path / parsing name
 //     [isDirectory: int32]
 //     [hasChildren: int32]                              -- 1 if directory has sub-items

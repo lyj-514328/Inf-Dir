@@ -1,4 +1,5 @@
 import 'dart:ffi';
+import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import '../models/file_entry.dart';
 
@@ -116,7 +117,7 @@ class DirectoryService {
       // Sort: directories first, then by name
       raw.sort((a, b) {
         if (a.isDirectory != b.isDirectory) return a.isDirectory ? -1 : 1;
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        return a.compareNameTo(b);
       });
       sortSw.stop();
 
@@ -140,6 +141,7 @@ class DirectoryService {
   ///   [count: int32]
   ///   for each:
   ///     [nameLen: int32] [nameChars: wchar_t[]]
+  ///     [nameSortKeyLen: int32] [nameSortKey: byte[]]
   ///     [pathLen: int32] [pathChars: wchar_t[]]
   ///     [isDirectory: int32]
   ///     [hasChildren: int32]
@@ -159,8 +161,10 @@ class DirectoryService {
     for (int i = 0; i < count; i++) {
       final (name, o1) = _readWStr(buf, offset);
       offset = o1;
-      final (filePath, o2) = _readWStr(buf, offset);
+      final (nameSortKey, o2) = _readBytes(buf, offset);
       offset = o2;
+      final (filePath, o3) = _readWStr(buf, offset);
+      offset = o3;
 
       int isDir = 0;
       if (offset + 4 <= totalSize) {
@@ -180,8 +184,8 @@ class DirectoryService {
         offset += 8;
       }
 
-      final (modifiedDateStr, o3) = _readWStr(buf, offset);
-      offset = o3;
+      final (modifiedDateStr, o4) = _readWStr(buf, offset);
+      offset = o4;
 
       int isRecycle = 0;
       if (offset + 4 <= totalSize) {
@@ -189,12 +193,12 @@ class DirectoryService {
         offset += 4;
       }
 
-      final (originalPath, o4) = _readWStr(buf, offset);
-      offset = o4;
-      final (recycleDateStr, o5) = _readWStr(buf, offset);
+      final (originalPath, o5) = _readWStr(buf, offset);
       offset = o5;
-      final (parsingName, o6) = _readWStr(buf, offset);
+      final (recycleDateStr, o6) = _readWStr(buf, offset);
       offset = o6;
+      final (parsingName, o7) = _readWStr(buf, offset);
+      offset = o7;
 
       // Drive roots show "Windows (C:)" as name but we want path to be C:\
       // isRecycleBinItem check tells us whether this is a recycle bin entry
@@ -202,6 +206,7 @@ class DirectoryService {
 
       items.add(FileEntry(
         name: name.isNotEmpty ? name : '(unknown)',
+        nameSortKey: nameSortKey.isEmpty ? null : nameSortKey,
         path: itemPath,
         isDirectory: isDir != 0,
         hasChildren: hasChildren != 0,
@@ -229,6 +234,16 @@ class DirectoryService {
     }
     offset += len * 2;
     return (String.fromCharCodes(chars), offset);
+  }
+
+  /// Read a counted byte sequence and copy it out of the native buffer.
+  static (Uint8List, int) _readBytes(Pointer<Uint8> buf, int offset) {
+    final len = (buf + offset).cast<Int32>().value;
+    offset += 4;
+    if (len <= 0) return (Uint8List(0), offset);
+
+    final bytes = Uint8List.fromList((buf + offset).asTypedList(len));
+    return (bytes, offset + len);
   }
 
   /// Parse "YYYY/MM/DD HH:MM:SS" date string.

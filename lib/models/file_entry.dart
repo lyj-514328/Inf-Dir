@@ -1,7 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:path/path.dart' as p;
 
 class FileEntry {
   final String name;
+  final Uint8List? nameSortKey;
   final String path;
   final bool isDirectory;
   final bool hasChildren;
@@ -22,6 +25,7 @@ class FileEntry {
 
   const FileEntry({
     required this.name,
+    this.nameSortKey,
     required this.path,
     required this.isDirectory,
     this.hasChildren = false,
@@ -34,6 +38,33 @@ class FileEntry {
 
   /// Whether this entry is inside the Recycle Bin.
   bool get isRecycleBinItem => parsingName != null;
+
+  int compareNameTo(FileEntry other) {
+    final thisKey = nameSortKey;
+    final otherKey = other.nameSortKey;
+
+    var comparison = 0;
+    if (thisKey != null && otherKey != null) {
+      comparison = _compareSortKeys(thisKey, otherKey);
+    } else {
+      comparison = name.toLowerCase().compareTo(other.name.toLowerCase());
+    }
+
+    if (comparison != 0) return comparison;
+
+    comparison = name.compareTo(other.name);
+    if (comparison != 0) return comparison;
+    return path.compareTo(other.path);
+  }
+
+  static int _compareSortKeys(Uint8List a, Uint8List b) {
+    final commonLength = a.length < b.length ? a.length : b.length;
+    for (var i = 0; i < commonLength; i++) {
+      final comparison = a[i].compareTo(b[i]);
+      if (comparison != 0) return comparison;
+    }
+    return a.length.compareTo(b.length);
+  }
 
   String get type {
     if (isDirectory) return '文件夹';

@@ -39,6 +39,50 @@ static void AppendInt32(std::vector<unsigned char>& buf, int32_t val) {
     buf.insert(buf.end(), (unsigned char*)&val, (unsigned char*)&val + sizeof(val));
 }
 
+static std::vector<unsigned char> BuildNameSortKey(const std::wstring& name) {
+    if (name.empty()) return {};
+
+    constexpr DWORD flags =
+        LCMAP_SORTKEY | SORT_DIGITSASNUMBERS | NORM_IGNORECASE;
+    const int keyLength = LCMapStringEx(
+        LOCALE_NAME_USER_DEFAULT,
+        flags,
+        name.data(),
+        static_cast<int>(name.size()),
+        nullptr,
+        0,
+        nullptr,
+        nullptr,
+        0);
+    if (keyLength <= 0) return {};
+
+    std::vector<unsigned char> key(keyLength);
+    const int written = LCMapStringEx(
+        LOCALE_NAME_USER_DEFAULT,
+        flags,
+        name.data(),
+        static_cast<int>(name.size()),
+        reinterpret_cast<LPWSTR>(key.data()),
+        keyLength,
+        nullptr,
+        nullptr,
+        0);
+    if (written <= 0) return {};
+
+    key.resize(written);
+    return key;
+}
+
+static void AppendNameAndSortKey(
+    std::vector<unsigned char>& buf,
+    const std::wstring& name)
+{
+    AppendString(buf, name);
+    const auto sortKey = BuildNameSortKey(name);
+    AppendInt32(buf, static_cast<int32_t>(sortKey.size()));
+    buf.insert(buf.end(), sortKey.begin(), sortKey.end());
+}
+
 // -- Helper: format a FILETIME as "YYYY/MM/DD HH:MM:SS" ----------------
 
 static std::wstring FormatFileTime(const FILETIME& ft) {
@@ -215,7 +259,7 @@ static bool EnumerateShellFolder(const wchar_t* path,
             }
 
             // Write item to buffer
-            AppendString(buf, name);
+            AppendNameAndSortKey(buf, name);
             AppendString(buf, filePath);
             AppendInt32(buf, isDirectory);
             // For shell folders, if it's a directory we optimistically
@@ -277,7 +321,7 @@ static void EnumerateFilesystem(const wchar_t* path,
             hasChildren = PathIsDirectoryEmptyW(fullPath.c_str()) ? 0 : 1;
         }
 
-        AppendString(buf, name);
+        AppendNameAndSortKey(buf, name);
         AppendString(buf, fullPath);
         AppendInt32(buf, isDirectory);
         AppendInt32(buf, hasChildren);
@@ -341,7 +385,7 @@ static void EnumerateDrives(std::vector<unsigned char>& buf, int32_t& count) {
             }
         }
 
-        AppendString(buf, label);       // name
+        AppendNameAndSortKey(buf, label); // name and natural sort key
         AppendString(buf, root);        // path
         AppendInt32(buf, 1);            // isDirectory
         AppendInt32(buf, hasChildren);  // hasChildren
@@ -549,7 +593,7 @@ static void WriteShellItemToBuffer(
         item2->Release();
     }
 
-    AppendString(buf, name);
+    AppendNameAndSortKey(buf, name);
     AppendString(buf, filePath);
     AppendInt32(buf, isDirectory);
     AppendInt32(buf, isDirectory);
@@ -584,7 +628,7 @@ static void WriteFilesystemItemToBuffer(
         hasChildren = PathIsDirectoryEmptyW(fullPath.c_str()) ? 0 : 1;
     }
 
-    AppendString(buf, name);
+    AppendNameAndSortKey(buf, name);
     AppendString(buf, fullPath);
     AppendInt32(buf, isDirectory);
     AppendInt32(buf, hasChildren);

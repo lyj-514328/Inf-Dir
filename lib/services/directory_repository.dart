@@ -222,8 +222,7 @@ class DirectoryRepository {
 
         // 不可变 List 替换，不在原地修改 Widget 正在读取的 List。
         final merged = [...task.partialChildren, ...dirs];
-        merged.sort(
-            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        merged.sort((a, b) => a.compareNameTo(b));
         task.partialChildren = List.unmodifiable(merged);
 
         // owner 校验：路径可能已被新 request 接管（§7.2）。

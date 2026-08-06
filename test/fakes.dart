@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:inf_dir/models/file_entry.dart';
 import 'package:inf_dir/services/directory_service.dart';
@@ -87,10 +88,15 @@ Future<void> runToIdle(ManualPump pump) async {
   await settle();
 }
 
-FileEntry dirEntry(String path, {bool hasChildren = false}) {
+FileEntry dirEntry(
+  String path, {
+  bool hasChildren = false,
+  List<int>? nameSortKey,
+}) {
   final name = path.replaceAll('/', '\\').split('\\').last;
   return FileEntry(
     name: name.isEmpty ? path : name,
+    nameSortKey: nameSortKey == null ? null : Uint8List.fromList(nameSortKey),
     path: path,
     isDirectory: true,
     hasChildren: hasChildren,
@@ -99,10 +105,11 @@ FileEntry dirEntry(String path, {bool hasChildren = false}) {
   );
 }
 
-FileEntry fileEntry(String path) {
+FileEntry fileEntry(String path, {List<int>? nameSortKey}) {
   final name = path.replaceAll('/', '\\').split('\\').last;
   return FileEntry(
     name: name,
+    nameSortKey: nameSortKey == null ? null : Uint8List.fromList(nameSortKey),
     path: path,
     isDirectory: false,
     size: 1,

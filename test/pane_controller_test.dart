@@ -42,11 +42,120 @@ void main() {
       final pc = makePane('C:\\A');
       // 第一页同步提交
       expect(pc.entries.length, 2);
+      expect(pc.entries.map((e) => e.name), ['a1', 'f1.txt']);
       expect(pc.isLoading, isFalse);
 
       await runToIdle(pump);
       expect(pc.entries.length, 3);
       expect(source.last.isOpen, isFalse);
+      pc.dispose();
+    });
+
+    test('keeps every published page globally sorted', () async {
+      source = FakeCursorSource({
+        'C:\\Paged': [
+          [
+            fileEntry('C:\\Paged\\z.txt'),
+            dirEntry('C:\\Paged\\z-dir'),
+            fileEntry('C:\\Paged\\a.txt'),
+            dirEntry('C:\\Paged\\a-dir'),
+          ],
+          [
+            fileEntry('C:\\Paged\\m.txt'),
+            dirEntry('C:\\Paged\\m-dir'),
+            fileEntry('C:\\Paged\\b.txt'),
+            dirEntry('C:\\Paged\\b-dir'),
+          ],
+          null,
+        ],
+      });
+      repo = DirectoryRepository(
+        cursorFactory: source.open,
+        yieldFrame: pump.yieldFrame,
+        hasChildrenProbe: (_) => true,
+      );
+
+      final pc = makePane('C:\\Paged');
+      expect(pc.entries.map((e) => e.name), [
+        'a-dir',
+        'z-dir',
+        'a.txt',
+        'z.txt',
+      ]);
+
+      pump.pump();
+      await settle();
+      pump.pump();
+      await settle();
+
+      expect(pc.entries.map((e) => e.name), [
+        'a-dir',
+        'b-dir',
+        'm-dir',
+        'z-dir',
+        'a.txt',
+        'b.txt',
+        'm.txt',
+        'z.txt',
+      ]);
+
+      await runToIdle(pump);
+      pc.dispose();
+    });
+
+    test('uses native natural sort keys for name sorting', () async {
+      source = FakeCursorSource({
+        'C:\\Natural': [
+          [
+            fileEntry('C:\\Natural\\file10.txt', nameSortKey: [10]),
+            fileEntry('C:\\Natural\\file2.txt', nameSortKey: [2]),
+            fileEntry('C:\\Natural\\file1.txt', nameSortKey: [1]),
+          ],
+          null,
+        ],
+      });
+      repo = DirectoryRepository(
+        cursorFactory: source.open,
+        yieldFrame: pump.yieldFrame,
+        hasChildrenProbe: (_) => true,
+      );
+
+      final pc = makePane('C:\\Natural');
+      expect(pc.entries.map((entry) => entry.name), [
+        'file1.txt',
+        'file2.txt',
+        'file10.txt',
+      ]);
+
+      await runToIdle(pump);
+      pc.dispose();
+    });
+
+    test('uses a sort change for pages that arrive while loading', () async {
+      source = FakeCursorSource({
+        'C:\\Paged': [
+          [dirEntry('C:\\Paged\\a-dir'), fileEntry('C:\\Paged\\a.txt')],
+          [dirEntry('C:\\Paged\\z-dir'), fileEntry('C:\\Paged\\z.txt')],
+          null,
+        ],
+      });
+      repo = DirectoryRepository(
+        cursorFactory: source.open,
+        yieldFrame: pump.yieldFrame,
+        hasChildrenProbe: (_) => true,
+      );
+
+      final pc = makePane('C:\\Paged');
+      pc.sortBy(SortColumn.name);
+      expect(pc.sortAscending, isFalse);
+
+      await runToIdle(pump);
+      expect(pc.entries.map((e) => e.name), [
+        'z-dir',
+        'a-dir',
+        'z.txt',
+        'a.txt',
+      ]);
       pc.dispose();
     });
 

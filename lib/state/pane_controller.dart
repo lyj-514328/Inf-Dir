@@ -198,7 +198,7 @@ class PaneController extends ChangeNotifier {
       return;
     }
 
-    _entries = firstPage;
+    _entries = _sortedEntries(firstPage);
     _loading = false;
     notifyListeners();
 
@@ -230,7 +230,7 @@ class PaneController extends ChangeNotifier {
       if (!_isCurrent(request)) break;
       if (page == null) break;
 
-      _entries = [..._entries, ...page];
+      _entries = _mergeSortedEntries(_entries, page);
       notifyListeners();
       pages++;
     }
@@ -239,8 +239,6 @@ class PaneController extends ChangeNotifier {
 
     if (_isCurrent(request)) {
       _activeRequest = null;
-      _applySort();
-      notifyListeners();
 
       totalSw.stop();
       debugPrint(
@@ -271,21 +269,66 @@ class PaneController extends ChangeNotifier {
   }
 
   void _applySort() {
-    _entries.sort((a, b) {
-      if (a.isDirectory != b.isDirectory) return a.isDirectory ? -1 : 1;
-      int cmp;
-      switch (_sortColumn) {
-        case SortColumn.name:
-          cmp = a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        case SortColumn.dateModified:
-          cmp = a.modified.compareTo(b.modified);
-        case SortColumn.type:
-          cmp = a.type.toLowerCase().compareTo(b.type.toLowerCase());
-        case SortColumn.size:
-          cmp = a.size.compareTo(b.size);
+    _entries = _sortedEntries(_entries);
+  }
+
+  List<FileEntry> _sortedEntries(Iterable<FileEntry> entries) {
+    final sorted = List<FileEntry>.of(entries);
+    sorted.sort(_compareEntries);
+    return sorted;
+  }
+
+  List<FileEntry> _mergeSortedEntries(
+    List<FileEntry> current,
+    List<FileEntry> incoming,
+  ) {
+    if (incoming.isEmpty) return current;
+    if (current.isEmpty) return _sortedEntries(incoming);
+
+    final sortedIncoming = _sortedEntries(incoming);
+    final merged = <FileEntry>[];
+    var currentIndex = 0;
+    var incomingIndex = 0;
+
+    while (currentIndex < current.length &&
+        incomingIndex < sortedIncoming.length) {
+      if (_compareEntries(
+            current[currentIndex],
+            sortedIncoming[incomingIndex],
+          ) <=
+          0) {
+        merged.add(current[currentIndex++]);
+      } else {
+        merged.add(sortedIncoming[incomingIndex++]);
       }
-      return _sortAscending ? cmp : -cmp;
-    });
+    }
+
+    if (currentIndex < current.length) {
+      merged.addAll(current.getRange(currentIndex, current.length));
+    }
+    if (incomingIndex < sortedIncoming.length) {
+      merged.addAll(
+        sortedIncoming.getRange(incomingIndex, sortedIncoming.length),
+      );
+    }
+    return merged;
+  }
+
+  int _compareEntries(FileEntry a, FileEntry b) {
+    if (a.isDirectory != b.isDirectory) return a.isDirectory ? -1 : 1;
+
+    final int comparison;
+    switch (_sortColumn) {
+      case SortColumn.name:
+        comparison = a.compareNameTo(b);
+      case SortColumn.dateModified:
+        comparison = a.modified.compareTo(b.modified);
+      case SortColumn.type:
+        comparison = a.type.toLowerCase().compareTo(b.type.toLowerCase());
+      case SortColumn.size:
+        comparison = a.size.compareTo(b.size);
+    }
+    return _sortAscending ? comparison : -comparison;
   }
 
   Future<void> navigateTo(String path, {bool addToHistory = true}) async {
