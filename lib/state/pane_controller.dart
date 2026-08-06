@@ -68,9 +68,11 @@ class PaneController extends ChangeNotifier {
   }
 
   String get currentPath => _currentPath;
+  bool get isHome => FileService.isHomePath(_currentPath);
 
   /// Friendly display path for the address bar (shell CLSIDs -> names).
   String get displayPath {
+    if (FileService.isHomePath(_currentPath)) return '主文件夹';
     if (_currentPath.startsWith('::') || _currentPath.startsWith('shell:')) {
       return DirectoryService.getDisplayName(_currentPath);
     }
@@ -81,6 +83,7 @@ class PaneController extends ChangeNotifier {
   bool get canGoBack => _backStack.isNotEmpty;
   bool get canGoForward => _forwardStack.isNotEmpty;
   bool get canGoUp {
+    if (FileService.isHomePath(_currentPath)) return false;
     final parent = p.dirname(_currentPath);
     return parent != _currentPath;
   }
@@ -118,6 +121,7 @@ class PaneController extends ChangeNotifier {
   }
 
   String _pathLabel(String path) {
+    if (FileService.isHomePath(path)) return '主文件夹';
     if (path.startsWith('::') || path.startsWith('shell:')) {
       return DirectoryService.getDisplayName(path);
     }
@@ -155,6 +159,13 @@ class PaneController extends ChangeNotifier {
     _anchorPath = null;
     _focusedPath = null;
     notifyListeners();
+
+    if (FileService.isHomePath(path)) {
+      _entries = [];
+      _loading = false;
+      notifyListeners();
+      return;
+    }
 
     final totalSw = Stopwatch()..start();
 
@@ -360,11 +371,12 @@ class PaneController extends ChangeNotifier {
   }
 
   void goUp() {
+    if (FileService.isHomePath(_currentPath)) return;
     final parent = p.dirname(_currentPath);
     if (parent != _currentPath) navigateTo(parent);
   }
 
-  void goHome() => navigateTo(FileService.homeDirectory);
+  void goHome() => navigateTo(FileService.homeViewPath);
 
   void refresh() {
     _repository.invalidate(_currentPath);

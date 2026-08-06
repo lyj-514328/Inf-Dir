@@ -84,10 +84,7 @@ class LayoutTree {
   final List<LayoutNode> workspaces;
   int activeWorkspaceIndex;
 
-  LayoutTree({
-    required this.workspaces,
-    this.activeWorkspaceIndex = 0,
-  });
+  LayoutTree({required this.workspaces, this.activeWorkspaceIndex = 0});
 
   LayoutNode get activeWorkspace => workspaces[activeWorkspaceIndex];
 
@@ -181,7 +178,9 @@ class LayoutTree {
     String? nextFocusId;
     if (sibling != null) {
       nextFocusId = _firstLeafId(sibling);
-    } else if (parent != null && parent.isSplit && parent.children.length == 1) {
+    } else if (parent != null &&
+        parent.isSplit &&
+        parent.children.length == 1) {
       // 关闭后父节点只剩一个孩子，展平逻辑会在 _closeInternal 触发
       nextFocusId = _firstLeafId(parent.children.first);
     }
@@ -352,6 +351,19 @@ LayoutTree createDefaultLayout(
     label: workspaceLabel,
   );
 
+  if (paneIds.length == 1) {
+    final pane = LayoutNode(
+      id: 'p0',
+      type: NodeType.pane,
+      paneId: paneIds.first,
+      parent: ws,
+    );
+    ws.children.add(pane);
+    final tree = LayoutTree(workspaces: [ws]);
+    tree._fixPercent(ws);
+    return tree;
+  }
+
   // 上排 (水平分割)
   final topRow = LayoutNode(
     id: 'split_top',
@@ -360,8 +372,18 @@ LayoutTree createDefaultLayout(
     parent: ws,
   );
   topRow.children.addAll([
-    LayoutNode(id: 'p0', type: NodeType.pane, paneId: paneIds[0], parent: topRow),
-    LayoutNode(id: 'p1', type: NodeType.pane, paneId: paneIds[1], parent: topRow),
+    LayoutNode(
+      id: 'p0',
+      type: NodeType.pane,
+      paneId: paneIds[0],
+      parent: topRow,
+    ),
+    LayoutNode(
+      id: 'p1',
+      type: NodeType.pane,
+      paneId: paneIds[1],
+      parent: topRow,
+    ),
   ]);
 
   // 下排 (水平分割)
@@ -372,8 +394,18 @@ LayoutTree createDefaultLayout(
     parent: ws,
   );
   bottomRow.children.addAll([
-    LayoutNode(id: 'p2', type: NodeType.pane, paneId: paneIds[2], parent: bottomRow),
-    LayoutNode(id: 'p3', type: NodeType.pane, paneId: paneIds[3], parent: bottomRow),
+    LayoutNode(
+      id: 'p2',
+      type: NodeType.pane,
+      paneId: paneIds[2],
+      parent: bottomRow,
+    ),
+    LayoutNode(
+      id: 'p3',
+      type: NodeType.pane,
+      paneId: paneIds[3],
+      parent: bottomRow,
+    ),
   ]);
 
   ws.children.addAll([topRow, bottomRow]);

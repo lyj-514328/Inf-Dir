@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/services/directory_repository.dart';
+import 'package:inf_dir/services/file_service.dart';
+import 'package:inf_dir/models/layout_node.dart';
+import 'package:inf_dir/state/layout_state.dart';
 import 'package:inf_dir/state/pane_controller.dart';
 
 import 'fakes.dart';
@@ -130,6 +133,44 @@ void main() {
       await runToIdle(pump);
       pc.dispose();
     });
+
+    test('home is a virtual page and participates in navigation history', () {
+      final pc = makePane(FileService.homeViewPath);
+
+      expect(pc.isHome, isTrue);
+      expect(pc.displayPath, '主文件夹');
+      expect(pc.entries, isEmpty);
+      expect(pc.isLoading, isFalse);
+      expect(pc.canGoUp, isFalse);
+      expect(source.created, isEmpty);
+
+      pc.navigateTo('C:\\A');
+      expect(pc.isHome, isFalse);
+      expect(source.created, hasLength(1));
+
+      pc.goBack();
+      expect(pc.isHome, isTrue);
+      expect(pc.entries, isEmpty);
+      expect(source.created, hasLength(1));
+      pc.dispose();
+    });
+
+    test(
+      'default workspace starts with one home pane and remains splittable',
+      () {
+        final layout = LayoutState(repository: repo);
+
+        expect(layout.allPaneNodes, hasLength(1));
+        expect(
+          layout.controllerFor(layout.allPaneNodes.single)?.currentPath,
+          FileService.homeViewPath,
+        );
+
+        layout.splitPane(layout.allPaneNodes.single, SplitDirection.horizontal);
+        expect(layout.allPaneNodes, hasLength(2));
+        layout.dispose();
+      },
+    );
 
     test('uses a sort change for pages that arrive while loading', () async {
       source = FakeCursorSource({

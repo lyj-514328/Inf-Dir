@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/file_entry.dart';
 import '../services/cloud_drive_service.dart';
 import '../services/directory_repository.dart';
+import '../services/file_service.dart';
 import '../services/sidebar_service.dart';
 import '../utils/path_utils.dart';
 
@@ -67,19 +68,23 @@ class SidebarSyncController extends ChangeNotifier {
     List<String>? driveRoots,
     List<CloudDrive>? cloudDrives,
     bool probeDriveChildren = true,
-  })  : quickAccessItems =
-            quickAccessItems ?? SidebarService.getQuickAccessItems(),
-        driveRoots = driveRoots ?? SidebarService.getDriveRoots(),
-        cloudDrives = cloudDrives ?? CloudDriveService.getCloudDrives() {
+  }) : quickAccessItems =
+           quickAccessItems ?? SidebarService.getQuickAccessItems(),
+       driveRoots = driveRoots ?? SidebarService.getDriveRoots(),
+       cloudDrives = cloudDrives ?? CloudDriveService.getCloudDrives() {
     if (probeDriveChildren) {
       // 驱动器 hasChildren 一次性 probe（初始化阶段，不在 build 里）。
       for (final drive in this.driveRoots) {
         repository.seedHasChildren(
-            drive, SidebarService.directoryHasChildren(drive));
+          drive,
+          SidebarService.directoryHasChildren(drive),
+        );
       }
       for (final cloud in this.cloudDrives) {
         repository.seedHasChildren(
-            cloud.path, SidebarService.directoryHasChildren(cloud.path));
+          cloud.path,
+          SidebarService.directoryHasChildren(cloud.path),
+        );
       }
     }
   }
@@ -89,8 +94,7 @@ class SidebarSyncController extends ChangeNotifier {
 
   bool isExpanded(String path) => expandedPaths.contains(normPath(path));
 
-  bool isLoading(String path) =>
-      partialNodes[normPath(path)]?.loading ?? false;
+  bool isLoading(String path) => partialNodes[normPath(path)]?.loading ?? false;
 
   /// 视图读取 children：complete cache 优先，其次 partial。
   List<FileEntry> childrenFor(String path) {
@@ -162,6 +166,12 @@ class SidebarSyncController extends ChangeNotifier {
       return;
     }
 
+    if (FileService.isHomePath(path)) {
+      selectedPath = path;
+      _notifySafe();
+      return;
+    }
+
     // 云盘路径优先走云盘分支：展开云盘节点链，不打扰"此电脑"驱动器链。
     final cloud = _findCloudFor(path);
     if (cloud != null) {
@@ -202,7 +212,10 @@ class SidebarSyncController extends ChangeNotifier {
 
   /// 按路径链顺序确保每个 ancestor 的 children 已加载（§8）。
   Future<void> _loadChain(
-      RequestToken token, String targetPath, String drive) async {
+    RequestToken token,
+    String targetPath,
+    String drive,
+  ) async {
     for (final p in pathChain(drive, targetPath)) {
       if (!token.isActive || !identical(token, _syncToken)) return;
       syncExpandedPaths.add(normPath(p));
@@ -216,8 +229,12 @@ class SidebarSyncController extends ChangeNotifier {
     }
   }
 
-  void _onPartial(String key, List<FileEntry> children, bool loading,
-      int ownerRequestId) {
+  void _onPartial(
+    String key,
+    List<FileEntry> children,
+    bool loading,
+    int ownerRequestId,
+  ) {
     if (_disposed) return;
     final existing = partialNodes[key];
     // 旧 request 不得覆盖新 request 已接管的节点（§9）。
@@ -245,8 +262,9 @@ class SidebarSyncController extends ChangeNotifier {
       // 只回滚尚未加载完成的自动展开（被取消的半载链）；已完整加载的
       // 分支保留展开，否则每次导航切换都会把之前访问过的分支整个收起
       // （§3.6 例外）。
-      syncExpandedPaths
-          .removeWhere((p) => repository.cachedChildren(p) == null);
+      syncExpandedPaths.removeWhere(
+        (p) => repository.cachedChildren(p) == null,
+      );
     }
   }
 
@@ -275,8 +293,7 @@ class SidebarSyncController extends ChangeNotifier {
   void toggleExpand(String path) {
     if (_disposed) return;
     final key = normPath(path);
-    if (userExpandedPaths.contains(key) ||
-        syncExpandedPaths.contains(key)) {
+    if (userExpandedPaths.contains(key) || syncExpandedPaths.contains(key)) {
       // 用户收起优先：两份集合都移除（自动展开的节点用户也可手动收起）。
       userExpandedPaths.remove(key);
       syncExpandedPaths.remove(key);

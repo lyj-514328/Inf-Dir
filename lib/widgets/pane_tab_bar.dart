@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../state/pane_controller.dart';
 import '../services/icon_service.dart';
+import '../services/file_service.dart';
 import 'app_theme.dart';
 
 class PaneTabBar extends StatelessWidget {
@@ -93,8 +94,12 @@ class _TabItemState extends State<_TabItem> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final iconBytes = IconService.getFileIconPng(widget.path, true, 16);
-    final iconWidget = iconBytes != null
+    final iconBytes = FileService.isHomePath(widget.path)
+        ? null
+        : IconService.getFileIconPng(widget.path, true, 16);
+    final iconWidget = FileService.isHomePath(widget.path)
+        ? Icon(Icons.home, size: AppMetrics.iconSm, color: c.textSecondary)
+        : iconBytes != null
         ? Image.memory(
             iconBytes,
             width: AppMetrics.iconSm,
@@ -107,8 +112,8 @@ class _TabItemState extends State<_TabItem> {
     final Color bgColor = isActive
         ? c.surface
         : _hoveringTab
-            ? c.surfaceHover
-            : Colors.transparent;
+        ? c.surfaceHover
+        : Colors.transparent;
 
     final BoxDecoration decoration;
     if (isActive) {
@@ -120,9 +125,7 @@ class _TabItemState extends State<_TabItem> {
     } else {
       decoration = BoxDecoration(
         color: bgColor,
-        border: Border(
-          right: BorderSide(color: c.border, width: 0.5),
-        ),
+        border: Border(right: BorderSide(color: c.border, width: 0.5)),
       );
     }
 

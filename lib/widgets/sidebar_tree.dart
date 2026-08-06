@@ -3,11 +3,12 @@ import 'package:provider/provider.dart';
 import '../models/file_entry.dart';
 import '../services/sidebar_service.dart';
 import '../services/icon_service.dart';
+import '../services/file_service.dart';
 import '../state/sidebar_controller.dart';
 import '../utils/path_utils.dart';
 import 'app_theme.dart';
 
-enum _RowType { thisPc, drive, cloudDrive, directory, loadingIndicator }
+enum _RowType { home, thisPc, drive, cloudDrive, directory, loadingIndicator }
 
 class _TreeRow {
   final _RowType type;
@@ -37,10 +38,7 @@ class _TreeRow {
 class SidebarTree extends StatefulWidget {
   final ValueChanged<String> onNavigate;
 
-  const SidebarTree({
-    super.key,
-    required this.onNavigate,
-  });
+  const SidebarTree({super.key, required this.onNavigate});
 
   @override
   State<SidebarTree> createState() => _SidebarTreeState();
@@ -53,7 +51,11 @@ class _SidebarTreeState extends State<SidebarTree> {
 
   // ── 布局常量：整个侧栏内容按固定行高排布 ──────────────────
   static const double _rowHeight = AppMetrics.sidebarRowHeight;
-  static const double _quickAccessHeaderHeight = AppMetrics.quickAccessHeaderHeight;
+  static const double _homeRowHeight = 30;
+  static const double _homeDividerHeight = 1;
+  static const double _homeGapHeight = 4;
+  static const double _quickAccessHeaderHeight =
+      AppMetrics.quickAccessHeaderHeight;
   static const double _dividerHeight = 1.0;
   static const double _gapHeight = 4.0;
 
@@ -100,23 +102,30 @@ class _SidebarTreeState extends State<SidebarTree> {
   ///   之后是树行               22 × treeCount
   /// 总高度是纯函数，不依赖 layout 结果，maxScrollExtent 永远准确。
 
+  double _quickAccessStartOffset() =>
+      _homeRowHeight + _homeDividerHeight + _homeGapHeight;
+
   double _treeStartOffset(int qaCount) =>
-      _quickAccessHeaderHeight + qaCount * _rowHeight + _dividerHeight + _gapHeight;
+      _quickAccessStartOffset() +
+      _quickAccessHeaderHeight +
+      qaCount * _rowHeight +
+      _dividerHeight +
+      _gapHeight;
 
   double _totalHeight(int qaCount, int treeCount) =>
       _treeStartOffset(qaCount) + treeCount * _rowHeight;
 
   (int, int) _visibleWindow(double scrollOffset, double viewportHeight) {
     final startOffset = _treeStartOffset(_qaCount);
-    final start = (((scrollOffset - startOffset) / _rowHeight).floor() -
-            _cacheRows)
-        .clamp(0, _treeCount)
-        .toInt();
-    final end = (((scrollOffset + viewportHeight - startOffset) / _rowHeight)
-            .ceil() +
-        _cacheRows)
-        .clamp(0, _treeCount)
-        .toInt();
+    final start =
+        (((scrollOffset - startOffset) / _rowHeight).floor() - _cacheRows)
+            .clamp(0, _treeCount)
+            .toInt();
+    final end =
+        (((scrollOffset + viewportHeight - startOffset) / _rowHeight).ceil() +
+                _cacheRows)
+            .clamp(0, _treeCount)
+            .toInt();
     return (start, end);
   }
 
@@ -133,8 +142,10 @@ class _SidebarTreeState extends State<SidebarTree> {
       }
     }
 
-    final (start, end) =
-        _visibleWindow(position.pixels, position.viewportDimension);
+    final (start, end) = _visibleWindow(
+      position.pixels,
+      position.viewportDimension,
+    );
     if (start != _firstVisibleTreeIndex || end != _lastVisibleTreeIndex) {
       setState(() {
         _firstVisibleTreeIndex = start;
@@ -149,29 +160,48 @@ class _SidebarTreeState extends State<SidebarTree> {
 
   List<_TreeRow> _flattenTree(SidebarSyncController sidebar) {
     final rows = <_TreeRow>[];
-    rows.add(_TreeRow(
-      type: _RowType.thisPc,
-      path: _thisPcGuid,
-      name: '此电脑',
-      depth: 0,
-      isExpanded: sidebar.thisPcExpanded,
-      hasChildren: sidebar.driveRoots.isNotEmpty,
-    ));
+    rows.add(
+      const _TreeRow(
+        type: _RowType.home,
+        path: FileService.homeViewPath,
+        name: '主文件夹',
+        depth: 0,
+        isExpanded: false,
+        hasChildren: false,
+      ),
+    );
+    rows.add(
+      _TreeRow(
+        type: _RowType.thisPc,
+        path: _thisPcGuid,
+        name: '此电脑',
+        depth: 0,
+        isExpanded: sidebar.thisPcExpanded,
+        hasChildren: sidebar.driveRoots.isNotEmpty,
+      ),
+    );
     if (sidebar.thisPcExpanded) {
       for (final drive in sidebar.driveRoots) {
         final expanded = sidebar.isExpanded(drive);
         final label = SidebarService.formatDriveLabel(drive);
-        rows.add(_TreeRow(
-          type: _RowType.drive,
-          path: drive,
-          name: label,
-          depth: 1,
-          isExpanded: expanded,
-          hasChildren: sidebar.hasChildrenFor(drive),
-        ));
+        rows.add(
+          _TreeRow(
+            type: _RowType.drive,
+            path: drive,
+            name: label,
+            depth: 1,
+            isExpanded: expanded,
+            hasChildren: sidebar.hasChildrenFor(drive),
+          ),
+        );
         if (expanded) {
-          _flattenDir(sidebar, sidebar.childrenFor(drive), 2, rows,
-              parentPath: drive);
+          _flattenDir(
+            sidebar,
+            sidebar.childrenFor(drive),
+            2,
+            rows,
+            parentPath: drive,
+          );
         }
       }
     }
@@ -179,53 +209,67 @@ class _SidebarTreeState extends State<SidebarTree> {
     // 与"此电脑"平级）。云盘根是真实目录，展开/子节点复用目录分支逻辑。
     for (final cloud in sidebar.cloudDrives) {
       final expanded = sidebar.isExpanded(cloud.path);
-      rows.add(_TreeRow(
-        type: _RowType.cloudDrive,
-        path: cloud.path,
-        name: cloud.name,
-        depth: 0,
-        isExpanded: expanded,
-        hasChildren: sidebar.hasChildrenFor(cloud.path),
-      ));
+      rows.add(
+        _TreeRow(
+          type: _RowType.cloudDrive,
+          path: cloud.path,
+          name: cloud.name,
+          depth: 0,
+          isExpanded: expanded,
+          hasChildren: sidebar.hasChildrenFor(cloud.path),
+        ),
+      );
       if (expanded) {
-        _flattenDir(sidebar, sidebar.childrenFor(cloud.path), 1, rows,
-            parentPath: cloud.path);
+        _flattenDir(
+          sidebar,
+          sidebar.childrenFor(cloud.path),
+          1,
+          rows,
+          parentPath: cloud.path,
+        );
       }
     }
     return rows;
   }
 
-  void _flattenDir(SidebarSyncController sidebar, List<FileEntry> dirs,
-      int depth, List<_TreeRow> out,
-      {required String parentPath}) {
+  void _flattenDir(
+    SidebarSyncController sidebar,
+    List<FileEntry> dirs,
+    int depth,
+    List<_TreeRow> out, {
+    required String parentPath,
+  }) {
     for (final dir in dirs) {
       final expanded = sidebar.isExpanded(dir.path);
-      out.add(_TreeRow(
-        type: _RowType.directory,
-        path: dir.path,
-        name: dir.name,
-        depth: depth,
-        isExpanded: expanded,
-        // 枚举元数据自带 hasChildren，build 不需要 probe（§13.1）。
-        hasChildren: dir.hasChildren,
-      ));
+      out.add(
+        _TreeRow(
+          type: _RowType.directory,
+          path: dir.path,
+          name: dir.name,
+          depth: depth,
+          isExpanded: expanded,
+          // 枚举元数据自带 hasChildren，build 不需要 probe（§13.1）。
+          hasChildren: dir.hasChildren,
+        ),
+      );
       if (expanded) {
         final children = sidebar.childrenFor(dir.path);
         if (children.isNotEmpty) {
-          _flattenDir(sidebar, children, depth + 1, out,
-              parentPath: dir.path);
+          _flattenDir(sidebar, children, depth + 1, out, parentPath: dir.path);
         }
       }
     }
     if (sidebar.isLoading(parentPath)) {
-      out.add(_TreeRow(
-        type: _RowType.loadingIndicator,
-        path: '',
-        name: '',
-        depth: depth + 1,
-        isExpanded: false,
-        hasChildren: false,
-      ));
+      out.add(
+        _TreeRow(
+          type: _RowType.loadingIndicator,
+          path: '',
+          name: '',
+          depth: depth + 1,
+          isExpanded: false,
+          hasChildren: false,
+        ),
+      );
     }
   }
 
@@ -246,17 +290,25 @@ class _SidebarTreeState extends State<SidebarTree> {
 
       final selected = sidebar.selectedPath ?? '';
       double? offset;
-      final qaIndex = sidebar.quickAccessItems
-          .indexWhere((item) => pathEquals(item.path, selected));
-      if (qaIndex >= 0) {
+      if (FileService.isHomePath(selected)) {
+        offset = 0;
+        sidebar.consumeScrollRequest();
+      }
+      final qaIndex = sidebar.quickAccessItems.indexWhere(
+        (item) => pathEquals(item.path, selected),
+      );
+      if (offset == null && qaIndex >= 0) {
         // 快速访问行固定，offset 永远稳定，直接消费。
         offset = _quickAccessHeaderHeight + qaIndex * _rowHeight;
         sidebar.consumeScrollRequest();
-      } else {
-        final treeIndex =
-            _treeItems.indexWhere((item) => pathEquals(item.path, selected));
+      } else if (offset == null) {
+        final treeIndex = _treeItems.indexWhere(
+          (item) => pathEquals(item.path, selected),
+        );
         if (treeIndex < 0) return; // 目标行未挂上树：保留请求，等待重试。
         offset = _treeStartOffset(_qaCount) + treeIndex * _rowHeight;
+        if (treeIndex == 0) return;
+        offset = _treeStartOffset(_qaCount) + (treeIndex - 1) * _rowHeight;
         if (!_hasLoadingBefore(treeIndex)) {
           sidebar.consumeScrollRequest();
         }
@@ -309,6 +361,8 @@ class _SidebarTreeState extends State<SidebarTree> {
 
   IconData _fallbackIcon(_RowType type) {
     switch (type) {
+      case _RowType.home:
+        return Icons.home;
       case _RowType.thisPc:
         return Icons.computer;
       case _RowType.drive:
@@ -323,8 +377,7 @@ class _SidebarTreeState extends State<SidebarTree> {
   }
 
   bool _isSelected(SidebarSyncController sidebar, String path) =>
-      sidebar.selectedPath != null &&
-      pathEquals(sidebar.selectedPath!, path);
+      sidebar.selectedPath != null && pathEquals(sidebar.selectedPath!, path);
 
   Widget _buildTreeRow(SidebarSyncController sidebar, int index) {
     final c = context.colors;
@@ -354,9 +407,10 @@ class _SidebarTreeState extends State<SidebarTree> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: AppMetrics.fontSmall,
-                    color: c.textTertiary,
-                    fontStyle: FontStyle.italic),
+                  fontSize: AppMetrics.fontSmall,
+                  color: c.textTertiary,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ),
           ],
@@ -369,58 +423,60 @@ class _SidebarTreeState extends State<SidebarTree> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-      onTap: () => _onTapTreeRow(sidebar, row),
-      hoverColor: c.surfaceHover,
-      child: Container(
-        height: _rowHeight,
-        width: double.infinity,
-        color: isSelected ? c.accentSubtle : null,
-        child: Stack(
-          children: [
-            Row(
-              children: [
-                SizedBox(width: 4.0 + row.depth * 16.0),
-                if (row.hasChildren)
-                  Icon(
-                    row.isExpanded ? Icons.expand_more : Icons.chevron_right,
-                    size: 14,
-                    color: c.textTertiary,
-                  )
-                else
-                  const SizedBox(width: 14),
-                const SizedBox(width: 2),
-                SizedBox(
-                  width: 15,
-                  child: _ShellIcon(
-                    path: row.path,
-                    isDirectory: true,
-                    fallback: fallback,
+        onTap: () => _onTapTreeRow(sidebar, row),
+        hoverColor: c.surfaceHover,
+        child: Container(
+          height: _rowHeight,
+          width: double.infinity,
+          color: isSelected ? c.accentSubtle : null,
+          child: Stack(
+            children: [
+              Row(
+                children: [
+                  SizedBox(width: 4.0 + row.depth * 16.0),
+                  if (row.hasChildren)
+                    Icon(
+                      row.isExpanded ? Icons.expand_more : Icons.chevron_right,
+                      size: 14,
+                      color: c.textTertiary,
+                    )
+                  else
+                    const SizedBox(width: 14),
+                  const SizedBox(width: 2),
+                  SizedBox(
+                    width: 15,
+                    child: _ShellIcon(
+                      path: row.path,
+                      isDirectory: true,
+                      fallback: fallback,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    row.name,
-                    style: TextStyle(
-                        fontSize: AppMetrics.fontBody, color: c.textPrimary),
-                    overflow: TextOverflow.ellipsis,
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      row.name,
+                      style: TextStyle(
+                        fontSize: AppMetrics.fontBody,
+                        color: c.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            // 现代选中指示：行左侧 3px accent 竖条。
-            if (isSelected)
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 3,
-                child: ColoredBox(color: c.accent),
+                ],
               ),
-          ],
+              // 现代选中指示：行左侧 3px accent 竖条。
+              if (isSelected)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 3,
+                  child: ColoredBox(color: c.accent),
+                ),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 
@@ -448,100 +504,141 @@ class _SidebarTreeState extends State<SidebarTree> {
     final sw = Stopwatch()..start();
     _treeItems = _flattenTree(sidebar);
     _qaCount = sidebar.quickAccessItems.length;
-    _treeCount = _treeItems.length;
+    _treeCount = _treeItems.isEmpty ? 0 : _treeItems.length - 1;
     final flattenMs = sw.elapsedMilliseconds;
     _tryScrollToSelected(sidebar);
 
-    final result = LayoutBuilder(builder: (context, constraints) {
-      final viewportHeight = constraints.maxHeight;
-      final scrollOffset = _scrollController.hasClients
-          ? _scrollController.position.pixels
-          : 0.0;
-      final (first, last) = _visibleWindow(scrollOffset, viewportHeight);
-      _firstVisibleTreeIndex = first;
-      _lastVisibleTreeIndex = last;
+    final result = LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportHeight = constraints.maxHeight;
+        final scrollOffset = _scrollController.hasClients
+            ? _scrollController.position.pixels
+            : 0.0;
+        final (first, last) = _visibleWindow(scrollOffset, viewportHeight);
+        _firstVisibleTreeIndex = first;
+        _lastVisibleTreeIndex = last;
 
-      final stackChildren = <Widget>[];
+        final stackChildren = <Widget>[];
 
-      stackChildren.add(Positioned(
-        top: 0,
-        left: 0,
-        right: 0,
-        height: _quickAccessHeaderHeight,
-        child: const _QuickAccessHeader(),
-      ));
-      for (var i = 0; i < _qaCount; i++) {
-        final item = sidebar.quickAccessItems[i];
-        stackChildren.add(Positioned(
-          top: _quickAccessHeaderHeight + i * _rowHeight,
-          left: 0,
-          right: 0,
-          height: _rowHeight,
-          child: _QuickAccessRow(
-            item: item,
-            selected: _isSelected(sidebar, item.path),
-            fallbackIcon: _quickAccessFallbackIcon(item.name),
-            onTap: () => _onTapQuickAccess(sidebar, item),
+        stackChildren.add(
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: _homeRowHeight,
+            child: _HomeSidebarRow(
+              selected: _isSelected(sidebar, FileService.homeViewPath),
+              onTap: () {
+                sidebar.select(FileService.homeViewPath);
+                widget.onNavigate(FileService.homeViewPath);
+              },
+            ),
           ),
-        ));
-      }
+        );
+        stackChildren.add(
+          Positioned(
+            top: _homeRowHeight,
+            left: 0,
+            right: 0,
+            height: _homeDividerHeight,
+            child: ColoredBox(color: c.borderStrong),
+          ),
+        );
 
-      final qaBottom = _quickAccessHeaderHeight + _qaCount * _rowHeight;
-      stackChildren.add(Positioned(
-        top: qaBottom,
-        left: 0,
-        right: 0,
-        height: _dividerHeight,
-        child: const Divider(height: 1, thickness: 1),
-      ));
-      stackChildren.add(Positioned(
-        top: qaBottom + _dividerHeight,
-        left: 0,
-        right: 0,
-        height: _gapHeight,
-        child: const SizedBox(),
-      ));
+        final quickAccessStart = _quickAccessStartOffset();
 
-      final treeStartOffset = _treeStartOffset(_qaCount);
-      for (var i = first; i < last; i++) {
-        stackChildren.add(Positioned(
-          top: treeStartOffset + i * _rowHeight,
-          left: 0,
-          right: 0,
-          height: _rowHeight,
-          child: _buildTreeRow(sidebar, i),
-        ));
-      }
+        stackChildren.add(
+          Positioned(
+            top: quickAccessStart,
+            left: 0,
+            right: 0,
+            height: _quickAccessHeaderHeight,
+            child: const _QuickAccessHeader(),
+          ),
+        );
+        for (var i = 0; i < _qaCount; i++) {
+          final item = sidebar.quickAccessItems[i];
+          stackChildren.add(
+            Positioned(
+              top: quickAccessStart + _quickAccessHeaderHeight + i * _rowHeight,
+              left: 0,
+              right: 0,
+              height: _rowHeight,
+              child: _QuickAccessRow(
+                item: item,
+                selected: _isSelected(sidebar, item.path),
+                fallbackIcon: _quickAccessFallbackIcon(item.name),
+                onTap: () => _onTapQuickAccess(sidebar, item),
+              ),
+            ),
+          );
+        }
 
-      return MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: Container(
-          clipBehavior: Clip.hardEdge,
-          decoration: BoxDecoration(color: c.surfaceSubtle),
-          alignment: Alignment.topLeft,
-          child: Scrollbar(
-            controller: _scrollController,
-            thumbVisibility: _hovered,
-            child: SingleChildScrollView(
+        final qaBottom =
+            quickAccessStart + _quickAccessHeaderHeight + _qaCount * _rowHeight;
+        stackChildren.add(
+          Positioned(
+            top: qaBottom,
+            left: 0,
+            right: 0,
+            height: _dividerHeight,
+            child: const Divider(height: 1, thickness: 1),
+          ),
+        );
+        stackChildren.add(
+          Positioned(
+            top: qaBottom + _dividerHeight,
+            left: 0,
+            right: 0,
+            height: _gapHeight,
+            child: const SizedBox(),
+          ),
+        );
+
+        final treeStartOffset = _treeStartOffset(_qaCount);
+        for (var i = first; i < last; i++) {
+          stackChildren.add(
+            Positioned(
+              top: treeStartOffset + i * _rowHeight,
+              left: 0,
+              right: 0,
+              height: _rowHeight,
+              child: _buildTreeRow(sidebar, i + 1),
+            ),
+          );
+        }
+
+        return MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: Container(
+            clipBehavior: Clip.hardEdge,
+            decoration: BoxDecoration(color: c.surfaceSubtle),
+            alignment: Alignment.topLeft,
+            child: Scrollbar(
               controller: _scrollController,
-              child: SizedBox(
-                height: _totalHeight(_qaCount, _treeCount),
-                child: Stack(
-                  clipBehavior: Clip.hardEdge,
-                  children: stackChildren,
+              thumbVisibility: _hovered,
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                child: SizedBox(
+                  height: _totalHeight(_qaCount, _treeCount),
+                  child: Stack(
+                    clipBehavior: Clip.hardEdge,
+                    children: stackChildren,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     sw.stop();
     if (sw.elapsedMilliseconds > 10) {
       debugPrint(
-          '[Perf] SidebarTree build: flatten=${flattenMs}ms, total=${sw.elapsedMilliseconds}ms');
+        '[Perf] SidebarTree build: flatten=${flattenMs}ms, total=${sw.elapsedMilliseconds}ms',
+      );
     }
     return result;
   }
@@ -550,6 +647,64 @@ class _SidebarTreeState extends State<SidebarTree> {
 // ═══════════════════════════════════════════════════════════
 //  Private widgets (unchanged)
 // ═══════════════════════════════════════════════════════════
+
+class _HomeSidebarRow extends StatelessWidget {
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _HomeSidebarRow({required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: c.surfaceHover,
+        child: Container(
+          color: selected ? c.accentSubtle : null,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.home,
+                    size: AppMetrics.iconMd,
+                    color: c.iconFolder,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '主文件夹',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: AppMetrics.fontBody,
+                        fontWeight: FontWeight.w600,
+                        color: c.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (selected)
+                Positioned(
+                  left: -12,
+                  top: 4,
+                  bottom: 4,
+                  width: 3,
+                  child: ColoredBox(color: c.accent),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _ShellIcon extends StatelessWidget {
   static const _iconSize = 15;
@@ -574,8 +729,11 @@ class _ShellIcon extends StatelessWidget {
         gaplessPlayback: true,
       );
     }
-    return Icon(fallback,
-        size: _iconSize.toDouble(), color: context.colors.iconFolder);
+    return Icon(
+      fallback,
+      size: _iconSize.toDouble(),
+      color: context.colors.iconFolder,
+    );
   }
 }
 
@@ -624,53 +782,55 @@ class _QuickAccessRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-      onTap: onTap,
-      hoverColor: c.surfaceHover,
-      child: Container(
-        height: AppMetrics.sidebarRowHeight,
-        width: double.infinity,
-        color: selected ? c.accentSubtle : null,
-        child: Stack(
-          children: [
-            Row(
-              children: [
-                const SizedBox(width: 4),
-                const SizedBox(width: 14),
-                const SizedBox(width: 2),
-                SizedBox(
-                  width: 15,
-                  child: _ShellIcon(
-                    path: item.path,
-                    isDirectory: true,
-                    fallback: fallbackIcon,
+        onTap: onTap,
+        hoverColor: c.surfaceHover,
+        child: Container(
+          height: AppMetrics.sidebarRowHeight,
+          width: double.infinity,
+          color: selected ? c.accentSubtle : null,
+          child: Stack(
+            children: [
+              Row(
+                children: [
+                  const SizedBox(width: 4),
+                  const SizedBox(width: 14),
+                  const SizedBox(width: 2),
+                  SizedBox(
+                    width: 15,
+                    child: _ShellIcon(
+                      path: item.path,
+                      isDirectory: true,
+                      fallback: fallbackIcon,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    item.name,
-                    style: TextStyle(
-                        fontSize: AppMetrics.fontBody, color: c.textPrimary),
-                    overflow: TextOverflow.ellipsis,
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      item.name,
+                      style: TextStyle(
+                        fontSize: AppMetrics.fontBody,
+                        color: c.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                if (item.isPinned)
-                  Icon(Icons.push_pin, size: 11, color: c.textTertiary),
-              ],
-            ),
-            // 现代选中指示：行左侧 3px accent 竖条。
-            if (selected)
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 3,
-                child: ColoredBox(color: c.accent),
+                  if (item.isPinned)
+                    Icon(Icons.push_pin, size: 11, color: c.textTertiary),
+                ],
               ),
-          ],
+              // 现代选中指示：行左侧 3px accent 竖条。
+              if (selected)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 3,
+                  child: ColoredBox(color: c.accent),
+                ),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 }

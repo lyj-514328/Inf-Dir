@@ -4,6 +4,9 @@ import '../models/file_entry.dart';
 import 'directory_service.dart';
 
 class FileService {
+  /// Virtual path used by the Files home page. It is not a filesystem path.
+  static const String homeViewPath = 'shell:InfDirHome';
+
   static Future<List<FileEntry>> listDirectory(String dirPath) async {
     return DirectoryService.listDirectory(dirPath);
   }
@@ -21,7 +24,8 @@ class FileService {
 
   /// Recycle Bin virtual path constants.
   static const String recycleBinShellPath = 'shell:RecycleBinFolder';
-  static const String recycleBinClsidPath = '::{645FF040-5081-101B-9F08-00AA002F954E}';
+  static const String recycleBinClsidPath =
+      '::{645FF040-5081-101B-9F08-00AA002F954E}';
 
   /// My Computer (This PC) virtual path constant.
   static const String myComputerClsidPath =
@@ -32,6 +36,8 @@ class FileService {
   static bool isSpecialPath(String path) {
     return path.startsWith('shell:') || path.startsWith('::');
   }
+
+  static bool isHomePath(String path) => path == homeViewPath;
 
   /// Returns true if [path] points to the Recycle Bin.
   static bool isRecycleBinPath(String path) {

@@ -16,13 +16,8 @@ class LayoutState extends ChangeNotifier {
   final ValueNotifier<String> activePanePath = ValueNotifier<String>('');
 
   LayoutState({DirectoryRepository? repository})
-      : _repository = repository ?? DirectoryRepository() {
-    final initialPaths = [
-      FileService.desktopPath,
-      FileService.homeDirectory,
-      FileService.documentsPath,
-      FileService.downloadsPath,
-    ];
+    : _repository = repository ?? DirectoryRepository() {
+    final initialPaths = [FileService.homeViewPath];
     final paneIds = <String>[];
     for (final path in initialPaths) {
       final id = _nextPaneId();
@@ -122,7 +117,9 @@ class LayoutState extends ChangeNotifier {
     // 加一个默认 pane
     final paneId = _nextPaneId();
     _addController(
-        paneId, PaneController(FileService.desktopPath, repository: _repository));
+      paneId,
+      PaneController(FileService.homeViewPath, repository: _repository),
+    );
     final pane = LayoutNode(
       id: _tree.genId(),
       type: NodeType.pane,
@@ -169,10 +166,13 @@ class LayoutState extends ChangeNotifier {
   void splitPane(LayoutNode node, SplitDirection direction) {
     if (!node.isPane) return;
     final newPaneId = _nextPaneId();
-    _addController(newPaneId, PaneController(
-      controllerFor(node)?.currentPath ?? FileService.desktopPath,
-      repository: _repository,
-    ));
+    _addController(
+      newPaneId,
+      PaneController(
+        controllerFor(node)?.currentPath ?? FileService.desktopPath,
+        repository: _repository,
+      ),
+    );
     _tree.splitNode(node, direction, newPaneId);
     notifyListeners();
   }

@@ -15,6 +15,7 @@ import 'file_list_view.dart';
 import 'address_bar.dart';
 import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
+import 'home_view.dart';
 
 class FilePane extends StatelessWidget {
   final String paneId;
@@ -56,7 +57,9 @@ class _PaneContent extends StatelessWidget {
         const _PaneTabBarSection(),
         const Padding(
           padding: EdgeInsets.symmetric(
-              horizontal: AppMetrics.paneGap, vertical: 1),
+            horizontal: AppMetrics.paneGap,
+            vertical: 1,
+          ),
           child: _NavToolbarSection(),
         ),
         const Padding(
@@ -65,85 +68,100 @@ class _PaneContent extends StatelessWidget {
         ),
         const SizedBox(height: AppMetrics.paneGap),
         Expanded(
-          child: Focus(
-            autofocus: false,
-            onKeyEvent: (node, event) {
-              if (event is KeyDownEvent) {
-                if (event.logicalKey == LogicalKeyboardKey.backspace ||
-                    (event.logicalKey == LogicalKeyboardKey.arrowUp &&
-                        HardwareKeyboard.instance.isAltPressed)) {
-                  controller.goUp();
-                  return KeyEventResult.handled;
-                }
-                if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
-                    HardwareKeyboard.instance.isAltPressed) {
-                  controller.goBack();
-                  return KeyEventResult.handled;
-                }
-                if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
-                    HardwareKeyboard.instance.isAltPressed) {
-                  controller.goForward();
-                  return KeyEventResult.handled;
-                }
-                if (event.logicalKey == LogicalKeyboardKey.f5) {
-                  controller.refresh();
-                  return KeyEventResult.handled;
-                }
-                if (event.logicalKey == LogicalKeyboardKey.keyA &&
-                    HardwareKeyboard.instance.isControlPressed) {
-                  controller.selectAll();
-                  return KeyEventResult.handled;
-                }
-                if (event.logicalKey == LogicalKeyboardKey.enter) {
-                  _openSelected(context, controller);
-                  return KeyEventResult.handled;
-                }
-                if (event.logicalKey == LogicalKeyboardKey.delete) {
-                  if (!FileService.isRecycleBinPath(controller.currentPath)) {
-                    _deleteSelected(context);
-                  }
-                  return KeyEventResult.handled;
-                }
-                if (event.logicalKey == LogicalKeyboardKey.f2) {
-                  if (!FileService.isRecycleBinPath(controller.currentPath)) {
-                    _renameSelected(context);
-                  }
-                  return KeyEventResult.handled;
-                }
-                if (event.logicalKey == LogicalKeyboardKey.keyC &&
-                    HardwareKeyboard.instance.isControlPressed) {
-                  _copySelected(context);
-                  return KeyEventResult.handled;
-                }
-                if (event.logicalKey == LogicalKeyboardKey.keyX &&
-                    HardwareKeyboard.instance.isControlPressed) {
-                  if (FileService.isRecycleBinPath(controller.currentPath)) {
-                    return KeyEventResult.handled;
-                  }
-                  _cutSelected(context);
-                  return KeyEventResult.handled;
-                }
-                if (event.logicalKey == LogicalKeyboardKey.keyV &&
-                    HardwareKeyboard.instance.isControlPressed) {
-                  if (FileService.isRecycleBinPath(controller.currentPath)) {
-                    return KeyEventResult.handled;
-                  }
-                  _paste(context);
-                  return KeyEventResult.handled;
-                }
-              }
-              return KeyEventResult.ignored;
-            },
-            child: _FileListSection(isActive: isActive),
-          ),
+          child: controller.isHome
+              ? HomeView(
+                  controller: controller,
+                  onNavigate: controller.navigateTo,
+                )
+              : Focus(
+                  autofocus: false,
+                  onKeyEvent: (node, event) {
+                    if (event is KeyDownEvent) {
+                      if (event.logicalKey == LogicalKeyboardKey.backspace ||
+                          (event.logicalKey == LogicalKeyboardKey.arrowUp &&
+                              HardwareKeyboard.instance.isAltPressed)) {
+                        controller.goUp();
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
+                          HardwareKeyboard.instance.isAltPressed) {
+                        controller.goBack();
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
+                          HardwareKeyboard.instance.isAltPressed) {
+                        controller.goForward();
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.f5) {
+                        controller.refresh();
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.keyA &&
+                          HardwareKeyboard.instance.isControlPressed) {
+                        controller.selectAll();
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.enter) {
+                        _openSelected(context, controller);
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.delete) {
+                        if (!FileService.isRecycleBinPath(
+                          controller.currentPath,
+                        )) {
+                          _deleteSelected(context);
+                        }
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.f2) {
+                        if (!FileService.isRecycleBinPath(
+                          controller.currentPath,
+                        )) {
+                          _renameSelected(context);
+                        }
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.keyC &&
+                          HardwareKeyboard.instance.isControlPressed) {
+                        _copySelected(context);
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.keyX &&
+                          HardwareKeyboard.instance.isControlPressed) {
+                        if (FileService.isRecycleBinPath(
+                          controller.currentPath,
+                        )) {
+                          return KeyEventResult.handled;
+                        }
+                        _cutSelected(context);
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.keyV &&
+                          HardwareKeyboard.instance.isControlPressed) {
+                        if (FileService.isRecycleBinPath(
+                          controller.currentPath,
+                        )) {
+                          return KeyEventResult.handled;
+                        }
+                        _paste(context);
+                        return KeyEventResult.handled;
+                      }
+                    }
+                    return KeyEventResult.ignored;
+                  },
+                  child: _FileListSection(isActive: isActive),
+                ),
         ),
-        const _StatusBarSection(),
+        if (!controller.isHome) const _StatusBarSection(),
       ],
     );
 
     sw.stop();
     if (sw.elapsedMilliseconds > 10) {
-      debugPrint('[Perf] _PaneContent build: ${sw.elapsedMilliseconds}ms, entries=${controller.entries.length}');
+      debugPrint(
+        '[Perf] _PaneContent build: ${sw.elapsedMilliseconds}ms, entries=${controller.entries.length}',
+      );
     }
     return result;
   }
@@ -165,7 +183,8 @@ class _PaneContent extends StatelessWidget {
     if (controller.selectedPaths.isNotEmpty) {
       appState.copyPaths(controller.selectedPaths.toList());
       Clipboard.setData(
-          ClipboardData(text: controller.selectedPaths.join('\n')));
+        ClipboardData(text: controller.selectedPaths.join('\n')),
+      );
     }
   }
 
@@ -356,11 +375,8 @@ class _StatusBarSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Selector<PaneController, (int, bool, int)>(
       selector: (_, c) => (c.entryCount, c.isLoading, c.selectedCount),
-      builder: (context, sel, _) => _StatusBar(
-        loaded: sel.$1,
-        isLoading: sel.$2,
-        selectedCount: sel.$3,
-      ),
+      builder: (context, sel, _) =>
+          _StatusBar(loaded: sel.$1, isLoading: sel.$2, selectedCount: sel.$3),
     );
   }
 }
@@ -380,7 +396,10 @@ String _basename(String path) {
 }
 
 void _handleDoubleTap(
-    BuildContext context, PaneController controller, String path) {
+  BuildContext context,
+  PaneController controller,
+  String path,
+) {
   // In the Recycle Bin, double-click does nothing useful; use right-click
   if (FileService.isRecycleBinPath(controller.currentPath)) return;
 
@@ -394,7 +413,10 @@ void _handleDoubleTap(
 }
 
 void _showNativeMenu(
-    BuildContext context, List<String> selectedPaths, Offset position) {
+  BuildContext context,
+  List<String> selectedPaths,
+  Offset position,
+) {
   final controller = context.read<PaneController>();
 
   // If right-clicking an unselected item, select only it
@@ -407,13 +429,16 @@ void _showNativeMenu(
   }
 
   // Use all currently selected paths for the menu
-  final paths =
-      selectedPaths.isEmpty ? <String>[] : controller.selectedPaths.toList();
+  final paths = selectedPaths.isEmpty
+      ? <String>[]
+      : controller.selectedPaths.toList();
 
   // Convert logical (window-relative) → screen physical coordinates
   final dpr = View.of(context).devicePixelRatio;
   final (screenX, screenY) = ShellContextMenu.toScreenCoords(
-    position.dx, position.dy, dpr,
+    position.dx,
+    position.dy,
+    dpr,
   );
 
   final verb = ShellContextMenu.show(
@@ -428,7 +453,10 @@ void _showNativeMenu(
 }
 
 void _handleVerb(
-    BuildContext context, String? verb, List<String> selectedPaths) {
+  BuildContext context,
+  String? verb,
+  List<String> selectedPaths,
+) {
   if (verb == null) return;
 
   final appState = context.read<AppState>();
@@ -493,8 +521,9 @@ Future<void> _renameSelected(BuildContext context) async {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('重命名失败: $e'),
-            duration: const Duration(seconds: 2)),
+          content: Text('重命名失败: $e'),
+          duration: const Duration(seconds: 2),
+        ),
       );
     }
   }
@@ -565,7 +594,10 @@ class _StatusBar extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: Text(
         text,
-        style: TextStyle(fontSize: AppMetrics.fontSmall, color: c.textSecondary),
+        style: TextStyle(
+          fontSize: AppMetrics.fontSmall,
+          color: c.textSecondary,
+        ),
       ),
     );
   }

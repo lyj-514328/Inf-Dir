@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/icon_service.dart';
+import '../services/file_service.dart';
 import 'app_theme.dart';
 
 class AddressBar extends StatefulWidget {
@@ -67,6 +68,9 @@ class _AddressBarState extends State<AddressBar> {
 
   Widget _buildIcon() {
     final c = context.colors;
+    if (FileService.isHomePath(widget.iconPath)) {
+      return Icon(Icons.home, size: AppMetrics.iconSm, color: c.textSecondary);
+    }
     final bytes = IconService.getFileIconPng(widget.iconPath, true, 16);
     if (bytes != null) {
       return Image.memory(
@@ -76,7 +80,11 @@ class _AddressBarState extends State<AddressBar> {
         gaplessPlayback: true,
       );
     }
-    return Icon(Icons.folder_open, size: AppMetrics.iconSm, color: c.iconFolder);
+    return Icon(
+      Icons.folder_open,
+      size: AppMetrics.iconSm,
+      color: c.iconFolder,
+    );
   }
 
   @override
