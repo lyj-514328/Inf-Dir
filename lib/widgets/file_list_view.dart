@@ -23,6 +23,7 @@ class FileListView extends StatefulWidget {
   final List<double> columnWidths;
   final Function(int colIndex, double deltaPx) onResizeColumn;
   final Function(double paneWidth)? onInitWidths;
+  final PaneViewMode viewMode;
 
   /// 当前目录位于云同步区时，追加只读的"状态"列（资源管理器同款）。
   final bool showStatusColumn;
@@ -43,6 +44,7 @@ class FileListView extends StatefulWidget {
     required this.columnWidths,
     required this.onResizeColumn,
     this.onInitWidths,
+    this.viewMode = PaneViewMode.details,
     this.showStatusColumn = false,
   });
 
@@ -79,7 +81,10 @@ class _FileListViewState extends State<FileListView> {
   bool get _hasScrollbar => _blankWidth <= _minBlank + 1; // tolerance
 
   void _handleResize(int colIndex, double delta) {
-    final newW = (widget.columnWidths[colIndex] + delta).clamp(40.0, double.infinity);
+    final newW = (widget.columnWidths[colIndex] + delta).clamp(
+      40.0,
+      double.infinity,
+    );
     final actualDelta = newW - widget.columnWidths[colIndex];
     if (actualDelta.abs() > 0.01) {
       widget.onResizeColumn(colIndex, actualDelta);
@@ -108,7 +113,9 @@ class _FileListViewState extends State<FileListView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         _paneWidth = constraints.maxWidth;
-        if (!_widthsInitialized && _paneWidth > 0 && widget.onInitWidths != null) {
+        if (!_widthsInitialized &&
+            _paneWidth > 0 &&
+            widget.onInitWidths != null) {
           _widthsInitialized = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             widget.onInitWidths!(_paneWidth);
@@ -121,74 +128,83 @@ class _FileListViewState extends State<FileListView> {
           onEnter: (_) => setState(() => _scrollbarHovered = true),
           onExit: (_) => setState(() => _scrollbarHovered = false),
           child: Scrollbar(
-          controller: _hScrollController,
-          thumbVisibility: _scrollbarHovered,
-          child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          controller: _hScrollController,
-          child: SizedBox(
-            width: listW,
-            height: constraints.maxHeight,
-            child: Column(
-              children: [
-                _ColumnHeader(
-                  sortColumn: widget.sortColumn,
-                  sortAscending: widget.sortAscending,
-                  onSort: widget.onSort,
-                  columnWidths: widget.columnWidths,
-                  blankWidth: blankW,
-                  onResizeColumn: _handleResize,
-                  showStatusColumn: widget.showStatusColumn,
-                ),
-                Container(height: 1, color: context.colors.border),
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onSecondaryTapUp: (details) {
-                      widget.onEmptyRightClick?.call(details.globalPosition);
-                    },
-                    child: widget.entries.isEmpty
-                        ? Center(
-                            child: Text(
-                              '空文件夹',
-                              style: TextStyle(
-                                color: context.colors.textTertiary,
-                                fontSize: AppMetrics.fontBody,
+            controller: _hScrollController,
+            thumbVisibility: _scrollbarHovered,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              controller: _hScrollController,
+              child: SizedBox(
+                width: listW,
+                height: constraints.maxHeight,
+                child: Column(
+                  children: [
+                    _ColumnHeader(
+                      sortColumn: widget.sortColumn,
+                      sortAscending: widget.sortAscending,
+                      onSort: widget.onSort,
+                      columnWidths: widget.columnWidths,
+                      blankWidth: blankW,
+                      onResizeColumn: _handleResize,
+                      viewMode: widget.viewMode,
+                      showStatusColumn: widget.showStatusColumn,
+                    ),
+                    Container(height: 1, color: context.colors.border),
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onSecondaryTapUp: (details) {
+                          widget.onEmptyRightClick?.call(
+                            details.globalPosition,
+                          );
+                        },
+                        child: widget.entries.isEmpty
+                            ? Center(
+                                child: Text(
+                                  '空文件夹',
+                                  style: TextStyle(
+                                    color: context.colors.textTertiary,
+                                    fontSize: AppMetrics.fontBody,
+                                  ),
+                                ),
+                              )
+                            : Scrollbar(
+                                controller: _vScrollController,
+                                thumbVisibility: _scrollbarHovered,
+                                child: ListView.builder(
+                                  controller: _vScrollController,
+                                  itemCount: widget.entries.length,
+                                  itemExtent: AppMetrics.rowHeight,
+                                  padding: EdgeInsets.zero,
+                                  itemBuilder: (context, index) {
+                                    final entry = widget.entries[index];
+                                    return _FileRow(
+                                      entry: entry,
+                                      isSelected: widget.selectedPaths.contains(
+                                        entry.path,
+                                      ),
+                                      isActive: widget.isActive,
+                                      columnWidths: widget.columnWidths,
+                                      blankWidth: blankW,
+                                      viewMode: widget.viewMode,
+                                      showStatusColumn: widget.showStatusColumn,
+                                      onSingleTap: () =>
+                                          widget.onSingleTap(entry.path),
+                                      onDoubleTap: () =>
+                                          widget.onDoubleTap(entry.path),
+                                      onRightClick: (pos) => widget
+                                          .onItemRightClick
+                                          ?.call(entry.path, pos),
+                                    );
+                                  },
+                                ),
                               ),
-                            ),
-                          )
-                        : Scrollbar(
-                            controller: _vScrollController,
-                            thumbVisibility: _scrollbarHovered,
-                            child: ListView.builder(
-                            controller: _vScrollController,
-                            itemCount: widget.entries.length,
-                            itemExtent: AppMetrics.rowHeight,
-                            padding: EdgeInsets.zero,
-                            itemBuilder: (context, index) {
-                              final entry = widget.entries[index];
-                              return _FileRow(
-                                entry: entry,
-                                isSelected: widget.selectedPaths.contains(entry.path),
-                                isActive: widget.isActive,
-                                columnWidths: widget.columnWidths,
-                                blankWidth: blankW,
-                                showStatusColumn: widget.showStatusColumn,
-                                onSingleTap: () => widget.onSingleTap(entry.path),
-                                onDoubleTap: () => widget.onDoubleTap(entry.path),
-                                onRightClick: (pos) =>
-                                    widget.onItemRightClick?.call(entry.path, pos),
-                              );
-                            },
-                          ),
-                        ),
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-        ),
         );
       },
     );
@@ -204,6 +220,7 @@ class _ColumnHeader extends StatelessWidget {
   final List<double> columnWidths;
   final double blankWidth;
   final Function(int colIndex, double deltaPx) onResizeColumn;
+  final PaneViewMode viewMode;
   final bool showStatusColumn;
 
   const _ColumnHeader({
@@ -213,6 +230,7 @@ class _ColumnHeader extends StatelessWidget {
     required this.columnWidths,
     required this.blankWidth,
     required this.onResizeColumn,
+    this.viewMode = PaneViewMode.details,
     this.showStatusColumn = false,
   });
 
@@ -225,6 +243,24 @@ class _ColumnHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (viewMode == PaneViewMode.list) {
+      return SizedBox(
+        height: AppMetrics.rowHeight,
+        child: Row(
+          children: [
+            _HeaderCell(
+              label: '名称',
+              width: columnWidths[0],
+              column: SortColumn.name,
+              sortColumn: sortColumn,
+              sortAscending: sortAscending,
+              onSort: onSort,
+            ),
+            SizedBox(width: blankWidth),
+          ],
+        ),
+      );
+    }
     return SizedBox(
       height: AppMetrics.rowHeight,
       child: Row(
@@ -267,10 +303,7 @@ class _ColumnHeader extends StatelessWidget {
                   ),
                 ],
                 // 大小列与空白列之间的分隔条
-                _HeaderSplitter(
-                  colIndex: 3,
-                  onResizeColumn: onResizeColumn,
-                ),
+                _HeaderSplitter(colIndex: 3, onResizeColumn: onResizeColumn),
               ],
             ),
           ),
@@ -286,10 +319,7 @@ class _HeaderSplitter extends StatefulWidget {
   final int colIndex;
   final Function(int colIndex, double deltaPx) onResizeColumn;
 
-  const _HeaderSplitter({
-    required this.colIndex,
-    required this.onResizeColumn,
-  });
+  const _HeaderSplitter({required this.colIndex, required this.onResizeColumn});
 
   @override
   State<_HeaderSplitter> createState() => _HeaderSplitterState();
@@ -335,8 +365,8 @@ class _HeaderSplitterState extends State<_HeaderSplitter> {
               color: _dragging
                   ? c.accent
                   : _hovering
-                      ? c.accent.withValues(alpha: 0.4)
-                      : c.borderStrong,
+                  ? c.accent.withValues(alpha: 0.4)
+                  : c.borderStrong,
               borderRadius: BorderRadius.circular(1),
             ),
           ),
@@ -408,6 +438,7 @@ class _FileRow extends StatefulWidget {
   final bool isActive;
   final List<double> columnWidths;
   final double blankWidth;
+  final PaneViewMode viewMode;
   final bool showStatusColumn;
   final VoidCallback onSingleTap;
   final VoidCallback onDoubleTap;
@@ -419,6 +450,7 @@ class _FileRow extends StatefulWidget {
     this.isActive = true,
     required this.columnWidths,
     required this.blankWidth,
+    this.viewMode = PaneViewMode.details,
     this.showStatusColumn = false,
     required this.onSingleTap,
     required this.onDoubleTap,
@@ -465,89 +497,94 @@ class _FileRowState extends State<_FileRow> {
               widget.onRightClick?.call(details.globalPosition),
           child: SizedBox(
             height: AppMetrics.rowHeight,
-          child: Row(
-            children: [
-              // 浮动选中条：圆角 + 左右内缩（Win11 资源管理器风格）
-              Expanded(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: widget.columnWidths[0],
-                        child: Row(
-                          children: [
-                            _FileIcon(
-                              path: widget.entry.path,
-                              isDirectory: widget.entry.isDirectory,
-                              isSelected: widget.isSelected && widget.isActive,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                widget.entry.name,
-                                style: TextStyle(
-                                  fontSize: AppMetrics.fontBody,
-                                  color: textColor,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
+            child: Row(
+              children: [
+                // 浮动选中条：圆角 + 左右内缩（Win11 资源管理器风格）
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(
+                        AppMetrics.cardRadius,
                       ),
-                      if (widget.showStatusColumn)
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(
+                      children: [
                         SizedBox(
-                          width: _statusColWidth,
-                          child: _CloudStatusCell(path: widget.entry.path),
-                        ),
-                      SizedBox(
-                        width: widget.columnWidths[1],
-                        child: Text(
-                          widget.entry.formattedDate,
-                          style: TextStyle(
-                            fontSize: AppMetrics.fontBody,
-                            color: textColor,
+                          width: widget.columnWidths[0],
+                          child: Row(
+                            children: [
+                              _FileIcon(
+                                path: widget.entry.path,
+                                isDirectory: widget.entry.isDirectory,
+                                isSelected:
+                                    widget.isSelected && widget.isActive,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  widget.entry.name,
+                                  style: TextStyle(
+                                    fontSize: AppMetrics.fontBody,
+                                    color: textColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      SizedBox(
-                        width: widget.columnWidths[2],
-                        child: Text(
-                          widget.entry.type,
-                          style: TextStyle(
-                            fontSize: AppMetrics.fontBody,
-                            color: textColor,
+                        if (widget.viewMode != PaneViewMode.list) ...[
+                          if (widget.showStatusColumn)
+                            SizedBox(
+                              width: _statusColWidth,
+                              child: _CloudStatusCell(path: widget.entry.path),
+                            ),
+                          SizedBox(
+                            width: widget.columnWidths[1],
+                            child: Text(
+                              widget.entry.formattedDate,
+                              style: TextStyle(
+                                fontSize: AppMetrics.fontBody,
+                                color: textColor,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      SizedBox(
-                        width: widget.columnWidths[3],
-                        child: Text(
-                          widget.entry.formattedSize,
-                          style: TextStyle(
-                            fontSize: AppMetrics.fontBody,
-                            color: textColor,
+                          SizedBox(
+                            width: widget.columnWidths[2],
+                            child: Text(
+                              widget.entry.type,
+                              style: TextStyle(
+                                fontSize: AppMetrics.fontBody,
+                                color: textColor,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                    ],
+                          SizedBox(
+                            width: widget.columnWidths[3],
+                            child: Text(
+                              widget.entry.formattedSize,
+                              style: TextStyle(
+                                fontSize: AppMetrics.fontBody,
+                                color: textColor,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(width: widget.blankWidth),
-            ],
+                SizedBox(width: widget.blankWidth),
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -633,13 +670,13 @@ class _FileIcon extends StatelessWidget {
     };
 
 String _cloudStatusText(int status) => switch (status) {
-      2 => '始终保留在此设备上',
-      1 => '本地可用',
-      3 => '正在同步',
-      0 => '仅联机可用',
-      4 => '已排除（不同步）',
-      _ => '云文件',
-    };
+  2 => '始终保留在此设备上',
+  1 => '本地可用',
+  3 => '正在同步',
+  0 => '仅联机可用',
+  4 => '已排除（不同步）',
+  _ => '云文件',
+};
 
 /// 详情视图"状态"列单元：按云同步状态渲染图标（带 tooltip）。
 /// 非云条目（-1）留空，与资源管理器一致。

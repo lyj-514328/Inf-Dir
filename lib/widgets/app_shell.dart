@@ -50,9 +50,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final suppress = _suppressSidebarScroll;
     _suppressSidebarScroll = false;
     context.read<SidebarSyncController>().syncTo(
-          layout.activePanePath.value,
-          scrollToSelected: !suppress,
-        );
+      layout.activePanePath.value,
+      scrollToSelected: !suppress,
+    );
   }
 
   @override
@@ -138,6 +138,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
             onToggleHiddenFiles: () {
               final app = context.read<AppState>();
               app.setShowHiddenFiles(!app.showHiddenFiles);
+              layoutState.refreshAllPanes();
               // 缓存已清空，侧栏重新同步当前路径以应用新过滤。
               _syncSidebar();
             },
@@ -356,7 +357,10 @@ class _WorkspaceTab extends StatelessWidget {
 }
 
 class _MenuBar extends StatelessWidget {
-  const _MenuBar({required this.layoutState, required this.onViewerAssociations});
+  const _MenuBar({
+    required this.layoutState,
+    required this.onViewerAssociations,
+  });
 
   final LayoutState layoutState;
   final VoidCallback onViewerAssociations;
@@ -400,8 +404,9 @@ class _MenuBar extends StatelessWidget {
           const _MenuLabel('收藏夹(A)'),
           _MenuDropdown(
             label: '选项(O)',
-            buildEntries: () =>
-                [_MenuEntry('查看器管理', onTap: onViewerAssociations)],
+            buildEntries: () => [
+              _MenuEntry('查看器管理', onTap: onViewerAssociations),
+            ],
           ),
           const _MenuLabel('信息(H)'),
         ],
@@ -512,10 +517,7 @@ class _MenuDropdownState extends State<_MenuDropdown> {
         ),
         child: Text(
           widget.label,
-          style: TextStyle(
-            fontSize: AppMetrics.fontBody,
-            color: c.textPrimary,
-          ),
+          style: TextStyle(fontSize: AppMetrics.fontBody, color: c.textPrimary),
         ),
       ),
     );

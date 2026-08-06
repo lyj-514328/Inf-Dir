@@ -54,6 +54,46 @@ void main() {
       pc.dispose();
     });
 
+    test(
+      'search, quick filters and view mode stay local to the pane',
+      () async {
+        source = FakeCursorSource({
+          'C:\\Filtered': [
+            [
+              dirEntry('C:\\Filtered\\Reports'),
+              fileEntry('C:\\Filtered\\report.pdf'),
+              fileEntry('C:\\Filtered\\photo.png'),
+              fileEntry('C:\\Filtered\\notes.txt'),
+            ],
+            null,
+          ],
+        });
+        repo = DirectoryRepository(
+          cursorFactory: source.open,
+          yieldFrame: pump.yieldFrame,
+          hasChildrenProbe: (_) => true,
+        );
+
+        final pc = makePane('C:\\Filtered');
+        await runToIdle(pump);
+
+        pc.setFilterQuery('report');
+        expect(pc.visibleEntries.map((e) => e.name), ['Reports', 'report.pdf']);
+
+        pc.setFilterQuery('');
+        pc.setEntryFilter(EntryFilter.images);
+        expect(pc.visibleEntries.map((e) => e.name), ['photo.png']);
+
+        pc.selectAll();
+        expect(pc.selectedPaths, {'C:\\Filtered\\photo.png'});
+
+        pc.setViewMode(PaneViewMode.list);
+        expect(pc.viewMode, PaneViewMode.list);
+        expect(pc.entries, hasLength(4));
+        pc.dispose();
+      },
+    );
+
     test('keeps every published page globally sorted', () async {
       source = FakeCursorSource({
         'C:\\Paged': [

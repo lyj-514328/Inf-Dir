@@ -9,6 +9,14 @@ import '../services/directory_repository.dart';
 
 enum SortColumn { name, dateModified, type, size }
 
+/// Explorer-style view density. The details view is the default because it
+/// exposes the same sortable columns as Windows Explorer.
+enum PaneViewMode { details, list, compact }
+
+/// Quick filters exposed by the command bar. Filtering is local to a pane and
+/// never changes the directory enumeration cache.
+enum EntryFilter { all, folders, files, images, documents }
+
 class TabInfo {
   final String path;
   final String label;
@@ -48,6 +56,9 @@ class PaneController extends ChangeNotifier {
   final Future<void> Function() _frameYield;
   SortColumn _sortColumn = SortColumn.name;
   bool _sortAscending = true;
+  String _filterQuery = '';
+  EntryFilter _entryFilter = EntryFilter.all;
+  PaneViewMode _viewMode = PaneViewMode.details;
   List<double> _columnWidths = [300, 140, 100, 80]; // name, date, type, size
 
   PaneController(
@@ -80,6 +91,8 @@ class PaneController extends ChangeNotifier {
   }
 
   List<FileEntry> get entries => _entries;
+  List<FileEntry> get visibleEntries =>
+      _entries.where(_matchesFilter).toList(growable: false);
   bool get canGoBack => _backStack.isNotEmpty;
   bool get canGoForward => _forwardStack.isNotEmpty;
   bool get canGoUp {
@@ -93,11 +106,80 @@ class PaneController extends ChangeNotifier {
   int get activeTabIndex => _activeTabIndex;
   Set<String> get selectedPaths => _selectedPaths;
   String? get focusedPath => _focusedPath;
-  int get entryCount => _entries.length;
+  int get entryCount => visibleEntries.length;
   int get selectedCount => _selectedPaths.length;
   SortColumn get sortColumn => _sortColumn;
   bool get sortAscending => _sortAscending;
+  String get filterQuery => _filterQuery;
+  EntryFilter get entryFilter => _entryFilter;
+  PaneViewMode get viewMode => _viewMode;
   List<double> get columnWidths => _columnWidths;
+
+  bool _matchesFilter(FileEntry entry) {
+    final query = _filterQuery.trim().toLowerCase();
+    if (query.isNotEmpty && !entry.name.toLowerCase().contains(query)) {
+      return false;
+    }
+    switch (_entryFilter) {
+      case EntryFilter.all:
+        return true;
+      case EntryFilter.folders:
+        return entry.isDirectory;
+      case EntryFilter.files:
+        return !entry.isDirectory;
+      case EntryFilter.images:
+        return !entry.isDirectory &&
+            const {
+              'jpg',
+              'jpeg',
+              'png',
+              'gif',
+              'bmp',
+              'webp',
+              'svg',
+              'ico',
+            }.contains(
+              p.extension(entry.name).toLowerCase().replaceFirst('.', ''),
+            );
+      case EntryFilter.documents:
+        return !entry.isDirectory &&
+            const {
+              'txt',
+              'md',
+              'pdf',
+              'doc',
+              'docx',
+              'xls',
+              'xlsx',
+              'ppt',
+              'pptx',
+              'rtf',
+            }.contains(
+              p.extension(entry.name).toLowerCase().replaceFirst('.', ''),
+            );
+    }
+  }
+
+  void setFilterQuery(String query) {
+    final normalized = query.trimLeft();
+    if (_filterQuery == normalized) return;
+    _filterQuery = normalized;
+    _clearSelectionWithoutNotify();
+    notifyListeners();
+  }
+
+  void setEntryFilter(EntryFilter filter) {
+    if (_entryFilter == filter) return;
+    _entryFilter = filter;
+    _clearSelectionWithoutNotify();
+    notifyListeners();
+  }
+
+  void setViewMode(PaneViewMode mode) {
+    if (_viewMode == mode) return;
+    _viewMode = mode;
+    notifyListeners();
+  }
 
   void resizeColumn(int colIndex, double deltaPx) {
     final left = _columnWidths[colIndex] + deltaPx;
@@ -441,11 +523,13 @@ class PaneController extends ChangeNotifier {
     _focusedPath = path;
     _anchorPath ??= path;
 
+    final visible = visibleEntries;
+
     int anchorIndex = -1;
     int clickIndex = -1;
-    for (int i = 0; i < _entries.length; i++) {
-      if (_entries[i].path == _anchorPath) anchorIndex = i;
-      if (_entries[i].path == path) clickIndex = i;
+    for (int i = 0; i < visible.length; i++) {
+      if (visible[i].path == _anchorPath) anchorIndex = i;
+      if (visible[i].path == path) clickIndex = i;
     }
     if (anchorIndex < 0 || clickIndex < 0) {
       selectSingle(path);
@@ -457,18 +541,39 @@ class PaneController extends ChangeNotifier {
 
     _selectedPaths.clear();
     for (int i = start; i <= end; i++) {
-      _selectedPaths.add(_entries[i].path);
+      _selectedPaths.add(visible[i].path);
     }
     notifyListeners();
   }
 
   void selectAll() {
     _selectedPaths.clear();
-    for (final e in _entries) {
+    final visible = visibleEntries;
+    for (final e in visible) {
       _selectedPaths.add(e.path);
     }
-    _focusedPath ??= _entries.isEmpty ? null : _entries.first.path;
+    _focusedPath ??= visible.isEmpty ? null : visible.first.path;
     notifyListeners();
+  }
+
+  void setSortColumn(SortColumn column) {
+    if (_sortColumn == column) return;
+    _sortColumn = column;
+    _applySort();
+    notifyListeners();
+  }
+
+  void setSortAscending(bool ascending) {
+    if (_sortAscending == ascending) return;
+    _sortAscending = ascending;
+    _applySort();
+    notifyListeners();
+  }
+
+  void _clearSelectionWithoutNotify() {
+    _selectedPaths.clear();
+    _anchorPath = null;
+    _focusedPath = null;
   }
 
   void clearSelection() {

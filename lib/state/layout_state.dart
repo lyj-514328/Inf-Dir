@@ -82,6 +82,14 @@ class LayoutState extends ChangeNotifier {
     return result;
   }
 
+  /// Reloads every live pane after a global directory-enumeration setting
+  /// changes (for example, toggling hidden/system files).
+  void refreshAllPanes() {
+    for (final controller in _controllers.values) {
+      controller.refresh();
+    }
+  }
+
   void _collectPaneNodes(LayoutNode node, List<LayoutNode> out) {
     if (node.isPane) {
       out.add(node);

@@ -67,11 +67,15 @@ class _PaneContent extends StatelessWidget {
         Padding(
           padding: EdgeInsets.symmetric(horizontal: AppMetrics.paneGap),
           child: _PaneCommandBarSection(
+            onCreateFolder: _createFolder,
+            onCreateTextFile: _createTextFile,
             onCut: _cutSelected,
             onCopy: _copySelected,
             onPaste: _paste,
             onRename: _renameSelected,
+            onShare: _shareSelected,
             onDelete: _deleteSelected,
+            onProperties: _showProperties,
           ),
         ),
         const SizedBox(height: AppMetrics.paneGap),
@@ -176,6 +180,71 @@ class _PaneContent extends StatelessWidget {
 
   // ── Open / Navigate ────────────────────────────────────────────────
 
+  Future<void> _createFolder(BuildContext context) async {
+    final controller = context.read<PaneController>();
+    if (controller.isHome ||
+        FileService.isSpecialPath(controller.currentPath)) {
+      return;
+    }
+    final name = await _showInputDialog(
+      context,
+      title: '新建文件夹',
+      initialValue: '新建文件夹',
+      confirmText: '创建',
+    );
+    if (name == null || name.trim().isEmpty) return;
+    try {
+      await FileService.createFolder(controller.currentPath, name.trim());
+      controller.refresh();
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '创建文件夹失败', e);
+    }
+  }
+
+  Future<void> _createTextFile(BuildContext context) async {
+    final controller = context.read<PaneController>();
+    if (controller.isHome ||
+        FileService.isSpecialPath(controller.currentPath)) {
+      return;
+    }
+    final name = await _showInputDialog(
+      context,
+      title: '新建文本文档',
+      initialValue: '新建文本文档.txt',
+      confirmText: '创建',
+    );
+    if (name == null || name.trim().isEmpty) return;
+    try {
+      await FileService.createTextFile(controller.currentPath, name.trim());
+      controller.refresh();
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '创建文件失败', e);
+    }
+  }
+
+  void _shareSelected(BuildContext context) {
+    final controller = context.read<PaneController>();
+    final paths = controller.selectedPaths.toList();
+    if (paths.isEmpty) return;
+    _showNativeMenuAtToolbar(context, paths);
+  }
+
+  void _showProperties(BuildContext context) {
+    final controller = context.read<PaneController>();
+    final paths = controller.selectedPaths.toList();
+    if (paths.isEmpty) return;
+    _showNativeMenuAtToolbar(context, paths);
+  }
+
+  void _showNativeMenuAtToolbar(BuildContext context, List<String> paths) {
+    final size = MediaQuery.sizeOf(context);
+    _showNativeMenu(
+      context,
+      paths,
+      Offset(size.width * 0.5, AppMetrics.commandBarHeight * 3.5),
+    );
+  }
+
   void _openSelected(BuildContext context, PaneController controller) {
     // In the Recycle Bin, Enter does nothing
     if (FileService.isRecycleBinPath(controller.currentPath)) return;
@@ -209,7 +278,7 @@ class _PaneContent extends StatelessWidget {
     final controller = context.read<PaneController>();
 
     // Cannot paste into the Recycle Bin
-    if (FileService.isRecycleBinPath(controller.currentPath)) return;
+    if (FileService.isSpecialPath(controller.currentPath)) return;
 
     if (!appState.hasClipboard) return;
 
@@ -268,6 +337,19 @@ class _PaneContent extends StatelessWidget {
     }
     controller.refresh();
   }
+
+  void _showOperationError(
+    BuildContext context,
+    String operation,
+    Object error,
+  ) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$operation: $error'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 }
 
 // ── Sections：按需重建，避免选中/加载时整个面板 rebuild ──────────────
@@ -307,7 +389,19 @@ class _PaneLocationSection extends StatelessWidget {
           const SizedBox(width: 6),
           const Expanded(flex: 5, child: _AddressBarSection()),
           const SizedBox(width: 6),
-          const Expanded(flex: 2, child: FileSearchField()),
+          Expanded(
+            flex: 2,
+            child: Selector<PaneController, String>(
+              selector: (_, c) => c.filterQuery,
+              builder: (context, query, _) {
+                final controller = context.read<PaneController>();
+                return FileSearchField(
+                  query: query,
+                  onChanged: controller.setFilterQuery,
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -339,50 +433,82 @@ class _NavToolbarSection extends StatelessWidget {
 }
 
 class _PaneCommandBarSection extends StatelessWidget {
+  final void Function(BuildContext) onCreateFolder;
+  final void Function(BuildContext) onCreateTextFile;
   final void Function(BuildContext) onCut;
   final void Function(BuildContext) onCopy;
   final Future<void> Function(BuildContext) onPaste;
   final Future<void> Function(BuildContext) onRename;
+  final void Function(BuildContext) onShare;
   final Future<void> Function(BuildContext) onDelete;
+  final void Function(BuildContext) onProperties;
 
   const _PaneCommandBarSection({
+    required this.onCreateFolder,
+    required this.onCreateTextFile,
     required this.onCut,
     required this.onCopy,
     required this.onPaste,
     required this.onRename,
+    required this.onShare,
     required this.onDelete,
+    required this.onProperties,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isHome = context.select<PaneController, bool>((c) => c.isHome);
-    final currentPath = context.select<PaneController, String>(
-      (c) => c.currentPath,
-    );
-    final selectionCount = context.select<PaneController, int>(
-      (c) => c.selectedPaths.length,
-    );
-    final hasClipboard = context.select<AppState, bool>((s) => s.hasClipboard);
+    final controller = context.watch<PaneController>();
+    final appState = context.watch<AppState>();
+    final isHome = controller.isHome;
+    final currentPath = controller.currentPath;
+    final selectionCount = controller.selectedPaths.length;
+    final hasClipboard = appState.hasClipboard;
     final canSelect = !isHome && selectionCount > 0;
+    final canCreate =
+        !isHome &&
+        !FileService.isSpecialPath(currentPath) &&
+        !FileService.isRecycleBinPath(currentPath);
     final canRename =
         canSelect &&
         selectionCount == 1 &&
         !FileService.isRecycleBinPath(currentPath);
     final canDelete = canSelect && !FileService.isRecycleBinPath(currentPath);
-    final canPaste =
-        !isHome && !FileService.isRecycleBinPath(currentPath) && hasClipboard;
+    final canPaste = canCreate && hasClipboard;
 
     return FileCommandBar(
+      canCreate: canCreate,
       canCut: canSelect && !FileService.isRecycleBinPath(currentPath),
       canCopy: canSelect,
       canPaste: canPaste,
       canRename: canRename,
+      canShare: canSelect && !FileService.isRecycleBinPath(currentPath),
       canDelete: canDelete,
+      canSelectAll: !isHome && controller.visibleEntries.isNotEmpty,
+      canShowProperties: canSelect,
+      showHiddenFiles: appState.showHiddenFiles,
+      sortColumn: controller.sortColumn,
+      sortAscending: controller.sortAscending,
+      viewMode: controller.viewMode,
+      entryFilter: controller.entryFilter,
+      onCreateFolder: () => onCreateFolder(context),
+      onCreateTextFile: () => onCreateTextFile(context),
       onCut: () => onCut(context),
       onCopy: () => onCopy(context),
       onPaste: () => onPaste(context),
       onRename: () => onRename(context),
+      onShare: () => onShare(context),
       onDelete: () => onDelete(context),
+      onSortColumn: controller.setSortColumn,
+      onSortAscending: controller.setSortAscending,
+      onViewMode: controller.setViewMode,
+      onFilter: controller.setEntryFilter,
+      onSelectAll: controller.selectAll,
+      onRefresh: controller.refresh,
+      onToggleHiddenFiles: () {
+        appState.setShowHiddenFiles(!appState.showHiddenFiles);
+        context.read<LayoutState>().refreshAllPanes();
+      },
+      onProperties: () => onProperties(context),
     );
   }
 }
@@ -415,13 +541,14 @@ class _FileListSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<PaneController>();
     return FileListView(
-      entries: controller.entries,
+      entries: controller.visibleEntries,
       selectedPaths: controller.selectedPaths,
       isActive: isActive,
       loading: controller.isLoading,
       sortColumn: controller.sortColumn,
       sortAscending: controller.sortAscending,
       onSort: controller.sortBy,
+      viewMode: controller.viewMode,
       columnWidths: controller.columnWidths,
       onResizeColumn: controller.resizeColumn,
       onInitWidths: controller.initColumnWidths,

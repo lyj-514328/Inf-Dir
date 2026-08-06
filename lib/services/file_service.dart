@@ -90,6 +90,15 @@ class FileService {
     return newPath;
   }
 
+  /// Creates an empty file and returns its full path. Keeping this operation
+  /// in the service makes the command bar testable without tying it to a
+  /// platform-specific shell implementation.
+  static Future<String> createTextFile(String parentPath, String name) async {
+    final newPath = p.join(parentPath, name);
+    await File(newPath).create();
+    return newPath;
+  }
+
   static Future<void> copyEntry(String srcPath, String destDir) async {
     final name = p.basename(srcPath);
     final destPath = p.join(destDir, name);
