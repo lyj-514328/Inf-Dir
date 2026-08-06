@@ -267,8 +267,16 @@ abstract final class AppTheme {
               : Typography.material2021().white)
           .apply(bodyColor: c.textPrimary, displayColor: c.textPrimary),
       scrollbarTheme: ScrollbarThemeData(
-        thickness: WidgetStateProperty.all(8),
-        radius: const Radius.circular(4),
+        // Windows 风格：细滑块、常驻显示，hover/拖拽时略增粗
+        thickness: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.dragged)) {
+            return 6.0;
+          }
+          return 4.0;
+        }),
+        radius: const Radius.circular(3),
+        thumbVisibility: WidgetStateProperty.all(true),
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.hovered) ||
               states.contains(WidgetState.dragged)) {

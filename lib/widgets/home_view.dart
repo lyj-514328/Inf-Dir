@@ -35,6 +35,7 @@ class _HomeViewState extends State<HomeView> {
   _HomeListTab _activeTab = _HomeListTab.recent;
   int _loadId = 0;
   final ScrollController _scrollController = ScrollController();
+  final ScrollController _recommendedScrollController = ScrollController();
 
   @override
   void initState() {
@@ -57,6 +58,7 @@ class _HomeViewState extends State<HomeView> {
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
     _scrollController.dispose();
+    _recommendedScrollController.dispose();
     super.dispose();
   }
 
@@ -68,7 +70,7 @@ class _HomeViewState extends State<HomeView> {
     final loadId = ++_loadId;
     Future<void>.delayed(Duration.zero, () {
       final recommended = HomeService.getRecommendedFiles(limit: 8);
-      final recent = HomeService.getRecentFiles(limit: 50);
+      final recent = HomeService.getRecentFiles();
       final favorites = HomeService.getFavorites(limit: 50);
       if (!mounted || loadId != _loadId) return;
       setState(() {
@@ -120,22 +122,27 @@ class _HomeViewState extends State<HomeView> {
     const gap = 12.0;
     final fitWidth = (availableWidth - gap * 7) / 8;
     final cardWidth = fitWidth >= 180 ? fitWidth : 228.0;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var i = 0; i < _recommended.length && i < 8; i++) ...[
-            SizedBox(
-              width: cardWidth,
-              child: _RecommendedCard(
-                item: _recommended[i],
-                onTap: () => FileService.openFile(_recommended[i].path),
+    return Scrollbar(
+      controller: _recommendedScrollController,
+      child: SingleChildScrollView(
+        controller: _recommendedScrollController,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(
+          children: [
+            for (var i = 0; i < _recommended.length && i < 8; i++) ...[
+              SizedBox(
+                width: cardWidth,
+                child: _RecommendedCard(
+                  item: _recommended[i],
+                  onTap: () => FileService.openFile(_recommended[i].path),
+                ),
               ),
-            ),
-            if (i < _recommended.length - 1 && i < 7)
-              const SizedBox(width: gap),
+              if (i < _recommended.length - 1 && i < 7)
+                const SizedBox(width: gap),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -456,10 +463,9 @@ class _ActivityHeader extends StatelessWidget {
       child: Row(
         children:
             [
-              const Expanded(flex: 5, child: Text('名称')),
+              const Expanded(flex: 4, child: Text('名称')),
               const Expanded(flex: 2, child: Text('访问日期')),
-              const Expanded(flex: 1, child: Text('账户')),
-              const Expanded(flex: 2, child: Text('活动')),
+              const Expanded(flex: 5, child: Text('路径')),
               const SizedBox(width: 72),
             ].map((child) {
               return DefaultTextStyle(
@@ -520,7 +526,7 @@ class _ActivityRowState extends State<_ActivityRow> {
                   return Row(
                     children: [
                       Expanded(
-                        flex: 5,
+                        flex: 4,
                         child: Row(
                           children: [
                             _HomeIcon(
@@ -531,29 +537,14 @@ class _ActivityRowState extends State<_ActivityRow> {
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    widget.item.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: AppMetrics.fontBody,
-                                      color: c.textPrimary,
-                                    ),
-                                  ),
-                                  Text(
-                                    _shortPath(widget.item.path),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: AppMetrics.fontCaption,
-                                      color: c.textSecondary,
-                                    ),
-                                  ),
-                                ],
+                              child: Text(
+                                widget.item.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: AppMetrics.fontBody,
+                                  color: c.textPrimary,
+                                ),
                               ),
                             ),
                           ],
@@ -570,11 +561,12 @@ class _ActivityRowState extends State<_ActivityRow> {
                             ),
                           ),
                         ),
-                        const Expanded(flex: 1, child: Text('本地')),
                         Expanded(
-                          flex: 2,
+                          flex: 5,
                           child: Text(
-                            widget.isFavorite ? '已收藏' : '最近访问',
+                            widget.item.path,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: AppMetrics.fontSmall,
                               color: c.textSecondary,

@@ -11,6 +11,7 @@ add_executable(${BINARY_NAME} WIN32
   "file_icon.cpp"
   "flutter_window.cpp"
   "main.cpp"
+  "recent_files.cpp"
   "shell_context_menu.cpp"
   "sidebar_helper.cpp"
   "utils.cpp"
