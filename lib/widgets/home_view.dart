@@ -15,7 +15,6 @@ import 'app_theme.dart';
 
 enum _HomeSection { quickAccess, recent, favorites }
 
-enum _RowAction { openLocation, copyPath, addFavorite, removeFavorite }
 
 class _HomeItem {
   final String name;
@@ -289,19 +288,8 @@ class _HomeViewState extends State<HomeView> {
             _HomeDetailsRow(
               item: item,
               section: section,
-              isFavorite:
-                  section == _HomeSection.favorites ||
-                  HomeService.isFavorite(item.path),
               showFileExtensions: widget.showFileExtensions,
               onTap: () => _openItem(section, item),
-              onOpenLocation: section == _HomeSection.quickAccess
-                  ? null
-                  : () => FileService.openContainingFolder(item.path),
-              onCopyPath: () =>
-                  Clipboard.setData(ClipboardData(text: item.path)),
-              onFavoriteChanged: section == _HomeSection.quickAccess
-                  ? null
-                  : () => _toggleFavorite(item.path),
             ),
         ],
       ),
@@ -374,15 +362,6 @@ class _HomeViewState extends State<HomeView> {
       return;
     }
     FileService.openFile(item.path);
-  }
-
-  void _toggleFavorite(String path) {
-    if (HomeService.isFavorite(path)) {
-      HomeService.removeFavorite(path);
-    } else {
-      HomeService.addFavorite(path);
-    }
-    _loadHomeData();
   }
 
   Widget _emptyLine(BuildContext context, String text) => Padding(
@@ -548,7 +527,6 @@ class _HomeDetailsHeader extends StatelessWidget {
               const Expanded(flex: 4, child: Text('名称')),
               Expanded(flex: 2, child: Text(dateLabel)),
               Expanded(flex: 5, child: Text(pathLabel)),
-              const SizedBox(width: 72),
             ].map((child) {
               return DefaultTextStyle(
                 style: TextStyle(
@@ -567,22 +545,14 @@ class _HomeDetailsHeader extends StatelessWidget {
 class _HomeDetailsRow extends StatefulWidget {
   final _HomeItem item;
   final _HomeSection section;
-  final bool isFavorite;
   final bool showFileExtensions;
   final VoidCallback onTap;
-  final VoidCallback? onOpenLocation;
-  final VoidCallback onCopyPath;
-  final VoidCallback? onFavoriteChanged;
 
   const _HomeDetailsRow({
     required this.item,
     required this.section,
-    required this.isFavorite,
     required this.showFileExtensions,
     required this.onTap,
-    required this.onOpenLocation,
-    required this.onCopyPath,
-    required this.onFavoriteChanged,
   });
 
   @override
@@ -670,50 +640,6 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
                         color: c.textSecondary,
                       ),
                     ),
-                  ),
-                  SizedBox(
-                    width: 72,
-                    child:
-                        _hovering && widget.section != _HomeSection.quickAccess
-                        ? PopupMenuButton<_RowAction>(
-                            tooltip: '更多操作',
-                            padding: EdgeInsets.zero,
-                            icon: Icon(
-                              Icons.more_horiz,
-                              size: AppMetrics.iconMd,
-                              color: c.textSecondary,
-                            ),
-                            itemBuilder: (_) => [
-                              PopupMenuItem(
-                                value: _RowAction.openLocation,
-                                child: const Text('打开文件位置'),
-                              ),
-                              PopupMenuItem(
-                                value: _RowAction.copyPath,
-                                child: const Text('复制路径'),
-                              ),
-                              PopupMenuItem(
-                                value: widget.isFavorite
-                                    ? _RowAction.removeFavorite
-                                    : _RowAction.addFavorite,
-                                child: Text(
-                                  widget.isFavorite ? '取消收藏' : '添加到收藏夹',
-                                ),
-                              ),
-                            ],
-                            onSelected: (action) {
-                              switch (action) {
-                                case _RowAction.openLocation:
-                                  widget.onOpenLocation?.call();
-                                case _RowAction.copyPath:
-                                  widget.onCopyPath();
-                                case _RowAction.addFavorite:
-                                case _RowAction.removeFavorite:
-                                  widget.onFavoriteChanged?.call();
-                              }
-                            },
-                          )
-                        : const SizedBox.shrink(),
                   ),
                 ],
               ),

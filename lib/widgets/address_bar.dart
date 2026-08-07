@@ -219,7 +219,7 @@ class _AddressBarState extends State<AddressBar> {
       decoration: BoxDecoration(
         border: Border.all(color: focused ? c.accent : c.border),
         borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-        color: c.surfaceSubtle,
+        color: c.surface,
       ),
       child: Row(
         children: [

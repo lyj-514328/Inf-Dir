@@ -29,6 +29,7 @@ class PaneTabBar extends StatelessWidget {
           Expanded(
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(3, 0, 4, 0),
               itemCount: tabs.length + 1,
               itemExtent: null,
               itemBuilder: (context, index) {

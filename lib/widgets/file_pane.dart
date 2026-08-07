@@ -13,8 +13,7 @@ import '../services/shell_context_menu.dart';
 import 'app_theme.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
-import 'file_command_bar.dart';
-import 'file_search_field.dart';
+import 'command_menu.dart';
 import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
 import 'home_view.dart';
@@ -54,27 +53,24 @@ class _PaneContent extends StatelessWidget {
     final layoutState = context.watch<LayoutState>();
     final isActive = layoutState.focusedNodeId == paneNode.id;
 
+    final c = context.colors;
     final result = Column(
       children: [
-        const _PaneTabBarSection(),
-        const Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: AppMetrics.paneGap,
-            vertical: 1,
-          ),
-          child: _PaneLocationSection(),
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: AppMetrics.paneGap),
-          child: _PaneCommandBarSection(
-            onCreateFolder: _createFolder,
-            onCreateTextFile: _createTextFile,
-            onCut: _cutSelected,
-            onCopy: _copySelected,
-            onPaste: _paste,
-            onRename: _renameSelected,
-            onDelete: _deleteSelected,
-            onProperties: _showProperties,
+        Container(
+          color: c.surfaceSubtle,
+          child: Column(
+            children: [
+              const _PaneTabBarSection(),
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppMetrics.paneGap,
+                  vertical: 1,
+                ),
+                child: _PaneLocationSection(
+                  onCommandMenu: (pos) => _openCommandMenu(context, pos),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: AppMetrics.paneGap),
@@ -231,6 +227,68 @@ class _PaneContent extends StatelessWidget {
     _showNativeMenuAtToolbar(context, paths);
   }
 
+  void _openCommandMenu(BuildContext context, Offset position) {
+    final controller = context.read<PaneController>();
+    final appState = context.read<AppState>();
+    final isHome = controller.isHome;
+    final currentPath = controller.currentPath;
+    final selectionCount = controller.selectedPaths.length;
+    final canSelect = !isHome && selectionCount > 0;
+    final canCreate =
+        !isHome &&
+        !FileService.isSpecialPath(currentPath) &&
+        !FileService.isRecycleBinPath(currentPath);
+    final canRename =
+        canSelect &&
+        selectionCount == 1 &&
+        !FileService.isRecycleBinPath(currentPath);
+    final canDelete = canSelect && !FileService.isRecycleBinPath(currentPath);
+
+    showCommandMenu(
+      context,
+      position: position,
+      config: CommandMenuConfig(
+        searchQuery: controller.filterQuery,
+        onSearchChanged: controller.setFilterQuery,
+        canCreate: canCreate,
+        canCut: canSelect && !FileService.isRecycleBinPath(currentPath),
+        canCopy: canSelect,
+        canPaste: canCreate && appState.hasClipboard,
+        canRename: canRename,
+        canDelete: canDelete,
+        canSelectAll: !isHome && controller.visibleEntries.isNotEmpty,
+        canShowProperties: canSelect,
+        showHiddenFiles: appState.showHiddenFiles,
+        showFileExtensions: appState.showFileExtensions,
+        sortColumn: controller.sortColumn,
+        sortAscending: controller.sortAscending,
+        viewMode: controller.viewMode,
+        entryFilter: controller.entryFilter,
+        onCreateFolder: () => _createFolder(context),
+        onCreateTextFile: () => _createTextFile(context),
+        onCut: () => _cutSelected(context),
+        onCopy: () => _copySelected(context),
+        onPaste: () => _paste(context),
+        onRename: () => _renameSelected(context),
+        onDelete: () => _deleteSelected(context),
+        onSortColumn: controller.setSortColumn,
+        onSortAscending: controller.setSortAscending,
+        onViewMode: controller.setViewMode,
+        onFilter: controller.setEntryFilter,
+        onSelectAll: controller.selectAll,
+        onRefresh: controller.refresh,
+        onToggleHiddenFiles: () {
+          appState.setShowHiddenFiles(!appState.showHiddenFiles);
+          context.read<LayoutState>().refreshAllPanes();
+        },
+        onToggleFileExtensions: () {
+          appState.setShowFileExtensions(!appState.showFileExtensions);
+        },
+        onProperties: () => _showProperties(context),
+      ),
+    );
+  }
+
   void _showNativeMenuAtToolbar(BuildContext context, List<String> paths) {
     final size = MediaQuery.sizeOf(context);
     _showNativeMenu(
@@ -380,7 +438,9 @@ class _PaneTabBarSection extends StatelessWidget {
 }
 
 class _PaneLocationSection extends StatelessWidget {
-  const _PaneLocationSection();
+  final ValueChanged<Offset> onCommandMenu;
+
+  const _PaneLocationSection({required this.onCommandMenu});
 
   @override
   Widget build(BuildContext context) {
@@ -388,23 +448,9 @@ class _PaneLocationSection extends StatelessWidget {
       height: AppMetrics.addressBarHeight,
       child: Row(
         children: [
-          const _NavToolbarSection(),
+          _NavToolbarSection(onCommandMenu: onCommandMenu),
           const SizedBox(width: 4),
-          const Expanded(flex: 5, child: _AddressBarSection()),
-          const SizedBox(width: 6),
-          Expanded(
-            flex: 2,
-            child: Selector<PaneController, String>(
-              selector: (_, c) => c.filterQuery,
-              builder: (context, query, _) {
-                final controller = context.read<PaneController>();
-                return FileSearchField(
-                  query: query,
-                  onChanged: controller.setFilterQuery,
-                );
-              },
-            ),
-          ),
+          const Expanded(child: _AddressBarSection()),
         ],
       ),
     );
@@ -412,107 +458,33 @@ class _PaneLocationSection extends StatelessWidget {
 }
 
 class _NavToolbarSection extends StatelessWidget {
-  const _NavToolbarSection();
+  final ValueChanged<Offset> onCommandMenu;
+
+  const _NavToolbarSection({required this.onCommandMenu});
 
   @override
   Widget build(BuildContext context) {
-    return Selector<PaneController, (bool, bool, bool)>(
-      selector: (_, c) => (c.canGoBack, c.canGoForward, c.canGoUp),
+    return Selector<PaneController, (bool, bool, bool, bool)>(
+      selector: (_, c) => (
+        c.canGoBack,
+        c.canGoForward,
+        c.canGoUp,
+        c.filterQuery.isNotEmpty || c.entryFilter != EntryFilter.all,
+      ),
       builder: (context, sel, _) {
         final controller = context.read<PaneController>();
         return NavToolbar(
           canGoBack: sel.$1,
           canGoForward: sel.$2,
           canGoUp: sel.$3,
+          commandMenuActive: sel.$4,
           onBack: controller.goBack,
           onForward: controller.goForward,
           onUp: controller.goUp,
-          onHome: controller.goHome,
           onRefresh: controller.refresh,
+          onCommandMenu: onCommandMenu,
         );
       },
-    );
-  }
-}
-
-class _PaneCommandBarSection extends StatelessWidget {
-  final void Function(BuildContext) onCreateFolder;
-  final void Function(BuildContext) onCreateTextFile;
-  final void Function(BuildContext) onCut;
-  final void Function(BuildContext) onCopy;
-  final Future<void> Function(BuildContext) onPaste;
-  final Future<void> Function(BuildContext) onRename;
-  final Future<void> Function(BuildContext) onDelete;
-  final void Function(BuildContext) onProperties;
-
-  const _PaneCommandBarSection({
-    required this.onCreateFolder,
-    required this.onCreateTextFile,
-    required this.onCut,
-    required this.onCopy,
-    required this.onPaste,
-    required this.onRename,
-    required this.onDelete,
-    required this.onProperties,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = context.watch<PaneController>();
-    final appState = context.watch<AppState>();
-    final isHome = controller.isHome;
-    final currentPath = controller.currentPath;
-    final selectionCount = controller.selectedPaths.length;
-    final hasClipboard = appState.hasClipboard;
-    final canSelect = !isHome && selectionCount > 0;
-    final canCreate =
-        !isHome &&
-        !FileService.isSpecialPath(currentPath) &&
-        !FileService.isRecycleBinPath(currentPath);
-    final canRename =
-        canSelect &&
-        selectionCount == 1 &&
-        !FileService.isRecycleBinPath(currentPath);
-    final canDelete = canSelect && !FileService.isRecycleBinPath(currentPath);
-    final canPaste = canCreate && hasClipboard;
-
-    return FileCommandBar(
-      canCreate: canCreate,
-      canCut: canSelect && !FileService.isRecycleBinPath(currentPath),
-      canCopy: canSelect,
-      canPaste: canPaste,
-      canRename: canRename,
-      canDelete: canDelete,
-      canSelectAll: !isHome && controller.visibleEntries.isNotEmpty,
-      canShowProperties: canSelect,
-      isHome: isHome,
-      showHiddenFiles: appState.showHiddenFiles,
-      showFileExtensions: appState.showFileExtensions,
-      sortColumn: controller.sortColumn,
-      sortAscending: controller.sortAscending,
-      viewMode: controller.viewMode,
-      entryFilter: controller.entryFilter,
-      onCreateFolder: () => onCreateFolder(context),
-      onCreateTextFile: () => onCreateTextFile(context),
-      onCut: () => onCut(context),
-      onCopy: () => onCopy(context),
-      onPaste: () => onPaste(context),
-      onRename: () => onRename(context),
-      onDelete: () => onDelete(context),
-      onSortColumn: controller.setSortColumn,
-      onSortAscending: controller.setSortAscending,
-      onViewMode: controller.setViewMode,
-      onFilter: controller.setEntryFilter,
-      onSelectAll: controller.selectAll,
-      onRefresh: controller.refresh,
-      onToggleHiddenFiles: () {
-        appState.setShowHiddenFiles(!appState.showHiddenFiles);
-        context.read<LayoutState>().refreshAllPanes();
-      },
-      onToggleFileExtensions: () {
-        appState.setShowFileExtensions(!appState.showFileExtensions);
-      },
-      onProperties: () => onProperties(context),
     );
   }
 }
@@ -828,6 +800,7 @@ class _StatusBar extends StatelessWidget {
     return Container(
       height: AppMetrics.statusBarHeight,
       decoration: BoxDecoration(
+        color: c.surfaceSubtle,
         border: Border(top: BorderSide(color: c.border, width: 1)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8),

@@ -8,11 +8,13 @@ void _ignoreSearchChange(String _) {}
 /// directory by the owning [PaneController].
 class FileSearchField extends StatefulWidget {
   final String query;
+  final bool autofocus;
   final ValueChanged<String> onChanged;
 
   const FileSearchField({
     super.key,
     this.query = '',
+    this.autofocus = false,
     this.onChanged = _ignoreSearchChange,
   });
 
@@ -73,6 +75,7 @@ class _FileSearchFieldState extends State<FileSearchField> {
                 child: TextField(
                   controller: _textController,
                   focusNode: _focusNode,
+                  autofocus: widget.autofocus,
                   onChanged: widget.onChanged,
                   onSubmitted: widget.onChanged,
                   style: TextStyle(
