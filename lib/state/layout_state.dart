@@ -26,7 +26,9 @@ class LayoutState extends ChangeNotifier {
   }) : _repository = repository ?? DirectoryRepository(),
        _layoutStore = layoutStore {
     final cached = _layoutStore?.load();
-    if (cached != null && _restoreSnapshot(cached)) {
+    if (cached != null &&
+        !_isLegacySinglePaneDefault(cached) &&
+        _restoreSnapshot(cached)) {
       _updateActivePanePath();
       return;
     }
@@ -36,7 +38,12 @@ class LayoutState extends ChangeNotifier {
   }
 
   void _initializeDefault() {
-    final initialPaths = [FileService.homeViewPath];
+    final initialPaths = [
+      FileService.desktopPath,
+      FileService.homeDirectory,
+      FileService.documentsPath,
+      FileService.downloadsPath,
+    ];
     final paneIds = <String>[];
     for (final path in initialPaths) {
       final id = _nextPaneId();
@@ -50,6 +57,50 @@ class LayoutState extends ChangeNotifier {
     if (firstPane != null) {
       _focusedNodeId = firstPane.id;
     }
+  }
+
+  // Do not let the single-pane default from b30ea08 mask the restored grid.
+  bool _isLegacySinglePaneDefault(WindowLayoutSnapshot snapshot) {
+    if (snapshot.workspaces.length != 1 ||
+        snapshot.activeWorkspaceIndex != 0 ||
+        snapshot.panes.length != 1) {
+      return false;
+    }
+
+    final workspace = snapshot.workspaces.single;
+    if (workspace.type != NodeType.workspace ||
+        workspace.children.length != 1) {
+      return false;
+    }
+
+    final paneNode = workspace.children.single;
+    final paneId = paneNode.paneId;
+    if (paneNode.type != NodeType.pane ||
+        paneId == null ||
+        snapshot.focusedNodeId != paneNode.id) {
+      return false;
+    }
+
+    final pane = snapshot.panes[paneId];
+    return pane != null &&
+        pane.currentPath == FileService.homeViewPath &&
+        pane.tabs.length == 1 &&
+        pane.tabs.first == FileService.homeViewPath &&
+        pane.activeTabIndex == 0 &&
+        pane.backStack.isEmpty &&
+        pane.forwardStack.isEmpty &&
+        pane.sortColumn == SortColumn.name.name &&
+        pane.sortAscending &&
+        pane.filterQuery.isEmpty &&
+        pane.entryFilter == EntryFilter.all.name &&
+        pane.viewMode == PaneViewMode.content.name &&
+        !pane.showDetailsPane &&
+        !pane.showPreviewPane &&
+        pane.columnWidths.length == 4 &&
+        pane.columnWidths[0] == 300 &&
+        pane.columnWidths[1] == 140 &&
+        pane.columnWidths[2] == 100 &&
+        pane.columnWidths[3] == 80;
   }
 
   bool _restoreSnapshot(WindowLayoutSnapshot snapshot) {

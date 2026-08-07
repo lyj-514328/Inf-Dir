@@ -196,18 +196,25 @@ void main() {
     });
 
     test(
-      'default workspace starts with one home pane and remains splittable',
+      'default workspace starts with four panes and remains splittable',
       () {
         final layout = LayoutState(repository: repo);
 
-        expect(layout.allPaneNodes, hasLength(1));
+        expect(layout.allPaneNodes, hasLength(4));
         expect(
-          layout.controllerFor(layout.allPaneNodes.single)?.currentPath,
-          FileService.homeViewPath,
+          layout.allPaneNodes.map(
+            (node) => layout.controllerFor(node)?.currentPath,
+          ),
+          [
+            FileService.desktopPath,
+            FileService.homeDirectory,
+            FileService.documentsPath,
+            FileService.downloadsPath,
+          ],
         );
 
-        layout.splitPane(layout.allPaneNodes.single, SplitDirection.horizontal);
-        expect(layout.allPaneNodes, hasLength(2));
+        layout.splitPane(layout.allPaneNodes.first, SplitDirection.horizontal);
+        expect(layout.allPaneNodes, hasLength(5));
         layout.dispose();
       },
     );

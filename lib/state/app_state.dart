@@ -14,7 +14,12 @@ class AppState extends ChangeNotifier {
   AppState({DirectoryRepository? repository})
     : repository = repository ?? DirectoryRepository() {
     final repo = this.repository;
-    panes = [PaneController(FileService.homeViewPath, repository: repo)];
+    panes = [
+      PaneController(FileService.desktopPath, repository: repo),
+      PaneController(FileService.homeDirectory, repository: repo),
+      PaneController(FileService.documentsPath, repository: repo),
+      PaneController(FileService.downloadsPath, repository: repo),
+    ];
   }
 
   int get activePaneIndex => _activePaneIndex;
