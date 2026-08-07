@@ -141,12 +141,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           _WorkspaceBar(
             layoutState: layoutState,
             showHiddenFiles: context.watch<AppState>().showHiddenFiles,
+            showFileExtensions: context.watch<AppState>().showFileExtensions,
             onToggleHiddenFiles: () {
               final app = context.read<AppState>();
               app.setShowHiddenFiles(!app.showHiddenFiles);
               layoutState.refreshAllPanes();
               // 缓存已清空，侧栏重新同步当前路径以应用新过滤。
               _syncSidebar();
+            },
+            onToggleFileExtensions: () {
+              final app = context.read<AppState>();
+              app.setShowFileExtensions(!app.showFileExtensions);
             },
           ),
           Container(height: 1, color: c.border),
@@ -211,12 +216,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 class _WorkspaceBar extends StatelessWidget {
   final LayoutState layoutState;
   final bool showHiddenFiles;
+  final bool showFileExtensions;
   final VoidCallback onToggleHiddenFiles;
+  final VoidCallback onToggleFileExtensions;
 
   const _WorkspaceBar({
     required this.layoutState,
     required this.showHiddenFiles,
+    required this.showFileExtensions,
     required this.onToggleHiddenFiles,
+    required this.onToggleFileExtensions,
   });
 
   @override
@@ -268,6 +277,22 @@ class _WorkspaceBar extends StatelessWidget {
                   showHiddenFiles ? Icons.visibility : Icons.visibility_off,
                   size: AppMetrics.iconMd,
                   color: showHiddenFiles ? c.accent : c.textSecondary,
+                ),
+              ),
+            ),
+          ),
+          Tooltip(
+            message: showFileExtensions ? '文件后缀名：显示中' : '文件后缀名：已隐藏',
+            child: InkWell(
+              onTap: onToggleFileExtensions,
+              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: Icon(
+                  Icons.text_fields,
+                  size: AppMetrics.iconMd,
+                  color: showFileExtensions ? c.accent : c.textSecondary,
                 ),
               ),
             ),

@@ -17,10 +17,10 @@ class RecentFile {
   });
 }
 
-typedef _GetRecentFilesNative = Pointer<Uint8> Function(
-    Int32 limit, Pointer<Int32> outSize);
-typedef _GetRecentFilesDart = Pointer<Uint8> Function(
-    int limit, Pointer<Int32> outSize);
+typedef _GetRecentFilesNative =
+    Pointer<Uint8> Function(Int32 limit, Pointer<Int32> outSize);
+typedef _GetRecentFilesDart =
+    Pointer<Uint8> Function(int limit, Pointer<Int32> outSize);
 
 typedef _FreeRecentFilesNative = Void Function(Pointer<Uint8> ptr);
 typedef _FreeRecentFilesDart = void Function(Pointer<Uint8> ptr);
@@ -35,11 +35,13 @@ typedef _FreeRecentFilesDart = void Function(Pointer<Uint8> ptr);
 class HomeService {
   static final _getRecentFilesNative = DynamicLibrary.process()
       .lookupFunction<_GetRecentFilesNative, _GetRecentFilesDart>(
-          'GetRecentFiles');
+        'GetRecentFiles',
+      );
 
   static final _freeRecentFiles = DynamicLibrary.process()
       .lookupFunction<_FreeRecentFilesNative, _FreeRecentFilesDart>(
-          'FreeRecentFiles');
+        'FreeRecentFiles',
+      );
 
   static List<RecentFile> getRecommendedFiles({int limit = 8}) =>
       getRecentFiles(limit: limit);
@@ -81,7 +83,7 @@ class HomeService {
       if (path.isEmpty) continue;
       items.add(
         RecentFile(
-          name: p.basenameWithoutExtension(path),
+          name: p.basename(path),
           path: path,
           modified: _parseDate(modifiedStr),
         ),
@@ -91,13 +93,13 @@ class HomeService {
   }
 
   static (String, int) _readWStr(Pointer<Uint8> buf, int offset) {
-    final len = buf.elementAt(offset).cast<Int32>().value;
+    final len = (buf + offset).cast<Int32>().value;
     offset += 4;
     if (len <= 0) return ('', offset);
     final chars = <int>[];
     for (int i = 0; i < len; i++) {
-      final low = buf.elementAt(offset + i * 2).value;
-      final high = buf.elementAt(offset + i * 2 + 1).value;
+      final low = (buf + offset + i * 2).value;
+      final high = (buf + offset + i * 2 + 1).value;
       chars.add((high << 8) | low);
     }
     offset += len * 2;
@@ -114,8 +116,12 @@ class HomeService {
       final tp = parts[1].split(':');
       if (dp.length != 3 || tp.length != 3) return DateTime.now();
       return DateTime(
-        int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]),
-        int.parse(tp[0]), int.parse(tp[1]), int.parse(tp[2]),
+        int.parse(dp[0]),
+        int.parse(dp[1]),
+        int.parse(dp[2]),
+        int.parse(tp[0]),
+        int.parse(tp[1]),
+        int.parse(tp[2]),
       );
     } catch (_) {
       return DateTime.now();
@@ -142,7 +148,7 @@ class HomeService {
         final stat = entity.statSync();
         items.add(
           RecentFile(
-            name: p.basenameWithoutExtension(entity.path),
+            name: p.basename(entity.path),
             path: entity.path,
             modified: stat.modified,
           ),
@@ -170,11 +176,7 @@ class HomeService {
             ? Directory(path).statSync().modified
             : File(path).statSync().modified;
         items.add(
-          RecentFile(
-            name: p.basenameWithoutExtension(path),
-            path: path,
-            modified: modified,
-          ),
+          RecentFile(name: p.basename(path), path: path, modified: modified),
         );
       } on FileSystemException {
         // Stale favorites are left in storage until the user removes them.

@@ -105,11 +105,6 @@ class PaneController extends ChangeNotifier {
     _filterQuery = snapshot.filterQuery;
     _entryFilter = EntryFilter.values.byName(snapshot.entryFilter);
     _viewMode = PaneViewMode.values.byName(snapshot.viewMode);
-    if (FileService.isHomePath(snapshot.currentPath) &&
-        _viewMode != PaneViewMode.tiles &&
-        _viewMode != PaneViewMode.content) {
-      _viewMode = PaneViewMode.content;
-    }
     _showDetailsPane = snapshot.showDetailsPane;
     _showPreviewPane = snapshot.showPreviewPane;
     _columnWidths = List<double>.of(snapshot.columnWidths);

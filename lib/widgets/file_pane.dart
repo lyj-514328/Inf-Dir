@@ -479,6 +479,7 @@ class _PaneCommandBarSection extends StatelessWidget {
       canShowProperties: canSelect,
       isHome: isHome,
       showHiddenFiles: appState.showHiddenFiles,
+      showFileExtensions: appState.showFileExtensions,
       sortColumn: controller.sortColumn,
       sortAscending: controller.sortAscending,
       viewMode: controller.viewMode,
@@ -499,6 +500,9 @@ class _PaneCommandBarSection extends StatelessWidget {
       onToggleHiddenFiles: () {
         appState.setShowHiddenFiles(!appState.showHiddenFiles);
         context.read<LayoutState>().refreshAllPanes();
+      },
+      onToggleFileExtensions: () {
+        appState.setShowFileExtensions(!appState.showFileExtensions);
       },
       onProperties: () => onProperties(context),
     );

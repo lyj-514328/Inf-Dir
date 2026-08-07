@@ -158,10 +158,10 @@ unsigned char* GetRecentFiles(int limit, int* outSize) {
             if (!ResolveShortcutTarget(lnkPath, target))
                 continue;
 
-            WIN32_FILE_ATTRIBUTE_DATA attr = {};
-            if (!GetFileAttributesExW(target.c_str(), GetFileExInfoStandard, &attr))
+            WIN32_FILE_ATTRIBUTE_DATA targetAttr = {};
+            if (!GetFileAttributesExW(target.c_str(), GetFileExInfoStandard, &targetAttr))
                 continue; // dead link
-            if (attr.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            if (targetAttr.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 continue; // files only; archives are regular files
 
             std::wstring key = target;
@@ -170,8 +170,14 @@ unsigned char* GetRecentFiles(int limit, int* outSize) {
             if (!seen.insert(key).second)
                 continue;
 
+            WIN32_FILE_ATTRIBUTE_DATA shortcutAttr = {};
+            const FILETIME& recentTime =
+                GetFileAttributesExW(lnkPath.c_str(), GetFileExInfoStandard, &shortcutAttr)
+                    ? shortcutAttr.ftLastWriteTime
+                    : targetAttr.ftLastWriteTime;
+
             AppendString(buf, target);
-            AppendString(buf, FormatFileTime(attr.ftLastWriteTime));
+            AppendString(buf, FormatFileTime(recentTime));
             count++;
             if (limit > 0 && count >= limit)
                 break;

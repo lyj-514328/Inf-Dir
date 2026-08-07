@@ -14,7 +14,7 @@ extern "C" {
 //   [count: int32]
 //   for each item:
 //     [pathLen: int32] [pathChars: wchar_t[]]        -- resolved target path
-//     [modifiedLen: int32] [modifiedChars: wchar_t[]] -- "YYYY/MM/DD HH:MM:SS"
+//     [accessedLen: int32] [accessedChars: wchar_t[]] -- "YYYY/MM/DD HH:MM:SS"
 //
 // limit <= 0 means no limit. Free the buffer with FreeRecentFiles().
 __declspec(dllexport)

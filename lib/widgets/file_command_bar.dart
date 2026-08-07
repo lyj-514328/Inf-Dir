@@ -7,7 +7,13 @@ enum _NewAction { folder, textFile }
 
 enum _SortAction { name, dateModified, type, size, ascending, descending }
 
-enum _MoreAction { selectAll, refresh, showHiddenFiles, properties }
+enum _MoreAction {
+  selectAll,
+  refresh,
+  showHiddenFiles,
+  showFileExtensions,
+  properties,
+}
 
 /// Explorer-style command row for a file pane.
 class FileCommandBar extends StatelessWidget {
@@ -21,6 +27,7 @@ class FileCommandBar extends StatelessWidget {
   final bool canShowProperties;
   final bool isHome;
   final bool showHiddenFiles;
+  final bool showFileExtensions;
   final SortColumn sortColumn;
   final bool sortAscending;
   final PaneViewMode viewMode;
@@ -39,6 +46,7 @@ class FileCommandBar extends StatelessWidget {
   final VoidCallback? onSelectAll;
   final VoidCallback? onRefresh;
   final VoidCallback? onToggleHiddenFiles;
+  final VoidCallback? onToggleFileExtensions;
   final VoidCallback? onProperties;
 
   const FileCommandBar({
@@ -53,6 +61,7 @@ class FileCommandBar extends StatelessWidget {
     this.canShowProperties = false,
     this.isHome = false,
     this.showHiddenFiles = false,
+    this.showFileExtensions = true,
     this.sortColumn = SortColumn.name,
     this.sortAscending = true,
     this.viewMode = PaneViewMode.details,
@@ -71,6 +80,7 @@ class FileCommandBar extends StatelessWidget {
     this.onSelectAll,
     this.onRefresh,
     this.onToggleHiddenFiles,
+    this.onToggleFileExtensions,
     this.onProperties,
   });
 
@@ -204,59 +214,57 @@ class FileCommandBar extends StatelessWidget {
               icon: _viewIcon(viewMode),
               label: '查看',
               tooltip: '查看方式',
-              items: isHome
-                  ? _homeViewMenuItems()
-                  : [
-                      _checkedMenuItem<Object>(
-                        value: PaneViewMode.extraLargeIcons,
-                        label: '超大图标',
-                        checked: viewMode == PaneViewMode.extraLargeIcons,
-                        icon: Icons.grid_on,
-                      ),
-                      _checkedMenuItem<Object>(
-                        value: PaneViewMode.largeIcons,
-                        label: '大图标',
-                        checked: viewMode == PaneViewMode.largeIcons,
-                        icon: Icons.view_module,
-                      ),
-                      _checkedMenuItem<Object>(
-                        value: PaneViewMode.mediumIcons,
-                        label: '中图标',
-                        checked: viewMode == PaneViewMode.mediumIcons,
-                        icon: Icons.grid_view,
-                      ),
-                      _checkedMenuItem<Object>(
-                        value: PaneViewMode.smallIcons,
-                        label: '小图标',
-                        checked: viewMode == PaneViewMode.smallIcons,
-                        icon: Icons.grid_view,
-                      ),
-                      const PopupMenuDivider(),
-                      _checkedMenuItem(
-                        value: PaneViewMode.details,
-                        label: '详细信息',
-                        checked: viewMode == PaneViewMode.details,
-                        icon: Icons.view_headline,
-                      ),
-                      _checkedMenuItem(
-                        value: PaneViewMode.list,
-                        label: '列表',
-                        checked: viewMode == PaneViewMode.list,
-                        icon: Icons.view_list,
-                      ),
-                      _checkedMenuItem<Object>(
-                        value: PaneViewMode.tiles,
-                        label: '平铺',
-                        checked: viewMode == PaneViewMode.tiles,
-                        icon: Icons.view_quilt,
-                      ),
-                      _checkedMenuItem<Object>(
-                        value: PaneViewMode.content,
-                        label: '内容',
-                        checked: viewMode == PaneViewMode.content,
-                        icon: Icons.view_agenda,
-                      ),
-                    ],
+              items: [
+                _checkedMenuItem<Object>(
+                  value: PaneViewMode.extraLargeIcons,
+                  label: '超大图标',
+                  checked: viewMode == PaneViewMode.extraLargeIcons,
+                  icon: Icons.grid_on,
+                ),
+                _checkedMenuItem<Object>(
+                  value: PaneViewMode.largeIcons,
+                  label: '大图标',
+                  checked: viewMode == PaneViewMode.largeIcons,
+                  icon: Icons.view_module,
+                ),
+                _checkedMenuItem<Object>(
+                  value: PaneViewMode.mediumIcons,
+                  label: '中图标',
+                  checked: viewMode == PaneViewMode.mediumIcons,
+                  icon: Icons.grid_view,
+                ),
+                _checkedMenuItem<Object>(
+                  value: PaneViewMode.smallIcons,
+                  label: '小图标',
+                  checked: viewMode == PaneViewMode.smallIcons,
+                  icon: Icons.grid_view,
+                ),
+                const PopupMenuDivider(),
+                _checkedMenuItem(
+                  value: PaneViewMode.details,
+                  label: '详细信息',
+                  checked: viewMode == PaneViewMode.details,
+                  icon: Icons.view_headline,
+                ),
+                _checkedMenuItem(
+                  value: PaneViewMode.list,
+                  label: '列表',
+                  checked: viewMode == PaneViewMode.list,
+                  icon: Icons.view_list,
+                ),
+                _checkedMenuItem<Object>(
+                  value: PaneViewMode.tiles,
+                  label: '平铺',
+                  checked: viewMode == PaneViewMode.tiles,
+                  icon: Icons.view_quilt,
+                ),
+                _checkedMenuItem<Object>(
+                  value: PaneViewMode.content,
+                  label: '内容',
+                  checked: viewMode == PaneViewMode.content,
+                  icon: Icons.view_agenda,
+                ),
+              ],
               onSelected: (mode) {
                 if (mode is PaneViewMode) {
                   onViewMode?.call(mode);
@@ -301,7 +309,7 @@ class FileCommandBar extends StatelessWidget {
               icon: Icons.more_horiz,
               label: '更多',
               tooltip: '更多操作',
-              active: showHiddenFiles,
+              active: showHiddenFiles || !showFileExtensions,
               items: [
                 PopupMenuItem(
                   value: _MoreAction.selectAll,
@@ -318,6 +326,11 @@ class FileCommandBar extends StatelessWidget {
                   label: '显示隐藏项目',
                   checked: showHiddenFiles,
                 ),
+                _checkedMenuItem(
+                  value: _MoreAction.showFileExtensions,
+                  label: '显示文件后缀名',
+                  checked: showFileExtensions,
+                ),
                 PopupMenuItem(
                   value: _MoreAction.properties,
                   enabled: canShowProperties,
@@ -332,6 +345,8 @@ class FileCommandBar extends StatelessWidget {
                     onRefresh?.call();
                   case _MoreAction.showHiddenFiles:
                     onToggleHiddenFiles?.call();
+                  case _MoreAction.showFileExtensions:
+                    onToggleFileExtensions?.call();
                   case _MoreAction.properties:
                     onProperties?.call();
                 }
@@ -355,21 +370,6 @@ class FileCommandBar extends StatelessWidget {
       PaneViewMode.content => Icons.view_agenda,
     };
   }
-
-  List<PopupMenuEntry<Object>> _homeViewMenuItems() => [
-    _checkedMenuItem<Object>(
-      value: PaneViewMode.tiles,
-      label: '平铺',
-      checked: viewMode == PaneViewMode.tiles,
-      icon: Icons.view_quilt,
-    ),
-    _checkedMenuItem<Object>(
-      value: PaneViewMode.content,
-      label: '内容',
-      checked: viewMode == PaneViewMode.content,
-      icon: Icons.view_agenda,
-    ),
-  ];
 
   static CheckedPopupMenuItem<T> _checkedMenuItem<T>({
     required T value,
