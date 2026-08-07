@@ -96,6 +96,7 @@ class _PaneWrapper extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
           color: c.surface,
+          border: Border.all(color: c.border, width: 1),
           boxShadow: isFocused
               ? [
                   BoxShadow(
