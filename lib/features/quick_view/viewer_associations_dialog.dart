@@ -17,25 +17,18 @@ class ViewerAssociationsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     final viewport = MediaQuery.sizeOf(context);
     final width = (viewport.width - 48).clamp(420.0, 820.0);
     final height = (viewport.height - 48).clamp(360.0, 620.0);
 
     return Dialog(
-      backgroundColor: c.surface,
       insetPadding: const EdgeInsets.all(24),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
-        side: BorderSide(color: c.borderStrong),
-      ),
       child: SizedBox(
         width: width,
         height: height,
         child: Column(
           children: [
             _DialogHeader(onClose: () => Navigator.of(context).pop()),
-            Container(height: 1, color: c.border),
             const Expanded(
               child: DefaultTabController(
                 length: 3,
@@ -88,11 +81,7 @@ class _DialogHeader extends StatelessWidget {
             Expanded(
               child: Text(
                 '查看器关联',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: c.textPrimary,
-                ),
+                style: Theme.of(context).dialogTheme.titleTextStyle,
               ),
             ),
             Tooltip(
@@ -123,28 +112,45 @@ class _DialogHeader extends StatelessWidget {
   }
 }
 
+/// 分段（segmented）样式的 tab 切换：surfaceSubtle 底槽 + surface 选中胶囊
 class _AssociationTabs extends StatelessWidget {
   const _AssociationTabs();
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Container(
-      height: 34,
-      color: c.surfaceSubtle,
-      alignment: Alignment.centerLeft,
-      child: TabBar(
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        labelColor: c.textPrimary,
-        unselectedLabelColor: c.textSecondary,
-        indicatorColor: c.accent,
-        labelStyle: const TextStyle(fontSize: AppMetrics.fontBody),
-        tabs: const [
-          Tab(text: '扩展名'),
-          Tab(text: '文件名'),
-          Tab(text: 'MIME'),
-        ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+      child: Container(
+        height: 28,
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: c.surfaceSubtle,
+          borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+        ),
+        child: TabBar(
+          indicator: BoxDecoration(
+            color: c.surface,
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            border: Border.all(color: c.border),
+          ),
+          indicatorSize: TabBarIndicatorSize.tab,
+          dividerColor: Colors.transparent,
+          labelColor: c.textPrimary,
+          unselectedLabelColor: c.textSecondary,
+          labelStyle: const TextStyle(
+            fontSize: AppMetrics.fontBody,
+            fontWeight: FontWeight.w600,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: AppMetrics.fontBody,
+          ),
+          tabs: const [
+            Tab(text: '扩展名'),
+            Tab(text: '文件名'),
+            Tab(text: 'MIME'),
+          ],
+        ),
       ),
     );
   }
@@ -194,7 +200,6 @@ class _AssociationPageState extends State<_AssociationPage>
                     ? null
                     : () => service.resetAssociation(widget.kind, selected),
               ),
-              Container(height: 1, color: c.border),
               Expanded(
                 child: keys.isEmpty
                     ? Center(
@@ -247,42 +252,71 @@ class _AssociationPageState extends State<_AssociationPage>
     final key = await showDialog<String>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text('添加${widget.kind.label}关联'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: switch (widget.kind) {
-                ViewerAssociationKind.extension => '.pdf',
-                ViewerAssociationKind.fileName => 'dockerfile',
-                ViewerAssociationKind.mimeType => 'application/pdf',
-              },
-              errorText: error,
-            ),
-            onSubmitted: (_) => _validateAndClose(
-              dialogContext,
-              service,
-              controller.text,
-              (message) => setDialogState(() => error = message),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => _validateAndClose(
+        builder: (context, setDialogState) {
+          final c = context.colors;
+          final inputBorder = OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            borderSide: BorderSide.none,
+          );
+          return AlertDialog(
+            title: Text('添加${widget.kind.label}关联'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              style: TextStyle(
+                fontSize: AppMetrics.fontBody,
+                color: c.textPrimary,
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: c.surfaceSubtle,
+                labelText: switch (widget.kind) {
+                  ViewerAssociationKind.extension => '.pdf',
+                  ViewerAssociationKind.fileName => 'dockerfile',
+                  ViewerAssociationKind.mimeType => 'application/pdf',
+                },
+                labelStyle: TextStyle(
+                  fontSize: AppMetrics.fontBody,
+                  color: c.textTertiary,
+                ),
+                errorText: error,
+                border: inputBorder,
+                enabledBorder: inputBorder,
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+                  borderSide: BorderSide(color: c.accent),
+                ),
+              ),
+              onSubmitted: (_) => _validateAndClose(
                 dialogContext,
                 service,
                 controller.text,
                 (message) => setDialogState(() => error = message),
               ),
-              child: const Text('添加'),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                style: TextButton.styleFrom(foregroundColor: c.textSecondary),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => _validateAndClose(
+                  dialogContext,
+                  service,
+                  controller.text,
+                  (message) => setDialogState(() => error = message),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: c.accent,
+                  foregroundColor: c.onAccent,
+                ),
+                child: const Text('添加'),
+              ),
+            ],
+          );
+        },
       ),
     );
     controller.dispose();
@@ -368,33 +402,48 @@ class _AssociationRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        color: selected ? c.accentSubtle : null,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                value,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: AppMetrics.fontBody,
-                  color: candidateCount == 0 ? c.textTertiary : c.textPrimary,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Material(
+        color: selected ? c.accentSubtle : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+          hoverColor: c.surfaceHover,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppMetrics.fontBody,
+                      color: candidateCount == 0
+                          ? c.textTertiary
+                          : c.textPrimary,
+                    ),
+                  ),
                 ),
-              ),
+                if (overridden)
+                  Icon(
+                    Icons.tune,
+                    size: AppMetrics.iconSm,
+                    color: c.textTertiary,
+                  ),
+                const SizedBox(width: 6),
+                Text(
+                  '$candidateCount',
+                  style: TextStyle(
+                    fontSize: AppMetrics.fontSmall,
+                    color: c.textTertiary,
+                  ),
+                ),
+              ],
             ),
-            if (overridden) Icon(Icons.tune, size: 12, color: c.textTertiary),
-            const SizedBox(width: 6),
-            Text(
-              '$candidateCount',
-              style: TextStyle(
-                fontSize: AppMetrics.fontSmall,
-                color: c.textTertiary,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -438,7 +487,6 @@ class _CandidateEditor extends StatelessWidget {
             ),
           ),
         ),
-        Container(height: 1, color: c.border),
         Expanded(
           child: display.isEmpty
               ? Center(
@@ -521,6 +569,7 @@ class _CandidateRow extends StatelessWidget {
         Checkbox(
           value: checked,
           onChanged: (value) => onChecked(value ?? false),
+          activeColor: c.accent,
         ),
         Expanded(
           child: Column(
@@ -579,6 +628,7 @@ class _IconAction extends StatelessWidget {
       onPressed: onPressed,
       tooltip: tooltip,
       iconSize: AppMetrics.iconMd,
+      color: context.colors.textSecondary,
       visualDensity: VisualDensity.compact,
       constraints: const BoxConstraints.tightFor(width: 30, height: 30),
       padding: EdgeInsets.zero,

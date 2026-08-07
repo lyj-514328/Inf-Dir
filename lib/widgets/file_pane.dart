@@ -303,21 +303,29 @@ class _PaneContent extends StatelessWidget {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('确认删除', style: TextStyle(fontSize: 14)),
+        title: const Text('确认删除'),
         content: Text(
           selected.length == 1
               ? '确定要删除 "${_basename(selected.first)}" 吗？'
               : '确定要删除 ${selected.length} 个项目吗？',
-          style: const TextStyle(fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(
+              foregroundColor: context.colors.textSecondary,
+            ),
             child: const Text('取消'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: context.colors.danger),
+            style: FilledButton.styleFrom(
+              backgroundColor: context.colors.danger,
+              foregroundColor: context.colors.onAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+              ),
+            ),
             child: const Text('删除'),
           ),
         ],
@@ -377,11 +385,11 @@ class _PaneLocationSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: AppMetrics.navToolbarHeight,
+      height: AppMetrics.addressBarHeight,
       child: Row(
         children: [
           const _NavToolbarSection(),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           const Expanded(flex: 5, child: _AddressBarSection()),
           const SizedBox(width: 6),
           Expanded(
@@ -750,29 +758,47 @@ Future<String?> _showInputDialog(
   final textController = TextEditingController(text: initialValue);
   return showDialog<String>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(title, style: const TextStyle(fontSize: 14)),
-      content: TextField(
-        controller: textController,
-        autofocus: true,
-        style: const TextStyle(fontSize: 13),
-        decoration: const InputDecoration(
-          border: OutlineInputBorder(),
-          isDense: true,
+    builder: (ctx) {
+      final c = context.colors;
+      return AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          style: TextStyle(fontSize: AppMetrics.fontBody, color: c.textPrimary),
+          decoration: InputDecoration(
+            isDense: true,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+              borderSide: BorderSide(color: c.borderStrong),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+              borderSide: BorderSide(color: c.accent),
+            ),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
-        onSubmitted: (v) => Navigator.pop(ctx, v),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('取消'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, textController.text),
-          child: Text(confirmText),
-        ),
-      ],
-    ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(foregroundColor: c.textSecondary),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, textController.text),
+            style: FilledButton.styleFrom(
+              backgroundColor: c.accent,
+              foregroundColor: c.onAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+              ),
+            ),
+            child: Text(confirmText),
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -801,15 +827,14 @@ class _StatusBar extends StatelessWidget {
     }
     return Container(
       height: AppMetrics.statusBarHeight,
-      color: c.surfaceSubtle,
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: c.border, width: 1)),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: AppMetrics.fontSmall,
-          color: c.textSecondary,
-        ),
+        style: TextStyle(fontSize: AppMetrics.fontSmall, color: c.textTertiary),
       ),
     );
   }

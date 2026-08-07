@@ -2,6 +2,8 @@
 ///
 /// 约定：widget 中禁止出现 `Color(0x...)` / `Colors.xxx` 字面量，
 /// 一律通过 `context.colors`（[AppColors]）与 [AppMetrics] 取值。
+library;
+
 import 'package:flutter/material.dart';
 
 // ── 颜色 token ───────────────────────────────────────────────────────
@@ -14,16 +16,16 @@ class AppColors extends ThemeExtension<AppColors> {
   /// 面板 / 列表 / 输入框底
   final Color surface;
 
-  /// 菜单栏、列头、状态栏、标签栏、侧栏底
+  /// 列头、状态栏、标签栏、侧栏底
   final Color surfaceSubtle;
 
-  /// 行 hover 遮罩
+  /// 行 / 控件 hover 遮罩
   final Color surfaceHover;
 
   /// 常规边框 / 分隔线
   final Color border;
 
-  /// 输入框边框、激活标签边框
+  /// 输入框边框、激活控件边框
   final Color borderStrong;
 
   /// 正文 / 文件名
@@ -37,6 +39,12 @@ class AppColors extends ThemeExtension<AppColors> {
 
   /// 主题强调色（焦点边框、选中行、splitter）
   final Color accent;
+
+  /// accent 的 hover / 按下加深态
+  final Color accentHover;
+
+  /// accent 实底上的前景色（选中行文字、主按钮文字）
+  final Color onAccent;
 
   /// 侧栏选中底
   final Color accentSubtle;
@@ -56,7 +64,7 @@ class AppColors extends ThemeExtension<AppColors> {
   /// fallback 文件图标
   final Color iconFile;
 
-  /// Alt 遮罩层压暗色
+  /// Alt 遮罩层压暗色 / 浮层阴影色
   final Color scrim;
 
   const AppColors({
@@ -70,6 +78,8 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.textSecondary,
     required this.textTertiary,
     required this.accent,
+    required this.accentHover,
+    required this.onAccent,
     required this.accentSubtle,
     required this.selectedInactive,
     required this.danger,
@@ -79,46 +89,50 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.scrim,
   });
 
-  /// 亮色 —— 现代 Fluent 精炼
+  /// 亮色 —— 现代极简：中性灰基底 + 靛蓝强调色
   static const light = AppColors(
-    windowBg: Color(0xFFF3F3F3),
+    windowBg: Color(0xFFF7F7F5),
     surface: Color(0xFFFFFFFF),
-    surfaceSubtle: Color(0xFFF7F7F7),
-    surfaceHover: Color(0x0A000000),
-    border: Color(0xFFE0E0E0),
-    borderStrong: Color(0xFFC8C8C8),
-    textPrimary: Color(0xFF1B1B1B),
-    textSecondary: Color(0xFF5F5F5F),
-    textTertiary: Color(0xFF8A8A8A),
-    accent: Color(0xFF0078D4),
-    accentSubtle: Color(0xFFE5F1FB),
-    selectedInactive: Color(0xFFE3E3E3),
-    danger: Color(0xFFC42B1C),
+    surfaceSubtle: Color(0xFFF1F1EE),
+    surfaceHover: Color(0xFFE9E9E5),
+    border: Color(0xFFE4E4E0),
+    borderStrong: Color(0xFFCFCFC9),
+    textPrimary: Color(0xFF1B1B1E),
+    textSecondary: Color(0xFF5D5D63),
+    textTertiary: Color(0xFF9A9AA0),
+    accent: Color(0xFF4F52E0),
+    accentHover: Color(0xFF3F42C4),
+    onAccent: Color(0xFFFFFFFF),
+    accentSubtle: Color(0xFFEDEDFB),
+    selectedInactive: Color(0xFFE7E7E3),
+    danger: Color(0xFFD13438),
     success: Color(0xFF2E7D32),
     iconFolder: Color(0xFFE8A33D),
-    iconFile: Color(0xFF8A8A8A),
-    scrim: Color(0x0F000000),
+    iconFile: Color(0xFF9A9AA0),
+    scrim: Color(0x14000000),
   );
 
-  /// 深色 —— VS Code 式编辑器风
+  /// 深色 —— 低对比中性灰 + 提亮靛蓝
   static const dark = AppColors(
-    windowBg: Color(0xFF1E1E1E),
-    surface: Color(0xFF252526),
-    surfaceSubtle: Color(0xFF2D2D30),
-    surfaceHover: Color(0x14FFFFFF),
-    border: Color(0xFF3E3E42),
-    borderStrong: Color(0xFF505050),
-    textPrimary: Color(0xFFE8E8E8),
-    textSecondary: Color(0xFF9D9D9D),
-    textTertiary: Color(0xFF6E6E6E),
-    accent: Color(0xFF4CA9E8),
-    accentSubtle: Color(0xFF094771),
-    selectedInactive: Color(0xFF3A3A3A),
+    windowBg: Color(0xFF1B1B1E),
+    surface: Color(0xFF232327),
+    surfaceSubtle: Color(0xFF26262B),
+    surfaceHover: Color(0xFF2E2E34),
+    border: Color(0xFF333338),
+    borderStrong: Color(0xFF46464D),
+    textPrimary: Color(0xFFE9E9EB),
+    textSecondary: Color(0xFFA6A6AC),
+    textTertiary: Color(0xFF6E6E75),
+    accent: Color(0xFF8A8DF0),
+    accentHover: Color(0xFF9C9EF4),
+    onAccent: Color(0xFF1B1B1E),
+    accentSubtle: Color(0xFF2E2E4A),
+    selectedInactive: Color(0xFF333339),
     danger: Color(0xFFF1707B),
     success: Color(0xFF66BB6A),
     iconFolder: Color(0xFFE8A33D),
-    iconFile: Color(0xFF9D9D9D),
-    scrim: Color(0x4D000000),
+    iconFile: Color(0xFFA6A6AC),
+    scrim: Color(0x66000000),
   );
 
   @override
@@ -133,6 +147,8 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? textSecondary,
     Color? textTertiary,
     Color? accent,
+    Color? accentHover,
+    Color? onAccent,
     Color? accentSubtle,
     Color? selectedInactive,
     Color? danger,
@@ -152,8 +168,11 @@ class AppColors extends ThemeExtension<AppColors> {
       textSecondary: textSecondary ?? this.textSecondary,
       textTertiary: textTertiary ?? this.textTertiary,
       accent: accent ?? this.accent,
+      accentHover: accentHover ?? this.accentHover,
+      onAccent: onAccent ?? this.onAccent,
       accentSubtle: accentSubtle ?? this.accentSubtle,
-      selectedInactive: selectedInactive ?? this.selectedInactive,
+      selectedInactive:
+          selectedInactive ?? this.selectedInactive,
       danger: danger ?? this.danger,
       success: success ?? this.success,
       iconFolder: iconFolder ?? this.iconFolder,
@@ -176,6 +195,8 @@ class AppColors extends ThemeExtension<AppColors> {
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       textTertiary: Color.lerp(textTertiary, other.textTertiary, t)!,
       accent: Color.lerp(accent, other.accent, t)!,
+      accentHover: Color.lerp(accentHover, other.accentHover, t)!,
+      onAccent: Color.lerp(onAccent, other.onAccent, t)!,
       accentSubtle: Color.lerp(accentSubtle, other.accentSubtle, t)!,
       selectedInactive:
           Color.lerp(selectedInactive, other.selectedInactive, t)!,
@@ -198,34 +219,33 @@ extension AppThemeX on BuildContext {
 /// 不随主题变化的尺寸 / 字号 / 圆角常量。
 abstract final class AppMetrics {
   // 行高
-  static const double rowHeight = 22;
-  static const double sidebarRowHeight = 22;
-  static const double quickAccessHeaderHeight = 20;
+  static const double rowHeight = 26;
+  static const double sidebarRowHeight = 24;
+  static const double quickAccessHeaderHeight = 24;
 
   // 栏高
-  static const double menuBarHeight = 24;
-  static const double workspaceBarHeight = 30;
-  static const double paneTabBarHeight = 26;
-  static const double addressBarHeight = 26;
-  static const double navToolbarHeight = 28;
-  static const double commandBarHeight = 32;
-  static const double statusBarHeight = 20;
+  static const double topBarHeight = 40;
+  static const double paneTabBarHeight = 30;
+  static const double addressBarHeight = 34;
+  static const double commandBarHeight = 34;
+  static const double statusBarHeight = 22;
 
   // 圆角
-  static const double paneRadius = 6;
-  static const double cardRadius = 4;
-  static const double controlRadius = 3;
-  static const double tabRadius = 4;
+  static const double paneRadius = 10;
+  static const double cardRadius = 8;
+  static const double controlRadius = 6;
+  static const double tabRadius = 6;
 
   // 间距
-  static const double paneGap = 2;
-  static const double pagePadding = 4;
+  static const double paneGap = 6;
+  static const double pagePadding = 8;
 
   // 图标
   static const double iconSm = 14;
   static const double iconMd = 16;
 
   // 字号
+  static const double fontTitle = 13;
   static const double fontBody = 12;
   static const double fontSmall = 11;
   static const double fontCaption = 10.5;
@@ -244,10 +264,12 @@ abstract final class AppTheme {
       brightness: brightness,
     ).copyWith(
       primary: c.accent,
+      onPrimary: c.onAccent,
       surface: c.surface,
       outline: c.borderStrong,
       outlineVariant: c.border,
       error: c.danger,
+      surfaceTint: Colors.transparent,
     );
 
     return ThemeData(
@@ -267,7 +289,7 @@ abstract final class AppTheme {
               : Typography.material2021().white)
           .apply(bodyColor: c.textPrimary, displayColor: c.textPrimary),
       scrollbarTheme: ScrollbarThemeData(
-        // Windows 风格：细滑块、常驻显示，hover/拖拽时略增粗
+        // 细滑块、常驻显示，hover/拖拽时略增粗
         thickness: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.hovered) ||
               states.contains(WidgetState.dragged)) {
@@ -293,8 +315,8 @@ abstract final class AppTheme {
           boxShadow: [
             BoxShadow(
               color: c.scrim,
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -303,13 +325,32 @@ abstract final class AppTheme {
       popupMenuTheme: PopupMenuThemeData(
         color: c.surface,
         surfaceTintColor: Colors.transparent,
-        elevation: 6,
+        elevation: 8,
+        shadowColor: c.scrim,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
           side: BorderSide(color: c.border),
         ),
         menuPadding: const EdgeInsets.symmetric(vertical: 4),
         textStyle: TextStyle(
+          fontSize: AppMetrics.fontBody,
+          color: c.textPrimary,
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: c.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 12,
+        shadowColor: c.scrim,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        titleTextStyle: TextStyle(
+          fontSize: AppMetrics.fontTitle,
+          fontWeight: FontWeight.w600,
+          color: c.textPrimary,
+        ),
+        contentTextStyle: TextStyle(
           fontSize: AppMetrics.fontBody,
           color: c.textPrimary,
         ),

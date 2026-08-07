@@ -26,42 +26,40 @@ class NavToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: AppMetrics.navToolbarHeight,
-      child: Row(
-        children: [
-          _NavButton(
-            icon: Icons.arrow_back,
-            tooltip: '后退',
-            enabled: canGoBack,
-            onPressed: onBack,
-          ),
-          _NavButton(
-            icon: Icons.arrow_forward,
-            tooltip: '前进',
-            enabled: canGoForward,
-            onPressed: onForward,
-          ),
-          _NavButton(
-            icon: Icons.arrow_upward,
-            tooltip: '上级',
-            enabled: canGoUp,
-            onPressed: onUp,
-          ),
-          _NavButton(
-            icon: Icons.home,
-            tooltip: '主页',
-            enabled: true,
-            onPressed: onHome,
-          ),
-          _NavButton(
-            icon: Icons.refresh,
-            tooltip: '刷新',
-            enabled: true,
-            onPressed: onRefresh,
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _NavButton(
+          icon: Icons.arrow_back,
+          tooltip: '后退',
+          enabled: canGoBack,
+          onPressed: onBack,
+        ),
+        _NavButton(
+          icon: Icons.arrow_forward,
+          tooltip: '前进',
+          enabled: canGoForward,
+          onPressed: onForward,
+        ),
+        _NavButton(
+          icon: Icons.arrow_upward,
+          tooltip: '上级',
+          enabled: canGoUp,
+          onPressed: onUp,
+        ),
+        _NavButton(
+          icon: Icons.home,
+          tooltip: '主页',
+          enabled: true,
+          onPressed: onHome,
+        ),
+        _NavButton(
+          icon: Icons.refresh,
+          tooltip: '刷新',
+          enabled: true,
+          onPressed: onRefresh,
+        ),
+      ],
     );
   }
 }

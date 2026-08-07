@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../services/theme_store.dart';
+
 /// 明暗主题切换 —— system / light / dark 三态循环，默认跟随系统。
-/// 不做持久化，重启后回到 system。
+/// 构造时从 [ThemeStore] 同步加载上次选择，切换时持久化。
 class ThemeController extends ChangeNotifier {
+  ThemeController({ThemeStore? store}) : _store = store ?? ThemeStore() {
+    final saved = _store.load();
+    if (saved != null) {
+      _mode = ThemeMode.values.asNameMap()[saved] ?? ThemeMode.system;
+    }
+  }
+
+  final ThemeStore _store;
   ThemeMode _mode = ThemeMode.system;
 
   ThemeMode get mode => _mode;
@@ -14,6 +24,7 @@ class ThemeController extends ChangeNotifier {
       ThemeMode.light => ThemeMode.dark,
       ThemeMode.dark => ThemeMode.system,
     };
+    _store.save(_mode.name);
     notifyListeners();
   }
 

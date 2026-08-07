@@ -22,10 +22,8 @@ class PaneTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
-    return Container(
+    return SizedBox(
       height: AppMetrics.paneTabBarHeight,
-      color: c.surfaceSubtle,
       child: Row(
         children: [
           Expanded(
@@ -35,18 +33,7 @@ class PaneTabBar extends StatelessWidget {
               itemExtent: null,
               itemBuilder: (context, index) {
                 if (index == tabs.length) {
-                  return InkWell(
-                    onTap: onAddTab,
-                    child: SizedBox(
-                      width: 24,
-                      height: AppMetrics.paneTabBarHeight,
-                      child: Icon(
-                        Icons.add,
-                        size: AppMetrics.iconSm,
-                        color: c.textSecondary,
-                      ),
-                    ),
-                  );
+                  return _AddTabButton(onTap: onAddTab);
                 }
                 final isActive = index == activeIndex;
                 return _TabItem(
@@ -61,6 +48,45 @@ class PaneTabBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AddTabButton extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _AddTabButton({required this.onTap});
+
+  @override
+  State<_AddTabButton> createState() => _AddTabButtonState();
+}
+
+class _AddTabButtonState extends State<_AddTabButton> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          width: 24,
+          height: 22,
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+          decoration: BoxDecoration(
+            color: _hovering ? c.surfaceHover : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+          ),
+          child: Icon(
+            Icons.add,
+            size: AppMetrics.iconSm,
+            color: c.textSecondary,
+          ),
+        ),
       ),
     );
   }
@@ -115,19 +141,11 @@ class _TabItemState extends State<_TabItem> {
         ? c.surfaceHover
         : Colors.transparent;
 
-    final BoxDecoration decoration;
-    if (isActive) {
-      decoration = BoxDecoration(
-        color: bgColor,
-        border: Border.all(color: c.borderStrong, width: 1),
-        borderRadius: BorderRadius.circular(AppMetrics.tabRadius),
-      );
-    } else {
-      decoration = BoxDecoration(
-        color: bgColor,
-        border: Border(right: BorderSide(color: c.border, width: 0.5)),
-      );
-    }
+    final decoration = BoxDecoration(
+      color: bgColor,
+      border: isActive ? Border.all(color: c.border, width: 1) : null,
+      borderRadius: BorderRadius.circular(AppMetrics.tabRadius),
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hoveringTab = true),
@@ -136,6 +154,7 @@ class _TabItemState extends State<_TabItem> {
         onTap: widget.onTap,
         child: Container(
           constraints: const BoxConstraints(maxWidth: 150),
+          margin: const EdgeInsets.symmetric(vertical: 3),
           decoration: decoration,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
@@ -159,15 +178,19 @@ class _TabItemState extends State<_TabItem> {
               ),
               if (widget.showClose) ...[
                 const SizedBox(width: 4),
-                MouseRegion(
-                  onEnter: (_) => setState(() => _hoveringClose = true),
-                  onExit: (_) => setState(() => _hoveringClose = false),
-                  child: GestureDetector(
-                    onTap: widget.onClose,
-                    child: Icon(
-                      Icons.close,
-                      size: 12,
-                      color: _hoveringClose ? c.danger : c.textTertiary,
+                Opacity(
+                  // 关闭按钮仅 hover 时可见，占位避免布局抖动
+                  opacity: _hoveringTab ? 1 : 0,
+                  child: MouseRegion(
+                    onEnter: (_) => setState(() => _hoveringClose = true),
+                    onExit: (_) => setState(() => _hoveringClose = false),
+                    child: GestureDetector(
+                      onTap: widget.onClose,
+                      child: Icon(
+                        Icons.close,
+                        size: AppMetrics.iconSm,
+                        color: _hoveringClose ? c.danger : c.textTertiary,
+                      ),
                     ),
                   ),
                 ),

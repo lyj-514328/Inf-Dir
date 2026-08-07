@@ -59,15 +59,13 @@ class _FileSearchFieldState extends State<FileSearchField> {
         height: AppMetrics.addressBarHeight,
         padding: const EdgeInsets.only(left: 7, right: 3),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: _focusNode.hasFocus ? c.accent : c.borderStrong,
-          ),
+          border: _focusNode.hasFocus ? Border.all(color: c.accent) : null,
           borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          color: c.surface,
+          color: c.surfaceSubtle,
         ),
         child: Row(
           children: [
-            Icon(Icons.search, size: AppMetrics.iconSm, color: c.textSecondary),
+            Icon(Icons.search, size: AppMetrics.iconSm, color: c.textTertiary),
             const SizedBox(width: 5),
             Expanded(
               child: Focus(

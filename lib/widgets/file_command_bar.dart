@@ -155,7 +155,6 @@ class FileCommandBar extends StatelessWidget {
               enabled: canDelete,
               onPressed: onDelete,
             ),
-            const _CommandDivider(),
             _CommandMenuButton<_SortAction>(
               icon: Icons.sort,
               label: '排序',
@@ -385,20 +384,6 @@ class FileCommandBar extends StatelessWidget {
   }
 }
 
-class _CommandDivider extends StatelessWidget {
-  const _CommandDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 18,
-      margin: const EdgeInsets.symmetric(horizontal: 5),
-      color: context.colors.border,
-    );
-  }
-}
-
 class _CommandButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -423,28 +408,26 @@ class _CommandButton extends StatelessWidget {
         onTap: enabled ? onPressed : null,
         borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
         hoverColor: c.surfaceHover,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 7),
-          child: SizedBox(
-            height: AppMetrics.commandBarHeight,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: AppMetrics.iconMd,
-                  color: enabled ? c.textSecondary : c.textTertiary,
+        child: Container(
+          height: 26,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: AppMetrics.iconSm,
+                color: enabled ? c.textSecondary : c.textTertiary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: AppMetrics.fontBody,
+                  color: enabled ? c.textPrimary : c.textTertiary,
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: AppMetrics.fontSmall,
-                    color: enabled ? c.textSecondary : c.textTertiary,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -452,7 +435,7 @@ class _CommandButton extends StatelessWidget {
   }
 }
 
-class _CommandMenuButton<T> extends StatelessWidget {
+class _CommandMenuButton<T> extends StatefulWidget {
   final IconData icon;
   final String label;
   final String tooltip;
@@ -472,35 +455,61 @@ class _CommandMenuButton<T> extends StatelessWidget {
   });
 
   @override
+  State<_CommandMenuButton<T>> createState() => _CommandMenuButtonState<T>();
+}
+
+class _CommandMenuButtonState<T> extends State<_CommandMenuButton<T>> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final enabled = widget.enabled;
     final color = !enabled
         ? c.textTertiary
-        : active
+        : widget.active
         ? c.accent
         : c.textSecondary;
-    return PopupMenuButton<T>(
-      enabled: enabled,
-      tooltip: tooltip,
-      padding: EdgeInsets.zero,
-      offset: const Offset(0, AppMetrics.commandBarHeight - 2),
-      onSelected: onSelected,
-      itemBuilder: (_) => items,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 7),
-        child: SizedBox(
-          height: AppMetrics.commandBarHeight,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: AppMetrics.iconMd, color: color),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(fontSize: AppMetrics.fontSmall, color: color),
-              ),
-              Icon(Icons.arrow_drop_down, size: 14, color: color),
-            ],
+    final labelColor = !enabled
+        ? c.textTertiary
+        : widget.active
+        ? c.accent
+        : c.textPrimary;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      // PopupMenuButton 内部 InkWell 的矩形 hover 与胶囊 hover 冲突，屏蔽之
+      child: Theme(
+        data: Theme.of(context).copyWith(hoverColor: Colors.transparent),
+        child: PopupMenuButton<T>(
+          enabled: enabled,
+          tooltip: widget.tooltip,
+          padding: EdgeInsets.zero,
+          offset: const Offset(0, 30),
+          onSelected: widget.onSelected,
+          itemBuilder: (_) => widget.items,
+          child: Container(
+            height: 26,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: _hovering && enabled ? c.surfaceHover : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(widget.icon, size: AppMetrics.iconSm, color: color),
+                const SizedBox(width: 4),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: AppMetrics.fontBody,
+                    color: labelColor,
+                  ),
+                ),
+                Icon(Icons.arrow_drop_down, size: 14, color: color),
+              ],
+            ),
           ),
         ),
       ),

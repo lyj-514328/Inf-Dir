@@ -96,14 +96,25 @@ class _PaneWrapper extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
           color: c.surface,
+          boxShadow: isFocused
+              ? [
+                  BoxShadow(
+                    color: c.scrim,
+                    blurRadius: 12,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
-        foregroundDecoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
-          border: Border.all(
-            color: isFocused ? c.accent : c.border,
-            width: 1.5,
-          ),
-        ),
+        foregroundDecoration: isFocused
+            ? BoxDecoration(
+                borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+                border: Border.all(
+                  color: c.accent.withValues(alpha: 0.6),
+                  width: 1,
+                ),
+              )
+            : null,
         child: Stack(
           children: [
             FilePane(paneId: node.paneId!),
@@ -183,21 +194,28 @@ class _SplitterState extends State<_Splitter> {
           if ((clamped - first.percent).abs() < 0.0001) return;
           first.percent = clamped;
           second.percent = total - clamped;
+          // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
           state.notifyListeners();
         },
         onPanEnd: (_) {
           setState(() => _dragging = false);
         },
         child: Container(
-          width: isH ? 3 : double.infinity,
-          height: isH ? double.infinity : 3,
-          color: _dragging
-              ? c.accent
-              : _hovering
-                  ? c.accent.withValues(alpha: 0.35)
-                  : altVisible
-                      ? c.border
-                      : Colors.transparent,
+          width: isH ? 8 : double.infinity,
+          height: isH ? double.infinity : 8,
+          color: Colors.transparent,
+          alignment: Alignment.center,
+          child: Container(
+            width: isH ? 1 : double.infinity,
+            height: isH ? double.infinity : 1,
+            color: _dragging
+                ? c.accent
+                : _hovering
+                    ? c.border
+                    : altVisible
+                        ? c.border
+                        : Colors.transparent,
+          ),
         ),
       ),
     );

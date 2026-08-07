@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 import 'features/quick_view/quick_view_service.dart';
 import 'services/directory_repository.dart';
 import 'services/window_layout_store.dart';
@@ -12,7 +13,24 @@ import 'state/theme_controller.dart';
 import 'widgets/app_shell.dart';
 import 'widgets/app_theme.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+
+  // 无边框窗口：隐藏系统标题栏，保留 DWM 原生缩放边框（不用 setAsFrameless）。
+  const windowOptions = WindowOptions(
+    titleBarStyle: TitleBarStyle.hidden,
+    windowButtonVisibility: false,
+    minimumSize: Size(960, 600),
+    backgroundColor: Colors.transparent,
+  );
+  unawaited(
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    }),
+  );
+
   runApp(
     MultiProvider(
       providers: [

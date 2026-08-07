@@ -6,7 +6,9 @@ import 'app_theme.dart';
 ///
 /// 设计：操作层是"浮在面板上的一张玻璃片"——
 /// - 面板中央一条收敛的细十字线（仅作分割方向暗示，两端渐隐）
-/// - 中央胶囊操作簇：水平切分 | 交换 | 垂直切分
+/// - 中央三个浮动操作 chip：水平切分 / 交换 / 垂直切分
+///   （surface 底 + 1px 边框 + 柔和投影，hover 显 surfaceHover）
+/// - 左下角一行低调提示文字（tertiary），弥补顶栏移除的 Alt 提示
 /// - 右上角关闭按钮（hover 显红，Win11 语义）
 ///
 /// 颜色全部走 [AppColors] token，单一 accent 语义色。
@@ -71,44 +73,56 @@ class AltOverlay extends StatelessWidget {
           ),
         ),
 
-        // ── 中央胶囊操作簇 ──
+        // ── 中央浮动操作 chips ──
         Center(
-          child: Container(
-            height: 34,
-            decoration: BoxDecoration(
-              color: c.surface.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
-              border: Border.all(color: c.border),
-              boxShadow: [
-                BoxShadow(
-                  color: c.scrim,
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
+          child: FittedBox(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _OverlayBtn(
+                _ActionChip(
                   icon: Icons.horizontal_split,
+                  label: '水平切分',
                   tooltip: '水平切分',
                   onTap: () => onSplit(SplitDirection.vertical),
                 ),
-                _BtnDivider(),
-                _OverlayBtn(
+                const SizedBox(width: 8),
+                _ActionChip(
                   icon: Icons.swap_horiz,
+                  label: '交换',
                   tooltip: '与其他面板交换',
                   selected: isSwapSelected,
                   onTap: onSwap,
                 ),
-                _BtnDivider(),
-                _OverlayBtn(
+                const SizedBox(width: 8),
+                _ActionChip(
                   icon: Icons.vertical_split,
+                  label: '垂直切分',
                   tooltip: '垂直切分',
                   onTap: () => onSplit(SplitDirection.horizontal),
                 ),
               ],
+            ),
+          ),
+        ),
+
+        // ── 左下角提示（低调，不可点击）──
+        Positioned(
+          left: 8,
+          bottom: 8,
+          child: IgnorePointer(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: c.surface.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+              ),
+              child: Text(
+                '按住 Alt 显示面板操作',
+                style: TextStyle(
+                  fontSize: AppMetrics.fontSmall,
+                  color: c.textTertiary,
+                ),
+              ),
             ),
           ),
         ),
@@ -124,42 +138,41 @@ class AltOverlay extends StatelessWidget {
   }
 }
 
-class _BtnDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 16,
-      color: context.colors.border,
-    );
-  }
-}
-
-/// 操作簇内的图标按钮：hover 显 accent，交换选中态为 accent 实底
-class _OverlayBtn extends StatefulWidget {
+/// 浮动操作 chip：surface 底 + 细边框 + 柔和投影，hover 显 surfaceHover，
+/// 交换选中态为 accent 实底
+class _ActionChip extends StatefulWidget {
   final IconData icon;
+  final String label;
   final String tooltip;
   final bool selected;
   final VoidCallback onTap;
 
-  const _OverlayBtn({
+  const _ActionChip({
     required this.icon,
+    required this.label,
     required this.tooltip,
     required this.onTap,
     this.selected = false,
   });
 
   @override
-  State<_OverlayBtn> createState() => _OverlayBtnState();
+  State<_ActionChip> createState() => _ActionChipState();
 }
 
-class _OverlayBtnState extends State<_OverlayBtn> {
+class _ActionChipState extends State<_ActionChip> {
   bool _hovering = false;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final active = widget.selected || _hovering;
+    final selected = widget.selected;
+
+    final bg = selected
+        ? c.accent
+        : _hovering
+            ? c.surfaceHover
+            : c.surface.withValues(alpha: 0.95);
+    final fg = selected ? c.onAccent : c.textPrimary;
 
     return Tooltip(
       message: widget.tooltip,
@@ -169,24 +182,32 @@ class _OverlayBtnState extends State<_OverlayBtn> {
         child: GestureDetector(
           onTap: widget.onTap,
           child: Container(
-            width: 34,
-            height: 34,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: widget.selected
-                  ? c.accent
-                  : _hovering
-                      ? c.surfaceHover
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+              color: bg,
+              borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+              border: Border.all(color: selected ? c.accent : c.border),
+              boxShadow: [
+                BoxShadow(
+                  color: c.scrim,
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            child: Icon(
-              widget.icon,
-              size: 17,
-              color: widget.selected
-                  ? Colors.white
-                  : active
-                      ? c.accent
-                      : c.textSecondary,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(widget.icon, size: AppMetrics.iconSm, color: fg),
+                const SizedBox(width: 5),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: AppMetrics.fontSmall,
+                    color: fg,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -195,7 +216,7 @@ class _OverlayBtnState extends State<_OverlayBtn> {
   }
 }
 
-/// 关闭按钮：默认低调，hover 显 danger 实底白图标（Win11 关闭语义）
+/// 关闭按钮：默认低调，hover 显 danger 实底（Win11 关闭语义）
 class _CloseBtn extends StatefulWidget {
   final VoidCallback onTap;
 
@@ -228,11 +249,18 @@ class _CloseBtnState extends State<_CloseBtn> {
                   : c.surface.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
               border: Border.all(color: _hovering ? c.danger : c.border),
+              boxShadow: [
+                BoxShadow(
+                  color: c.scrim,
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Icon(
               Icons.close,
               size: 13,
-              color: _hovering ? Colors.white : c.textTertiary,
+              color: _hovering ? c.onAccent : c.textTertiary,
             ),
           ),
         ),

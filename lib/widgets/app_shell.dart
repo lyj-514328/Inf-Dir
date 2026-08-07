@@ -4,6 +4,7 @@ import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../features/quick_view/viewer_associations_dialog.dart';
 import '../models/layout_node.dart';
@@ -14,6 +15,7 @@ import '../state/theme_controller.dart';
 import 'app_theme.dart';
 import 'sidebar_tree.dart';
 import 'layout_view.dart';
+import 'window_controls.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -134,11 +136,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     return Scaffold(
       body: Column(
         children: [
-          _MenuBar(
-            layoutState: layoutState,
-            onViewerAssociations: () => showViewerAssociationsDialog(context),
-          ),
-          _WorkspaceBar(
+          _TopBar(
             layoutState: layoutState,
             showHiddenFiles: context.watch<AppState>().showHiddenFiles,
             showFileExtensions: context.watch<AppState>().showFileExtensions,
@@ -153,8 +151,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               final app = context.read<AppState>();
               app.setShowFileExtensions(!app.showFileExtensions);
             },
+            onViewerAssociations: () => showViewerAssociationsDialog(context),
           ),
-          Container(height: 1, color: c.border),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(AppMetrics.pagePadding),
@@ -199,6 +197,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                       setState(() => _sidebarDragging = false);
                     },
                   ),
+                  const SizedBox(width: AppMetrics.paneGap),
                   Expanded(
                     child: LayoutView(node: layoutState.activeWorkspace),
                   ),
@@ -212,20 +211,23 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 }
 
-/// 工作区标签栏
-class _WorkspaceBar extends StatelessWidget {
+/// 统一顶栏：应用菜单 + 工作区标签 + 全局开关 + 窗口控制按钮，
+/// 兼作无边框窗口的拖拽/双击最大化区域。
+class _TopBar extends StatelessWidget {
   final LayoutState layoutState;
   final bool showHiddenFiles;
   final bool showFileExtensions;
   final VoidCallback onToggleHiddenFiles;
   final VoidCallback onToggleFileExtensions;
+  final VoidCallback onViewerAssociations;
 
-  const _WorkspaceBar({
+  const _TopBar({
     required this.layoutState,
     required this.showHiddenFiles,
     required this.showFileExtensions,
     required this.onToggleHiddenFiles,
     required this.onToggleFileExtensions,
+    required this.onViewerAssociations,
   });
 
   @override
@@ -233,98 +235,99 @@ class _WorkspaceBar extends StatelessWidget {
     final c = context.colors;
     final theme = context.watch<ThemeController>();
 
-    return Container(
-      height: AppMetrics.workspaceBarHeight,
-      color: c.surfaceSubtle,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        children: [
-          for (int i = 0; i < layoutState.workspaces.length; i++) ...[
-            if (i > 0) const SizedBox(width: 2),
-            _WorkspaceTab(
-              label: layoutState.workspaces[i].label ?? 'WS$i',
-              isActive: i == layoutState.activeWorkspaceIndex,
-              onTap: () => layoutState.switchWorkspace(i),
-              onClose: layoutState.workspaces.length > 1
-                  ? () => layoutState.removeWorkspace(i)
-                  : null,
+    // DragToMoveArea 自带拖拽移动与双击最大化/还原。
+    return DragToMoveArea(
+      child: Container(
+        height: AppMetrics.topBarHeight,
+        decoration: BoxDecoration(
+          color: c.windowBg,
+          border: Border(bottom: BorderSide(color: c.border)),
+        ),
+        // 右侧不留 padding：最大化时窗口按钮须触达屏幕边缘。
+        padding: const EdgeInsets.only(left: 4),
+        child: Row(
+          children: [
+            _AppMenus(
+              layoutState: layoutState,
+              onViewerAssociations: onViewerAssociations,
             ),
-          ],
-          const SizedBox(width: 4),
-          InkWell(
-            onTap: () => layoutState.addWorkspace(),
-            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-            child: SizedBox(
-              width: 26,
-              height: 26,
-              child: Icon(
-                Icons.add,
-                size: AppMetrics.iconMd,
-                color: c.textSecondary,
+            const SizedBox(width: 8),
+            for (int i = 0; i < layoutState.workspaces.length; i++) ...[
+              if (i > 0) const SizedBox(width: 2),
+              _WorkspaceTab(
+                label: layoutState.workspaces[i].label ?? 'WS$i',
+                isActive: i == layoutState.activeWorkspaceIndex,
+                onTap: () => layoutState.switchWorkspace(i),
+                onClose: layoutState.workspaces.length > 1
+                    ? () => layoutState.removeWorkspace(i)
+                    : null,
               ),
+            ],
+            const SizedBox(width: 4),
+            _GhostIconButton(
+              icon: Icons.add,
+              tooltip: '新建工作区',
+              onTap: layoutState.addWorkspace,
             ),
-          ),
-          const Spacer(),
-          Tooltip(
-            message: showHiddenFiles ? '隐藏文件：显示中' : '隐藏文件：已隐藏',
-            child: InkWell(
+            const Spacer(),
+            _GhostIconButton(
+              icon: showHiddenFiles ? Icons.visibility : Icons.visibility_off,
+              tooltip: showHiddenFiles ? '隐藏文件：显示中' : '隐藏文件：已隐藏',
+              active: showHiddenFiles,
               onTap: onToggleHiddenFiles,
-              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child: Icon(
-                  showHiddenFiles ? Icons.visibility : Icons.visibility_off,
-                  size: AppMetrics.iconMd,
-                  color: showHiddenFiles ? c.accent : c.textSecondary,
-                ),
-              ),
             ),
-          ),
-          Tooltip(
-            message: showFileExtensions ? '文件后缀名：显示中' : '文件后缀名：已隐藏',
-            child: InkWell(
+            _GhostIconButton(
+              icon: Icons.text_fields,
+              tooltip: showFileExtensions ? '文件后缀名：显示中' : '文件后缀名：已隐藏',
+              active: showFileExtensions,
               onTap: onToggleFileExtensions,
-              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child: Icon(
-                  Icons.text_fields,
-                  size: AppMetrics.iconMd,
-                  color: showFileExtensions ? c.accent : c.textSecondary,
-                ),
-              ),
             ),
-          ),
-          Tooltip(
-            message: '主题：${theme.label}',
-            child: InkWell(
+            _GhostIconButton(
+              icon: theme.icon,
+              tooltip: '主题：${theme.label}',
               onTap: theme.cycle,
-              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child: Icon(
-                  theme.icon,
-                  size: AppMetrics.iconMd,
-                  color: c.textSecondary,
-                ),
-              ),
             ),
+            const SizedBox(width: 8),
+            const WindowControls(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 紧凑幽灵图标按钮（顶栏全局开关用）
+class _GhostIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final bool active;
+
+  const _GhostIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.active = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Icon(
+            icon,
+            size: AppMetrics.iconMd,
+            color: active ? c.accent : c.textSecondary,
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              '按住 Alt 显示面板操作',
-              style: TextStyle(
-                fontSize: AppMetrics.fontSmall,
-                color: c.textTertiary,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -384,8 +387,8 @@ class _WorkspaceTab extends StatelessWidget {
   }
 }
 
-class _MenuBar extends StatelessWidget {
-  const _MenuBar({
+class _AppMenus extends StatelessWidget {
+  const _AppMenus({
     required this.layoutState,
     required this.onViewerAssociations,
   });
@@ -395,69 +398,80 @@ class _MenuBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
-
-    return Container(
-      height: AppMetrics.menuBarHeight,
-      color: c.surfaceSubtle,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        children: [
-          const _MenuLabel('文件(F)'),
-          const _MenuLabel('编辑(E)'),
-          _MenuDropdown(
-            label: '视图(V)',
-            buildEntries: () => [
-              _MenuEntry(
-                '关闭面板',
-                enabled: layoutState.allPaneNodes.length > 1,
-                onTap: () => layoutState.closePane(layoutState.focusedNode),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _MenuLabel('文件(F)'),
+        const _MenuLabel('编辑(E)'),
+        _MenuDropdown(
+          label: '视图(V)',
+          buildEntries: () => [
+            _MenuEntry(
+              '关闭面板',
+              enabled: layoutState.allPaneNodes.length > 1,
+              onTap: () => layoutState.closePane(layoutState.focusedNode),
+            ),
+            _MenuEntry(
+              '水平切分',
+              onTap: () => layoutState.splitPane(
+                layoutState.focusedNode,
+                SplitDirection.vertical,
               ),
-              _MenuEntry(
-                '水平切分',
-                onTap: () => layoutState.splitPane(
-                  layoutState.focusedNode,
-                  SplitDirection.vertical,
-                ),
+            ),
+            _MenuEntry(
+              '垂直切分',
+              onTap: () => layoutState.splitPane(
+                layoutState.focusedNode,
+                SplitDirection.horizontal,
               ),
-              _MenuEntry(
-                '垂直切分',
-                onTap: () => layoutState.splitPane(
-                  layoutState.focusedNode,
-                  SplitDirection.horizontal,
-                ),
-              ),
-            ],
-          ),
-          const _MenuLabel('收藏夹(A)'),
-          _MenuDropdown(
-            label: '选项(O)',
-            buildEntries: () => [
-              _MenuEntry('查看器管理', onTap: onViewerAssociations),
-            ],
-          ),
-          const _MenuLabel('信息(H)'),
-        ],
-      ),
+            ),
+          ],
+        ),
+        const _MenuLabel('收藏夹(A)'),
+        _MenuDropdown(
+          label: '选项(O)',
+          buildEntries: () => [
+            _MenuEntry('查看器管理', onTap: onViewerAssociations),
+          ],
+        ),
+        const _MenuLabel('信息(H)'),
+      ],
     );
   }
 }
 
-/// 无下拉的纯文本菜单项
-class _MenuLabel extends StatelessWidget {
+/// 无下拉的纯文本菜单项（占位，保留 hover 反馈）
+class _MenuLabel extends StatefulWidget {
   final String label;
 
   const _MenuLabel(this.label);
 
   @override
+  State<_MenuLabel> createState() => _MenuLabelState();
+}
+
+class _MenuLabelState extends State<_MenuLabel> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: AppMetrics.fontBody,
-          color: context.colors.textPrimary,
+    final c = context.colors;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: _hovering ? c.surfaceHover : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        ),
+        child: Text(
+          widget.label,
+          style: TextStyle(
+            fontSize: AppMetrics.fontBody,
+            color: c.textSecondary,
+          ),
         ),
       ),
     );
@@ -545,7 +559,10 @@ class _MenuDropdownState extends State<_MenuDropdown> {
         ),
         child: Text(
           widget.label,
-          style: TextStyle(fontSize: AppMetrics.fontBody, color: c.textPrimary),
+          style: TextStyle(
+            fontSize: AppMetrics.fontBody,
+            color: c.textSecondary,
+          ),
         ),
       ),
     );

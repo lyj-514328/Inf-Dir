@@ -200,7 +200,7 @@ class _HomeViewState extends State<HomeView> {
                       ? Icons.keyboard_arrow_down
                       : Icons.keyboard_arrow_right,
                   size: AppMetrics.iconMd,
-                  color: context.colors.textSecondary,
+                  color: context.colors.textTertiary,
                 ),
               ),
             ),
@@ -413,8 +413,10 @@ class _HomeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    // 胶囊样式：激活 = surface 药丸 + textPrimary；未激活 = 透明底 textSecondary
+    final fg = active ? c.textPrimary : c.textSecondary;
     return Material(
-      color: active ? c.accent : c.surfaceSubtle,
+      color: active ? c.surface : Colors.transparent,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -425,17 +427,14 @@ class _HomeTab extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: AppMetrics.iconSm,
-                color: active ? c.surface : c.textSecondary,
-              ),
+              Icon(icon, size: AppMetrics.iconSm, color: fg),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: AppMetrics.fontSmall,
-                  color: active ? c.surface : c.textSecondary,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                  color: fg,
                 ),
               ),
             ],
@@ -489,7 +488,7 @@ class _HomeSectionHeader extends StatelessWidget {
                     ? Icons.keyboard_arrow_down
                     : Icons.keyboard_arrow_right,
                 size: AppMetrics.iconMd,
-                color: c.textSecondary,
+                color: c.textTertiary,
               ),
             ),
           )
@@ -497,15 +496,16 @@ class _HomeSectionHeader extends StatelessWidget {
           Icon(
             Icons.keyboard_arrow_down,
             size: AppMetrics.iconMd,
-            color: c.textSecondary,
+            color: c.textTertiary,
           ),
         const SizedBox(width: 5),
         Text(
           label,
           style: TextStyle(
-            fontSize: AppMetrics.fontBody,
+            fontSize: AppMetrics.fontSmall,
             fontWeight: FontWeight.w600,
-            color: c.textPrimary,
+            letterSpacing: 0.8,
+            color: c.textTertiary,
           ),
         ),
         const SizedBox(width: 6),
@@ -536,8 +536,11 @@ class _HomeDetailsHeader extends StatelessWidget {
     };
     final pathLabel = section == _HomeSection.quickAccess ? '位置' : '路径';
     return Container(
-      height: AppMetrics.rowHeight + 4,
-      color: c.surfaceSubtle,
+      height: AppMetrics.rowHeight,
+      decoration: BoxDecoration(
+        color: c.surfaceSubtle,
+        border: Border(bottom: BorderSide(color: c.border)),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Row(
         children:
@@ -550,7 +553,8 @@ class _HomeDetailsHeader extends StatelessWidget {
               return DefaultTextStyle(
                 style: TextStyle(
                   fontSize: AppMetrics.fontSmall,
-                  color: c.textSecondary,
+                  fontWeight: FontWeight.w500,
+                  color: c.textTertiary,
                 ),
                 child: child,
               );
@@ -596,15 +600,20 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
       child: Material(
-        color: _hovering ? c.surfaceHover : c.surface,
+        color: Colors.transparent,
         child: InkWell(
           onTap: widget.onTap,
-          hoverColor: c.surfaceHover,
-          child: SizedBox(
-            height: AppMetrics.rowHeight + 4,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Row(
+          hoverColor: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+          child: Container(
+            height: AppMetrics.rowHeight,
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              color: _hovering ? c.surfaceHover : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
                 children: [
                   Expanded(
                     flex: 4,
@@ -711,7 +720,6 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -730,38 +738,43 @@ class _HomeListRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Material(
-      color: c.surface,
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: c.surfaceHover,
-        child: SizedBox(
-          height: AppMetrics.rowHeight + 4,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Row(
-              children: [
-                _HomeIcon(
-                  path: item.path,
-                  isDirectory: item.isDirectory,
-                  fallback: item.isDirectory
-                      ? Icons.folder_outlined
-                      : Icons.insert_drive_file_outlined,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _displayHomeName(item.name, showFileExtensions),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: AppMetrics.fontBody,
-                      color: c.textPrimary,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: c.surfaceHover,
+          child: SizedBox(
+            height: AppMetrics.rowHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  _HomeIcon(
+                    path: item.path,
+                    isDirectory: item.isDirectory,
+                    fallback: item.isDirectory
+                        ? Icons.folder_outlined
+                        : Icons.insert_drive_file_outlined,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _displayHomeName(item.name, showFileExtensions),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: AppMetrics.fontBody,
+                        color: c.textPrimary,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -793,15 +806,19 @@ class _HomeContentRow extends StatelessWidget {
         : item.isDirectory
         ? '文件夹'
         : '文件';
-    return Material(
-      color: c.surface,
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: c.surfaceHover,
-        child: Container(
-          constraints: BoxConstraints(minHeight: content ? 68 : 58),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: c.surfaceHover,
+          child: Container(
+            constraints: BoxConstraints(minHeight: content ? 68 : 58),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
             children: [
               _HomeIcon(
                 path: item.path,
@@ -860,6 +877,7 @@ class _HomeContentRow extends StatelessWidget {
           ),
         ),
       ),
+      ),
     );
   }
 }
@@ -895,9 +913,8 @@ class _HomeIconTileState extends State<_HomeIconTile> {
           ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
           : const EdgeInsets.fromLTRB(6, 6, 6, 5),
       decoration: BoxDecoration(
-        color: _hovering ? c.surfaceHover : c.surface,
+        color: _hovering ? c.surfaceHover : Colors.transparent,
         borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
-        border: Border.all(color: c.border),
       ),
       child: widget.horizontal
           ? Row(
@@ -937,7 +954,7 @@ class _HomeIconTileState extends State<_HomeIconTile> {
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
       child: Material(
-        color: c.surface,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
         child: InkWell(
           onTap: widget.onTap,

@@ -9,6 +9,7 @@
 - **UI 框架**：Flutter（Windows desktop）
 - **语言**：Dart
 - **构建**：Flutter CLI（`flutter build windows`）
+- **窗口**：无边框自定义顶栏（`window_manager` 运行时隐藏原生标题栏，自绘窗口控制按钮）
 - **Viewer 插件**：Rust（egui）与 WebView2（wry）独立进程查看器，`plugins/build.bat` 构建
 
 ## 核心特性
@@ -51,7 +52,8 @@ Inf-Dir/
 - 文件系统操作及 Shell 集成通过原生 FFI（`dart:ffi` + `package:ffi`）直接调用 Win32 / COM / Shell API
 - 状态管理使用 Provider
 - 保持轻量，避免过度抽象
-- 样式统一走 `lib/widgets/app_theme.dart` 的设计 token（`context.colors` / `AppMetrics`），widget 中禁止新增 `Color(0x...)` / `Colors.xxx` 字面量；明暗双主题由 `lib/state/theme_controller.dart` 切换
+- 样式统一走 `lib/widgets/app_theme.dart` 的设计 token（`context.colors` / `AppMetrics`），widget 中禁止新增 `Color(0x...)` / `Colors.xxx` 字面量（`Colors.transparent` 除外）；明暗双主题由 `lib/state/theme_controller.dart` 切换并持久化（`lib/services/theme_store.dart`）
+- 界面风格为现代极简：一体化无边框顶栏（`app_shell.dart` 的 `_TopBar` + `window_controls.dart`）、胶囊式标签/选中态、面包屑地址栏（`address_bar.dart`）、ghost 按钮命令栏
 - Viewer 插件运行于独立进程，不把第三方 DLL 加载进 Flutter 主进程；Manifest、用户关联与解析规则见 `docs/plugin-system.md`
 
 ## 常用命令

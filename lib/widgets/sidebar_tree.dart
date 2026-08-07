@@ -96,10 +96,10 @@ class _SidebarTreeState extends State<SidebarTree> {
 
   /// 内容区布局 index 空间（顶部起）：
   ///   [0] 快速访问头          _quickAccessHeaderHeight
-  ///   [1, qaCount) 快速访问行 22 × qaCount
+  ///   [1, qaCount) 快速访问行 _rowHeight × qaCount
   ///   divider                _dividerHeight
   ///   gap                    _gapHeight
-  ///   之后是树行               22 × treeCount
+  ///   之后是树行             _rowHeight × treeCount
   /// 总高度是纯函数，不依赖 layout 结果，maxScrollExtent 永远准确。
 
   double _quickAccessStartOffset() =>
@@ -387,10 +387,10 @@ class _SidebarTreeState extends State<SidebarTree> {
       return Container(
         height: _rowHeight,
         width: double.infinity,
-        padding: EdgeInsets.only(left: 4.0 + row.depth * 16.0),
+        padding: EdgeInsets.only(left: 8.0 + row.depth * 16.0),
         child: Row(
           children: [
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             const SizedBox(
               width: 15,
               height: 15,
@@ -420,60 +420,70 @@ class _SidebarTreeState extends State<SidebarTree> {
 
     final isSelected = _isSelected(sidebar, row.path);
     final fallback = _fallbackIcon(row.type);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _onTapTreeRow(sidebar, row),
-        hoverColor: c.surfaceHover,
-        child: Container(
-          height: _rowHeight,
-          width: double.infinity,
-          color: isSelected ? c.accentSubtle : null,
-          child: Stack(
-            children: [
-              Row(
-                children: [
-                  SizedBox(width: 4.0 + row.depth * 16.0),
-                  if (row.hasChildren)
-                    Icon(
-                      row.isExpanded ? Icons.expand_more : Icons.chevron_right,
-                      size: 14,
-                      color: c.textTertiary,
-                    )
-                  else
-                    const SizedBox(width: 14),
-                  const SizedBox(width: 2),
-                  SizedBox(
-                    width: 15,
-                    child: _ShellIcon(
-                      path: row.path,
-                      isDirectory: true,
-                      fallback: fallback,
-                    ),
+    // 顶层节点（此电脑 / 云盘根）按分区头样式渲染：小号加宽 tertiary 文字。
+    final isSectionHeader = row.depth == 0 &&
+        (row.type == _RowType.thisPc || row.type == _RowType.cloudDrive);
+    final textStyle = isSectionHeader
+        ? TextStyle(
+            fontSize: AppMetrics.fontSmall,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.8,
+            color: isSelected ? c.accent : c.textTertiary,
+          )
+        : TextStyle(
+            fontSize: AppMetrics.fontBody,
+            color: isSelected ? c.accent : c.textPrimary,
+          );
+    final pillRadius = BorderRadius.circular(AppMetrics.controlRadius);
+    // 选中态为圆角 pill（accentSubtle 底），hover 为 surfaceHover pill，
+    // 不再使用左侧 3px accent 竖条。
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: pillRadius,
+        child: InkWell(
+          onTap: () => _onTapTreeRow(sidebar, row),
+          hoverColor: isSelected ? Colors.transparent : c.surfaceHover,
+          borderRadius: pillRadius,
+          child: Container(
+            height: double.infinity,
+            width: double.infinity,
+            decoration: isSelected
+                ? BoxDecoration(color: c.accentSubtle, borderRadius: pillRadius)
+                : null,
+            child: Row(
+              children: [
+                SizedBox(width: 8.0 + row.depth * 16.0),
+                if (row.hasChildren)
+                  Icon(
+                    row.isExpanded ? Icons.expand_more : Icons.chevron_right,
+                    size: 12,
+                    color: c.textTertiary,
+                  )
+                else
+                  const SizedBox(width: 12),
+                const SizedBox(width: 2),
+                SizedBox(
+                  width: 15,
+                  child: _ShellIcon(
+                    path: row.path,
+                    isDirectory: true,
+                    fallback: fallback,
+                    selected: isSelected,
                   ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      row.name,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontBody,
-                        color: c.textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              // 现代选中指示：行左侧 3px accent 竖条。
-              if (isSelected)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: 3,
-                  child: ColoredBox(color: c.accent),
                 ),
-            ],
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    row.name,
+                    style: textStyle,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
           ),
         ),
       ),
@@ -541,7 +551,7 @@ class _SidebarTreeState extends State<SidebarTree> {
             left: 0,
             right: 0,
             height: _homeDividerHeight,
-            child: ColoredBox(color: c.borderStrong),
+            child: ColoredBox(color: c.border),
           ),
         );
 
@@ -645,7 +655,7 @@ class _SidebarTreeState extends State<SidebarTree> {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  Private widgets (unchanged)
+//  Private widgets
 // ═══════════════════════════════════════════════════════════
 
 class _HomeSidebarRow extends StatelessWidget {
@@ -657,48 +667,44 @@ class _HomeSidebarRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: c.surfaceHover,
-        child: Container(
-          color: selected ? c.accentSubtle : null,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.home,
-                    size: AppMetrics.iconMd,
-                    color: c.iconFolder,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '主文件夹',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontBody,
-                        fontWeight: FontWeight.w600,
-                        color: c.textPrimary,
-                      ),
+    final pillRadius = BorderRadius.circular(AppMetrics.controlRadius);
+    // 与树行一致的 pill 选中态：accentSubtle 圆角底 + accent 前景。
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: pillRadius,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: selected ? Colors.transparent : c.surfaceHover,
+          borderRadius: pillRadius,
+          child: Container(
+            decoration: selected
+                ? BoxDecoration(color: c.accentSubtle, borderRadius: pillRadius)
+                : null,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.home,
+                  size: AppMetrics.iconMd,
+                  color: selected ? c.accent : c.iconFolder,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '主文件夹',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppMetrics.fontBody,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? c.accent : c.textPrimary,
                     ),
                   ),
-                ],
-              ),
-              if (selected)
-                Positioned(
-                  left: -12,
-                  top: 4,
-                  bottom: 4,
-                  width: 3,
-                  child: ColoredBox(color: c.accent),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -711,11 +717,13 @@ class _ShellIcon extends StatelessWidget {
   final String path;
   final bool isDirectory;
   final IconData fallback;
+  final bool selected;
 
   const _ShellIcon({
     required this.path,
     required this.isDirectory,
     required this.fallback,
+    this.selected = false,
   });
 
   @override
@@ -729,10 +737,11 @@ class _ShellIcon extends StatelessWidget {
         gaplessPlayback: true,
       );
     }
+    // 无 shell 图标时 fallback 到 Material 图标，选中态染 accent。
     return Icon(
       fallback,
       size: _iconSize.toDouble(),
-      color: context.colors.iconFolder,
+      color: selected ? context.colors.accent : context.colors.iconFolder,
     );
   }
 }
@@ -743,21 +752,18 @@ class _QuickAccessHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
-      child: Row(
-        children: [
-          Icon(Icons.history, size: 13, color: c.textSecondary),
-          const SizedBox(width: 4),
-          Text(
-            '快速访问',
-            style: TextStyle(
-              fontSize: AppMetrics.fontSmall,
-              fontWeight: FontWeight.w600,
-              color: c.textTertiary,
-            ),
-          ),
-        ],
+    // 分区头：小号加宽 tertiary 文字，24px 槽位内垂直居中。
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
+      alignment: Alignment.centerLeft,
+      child: Text(
+        '快速访问',
+        style: TextStyle(
+          fontSize: AppMetrics.fontSmall,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.8,
+          color: c.textTertiary,
+        ),
       ),
     );
   }
@@ -779,55 +785,53 @@ class _QuickAccessRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: c.surfaceHover,
-        child: Container(
-          height: AppMetrics.sidebarRowHeight,
-          width: double.infinity,
-          color: selected ? c.accentSubtle : null,
-          child: Stack(
-            children: [
-              Row(
-                children: [
-                  const SizedBox(width: 4),
-                  const SizedBox(width: 14),
-                  const SizedBox(width: 2),
-                  SizedBox(
-                    width: 15,
-                    child: _ShellIcon(
-                      path: item.path,
-                      isDirectory: true,
-                      fallback: fallbackIcon,
-                    ),
+    final pillRadius = BorderRadius.circular(AppMetrics.controlRadius);
+    // 与树行一致的 pill 选中态 / hover 态。
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: pillRadius,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: selected ? Colors.transparent : c.surfaceHover,
+          borderRadius: pillRadius,
+          child: Container(
+            height: double.infinity,
+            width: double.infinity,
+            decoration: selected
+                ? BoxDecoration(color: c.accentSubtle, borderRadius: pillRadius)
+                : null,
+            child: Row(
+              children: [
+                const SizedBox(width: 8),
+                const SizedBox(width: 12),
+                const SizedBox(width: 2),
+                SizedBox(
+                  width: 15,
+                  child: _ShellIcon(
+                    path: item.path,
+                    isDirectory: true,
+                    fallback: fallbackIcon,
+                    selected: selected,
                   ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      item.name,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontBody,
-                        color: c.textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (item.isPinned)
-                    Icon(Icons.push_pin, size: 11, color: c.textTertiary),
-                ],
-              ),
-              // 现代选中指示：行左侧 3px accent 竖条。
-              if (selected)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: 3,
-                  child: ColoredBox(color: c.accent),
                 ),
-            ],
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    item.name,
+                    style: TextStyle(
+                      fontSize: AppMetrics.fontBody,
+                      color: selected ? c.accent : c.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (item.isPinned)
+                  Icon(Icons.push_pin, size: 11, color: c.textTertiary),
+                const SizedBox(width: 8),
+              ],
+            ),
           ),
         ),
       ),

@@ -465,10 +465,10 @@ class _ExplorerTileState extends State<_ExplorerTile> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final selectedColor = widget.isActive ? c.accent : c.selectedInactive;
-    final foreground = widget.isSelected && widget.isActive
-        ? Theme.of(context).colorScheme.onPrimary
-        : c.textPrimary;
+    // 大图标瓦片用 accentSubtle 软底 + accent 描边表示选中，
+    // 避免整瓦片实心 accent 过重；失焦面板用 selectedInactive。
+    final selectedBg = widget.isActive ? c.accentSubtle : c.selectedInactive;
+    final foreground = c.textPrimary;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -487,13 +487,15 @@ class _ExplorerTileState extends State<_ExplorerTile> {
                 : const EdgeInsets.fromLTRB(6, 6, 6, 5),
             decoration: BoxDecoration(
               color: widget.isSelected
-                  ? selectedColor
+                  ? selectedBg
                   : _hovering
                   ? c.surfaceHover
-                  : c.surface,
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
               border: Border.all(
-                color: widget.isSelected ? c.accent : c.surface,
+                color: widget.isSelected && widget.isActive
+                    ? c.accent
+                    : Colors.transparent,
               ),
             ),
             child: widget.horizontal
@@ -502,7 +504,7 @@ class _ExplorerTileState extends State<_ExplorerTile> {
                       _FileIcon(
                         path: widget.entry.path,
                         isDirectory: widget.entry.isDirectory,
-                        isSelected: widget.isSelected && widget.isActive,
+                        isSelected: false,
                         size: widget.iconSize,
                       ),
                       const SizedBox(width: 7),
@@ -529,7 +531,7 @@ class _ExplorerTileState extends State<_ExplorerTile> {
                           child: _FileIcon(
                             path: widget.entry.path,
                             isDirectory: widget.entry.isDirectory,
-                            isSelected: widget.isSelected && widget.isActive,
+                            isSelected: false,
                             size: widget.iconSize,
                           ),
                         ),
@@ -588,13 +590,11 @@ class _ExplorerContentRowState extends State<_ExplorerContentRow> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final selectedColor = widget.isActive ? c.accent : c.selectedInactive;
-    final foreground = widget.isSelected && widget.isActive
-        ? Theme.of(context).colorScheme.onPrimary
-        : c.textPrimary;
-    final secondary = widget.isSelected && widget.isActive
-        ? Theme.of(context).colorScheme.onPrimary
-        : c.textSecondary;
+    // 与 _ExplorerTile 一致：选中 = accentSubtle 软底 + accent 描边，
+    // 失焦面板 = selectedInactive；文字保持 textPrimary/textSecondary。
+    final selectedBg = widget.isActive ? c.accentSubtle : c.selectedInactive;
+    final foreground = c.textPrimary;
+    final secondary = c.textSecondary;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -611,18 +611,23 @@ class _ExplorerContentRowState extends State<_ExplorerContentRow> {
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
             decoration: BoxDecoration(
               color: widget.isSelected
-                  ? selectedColor
+                  ? selectedBg
                   : _hovering
                   ? c.surfaceHover
-                  : c.surface,
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+              border: Border.all(
+                color: widget.isSelected && widget.isActive
+                    ? c.accent
+                    : Colors.transparent,
+              ),
             ),
             child: Row(
               children: [
                 _FileIcon(
                   path: widget.entry.path,
                   isDirectory: widget.entry.isDirectory,
-                  isSelected: widget.isSelected && widget.isActive,
+                  isSelected: false,
                   size: widget.contentMode ? 40 : 34,
                 ),
                 const SizedBox(width: 10),
@@ -756,9 +761,9 @@ class _ColumnHeader extends StatelessWidget {
                         child: Text(
                           '状态',
                           style: TextStyle(
-                            fontSize: AppMetrics.fontBody,
+                            fontSize: AppMetrics.fontSmall,
                             fontWeight: FontWeight.w500,
-                            color: context.colors.textSecondary,
+                            color: context.colors.textTertiary,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -833,11 +838,9 @@ class _HeaderSplitterState extends State<_HeaderSplitter> {
             width: _hovering || _dragging ? 4 : 2,
             height: 14,
             decoration: BoxDecoration(
-              color: _dragging
-                  ? c.accent
-                  : _hovering
-                  ? c.accent.withValues(alpha: 0.4)
-                  : c.borderStrong,
+              color: _hovering || _dragging
+                  ? c.borderStrong
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(1),
             ),
           ),
@@ -880,9 +883,9 @@ class _HeaderCell extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextStyle(
-                    fontSize: AppMetrics.fontBody,
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                    color: isActive ? c.textPrimary : c.textSecondary,
+                    fontSize: AppMetrics.fontSmall,
+                    fontWeight: FontWeight.w500,
+                    color: isActive ? c.textSecondary : c.textTertiary,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -942,7 +945,7 @@ class _FileRowState extends State<_FileRow> {
     final c = context.colors;
     final selectedBg = widget.isActive ? c.accent : c.selectedInactive;
     final textColor = widget.isSelected
-        ? (widget.isActive ? Colors.white : c.textPrimary)
+        ? (widget.isActive ? c.onAccent : c.textPrimary)
         : c.textPrimary;
 
     Color bgColor;
@@ -979,7 +982,7 @@ class _FileRowState extends State<_FileRow> {
                     decoration: BoxDecoration(
                       color: bgColor,
                       borderRadius: BorderRadius.circular(
-                        AppMetrics.cardRadius,
+                        AppMetrics.controlRadius,
                       ),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1102,7 +1105,7 @@ class _FileIcon extends StatelessWidget {
             isDirectory ? Icons.folder : Icons.insert_drive_file,
             size: iconSize,
             color: isSelected
-                ? Colors.white
+                ? c.onAccent
                 : (isDirectory ? c.iconFolder : c.iconFile),
           );
 
@@ -1140,9 +1143,9 @@ class _FileIcon extends StatelessWidget {
 (IconData, Color) _cloudStatusVisual(int status, AppColors c) =>
     switch (status) {
       2 => (Icons.check_circle, c.success), // pinned / always available
-      1 => (Icons.cloud_done, c.accent), // locally available
-      3 => (Icons.sync, c.accent), // syncing
-      0 => (Icons.cloud, c.textSecondary), // online only
+      1 => (Icons.cloud_done, c.success), // locally available
+      3 => (Icons.sync, c.textTertiary), // syncing
+      0 => (Icons.cloud, c.textTertiary), // online only
       4 => (Icons.remove_circle_outline, c.textTertiary), // excluded
       _ => (Icons.cloud, c.textTertiary),
     };
@@ -1171,7 +1174,7 @@ class _CloudStatusCell extends StatelessWidget {
     return Center(
       child: Tooltip(
         message: _cloudStatusText(status),
-        child: Icon(icon, size: 14, color: color),
+        child: Icon(icon, size: AppMetrics.iconSm, color: color),
       ),
     );
   }
