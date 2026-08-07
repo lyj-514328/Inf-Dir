@@ -16,7 +16,6 @@ class FileCommandBar extends StatelessWidget {
   final bool canCopy;
   final bool canPaste;
   final bool canRename;
-  final bool canShare;
   final bool canDelete;
   final bool canSelectAll;
   final bool canShowProperties;
@@ -31,7 +30,6 @@ class FileCommandBar extends StatelessWidget {
   final VoidCallback? onCopy;
   final VoidCallback? onPaste;
   final VoidCallback? onRename;
-  final VoidCallback? onShare;
   final VoidCallback? onDelete;
   final ValueChanged<SortColumn>? onSortColumn;
   final ValueChanged<bool>? onSortAscending;
@@ -49,7 +47,6 @@ class FileCommandBar extends StatelessWidget {
     required this.canCopy,
     required this.canPaste,
     required this.canRename,
-    this.canShare = false,
     required this.canDelete,
     this.canSelectAll = false,
     this.canShowProperties = false,
@@ -64,7 +61,6 @@ class FileCommandBar extends StatelessWidget {
     this.onCopy,
     this.onPaste,
     this.onRename,
-    this.onShare,
     this.onDelete,
     this.onSortColumn,
     this.onSortAscending,
@@ -139,13 +135,6 @@ class FileCommandBar extends StatelessWidget {
               tooltip: '重命名 (F2)',
               enabled: canRename,
               onPressed: onRename,
-            ),
-            _CommandButton(
-              icon: Icons.ios_share,
-              label: '共享',
-              tooltip: '使用 Windows 共享',
-              enabled: canShare,
-              onPressed: onShare,
             ),
             _CommandButton(
               icon: Icons.delete_outline,

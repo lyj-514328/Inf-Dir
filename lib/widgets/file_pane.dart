@@ -73,7 +73,6 @@ class _PaneContent extends StatelessWidget {
             onCopy: _copySelected,
             onPaste: _paste,
             onRename: _renameSelected,
-            onShare: _shareSelected,
             onDelete: _deleteSelected,
             onProperties: _showProperties,
           ),
@@ -220,13 +219,6 @@ class _PaneContent extends StatelessWidget {
     } catch (e) {
       if (context.mounted) _showOperationError(context, '创建文件失败', e);
     }
-  }
-
-  void _shareSelected(BuildContext context) {
-    final controller = context.read<PaneController>();
-    final paths = controller.selectedPaths.toList();
-    if (paths.isEmpty) return;
-    _showNativeMenuAtToolbar(context, paths);
   }
 
   void _showProperties(BuildContext context) {
@@ -439,7 +431,6 @@ class _PaneCommandBarSection extends StatelessWidget {
   final void Function(BuildContext) onCopy;
   final Future<void> Function(BuildContext) onPaste;
   final Future<void> Function(BuildContext) onRename;
-  final void Function(BuildContext) onShare;
   final Future<void> Function(BuildContext) onDelete;
   final void Function(BuildContext) onProperties;
 
@@ -450,7 +441,6 @@ class _PaneCommandBarSection extends StatelessWidget {
     required this.onCopy,
     required this.onPaste,
     required this.onRename,
-    required this.onShare,
     required this.onDelete,
     required this.onProperties,
   });
@@ -481,7 +471,6 @@ class _PaneCommandBarSection extends StatelessWidget {
       canCopy: canSelect,
       canPaste: canPaste,
       canRename: canRename,
-      canShare: canSelect && !FileService.isRecycleBinPath(currentPath),
       canDelete: canDelete,
       canSelectAll: !isHome && controller.visibleEntries.isNotEmpty,
       canShowProperties: canSelect,
@@ -496,7 +485,6 @@ class _PaneCommandBarSection extends StatelessWidget {
       onCopy: () => onCopy(context),
       onPaste: () => onPaste(context),
       onRename: () => onRename(context),
-      onShare: () => onShare(context),
       onDelete: () => onDelete(context),
       onSortColumn: controller.setSortColumn,
       onSortAscending: controller.setSortAscending,
