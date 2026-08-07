@@ -163,7 +163,6 @@ class _FileListViewState extends State<FileListView> {
                       viewMode: widget.viewMode,
                       showStatusColumn: widget.showStatusColumn,
                     ),
-                    Container(height: 1, color: context.colors.border),
                     Expanded(
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
@@ -743,7 +742,6 @@ class _ColumnHeader extends StatelessWidget {
         children: [
           Container(
             height: AppMetrics.rowHeight,
-            color: context.colors.surfaceSubtle,
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
               children: [
@@ -835,12 +833,10 @@ class _HeaderSplitterState extends State<_HeaderSplitter> {
           height: double.infinity,
           alignment: Alignment.center,
           child: Container(
-            width: _hovering || _dragging ? 4 : 2,
-            height: 14,
+            width: _hovering || _dragging ? 4 : 1,
+            height: _hovering || _dragging ? 14 : double.infinity,
             decoration: BoxDecoration(
-              color: _hovering || _dragging
-                  ? c.borderStrong
-                  : Colors.transparent,
+              color: _hovering || _dragging ? c.borderStrong : c.border,
               borderRadius: BorderRadius.circular(1),
             ),
           ),

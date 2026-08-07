@@ -226,7 +226,7 @@ abstract final class AppMetrics {
   // 栏高
   static const double topBarHeight = 40;
   static const double paneTabBarHeight = 30;
-  static const double addressBarHeight = 34;
+  static const double addressBarHeight = 30;
   static const double commandBarHeight = 34;
   static const double statusBarHeight = 22;
 

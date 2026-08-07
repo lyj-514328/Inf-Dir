@@ -62,9 +62,11 @@ class _PaneContent extends StatelessWidget {
             children: [
               const _PaneTabBarSection(),
               Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppMetrics.paneGap,
-                  vertical: 1,
+                padding: EdgeInsets.fromLTRB(
+                  AppMetrics.paneGap,
+                  1,
+                  AppMetrics.paneGap,
+                  5,
                 ),
                 child: _PaneLocationSection(
                   onCommandMenu: (pos) => _openCommandMenu(context, pos),
@@ -73,7 +75,6 @@ class _PaneContent extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: AppMetrics.paneGap),
         Expanded(
           child: controller.isHome
               ? HomeView(

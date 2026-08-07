@@ -147,13 +147,25 @@ class _AddressBarState extends State<AddressBar> {
         alignment: Alignment.centerLeft,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Text(
-            widget.currentPath,
-            style: TextStyle(
-              fontSize: AppMetrics.fontBody,
-              color: c.textPrimary,
-            ),
-            overflow: TextOverflow.ellipsis,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  widget.currentPath,
+                  style: TextStyle(
+                    fontSize: AppMetrics.fontBody,
+                    color: c.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 12,
+                color: c.textTertiary,
+              ),
+            ],
           ),
         ),
       );
@@ -174,6 +186,7 @@ class _AddressBarState extends State<AddressBar> {
                 onTap: () => widget.onSubmit(segments[i].path),
               ),
             ],
+            Icon(Icons.chevron_right, size: 12, color: c.textTertiary),
           ],
         ),
       ),
@@ -217,17 +230,21 @@ class _AddressBarState extends State<AddressBar> {
     return Container(
       height: AppMetrics.addressBarHeight,
       decoration: BoxDecoration(
-        border: Border.all(color: focused ? c.accent : c.border),
+        border: Border.all(color: focused ? c.accent : c.borderStrong),
         borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
         color: c.surface,
       ),
-      child: Row(
-        children: [
-          const SizedBox(width: 6),
-          _buildIcon(),
-          const SizedBox(width: 4),
-          Expanded(child: _editing ? _buildTextField() : _buildBreadcrumb()),
-        ],
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _editing ? null : _startEditing,
+        child: Row(
+          children: [
+            const SizedBox(width: 3),
+            _buildIcon(),
+            const SizedBox(width: 2),
+            Expanded(child: _editing ? _buildTextField() : _buildBreadcrumb()),
+          ],
+        ),
       ),
     );
   }
@@ -260,7 +277,7 @@ class _BreadcrumbSegmentState extends State<_BreadcrumbSegment> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
             color: _hovering ? c.surfaceHover : Colors.transparent,
             borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
