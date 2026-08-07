@@ -32,3 +32,6 @@ plugins/markdown-view-web/
 plugins/markdown-view/_web_tmp/
 plugins/office-view.exe.WebView2/
 plugins/*.log
+
+# Local release packages
+/Inf-Dir-*-windows-x64.zip
