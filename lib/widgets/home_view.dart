@@ -17,11 +17,13 @@ enum _RowAction { openLocation, copyPath, addFavorite, removeFavorite }
 class HomeView extends StatefulWidget {
   final PaneController controller;
   final ValueChanged<String> onNavigate;
+  final bool showFileExtensions;
 
   const HomeView({
     super.key,
     required this.controller,
     required this.onNavigate,
+    this.showFileExtensions = true,
   });
 
   @override
@@ -135,6 +137,7 @@ class _HomeViewState extends State<HomeView> {
                 width: cardWidth,
                 child: _RecommendedCard(
                   item: _recommended[i],
+                  showFileExtensions: widget.showFileExtensions,
                   onTap: () => FileService.openFile(_recommended[i].path),
                 ),
               ),
@@ -179,6 +182,7 @@ class _HomeViewState extends State<HomeView> {
               isFavorite:
                   _activeTab == _HomeListTab.favorites ||
                   HomeService.isFavorite(items[i].path),
+              showFileExtensions: widget.showFileExtensions,
               onTap: () => FileService.openFile(items[i].path),
               onOpenLocation: () =>
                   FileService.openContainingFolder(items[i].path),
@@ -330,9 +334,14 @@ class _HomeTab extends StatelessWidget {
 
 class _RecommendedCard extends StatelessWidget {
   final RecentFile item;
+  final bool showFileExtensions;
   final VoidCallback onTap;
 
-  const _RecommendedCard({required this.item, required this.onTap});
+  const _RecommendedCard({
+    required this.item,
+    this.showFileExtensions = true,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -419,7 +428,7 @@ class _RecommendedCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            item.name,
+                            _displayHomeName(item.name, showFileExtensions),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -484,6 +493,7 @@ class _ActivityHeader extends StatelessWidget {
 class _ActivityRow extends StatefulWidget {
   final RecentFile item;
   final bool isFavorite;
+  final bool showFileExtensions;
   final VoidCallback onTap;
   final VoidCallback onOpenLocation;
   final VoidCallback onCopyPath;
@@ -492,6 +502,7 @@ class _ActivityRow extends StatefulWidget {
   const _ActivityRow({
     required this.item,
     required this.isFavorite,
+    this.showFileExtensions = true,
     required this.onTap,
     required this.onOpenLocation,
     required this.onCopyPath,
@@ -538,7 +549,10 @@ class _ActivityRowState extends State<_ActivityRow> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                widget.item.name,
+                                _displayHomeName(
+                                  widget.item.name,
+                                  widget.showFileExtensions,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -694,4 +708,10 @@ String _shortPath(String path) {
   if (path.toLowerCase().endsWith('.lnk')) return '最近使用';
   final parent = p.dirname(path);
   return parent == path ? path : parent;
+}
+
+String _displayHomeName(String name, bool showFileExtensions) {
+  if (showFileExtensions) return name;
+  final extension = p.extension(name);
+  return extension.isEmpty ? name : p.basenameWithoutExtension(name);
 }

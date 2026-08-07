@@ -83,6 +83,9 @@ class _PaneContent extends StatelessWidget {
               ? HomeView(
                   controller: controller,
                   onNavigate: controller.navigateTo,
+                  showFileExtensions: context
+                      .watch<AppState>()
+                      .showFileExtensions,
                 )
               : Focus(
                   autofocus: false,
@@ -474,6 +477,7 @@ class _PaneCommandBarSection extends StatelessWidget {
       canDelete: canDelete,
       canSelectAll: !isHome && controller.visibleEntries.isNotEmpty,
       canShowProperties: canSelect,
+      isHome: isHome,
       showHiddenFiles: appState.showHiddenFiles,
       sortColumn: controller.sortColumn,
       sortAscending: controller.sortAscending,
@@ -528,34 +532,46 @@ class _FileListSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<PaneController>();
-    return FileListView(
-      entries: controller.visibleEntries,
-      selectedPaths: controller.selectedPaths,
-      isActive: isActive,
-      loading: controller.isLoading,
-      sortColumn: controller.sortColumn,
-      sortAscending: controller.sortAscending,
-      onSort: controller.sortBy,
-      viewMode: controller.viewMode,
-      columnWidths: controller.columnWidths,
-      onResizeColumn: controller.resizeColumn,
-      onInitWidths: controller.initColumnWidths,
-      // 当前目录位于云同步区（OneDrive 等）时显示"状态"列，同资源管理器。
-      showStatusColumn: CloudDriveService.isCloudZone(controller.currentPath),
-      onSingleTap: (path) {
-        final ctrl = HardwareKeyboard.instance.isControlPressed;
-        final shift = HardwareKeyboard.instance.isShiftPressed;
-        if (shift) {
-          controller.selectRange(path);
-        } else if (ctrl) {
-          controller.toggleSelection(path);
-        } else {
-          controller.selectSingle(path);
-        }
-      },
-      onDoubleTap: (path) => _handleDoubleTap(context, controller, path),
-      onItemRightClick: (path, pos) => _showNativeMenu(context, [path], pos),
-      onEmptyRightClick: (pos) => _showNativeMenu(context, [], pos),
+    final appState = context.watch<AppState>();
+    final entries = controller.visibleEntries;
+    return Row(
+      children: [
+        Expanded(
+          child: FileListView(
+            entries: entries,
+            selectedPaths: controller.selectedPaths,
+            isActive: isActive,
+            loading: controller.isLoading,
+            sortColumn: controller.sortColumn,
+            sortAscending: controller.sortAscending,
+            onSort: controller.sortBy,
+            viewMode: controller.viewMode,
+            showFileExtensions: appState.showFileExtensions,
+            columnWidths: controller.columnWidths,
+            onResizeColumn: controller.resizeColumn,
+            onInitWidths: controller.initColumnWidths,
+            // 当前目录位于云同步区（OneDrive 等）时显示"状态"列，同资源管理器。
+            showStatusColumn: CloudDriveService.isCloudZone(
+              controller.currentPath,
+            ),
+            onSingleTap: (path) {
+              final ctrl = HardwareKeyboard.instance.isControlPressed;
+              final shift = HardwareKeyboard.instance.isShiftPressed;
+              if (shift) {
+                controller.selectRange(path);
+              } else if (ctrl) {
+                controller.toggleSelection(path);
+              } else {
+                controller.selectSingle(path);
+              }
+            },
+            onDoubleTap: (path) => _handleDoubleTap(context, controller, path),
+            onItemRightClick: (path, pos) =>
+                _showNativeMenu(context, [path], pos),
+            onEmptyRightClick: (pos) => _showNativeMenu(context, [], pos),
+          ),
+        ),
+      ],
     );
   }
 }

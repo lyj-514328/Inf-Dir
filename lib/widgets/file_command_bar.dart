@@ -19,6 +19,7 @@ class FileCommandBar extends StatelessWidget {
   final bool canDelete;
   final bool canSelectAll;
   final bool canShowProperties;
+  final bool isHome;
   final bool showHiddenFiles;
   final SortColumn sortColumn;
   final bool sortAscending;
@@ -50,6 +51,7 @@ class FileCommandBar extends StatelessWidget {
     required this.canDelete,
     this.canSelectAll = false,
     this.canShowProperties = false,
+    this.isHome = false,
     this.showHiddenFiles = false,
     this.sortColumn = SortColumn.name,
     this.sortAscending = true,
@@ -198,28 +200,68 @@ class FileCommandBar extends StatelessWidget {
                 }
               },
             ),
-            _CommandMenuButton<PaneViewMode>(
+            _CommandMenuButton<Object>(
               icon: _viewIcon(viewMode),
               label: '查看',
               tooltip: '查看方式',
-              items: [
-                _checkedMenuItem(
-                  value: PaneViewMode.details,
-                  label: '详细信息',
-                  checked: viewMode == PaneViewMode.details,
-                ),
-                _checkedMenuItem(
-                  value: PaneViewMode.list,
-                  label: '列表',
-                  checked: viewMode == PaneViewMode.list,
-                ),
-                _checkedMenuItem(
-                  value: PaneViewMode.compact,
-                  label: '紧凑视图',
-                  checked: viewMode == PaneViewMode.compact,
-                ),
-              ],
-              onSelected: (mode) => onViewMode?.call(mode),
+              items: isHome
+                  ? _homeViewMenuItems()
+                  : [
+                      _checkedMenuItem<Object>(
+                        value: PaneViewMode.extraLargeIcons,
+                        label: '超大图标',
+                        checked: viewMode == PaneViewMode.extraLargeIcons,
+                        icon: Icons.grid_on,
+                      ),
+                      _checkedMenuItem<Object>(
+                        value: PaneViewMode.largeIcons,
+                        label: '大图标',
+                        checked: viewMode == PaneViewMode.largeIcons,
+                        icon: Icons.view_module,
+                      ),
+                      _checkedMenuItem<Object>(
+                        value: PaneViewMode.mediumIcons,
+                        label: '中图标',
+                        checked: viewMode == PaneViewMode.mediumIcons,
+                        icon: Icons.grid_view,
+                      ),
+                      _checkedMenuItem<Object>(
+                        value: PaneViewMode.smallIcons,
+                        label: '小图标',
+                        checked: viewMode == PaneViewMode.smallIcons,
+                        icon: Icons.grid_view,
+                      ),
+                      const PopupMenuDivider(),
+                      _checkedMenuItem(
+                        value: PaneViewMode.details,
+                        label: '详细信息',
+                        checked: viewMode == PaneViewMode.details,
+                        icon: Icons.view_headline,
+                      ),
+                      _checkedMenuItem(
+                        value: PaneViewMode.list,
+                        label: '列表',
+                        checked: viewMode == PaneViewMode.list,
+                        icon: Icons.view_list,
+                      ),
+                      _checkedMenuItem<Object>(
+                        value: PaneViewMode.tiles,
+                        label: '平铺',
+                        checked: viewMode == PaneViewMode.tiles,
+                        icon: Icons.view_quilt,
+                      ),
+                      _checkedMenuItem<Object>(
+                        value: PaneViewMode.content,
+                        label: '内容',
+                        checked: viewMode == PaneViewMode.content,
+                        icon: Icons.view_agenda,
+                      ),
+                    ],
+              onSelected: (mode) {
+                if (mode is PaneViewMode) {
+                  onViewMode?.call(mode);
+                }
+              },
             ),
             _CommandMenuButton<EntryFilter>(
               icon: Icons.filter_alt_outlined,
@@ -305,19 +347,40 @@ class FileCommandBar extends StatelessWidget {
     return switch (mode) {
       PaneViewMode.details => Icons.view_headline,
       PaneViewMode.list => Icons.view_list,
-      PaneViewMode.compact => Icons.density_small,
+      PaneViewMode.compact || PaneViewMode.smallIcons => Icons.grid_view,
+      PaneViewMode.extraLargeIcons => Icons.grid_on,
+      PaneViewMode.largeIcons => Icons.view_module,
+      PaneViewMode.mediumIcons => Icons.grid_view,
+      PaneViewMode.tiles => Icons.view_quilt,
+      PaneViewMode.content => Icons.view_agenda,
     };
   }
+
+  List<PopupMenuEntry<Object>> _homeViewMenuItems() => [
+    _checkedMenuItem<Object>(
+      value: PaneViewMode.tiles,
+      label: '平铺',
+      checked: viewMode == PaneViewMode.tiles,
+      icon: Icons.view_quilt,
+    ),
+    _checkedMenuItem<Object>(
+      value: PaneViewMode.content,
+      label: '内容',
+      checked: viewMode == PaneViewMode.content,
+      icon: Icons.view_agenda,
+    ),
+  ];
 
   static CheckedPopupMenuItem<T> _checkedMenuItem<T>({
     required T value,
     required String label,
     required bool checked,
+    IconData? icon,
   }) {
     return CheckedPopupMenuItem<T>(
       value: value,
       checked: checked,
-      child: Text(label),
+      child: icon == null ? Text(label) : _MenuRow(icon: icon, label: label),
     );
   }
 }
@@ -461,7 +524,7 @@ class _MenuRow extends StatelessWidget {
           color: context.colors.textSecondary,
         ),
         const SizedBox(width: 8),
-        Text(label),
+        Expanded(child: Text(label)),
       ],
     );
   }

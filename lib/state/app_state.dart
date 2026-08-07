@@ -9,6 +9,7 @@ class AppState extends ChangeNotifier {
   final DirectoryRepository repository;
   int _activePaneIndex = 0;
   bool _showHiddenFiles = false;
+  bool _showFileExtensions = true;
 
   AppState({DirectoryRepository? repository})
     : repository = repository ?? DirectoryRepository() {
@@ -56,6 +57,7 @@ class AppState extends ChangeNotifier {
   // ── 显示隐藏文件（会话级设置）─────────────────────────────────
 
   bool get showHiddenFiles => _showHiddenFiles;
+  bool get showFileExtensions => _showFileExtensions;
 
   /// 切换显示隐藏/系统文件：同步原生层过滤标志，清空目录缓存，
   /// 并刷新所有 pane。侧边栏由 AppShell 在切换后重新 sync。
@@ -67,6 +69,12 @@ class AppState extends ChangeNotifier {
     for (final pane in panes) {
       pane.refresh();
     }
+    notifyListeners();
+  }
+
+  void setShowFileExtensions(bool value) {
+    if (_showFileExtensions == value) return;
+    _showFileExtensions = value;
     notifyListeners();
   }
 }

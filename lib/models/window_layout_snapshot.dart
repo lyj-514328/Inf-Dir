@@ -12,6 +12,8 @@ class PaneLayoutSnapshot {
     required this.filterQuery,
     required this.entryFilter,
     required this.viewMode,
+    this.showDetailsPane = false,
+    this.showPreviewPane = false,
     required this.columnWidths,
   });
 
@@ -40,11 +42,17 @@ class PaneLayoutSnapshot {
       'pane.entryFilter',
       const {'all', 'folders', 'files', 'images', 'documents'},
     );
-    final viewMode = _enumValue(
-      json['viewMode'],
-      'pane.viewMode',
-      const {'details', 'list', 'compact'},
-    );
+    final viewMode = _enumValue(json['viewMode'], 'pane.viewMode', const {
+      'details',
+      'list',
+      'compact',
+      'extraLargeIcons',
+      'largeIcons',
+      'mediumIcons',
+      'smallIcons',
+      'tiles',
+      'content',
+    });
 
     final rawWidths = _listValue(json['columnWidths'], 'pane.columnWidths');
     if (rawWidths.length != 4) {
@@ -74,6 +82,8 @@ class PaneLayoutSnapshot {
       ),
       entryFilter: entryFilter,
       viewMode: viewMode,
+      showDetailsPane: json['showDetailsPane'] == true,
+      showPreviewPane: json['showPreviewPane'] == true,
       columnWidths: List.unmodifiable(columnWidths),
     );
   }
@@ -88,6 +98,8 @@ class PaneLayoutSnapshot {
   final String filterQuery;
   final String entryFilter;
   final String viewMode;
+  final bool showDetailsPane;
+  final bool showPreviewPane;
   final List<double> columnWidths;
 
   Map<String, Object?> toJson() => {
@@ -101,6 +113,8 @@ class PaneLayoutSnapshot {
     'filterQuery': filterQuery,
     'entryFilter': entryFilter,
     'viewMode': viewMode,
+    'showDetailsPane': showDetailsPane,
+    'showPreviewPane': showPreviewPane,
     'columnWidths': columnWidths,
   };
 }

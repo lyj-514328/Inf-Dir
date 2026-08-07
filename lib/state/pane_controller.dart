@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
@@ -10,9 +9,19 @@ import '../models/window_layout_snapshot.dart';
 
 enum SortColumn { name, dateModified, type, size }
 
-/// Explorer-style view density. The details view is the default because it
-/// exposes the same sortable columns as Windows Explorer.
-enum PaneViewMode { details, list, compact }
+/// Explorer-style view modes. `compact` is retained for older layout caches
+/// and behaves like the small-icon view.
+enum PaneViewMode {
+  details,
+  list,
+  compact,
+  extraLargeIcons,
+  largeIcons,
+  mediumIcons,
+  smallIcons,
+  tiles,
+  content,
+}
 
 /// Quick filters exposed by the command bar. Filtering is local to a pane and
 /// never changes the directory enumeration cache.
@@ -60,6 +69,8 @@ class PaneController extends ChangeNotifier {
   String _filterQuery = '';
   EntryFilter _entryFilter = EntryFilter.all;
   PaneViewMode _viewMode = PaneViewMode.details;
+  bool _showDetailsPane = false;
+  bool _showPreviewPane = false;
   List<double> _columnWidths = [300, 140, 100, 80]; // name, date, type, size
 
   PaneController(
@@ -70,6 +81,9 @@ class PaneController extends ChangeNotifier {
        _repository = repository ?? DirectoryRepository(),
        _frameYield = frameYield ?? _defaultFrameYield {
     _tabs.add(TabInfo(path: initialPath, label: _pathLabel(initialPath)));
+    if (FileService.isHomePath(initialPath)) {
+      _viewMode = PaneViewMode.content;
+    }
     _startListing(initialPath);
   }
 
@@ -91,6 +105,13 @@ class PaneController extends ChangeNotifier {
     _filterQuery = snapshot.filterQuery;
     _entryFilter = EntryFilter.values.byName(snapshot.entryFilter);
     _viewMode = PaneViewMode.values.byName(snapshot.viewMode);
+    if (FileService.isHomePath(snapshot.currentPath) &&
+        _viewMode != PaneViewMode.tiles &&
+        _viewMode != PaneViewMode.content) {
+      _viewMode = PaneViewMode.content;
+    }
+    _showDetailsPane = snapshot.showDetailsPane;
+    _showPreviewPane = snapshot.showPreviewPane;
     _columnWidths = List<double>.of(snapshot.columnWidths);
     _startListing(_currentPath);
   }
@@ -136,6 +157,8 @@ class PaneController extends ChangeNotifier {
   String get filterQuery => _filterQuery;
   EntryFilter get entryFilter => _entryFilter;
   PaneViewMode get viewMode => _viewMode;
+  bool get showDetailsPane => _showDetailsPane;
+  bool get showPreviewPane => _showPreviewPane;
   List<double> get columnWidths => _columnWidths;
 
   PaneLayoutSnapshot toLayoutSnapshot() => PaneLayoutSnapshot(
@@ -149,6 +172,8 @@ class PaneController extends ChangeNotifier {
     filterQuery: _filterQuery,
     entryFilter: _entryFilter.name,
     viewMode: _viewMode.name,
+    showDetailsPane: _showDetailsPane,
+    showPreviewPane: _showPreviewPane,
     columnWidths: List.unmodifiable(_columnWidths),
   );
 
@@ -215,6 +240,20 @@ class PaneController extends ChangeNotifier {
   void setViewMode(PaneViewMode mode) {
     if (_viewMode == mode) return;
     _viewMode = mode;
+    notifyListeners();
+  }
+
+  void setDetailsPaneVisible(bool visible) {
+    if (_showDetailsPane == visible) return;
+    _showDetailsPane = visible;
+    if (visible) _showPreviewPane = false;
+    notifyListeners();
+  }
+
+  void setPreviewPaneVisible(bool visible) {
+    if (_showPreviewPane == visible) return;
+    _showPreviewPane = visible;
+    if (visible) _showDetailsPane = false;
     notifyListeners();
   }
 
@@ -495,7 +534,10 @@ class PaneController extends ChangeNotifier {
     if (parent != _currentPath) navigateTo(parent);
   }
 
-  void goHome() => navigateTo(FileService.homeViewPath);
+  void goHome() {
+    _viewMode = PaneViewMode.content;
+    navigateTo(FileService.homeViewPath);
+  }
 
   void refresh() {
     _repository.invalidate(_currentPath);

@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
 import '../services/icon_service.dart';
 import '../state/pane_controller.dart';
@@ -7,6 +8,12 @@ import 'app_theme.dart';
 
 /// 云同步"状态"列的固定宽度（不参与列宽拖拽）。
 const double _statusColWidth = 48;
+
+String _displayEntryName(String name, bool showFileExtensions) {
+  if (showFileExtensions) return name;
+  final extension = p.extension(name);
+  return extension.isEmpty ? name : p.basenameWithoutExtension(name);
+}
 
 class FileListView extends StatefulWidget {
   final List<FileEntry> entries;
@@ -24,6 +31,7 @@ class FileListView extends StatefulWidget {
   final Function(int colIndex, double deltaPx) onResizeColumn;
   final Function(double paneWidth)? onInitWidths;
   final PaneViewMode viewMode;
+  final bool showFileExtensions;
 
   /// 当前目录位于云同步区时，追加只读的"状态"列（资源管理器同款）。
   final bool showStatusColumn;
@@ -45,6 +53,7 @@ class FileListView extends StatefulWidget {
     required this.onResizeColumn,
     this.onInitWidths,
     this.viewMode = PaneViewMode.details,
+    this.showFileExtensions = true,
     this.showStatusColumn = false,
   });
 
@@ -78,8 +87,6 @@ class _FileListViewState extends State<FileListView> {
 
   double get _listWidth => _totalColWidth + _blankWidth;
 
-  bool get _hasScrollbar => _blankWidth <= _minBlank + 1; // tolerance
-
   void _handleResize(int colIndex, double delta) {
     final newW = (widget.columnWidths[colIndex] + delta).clamp(
       40.0,
@@ -108,6 +115,14 @@ class _FileListViewState extends State<FileListView> {
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
       );
+    }
+
+    if (_isIconMode(widget.viewMode)) {
+      return _buildIconView(context);
+    }
+    if (widget.viewMode == PaneViewMode.tiles ||
+        widget.viewMode == PaneViewMode.content) {
+      return _buildCardList(context);
     }
 
     return LayoutBuilder(
@@ -186,6 +201,8 @@ class _FileListViewState extends State<FileListView> {
                                       columnWidths: widget.columnWidths,
                                       blankWidth: blankW,
                                       viewMode: widget.viewMode,
+                                      showFileExtensions:
+                                          widget.showFileExtensions,
                                       showStatusColumn: widget.showStatusColumn,
                                       onSingleTap: () =>
                                           widget.onSingleTap(entry.path),
@@ -209,9 +226,463 @@ class _FileListViewState extends State<FileListView> {
       },
     );
   }
+
+  bool _isIconMode(PaneViewMode mode) => switch (mode) {
+    PaneViewMode.extraLargeIcons ||
+    PaneViewMode.largeIcons ||
+    PaneViewMode.mediumIcons ||
+    PaneViewMode.smallIcons ||
+    PaneViewMode.compact => true,
+    _ => false,
+  };
+
+  ({double iconSize, double tileWidth, double tileHeight, bool horizontal})
+  _iconSpec(PaneViewMode mode) => switch (mode) {
+    PaneViewMode.extraLargeIcons => (
+      iconSize: 96,
+      tileWidth: 158,
+      tileHeight: 142,
+      horizontal: false,
+    ),
+    PaneViewMode.largeIcons => (
+      iconSize: 64,
+      tileWidth: 132,
+      tileHeight: 108,
+      horizontal: false,
+    ),
+    PaneViewMode.mediumIcons => (
+      iconSize: 44,
+      tileWidth: 112,
+      tileHeight: 84,
+      horizontal: false,
+    ),
+    PaneViewMode.smallIcons || PaneViewMode.compact => (
+      iconSize: 20,
+      tileWidth: 190,
+      tileHeight: 38,
+      horizontal: true,
+    ),
+    _ => (iconSize: 44, tileWidth: 112, tileHeight: 84, horizontal: false),
+  };
+
+  Widget _buildIconView(BuildContext context) {
+    final spec = _iconSpec(widget.viewMode);
+    return _FileSurface(
+      scrollController: _vScrollController,
+      scrollbarVisible: _scrollbarHovered,
+      onHoverChanged: (hovering) {
+        if (_scrollbarHovered != hovering) {
+          setState(() => _scrollbarHovered = hovering);
+        }
+      },
+      onEmptyRightClick: widget.onEmptyRightClick,
+      empty: widget.entries.isEmpty,
+      child: GridView.builder(
+        controller: _vScrollController,
+        padding: const EdgeInsets.all(6),
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: spec.tileWidth,
+          mainAxisExtent: spec.tileHeight,
+          crossAxisSpacing: 4,
+          mainAxisSpacing: 4,
+        ),
+        itemCount: widget.entries.length,
+        itemBuilder: (context, index) {
+          final entry = widget.entries[index];
+          return _ExplorerTile(
+            entry: entry,
+            iconSize: spec.iconSize,
+            horizontal: spec.horizontal,
+            showFileExtensions: widget.showFileExtensions,
+            isSelected: widget.selectedPaths.contains(entry.path),
+            isActive: widget.isActive,
+            onSingleTap: () => widget.onSingleTap(entry.path),
+            onDoubleTap: () => widget.onDoubleTap(entry.path),
+            onRightClick: (position) =>
+                widget.onItemRightClick?.call(entry.path, position),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCardList(BuildContext context) {
+    final contentMode = widget.viewMode == PaneViewMode.content;
+    if (!contentMode && widget.viewMode == PaneViewMode.tiles) {
+      return _buildTileGrid(context);
+    }
+    return _FileSurface(
+      scrollController: _vScrollController,
+      scrollbarVisible: _scrollbarHovered,
+      onHoverChanged: (hovering) {
+        if (_scrollbarHovered != hovering) {
+          setState(() => _scrollbarHovered = hovering);
+        }
+      },
+      onEmptyRightClick: widget.onEmptyRightClick,
+      empty: widget.entries.isEmpty,
+      child: ListView.builder(
+        controller: _vScrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        itemExtent: contentMode ? 68 : 58,
+        itemCount: widget.entries.length,
+        itemBuilder: (context, index) {
+          final entry = widget.entries[index];
+          return _ExplorerContentRow(
+            entry: entry,
+            contentMode: contentMode,
+            showFileExtensions: widget.showFileExtensions,
+            isSelected: widget.selectedPaths.contains(entry.path),
+            isActive: widget.isActive,
+            onSingleTap: () => widget.onSingleTap(entry.path),
+            onDoubleTap: () => widget.onDoubleTap(entry.path),
+            onRightClick: (position) =>
+                widget.onItemRightClick?.call(entry.path, position),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTileGrid(BuildContext context) {
+    return _FileSurface(
+      scrollController: _vScrollController,
+      scrollbarVisible: _scrollbarHovered,
+      onHoverChanged: (hovering) {
+        if (_scrollbarHovered != hovering) {
+          setState(() => _scrollbarHovered = hovering);
+        }
+      },
+      onEmptyRightClick: widget.onEmptyRightClick,
+      empty: widget.entries.isEmpty,
+      child: GridView.builder(
+        controller: _vScrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 286,
+          mainAxisExtent: 64,
+          crossAxisSpacing: 5,
+          mainAxisSpacing: 3,
+        ),
+        itemCount: widget.entries.length,
+        itemBuilder: (context, index) {
+          final entry = widget.entries[index];
+          return _ExplorerContentRow(
+            entry: entry,
+            contentMode: false,
+            showFileExtensions: widget.showFileExtensions,
+            isSelected: widget.selectedPaths.contains(entry.path),
+            isActive: widget.isActive,
+            onSingleTap: () => widget.onSingleTap(entry.path),
+            onDoubleTap: () => widget.onDoubleTap(entry.path),
+            onRightClick: (position) =>
+                widget.onItemRightClick?.call(entry.path, position),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FileSurface extends StatelessWidget {
+  final ScrollController scrollController;
+  final bool scrollbarVisible;
+  final ValueChanged<bool> onHoverChanged;
+  final Function(Offset globalPosition)? onEmptyRightClick;
+  final bool empty;
+  final Widget child;
+
+  const _FileSurface({
+    required this.scrollController,
+    required this.scrollbarVisible,
+    required this.onHoverChanged,
+    required this.onEmptyRightClick,
+    required this.empty,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => onHoverChanged(true),
+      onExit: (_) => onHoverChanged(false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onSecondaryTapUp: (details) =>
+            onEmptyRightClick?.call(details.globalPosition),
+        child: empty
+            ? Center(
+                child: Text(
+                  '空文件夹',
+                  style: TextStyle(
+                    fontSize: AppMetrics.fontBody,
+                    color: context.colors.textTertiary,
+                  ),
+                ),
+              )
+            : Scrollbar(
+                controller: scrollController,
+                thumbVisibility: scrollbarVisible,
+                child: child,
+              ),
+      ),
+    );
+  }
 }
 
 // ── Column Header ────────────────────────────────────────────────────
+
+class _ExplorerTile extends StatefulWidget {
+  final FileEntry entry;
+  final double iconSize;
+  final bool horizontal;
+  final bool showFileExtensions;
+  final bool isSelected;
+  final bool isActive;
+  final VoidCallback onSingleTap;
+  final VoidCallback onDoubleTap;
+  final ValueChanged<Offset>? onRightClick;
+
+  const _ExplorerTile({
+    required this.entry,
+    required this.iconSize,
+    required this.horizontal,
+    required this.showFileExtensions,
+    required this.isSelected,
+    required this.isActive,
+    required this.onSingleTap,
+    required this.onDoubleTap,
+    this.onRightClick,
+  });
+
+  @override
+  State<_ExplorerTile> createState() => _ExplorerTileState();
+}
+
+class _ExplorerTileState extends State<_ExplorerTile> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final selectedColor = widget.isActive ? c.accent : c.selectedInactive;
+    final foreground = widget.isSelected && widget.isActive
+        ? Theme.of(context).colorScheme.onPrimary
+        : c.textPrimary;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Listener(
+        onPointerDown: (event) {
+          if (event.buttons & kPrimaryMouseButton != 0) widget.onSingleTap();
+        },
+        child: GestureDetector(
+          onDoubleTap: widget.onDoubleTap,
+          onSecondaryTapUp: (details) =>
+              widget.onRightClick?.call(details.globalPosition),
+          child: Container(
+            margin: const EdgeInsets.all(1),
+            padding: widget.horizontal
+                ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
+                : const EdgeInsets.fromLTRB(6, 6, 6, 5),
+            decoration: BoxDecoration(
+              color: widget.isSelected
+                  ? selectedColor
+                  : _hovering
+                  ? c.surfaceHover
+                  : c.surface,
+              borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+              border: Border.all(
+                color: widget.isSelected ? c.accent : c.surface,
+              ),
+            ),
+            child: widget.horizontal
+                ? Row(
+                    children: [
+                      _FileIcon(
+                        path: widget.entry.path,
+                        isDirectory: widget.entry.isDirectory,
+                        isSelected: widget.isSelected && widget.isActive,
+                        size: widget.iconSize,
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          _displayEntryName(
+                            widget.entry.name,
+                            widget.showFileExtensions,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: AppMetrics.fontBody,
+                            color: foreground,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: _FileIcon(
+                            path: widget.entry.path,
+                            isDirectory: widget.entry.isDirectory,
+                            isSelected: widget.isSelected && widget.isActive,
+                            size: widget.iconSize,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _displayEntryName(
+                          widget.entry.name,
+                          widget.showFileExtensions,
+                        ),
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: AppMetrics.fontBody,
+                          color: foreground,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExplorerContentRow extends StatefulWidget {
+  final FileEntry entry;
+  final bool contentMode;
+  final bool showFileExtensions;
+  final bool isSelected;
+  final bool isActive;
+  final VoidCallback onSingleTap;
+  final VoidCallback onDoubleTap;
+  final ValueChanged<Offset>? onRightClick;
+
+  const _ExplorerContentRow({
+    required this.entry,
+    required this.contentMode,
+    required this.showFileExtensions,
+    required this.isSelected,
+    required this.isActive,
+    required this.onSingleTap,
+    required this.onDoubleTap,
+    this.onRightClick,
+  });
+
+  @override
+  State<_ExplorerContentRow> createState() => _ExplorerContentRowState();
+}
+
+class _ExplorerContentRowState extends State<_ExplorerContentRow> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final selectedColor = widget.isActive ? c.accent : c.selectedInactive;
+    final foreground = widget.isSelected && widget.isActive
+        ? Theme.of(context).colorScheme.onPrimary
+        : c.textPrimary;
+    final secondary = widget.isSelected && widget.isActive
+        ? Theme.of(context).colorScheme.onPrimary
+        : c.textSecondary;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Listener(
+        onPointerDown: (event) {
+          if (event.buttons & kPrimaryMouseButton != 0) widget.onSingleTap();
+        },
+        child: GestureDetector(
+          onDoubleTap: widget.onDoubleTap,
+          onSecondaryTapUp: (details) =>
+              widget.onRightClick?.call(details.globalPosition),
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+            decoration: BoxDecoration(
+              color: widget.isSelected
+                  ? selectedColor
+                  : _hovering
+                  ? c.surfaceHover
+                  : c.surface,
+              borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+            ),
+            child: Row(
+              children: [
+                _FileIcon(
+                  path: widget.entry.path,
+                  isDirectory: widget.entry.isDirectory,
+                  isSelected: widget.isSelected && widget.isActive,
+                  size: widget.contentMode ? 40 : 34,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 5,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _displayEntryName(
+                          widget.entry.name,
+                          widget.showFileExtensions,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: AppMetrics.fontBody,
+                          fontWeight: FontWeight.w500,
+                          color: foreground,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.entry.isDirectory
+                            ? widget.entry.type
+                            : '${widget.entry.type}  ${widget.entry.formattedSize}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: AppMetrics.fontSmall,
+                          color: secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (widget.contentMode) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      widget.entry.formattedDate,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: AppMetrics.fontSmall,
+                        color: secondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _ColumnHeader extends StatelessWidget {
   final SortColumn sortColumn;
@@ -439,6 +910,7 @@ class _FileRow extends StatefulWidget {
   final List<double> columnWidths;
   final double blankWidth;
   final PaneViewMode viewMode;
+  final bool showFileExtensions;
   final bool showStatusColumn;
   final VoidCallback onSingleTap;
   final VoidCallback onDoubleTap;
@@ -451,6 +923,7 @@ class _FileRow extends StatefulWidget {
     required this.columnWidths,
     required this.blankWidth,
     this.viewMode = PaneViewMode.details,
+    required this.showFileExtensions,
     this.showStatusColumn = false,
     required this.onSingleTap,
     required this.onDoubleTap,
@@ -525,7 +998,10 @@ class _FileRowState extends State<_FileRow> {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  widget.entry.name,
+                                  _displayEntryName(
+                                    widget.entry.name,
+                                    widget.showFileExtensions,
+                                  ),
                                   style: TextStyle(
                                     fontSize: AppMetrics.fontBody,
                                     color: textColor,
@@ -597,21 +1073,23 @@ class _FileIcon extends StatelessWidget {
   final String path;
   final bool isDirectory;
   final bool isSelected;
+  final double size;
 
   const _FileIcon({
     required this.path,
     required this.isDirectory,
     required this.isSelected,
+    this.size = AppMetrics.iconMd,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    const iconSize = AppMetrics.iconMd; // 16
-    const badgeSize = 10.0;
+    final iconSize = size;
+    final badgeSize = (size * 0.42).clamp(8.0, 22.0);
 
-    final png = IconService.getFileIconPng(path, isDirectory, 32);
-    final overlayPng = IconService.getFileOverlayPng(path, 16);
+    final png = IconService.getFileIconPng(path, isDirectory, iconSize.round());
+    final overlayPng = IconService.getFileOverlayPng(path, badgeSize.round());
 
     final Widget base = png != null
         ? Image.memory(
