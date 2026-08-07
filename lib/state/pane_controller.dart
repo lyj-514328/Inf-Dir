@@ -6,6 +6,7 @@ import '../models/file_entry.dart';
 import '../services/file_service.dart';
 import '../services/directory_service.dart';
 import '../services/directory_repository.dart';
+import '../models/window_layout_snapshot.dart';
 
 enum SortColumn { name, dateModified, type, size }
 
@@ -72,6 +73,28 @@ class PaneController extends ChangeNotifier {
     _startListing(initialPath);
   }
 
+  PaneController.fromSnapshot(
+    PaneLayoutSnapshot snapshot, {
+    DirectoryRepository? repository,
+    Future<void> Function()? frameYield,
+  }) : _currentPath = snapshot.currentPath,
+       _repository = repository ?? DirectoryRepository(),
+       _frameYield = frameYield ?? _defaultFrameYield {
+    _tabs.addAll(
+      snapshot.tabs.map((path) => TabInfo(path: path, label: _pathLabel(path))),
+    );
+    _activeTabIndex = snapshot.activeTabIndex;
+    _backStack.addAll(snapshot.backStack);
+    _forwardStack.addAll(snapshot.forwardStack);
+    _sortColumn = SortColumn.values.byName(snapshot.sortColumn);
+    _sortAscending = snapshot.sortAscending;
+    _filterQuery = snapshot.filterQuery;
+    _entryFilter = EntryFilter.values.byName(snapshot.entryFilter);
+    _viewMode = PaneViewMode.values.byName(snapshot.viewMode);
+    _columnWidths = List<double>.of(snapshot.columnWidths);
+    _startListing(_currentPath);
+  }
+
   static Future<void> _defaultFrameYield() {
     final c = Completer<void>();
     WidgetsBinding.instance.addPostFrameCallback((_) => c.complete());
@@ -114,6 +137,20 @@ class PaneController extends ChangeNotifier {
   EntryFilter get entryFilter => _entryFilter;
   PaneViewMode get viewMode => _viewMode;
   List<double> get columnWidths => _columnWidths;
+
+  PaneLayoutSnapshot toLayoutSnapshot() => PaneLayoutSnapshot(
+    currentPath: _currentPath,
+    tabs: _tabs.map((tab) => tab.path).toList(growable: false),
+    activeTabIndex: _activeTabIndex,
+    backStack: List.unmodifiable(_backStack),
+    forwardStack: List.unmodifiable(_forwardStack),
+    sortColumn: _sortColumn.name,
+    sortAscending: _sortAscending,
+    filterQuery: _filterQuery,
+    entryFilter: _entryFilter.name,
+    viewMode: _viewMode.name,
+    columnWidths: List.unmodifiable(_columnWidths),
+  );
 
   bool _matchesFilter(FileEntry entry) {
     final query = _filterQuery.trim().toLowerCase();

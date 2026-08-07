@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import '../models/layout_node.dart';
+import '../models/window_layout_snapshot.dart';
 import 'pane_controller.dart';
 import '../services/directory_repository.dart';
 import '../services/file_service.dart';
+import '../services/window_layout_store.dart';
 
 class LayoutState extends ChangeNotifier {
   late final LayoutTree _tree;
@@ -10,13 +12,30 @@ class LayoutState extends ChangeNotifier {
   String _focusedNodeId = '';
   int _nextPaneCounter = 0;
   final DirectoryRepository _repository;
+  final WindowLayoutStore? _layoutStore;
+  bool _disposed = false;
+  double _sidebarWidth = 220;
 
   /// 焦点 pane 的当前路径（§12）：焦点切换或焦点 pane 导航时更新。
   /// 用独立的 ValueNotifier，避免无关 notify 也触发侧栏同步。
   final ValueNotifier<String> activePanePath = ValueNotifier<String>('');
 
-  LayoutState({DirectoryRepository? repository})
-    : _repository = repository ?? DirectoryRepository() {
+  LayoutState({
+    DirectoryRepository? repository,
+    WindowLayoutStore? layoutStore,
+  }) : _repository = repository ?? DirectoryRepository(),
+       _layoutStore = layoutStore {
+    final cached = _layoutStore?.load();
+    if (cached != null && _restoreSnapshot(cached)) {
+      _updateActivePanePath();
+      return;
+    }
+
+    _initializeDefault();
+    _updateActivePanePath();
+  }
+
+  void _initializeDefault() {
     final initialPaths = [FileService.homeViewPath];
     final paneIds = <String>[];
     for (final path in initialPaths) {
@@ -31,7 +50,55 @@ class LayoutState extends ChangeNotifier {
     if (firstPane != null) {
       _focusedNodeId = firstPane.id;
     }
-    _updateActivePanePath();
+  }
+
+  bool _restoreSnapshot(WindowLayoutSnapshot snapshot) {
+    final restoredControllers = <String, PaneController>{};
+    try {
+      final roots = snapshot.workspaces
+          .map((workspace) => _restoreNode(workspace))
+          .toList(growable: false);
+      final restoredTree = LayoutTree(
+        workspaces: roots,
+        activeWorkspaceIndex: snapshot.activeWorkspaceIndex,
+        idCounter: snapshot.nodeIdCounter,
+      );
+      for (final entry in snapshot.panes.entries) {
+        restoredControllers[entry.key] = PaneController.fromSnapshot(
+          entry.value,
+          repository: _repository,
+        );
+      }
+      _tree = restoredTree;
+      _nextPaneCounter = snapshot.nextPaneCounter;
+      _sidebarWidth = snapshot.sidebarWidth;
+      _focusedNodeId = snapshot.focusedNodeId;
+      for (final entry in restoredControllers.entries) {
+        _addController(entry.key, entry.value);
+      }
+      return true;
+    } on Object {
+      for (final controller in restoredControllers.values) {
+        controller.dispose();
+      }
+      return false;
+    }
+  }
+
+  LayoutNode _restoreNode(LayoutNodeSnapshot snapshot, [LayoutNode? parent]) {
+    final node = LayoutNode(
+      id: snapshot.id,
+      type: snapshot.type,
+      layout: snapshot.layout,
+      percent: snapshot.percent,
+      paneId: snapshot.paneId,
+      label: snapshot.label,
+      parent: parent,
+    );
+    for (final childSnapshot in snapshot.children) {
+      node.children.add(_restoreNode(childSnapshot, node));
+    }
+    return node;
   }
 
   // ── Controller factory (bubbles pane changes up to LayoutState) ──
@@ -42,12 +109,30 @@ class LayoutState extends ChangeNotifier {
 
   void _removeController(String id) {
     final ctrl = _controllers.remove(id);
-    ctrl?.removeListener(_onPaneChanged);
+    if (ctrl != null) {
+      ctrl.removeListener(_onPaneChanged);
+      ctrl.dispose();
+    }
   }
 
   void _onPaneChanged() {
+    if (_disposed) return;
     _updateActivePanePath();
     notifyListeners();
+  }
+
+  void _saveLayoutNow() {
+    if (_layoutStore == null || _disposed) return;
+    try {
+      _layoutStore.save(toLayoutSnapshot());
+    } on Object catch (error) {
+      debugPrint('[LayoutCache] save failed: $error');
+    }
+  }
+
+  /// Immediately writes the latest layout. Used by the desktop exit hook.
+  void flushLayoutCache() {
+    _saveLayoutNow();
   }
 
   void _updateActivePanePath() {
@@ -60,6 +145,14 @@ class LayoutState extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_disposed) return;
+    flushLayoutCache();
+    _disposed = true;
+    for (final controller in _controllers.values) {
+      controller.removeListener(_onPaneChanged);
+      controller.dispose();
+    }
+    _controllers.clear();
     activePanePath.dispose();
     super.dispose();
   }
@@ -74,6 +167,37 @@ class LayoutState extends ChangeNotifier {
   List<LayoutNode> get workspaces => _tree.workspaces;
   LayoutNode get activeWorkspace => _tree.activeWorkspace;
   int get activeWorkspaceIndex => _tree.activeWorkspaceIndex;
+  double get sidebarWidth => _sidebarWidth;
+
+  void setSidebarWidth(double width) {
+    final normalized = width.clamp(150, double.infinity).toDouble();
+    if (_sidebarWidth == normalized) return;
+    _sidebarWidth = normalized;
+    notifyListeners();
+  }
+
+  WindowLayoutSnapshot toLayoutSnapshot() => WindowLayoutSnapshot(
+    workspaces: _tree.workspaces.map(_snapshotNode).toList(growable: false),
+    activeWorkspaceIndex: _tree.activeWorkspaceIndex,
+    focusedNodeId: _focusedNodeId,
+    nodeIdCounter: _tree.idCounter,
+    nextPaneCounter: _nextPaneCounter,
+    sidebarWidth: _sidebarWidth,
+    panes: Map.unmodifiable({
+      for (final entry in _controllers.entries)
+        entry.key: entry.value.toLayoutSnapshot(),
+    }),
+  );
+
+  LayoutNodeSnapshot _snapshotNode(LayoutNode node) => LayoutNodeSnapshot(
+    id: node.id,
+    type: node.type,
+    layout: node.layout,
+    percent: node.percent,
+    paneId: node.paneId,
+    label: node.label,
+    children: node.children.map(_snapshotNode).toList(growable: false),
+  );
 
   /// 获取所有 pane 节点
   List<LayoutNode> get allPaneNodes {

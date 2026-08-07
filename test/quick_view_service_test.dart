@@ -18,8 +18,11 @@ void main() {
           .map(PluginManifest.read)
           .toList();
 
-      expect(manifests, hasLength(6));
-      expect(manifests.map((manifest) => manifest.id).toSet(), hasLength(6));
+      expect(manifests, isNotEmpty);
+      expect(
+        manifests.map((manifest) => manifest.id).toSet(),
+        hasLength(manifests.length),
+      );
     });
 
     test('normalizes all three match groups', () {

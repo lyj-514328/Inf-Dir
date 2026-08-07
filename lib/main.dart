@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'features/quick_view/quick_view_service.dart';
 import 'services/directory_repository.dart';
+import 'services/window_layout_store.dart';
 import 'state/app_state.dart';
 import 'state/layout_state.dart';
 import 'state/sidebar_controller.dart';
@@ -31,7 +32,10 @@ void main() {
         ),
         ChangeNotifierProvider(
           create: (ctx) =>
-              LayoutState(repository: ctx.read<DirectoryRepository>()),
+              LayoutState(
+                repository: ctx.read<DirectoryRepository>(),
+                layoutStore: WindowLayoutStore(),
+              ),
         ),
         ChangeNotifierProvider(
           create: (ctx) => SidebarSyncController(

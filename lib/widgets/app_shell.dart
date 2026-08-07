@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,7 +23,6 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
-  double _sidebarWidth = 220;
   bool _sidebarHovering = false;
   bool _sidebarDragging = false;
 
@@ -70,6 +70,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     if (state != AppLifecycleState.resumed) {
       context.read<LayoutState>().hideAltOverlay();
     }
+  }
+
+  @override
+  Future<AppExitResponse> didRequestAppExit() async {
+    context.read<LayoutState>().flushLayoutCache();
+    return AppExitResponse.exit;
   }
 
   bool _onKey(KeyEvent event) {
@@ -166,7 +172,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     ),
                     child: SizedBox(
                       key: ValueKey(layoutState.activeWorkspaceIndex),
-                      width: _sidebarWidth,
+                      width: layoutState.sidebarWidth,
                       child: SidebarTree(
                         onNavigate: (path) {
                           _suppressSidebarScroll = true;
@@ -181,11 +187,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     dragging: _sidebarDragging,
                     onHoverChanged: (v) => setState(() => _sidebarHovering = v),
                     onDragStart: () => setState(() => _sidebarDragging = true),
-                    onDragUpdate: (delta) => setState(
-                      () => _sidebarWidth = (_sidebarWidth + delta).clamp(
-                        150,
-                        double.infinity,
-                      ),
+                    onDragUpdate: (delta) => layoutState.setSidebarWidth(
+                      layoutState.sidebarWidth + delta,
                     ),
                     onDragEnd: () {
                       setState(() => _sidebarDragging = false);

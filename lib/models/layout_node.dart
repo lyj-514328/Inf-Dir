@@ -83,8 +83,15 @@ class CloseResult {
 class LayoutTree {
   final List<LayoutNode> workspaces;
   int activeWorkspaceIndex;
+  int _counter;
 
-  LayoutTree({required this.workspaces, this.activeWorkspaceIndex = 0});
+  LayoutTree({
+    required this.workspaces,
+    this.activeWorkspaceIndex = 0,
+    int idCounter = 0,
+  }) : _counter = idCounter;
+
+  int get idCounter => _counter;
 
   LayoutNode get activeWorkspace => workspaces[activeWorkspaceIndex];
 
@@ -335,7 +342,6 @@ class LayoutTree {
     }
   }
 
-  int _counter = 0;
   String genId() => 'n${++_counter}';
 }
 
