@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import '../services/icon_service.dart';
 import '../services/file_service.dart';
@@ -23,6 +24,7 @@ class AddressBar extends StatefulWidget {
 class _AddressBarState extends State<AddressBar> {
   late TextEditingController _controller;
   late FocusNode _focusNode;
+  final ScrollController _scrollController = ScrollController();
   bool _editing = false;
 
   @override
@@ -31,6 +33,7 @@ class _AddressBarState extends State<AddressBar> {
     _controller = TextEditingController(text: widget.currentPath);
     _focusNode = FocusNode();
     _focusNode.addListener(_onFocusChange);
+    _scrollBreadcrumbToEnd();
   }
 
   void _onFocusChange() {
@@ -38,9 +41,19 @@ class _AddressBarState extends State<AddressBar> {
       // Lost focus without submitting → revert to breadcrumb
       _editing = false;
       _controller.text = widget.currentPath;
+      _scrollBreadcrumbToEnd();
     }
     // 聚焦态变化 → 仅更新边框样式
     setState(() {});
+  }
+
+  /// 面包屑布局完成后滚动到最右（当前目录）。
+  void _scrollBreadcrumbToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _editing || !_scrollController.hasClients) return;
+      final max = _scrollController.position.maxScrollExtent;
+      if (max > 0) _scrollController.jumpTo(max);
+    });
   }
 
   @override
@@ -48,6 +61,7 @@ class _AddressBarState extends State<AddressBar> {
     super.didUpdateWidget(oldWidget);
     if (!_editing && widget.currentPath != oldWidget.currentPath) {
       _controller.text = widget.currentPath;
+      _scrollBreadcrumbToEnd();
     }
   }
 
@@ -56,6 +70,7 @@ class _AddressBarState extends State<AddressBar> {
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -66,6 +81,7 @@ class _AddressBarState extends State<AddressBar> {
     }
     setState(() => _editing = false);
     _focusNode.unfocus();
+    _scrollBreadcrumbToEnd();
   }
 
   void _startEditing() {
@@ -77,6 +93,7 @@ class _AddressBarState extends State<AddressBar> {
     _controller.text = widget.currentPath;
     setState(() => _editing = false);
     _focusNode.unfocus();
+    _scrollBreadcrumbToEnd();
   }
 
   Widget _buildIcon() {
@@ -173,21 +190,37 @@ class _AddressBarState extends State<AddressBar> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _startEditing,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (var i = 0; i < segments.length; i++) ...[
-              if (i > 0)
+      child: Listener(
+        onPointerSignal: (event) {
+          if (event is PointerScrollEvent && event.scrollDelta.dy != 0) {
+            final pos = _scrollController.position;
+            _scrollController.jumpTo(
+              (pos.pixels + event.scrollDelta.dy)
+                  .clamp(0.0, pos.maxScrollExtent),
+            );
+          }
+        },
+        child: Scrollbar(
+          controller: _scrollController,
+          thickness: 2,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var i = 0; i < segments.length; i++) ...[
+                  if (i > 0)
+                    Icon(Icons.chevron_right, size: 12, color: c.textTertiary),
+                  _BreadcrumbSegment(
+                    label: segments[i].label,
+                    isCurrent: i == segments.length - 1,
+                    onTap: () => widget.onSubmit(segments[i].path),
+                  ),
+                ],
                 Icon(Icons.chevron_right, size: 12, color: c.textTertiary),
-              _BreadcrumbSegment(
-                label: segments[i].label,
-                isCurrent: i == segments.length - 1,
-                onTap: () => widget.onSubmit(segments[i].path),
-              ),
-            ],
-            Icon(Icons.chevron_right, size: 12, color: c.textTertiary),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -230,8 +263,8 @@ class _AddressBarState extends State<AddressBar> {
     return Container(
       height: AppMetrics.addressBarHeight,
       decoration: BoxDecoration(
-        border: Border.all(color: focused ? c.accent : c.borderStrong),
-        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        border: Border.all(color: focused ? c.accent : c.border),
+        borderRadius: BorderRadius.circular(AppMetrics.tabRadius),
         color: c.surface,
       ),
       child: GestureDetector(
@@ -239,10 +272,11 @@ class _AddressBarState extends State<AddressBar> {
         onTap: _editing ? null : _startEditing,
         child: Row(
           children: [
-            const SizedBox(width: 3),
+            const SizedBox(width: 6),
             _buildIcon(),
-            const SizedBox(width: 2),
+            const SizedBox(width: 4),
             Expanded(child: _editing ? _buildTextField() : _buildBreadcrumb()),
+            const SizedBox(width: 6),
           ],
         ),
       ),
@@ -277,7 +311,7 @@ class _BreadcrumbSegmentState extends State<_BreadcrumbSegment> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           decoration: BoxDecoration(
             color: _hovering ? c.surfaceHover : Colors.transparent,
             borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
