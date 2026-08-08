@@ -834,9 +834,11 @@ class _HeaderSplitterState extends State<_HeaderSplitter> {
           alignment: Alignment.center,
           child: Container(
             width: _hovering || _dragging ? 4 : 1,
-            height: _hovering || _dragging ? 14 : double.infinity,
+            height: double.infinity,
             decoration: BoxDecoration(
-              color: _hovering || _dragging ? c.borderStrong : c.border,
+              color: _hovering || _dragging
+                  ? c.accent.withValues(alpha: 0.6)
+                  : c.border,
               borderRadius: BorderRadius.circular(1),
             ),
           ),

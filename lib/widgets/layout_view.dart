@@ -96,7 +96,6 @@ class _PaneWrapper extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
           color: c.surface,
-          border: Border.all(color: c.border, width: 1),
           boxShadow: isFocused
               ? [
                   BoxShadow(
@@ -107,15 +106,13 @@ class _PaneWrapper extends StatelessWidget {
                 ]
               : null,
         ),
-        foregroundDecoration: isFocused
-            ? BoxDecoration(
-                borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
-                border: Border.all(
-                  color: c.accent.withValues(alpha: 0.6),
-                  width: 1,
-                ),
-              )
-            : null,
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+          border: Border.all(
+            color: isFocused ? c.accent.withValues(alpha: 0.6) : c.border,
+            width: 1,
+          ),
+        ),
         child: Stack(
           children: [
             FilePane(paneId: node.paneId!),

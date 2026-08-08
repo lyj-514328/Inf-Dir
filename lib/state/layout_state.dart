@@ -333,6 +333,7 @@ class LayoutState extends ChangeNotifier {
     for (final id in result.removedPanes) {
       _removeController(id);
     }
+    _clearMaximizedIfRemoved(result.removedPanes);
     _tree.workspaces.removeAt(index);
     if (_tree.activeWorkspaceIndex >= _tree.workspaces.length) {
       _tree.activeWorkspaceIndex = _tree.workspaces.length - 1;
@@ -373,6 +374,7 @@ class LayoutState extends ChangeNotifier {
     for (final id in result.removedPanes) {
       _removeController(id);
     }
+    _clearMaximizedIfRemoved(result.removedPanes);
 
     // 焦点转移：优先兄弟 → 展平幸存者 → 首个 pane
     final nextFocusNode = result.nextFocusId != null
@@ -420,6 +422,24 @@ class LayoutState extends ChangeNotifier {
   // ============================================================
   bool _altOverlayVisible = false;
   bool get altOverlayVisible => _altOverlayVisible;
+
+  /// 最大化（浮于所有面板之上）的 pane id，null 表示无。
+  String? _maximizedPaneId;
+  String? get maximizedPaneId => _maximizedPaneId;
+
+  void toggleMaximize(String paneId) {
+    _maximizedPaneId = _maximizedPaneId == paneId ? null : paneId;
+    if (_maximizedPaneId != null) {
+      _altOverlayVisible = false;
+      _swapPendingIds.clear();
+    }
+    notifyListeners();
+  }
+
+  void _clearMaximizedIfRemoved(Iterable<String> removedPaneIds) {
+    final id = _maximizedPaneId;
+    if (id != null && removedPaneIds.contains(id)) _maximizedPaneId = null;
+  }
 
   void showAltOverlay() {
     if (!_altOverlayVisible) {

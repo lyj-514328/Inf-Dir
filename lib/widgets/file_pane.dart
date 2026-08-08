@@ -60,7 +60,7 @@ class _PaneContent extends StatelessWidget {
           color: c.surfaceSubtle,
           child: Column(
             children: [
-              const _PaneTabBarSection(),
+              _PaneTabBarSection(paneId: paneNode.paneId!),
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   AppMetrics.paneGap,
@@ -417,23 +417,50 @@ class _PaneContent extends StatelessWidget {
 // ── Sections：按需重建，避免选中/加载时整个面板 rebuild ──────────────
 
 class _PaneTabBarSection extends StatelessWidget {
-  const _PaneTabBarSection();
+  final String paneId;
+
+  const _PaneTabBarSection({required this.paneId});
 
   @override
   Widget build(BuildContext context) {
-    return Selector<PaneController, (List<TabInfo>, int)>(
-      selector: (_, c) => (c.tabs, c.activeTabIndex),
-      shouldRebuild: (a, b) => !listEquals(a.$1, b.$1) || a.$2 != b.$2,
-      builder: (context, sel, _) {
-        final controller = context.read<PaneController>();
-        return PaneTabBar(
-          tabs: sel.$1,
-          activeIndex: sel.$2,
-          onSwitchTab: controller.switchTab,
-          onCloseTab: controller.closeTab,
-          onAddTab: () => controller.addTab(),
-        );
-      },
+    final c = context.colors;
+    final maximized = context.watch<LayoutState>().maximizedPaneId == paneId;
+    return Row(
+      children: [
+        Expanded(
+          child: Selector<PaneController, (List<TabInfo>, int)>(
+            selector: (_, c) => (c.tabs, c.activeTabIndex),
+            shouldRebuild: (a, b) => !listEquals(a.$1, b.$1) || a.$2 != b.$2,
+            builder: (context, sel, _) {
+              final controller = context.read<PaneController>();
+              return PaneTabBar(
+                tabs: sel.$1,
+                activeIndex: sel.$2,
+                onSwitchTab: controller.switchTab,
+                onCloseTab: controller.closeTab,
+                onAddTab: () => controller.addTab(),
+              );
+            },
+          ),
+        ),
+        Tooltip(
+          message: maximized ? '还原面板' : '最大化面板',
+          child: InkWell(
+            onTap: () => context.read<LayoutState>().toggleMaximize(paneId),
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            child: SizedBox(
+              width: 26,
+              height: 26,
+              child: Icon(
+                maximized ? Icons.fullscreen_exit : Icons.fullscreen,
+                size: AppMetrics.iconMd,
+                color: maximized ? c.accent : c.textSecondary,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+      ],
     );
   }
 }
@@ -800,10 +827,7 @@ class _StatusBar extends StatelessWidget {
     }
     return Container(
       height: AppMetrics.statusBarHeight,
-      decoration: BoxDecoration(
-        color: c.surfaceSubtle,
-        border: Border(top: BorderSide(color: c.border, width: 1)),
-      ),
+      decoration: BoxDecoration(color: c.surfaceSubtle),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
       child: Text(

@@ -15,6 +15,7 @@ import '../state/theme_controller.dart';
 import 'app_theme.dart';
 import 'sidebar_tree.dart';
 import 'layout_view.dart';
+import 'file_pane.dart';
 import 'window_controls.dart';
 
 class AppShell extends StatefulWidget {
@@ -81,16 +82,17 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   bool _onKey(KeyEvent event) {
-    if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.altLeft ||
-        event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.altRight) {
-      context.read<LayoutState>().showAltOverlay();
-    }
-    if (event is KeyUpEvent && event.logicalKey == LogicalKeyboardKey.altLeft ||
-        event is KeyUpEvent &&
-            event.logicalKey == LogicalKeyboardKey.altRight) {
-      context.read<LayoutState>().hideAltOverlay();
+    final layoutState = context.read<LayoutState>();
+    final isAltDown = event is KeyDownEvent &&
+        (event.logicalKey == LogicalKeyboardKey.altLeft ||
+            event.logicalKey == LogicalKeyboardKey.altRight);
+    final isAltUp = event is KeyUpEvent &&
+        (event.logicalKey == LogicalKeyboardKey.altLeft ||
+            event.logicalKey == LogicalKeyboardKey.altRight);
+    // 最大化面板时 Alt 面板命令失效
+    if (layoutState.maximizedPaneId == null) {
+      if (isAltDown) layoutState.showAltOverlay();
+      if (isAltUp) layoutState.hideAltOverlay();
     }
     // F3 — Quick View
     final keyboard = HardwareKeyboard.instance;
@@ -199,7 +201,46 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: AppMetrics.paneGap),
                   Expanded(
-                    child: LayoutView(node: layoutState.activeWorkspace),
+                    child: Stack(
+                      children: [
+                        LayoutView(node: layoutState.activeWorkspace),
+                        if (layoutState.maximizedPaneId != null &&
+                            layoutState.allPaneNodes.any(
+                              (n) => n.paneId == layoutState.maximizedPaneId,
+                            ))
+                          Positioned.fill(
+                            child: Container(
+                              margin: EdgeInsets.all(AppMetrics.paneGap / 2),
+                              clipBehavior: Clip.antiAlias,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(
+                                  AppMetrics.paneRadius,
+                                ),
+                                color: c.surface,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: c.scrim,
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              foregroundDecoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(
+                                  AppMetrics.paneRadius,
+                                ),
+                                border: Border.all(
+                                  color: c.accent.withValues(alpha: 0.6),
+                                  width: 1,
+                                ),
+                              ),
+                              child: FilePane(
+                                paneId: layoutState.maximizedPaneId!,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ],
               ),
