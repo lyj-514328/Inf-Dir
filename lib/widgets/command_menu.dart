@@ -430,10 +430,14 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
     setState(() => _flyout = _Flyout(item, Offset(x, y)));
   }
 
-  void _hover(CommandMenuItem item, BuildContext itemContext) {
+  void _hover(
+    CommandMenuItem item,
+    BuildContext itemContext, {
+    bool fromFlyout = false,
+  }) {
     if (item.children != null) {
       _openFlyout(item, itemContext);
-    } else if (_flyout != null) {
+    } else if (!fromFlyout && _flyout != null) {
       setState(() => _flyout = null);
     }
   }
@@ -485,6 +489,7 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
               child: _panel(
                 context,
                 searchHeader: false,
+                isFlyout: true,
                 items: _flyout!.item.children ?? const [],
                 maxHeight: screen.height - _flyout!.position.dy - 8,
               ),
@@ -497,6 +502,7 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
   Widget _panel(
     BuildContext context, {
     required bool searchHeader,
+    bool isFlyout = false,
     required List<CommandMenuItem> items,
     required double maxHeight,
   }) {
@@ -537,7 +543,7 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
                   item: item,
                   onAction: () => _run(item),
                   onOpenFlyout: _openFlyout,
-                  onHover: _hover,
+                  onHover: (i, ctx) => _hover(i, ctx, fromFlyout: isFlyout),
                 ),
               const SizedBox(height: 4),
             ],
