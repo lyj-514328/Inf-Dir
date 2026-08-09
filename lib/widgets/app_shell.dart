@@ -14,6 +14,7 @@ import '../state/layout_state.dart';
 import '../state/sidebar_controller.dart';
 import '../state/theme_controller.dart';
 import 'app_theme.dart';
+import 'command_menu.dart';
 import 'sidebar_tree.dart';
 import 'layout_view.dart';
 import 'file_pane.dart';
@@ -281,62 +282,83 @@ class _TopBar extends StatelessWidget {
     final c = context.colors;
     final theme = context.watch<ThemeController>();
 
-    // DragToMoveArea 自带拖拽移动与双击最大化/还原。
-    return DragToMoveArea(
-      child: Container(
-        height: AppMetrics.topBarHeight,
-        decoration: BoxDecoration(
-          color: c.windowBg,
-          border: Border(bottom: BorderSide(color: c.border)),
-        ),
-        // 右侧不留 padding：最大化时窗口按钮须触达屏幕边缘。
-        padding: const EdgeInsets.only(left: 4),
-        child: Row(
-          children: [
-            _AppMenus(
-              layoutState: layoutState,
-              onViewerAssociations: onViewerAssociations,
-            ),
-            const SizedBox(width: 8),
-            for (int i = 0; i < layoutState.workspaces.length; i++) ...[
-              if (i > 0) const SizedBox(width: 2),
-              _WorkspaceTab(
-                label: layoutState.workspaces[i].label ?? 'WS$i',
-                isActive: i == layoutState.activeWorkspaceIndex,
-                onTap: () => layoutState.switchWorkspace(i),
-                onClose: layoutState.workspaces.length > 1
-                    ? () => layoutState.removeWorkspace(i)
-                    : null,
+    // DragToMoveArea 放在背景层：空白处可拖拽/双击最大化，
+    // 前景交互控件（菜单、tab、按钮）不被原生拖动拦截。
+    return SizedBox(
+      height: AppMetrics.topBarHeight,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: DragToMoveArea(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: c.windowBg,
+                  border: Border(bottom: BorderSide(color: c.border)),
+                ),
               ),
-            ],
-            const SizedBox(width: 4),
-            _GhostIconButton(
-              icon: Icons.add,
-              tooltip: '新建工作区',
-              onTap: layoutState.addWorkspace,
             ),
-            const Spacer(),
-            _GhostIconButton(
-              icon: showHiddenFiles ? Icons.visibility : Icons.visibility_off,
-              tooltip: showHiddenFiles ? '隐藏文件：显示中' : '隐藏文件：已隐藏',
-              active: showHiddenFiles,
-              onTap: onToggleHiddenFiles,
+          ),
+          Positioned.fill(
+            child: Padding(
+              // 右侧不留 padding：最大化时窗口按钮须触达屏幕边缘。
+              padding: const EdgeInsets.only(left: 4),
+              child: Row(
+                children: [
+                  _AppMenus(
+                    layoutState: layoutState,
+                    onViewerAssociations: onViewerAssociations,
+                  ),
+                  const SizedBox(width: 8),
+                  for (int i = 0;
+                      i < layoutState.workspaces.length;
+                      i++) ...[
+                    if (i > 0) const SizedBox(width: 2),
+                    _WorkspaceTab(
+                      label: layoutState.workspaces[i].label ?? 'WS$i',
+                      isActive: i == layoutState.activeWorkspaceIndex,
+                      onTap: () => layoutState.switchWorkspace(i),
+                      onClose: layoutState.workspaces.length > 1
+                          ? () => layoutState.removeWorkspace(i)
+                          : null,
+                    ),
+                  ],
+                  const SizedBox(width: 4),
+                  _GhostIconButton(
+                    icon: Icons.add,
+                    tooltip: '新建工作区',
+                    onTap: layoutState.addWorkspace,
+                  ),
+                  const Spacer(),
+                  _GhostIconButton(
+                    icon: showHiddenFiles
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    tooltip: showHiddenFiles
+                        ? '隐藏文件：显示中'
+                        : '隐藏文件：已隐藏',
+                    active: showHiddenFiles,
+                    onTap: onToggleHiddenFiles,
+                  ),
+                  _GhostIconButton(
+                    icon: Icons.text_fields,
+                    tooltip: showFileExtensions
+                        ? '文件后缀名：显示中'
+                        : '文件后缀名：已隐藏',
+                    active: showFileExtensions,
+                    onTap: onToggleFileExtensions,
+                  ),
+                  _GhostIconButton(
+                    icon: theme.icon,
+                    tooltip: '主题：${theme.label}',
+                    onTap: theme.cycle,
+                  ),
+                  const SizedBox(width: 8),
+                  const WindowControls(),
+                ],
+              ),
             ),
-            _GhostIconButton(
-              icon: Icons.text_fields,
-              tooltip: showFileExtensions ? '文件后缀名：显示中' : '文件后缀名：已隐藏',
-              active: showFileExtensions,
-              onTap: onToggleFileExtensions,
-            ),
-            _GhostIconButton(
-              icon: theme.icon,
-              tooltip: '主题：${theme.label}',
-              onTap: theme.cycle,
-            ),
-            const SizedBox(width: 8),
-            const WindowControls(),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -546,8 +568,9 @@ class _MenuDropdown extends StatefulWidget {
 class _MenuDropdownState extends State<_MenuDropdown> {
   final GlobalKey _labelKey = GlobalKey();
   bool _open = false;
+  bool _hovering = false;
 
-  Future<void> _show() async {
+  void _show() {
     final box = _labelKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
@@ -555,59 +578,43 @@ class _MenuDropdownState extends State<_MenuDropdown> {
 
     final entries = widget.buildEntries();
     setState(() => _open = true);
-    final picked = await showMenu<int>(
-      context: context,
-      position: RelativeRect.fromRect(
-        Rect.fromLTWH(
-          origin.dx,
-          origin.dy + box.size.height + 2,
-          box.size.width,
-          0,
-        ),
-        Offset.zero & overlay.size,
-      ),
+    showCommandMenu(
+      context,
+      position: origin + Offset(0, box.size.height + 2),
       items: [
-        for (var i = 0; i < entries.length; i++)
-          PopupMenuItem<int>(
-            value: i,
-            enabled: entries[i].enabled,
-            height: 26,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              entries[i].label,
-              style: TextStyle(
-                fontSize: AppMetrics.fontBody,
-                color: entries[i].enabled
-                    ? context.colors.textPrimary
-                    : context.colors.textTertiary,
-              ),
-            ),
-          ),
+        for (final e in entries)
+          CommandMenuItem(label: e.label, enabled: e.enabled, onAction: e.onTap),
       ],
+      onClosed: () {
+        if (mounted) setState(() => _open = false);
+      },
     );
-    if (!mounted) return;
-    setState(() => _open = false);
-    if (picked != null) entries[picked].onTap();
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
 
-    return InkWell(
-      key: _labelKey,
-      onTap: _open ? null : _show,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: _open ? c.surfaceHover : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-        ),
-        child: Text(
-          widget.label,
-          style: TextStyle(
-            fontSize: AppMetrics.fontBody,
-            color: c.textSecondary,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: InkWell(
+        key: _labelKey,
+        onTap: _open ? null : _show,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: _open || _hovering
+                ? c.surfaceHover
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+          ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: AppMetrics.fontBody,
+              color: c.textSecondary,
+            ),
           ),
         ),
       ),

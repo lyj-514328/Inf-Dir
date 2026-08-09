@@ -358,14 +358,19 @@ abstract final class FileCommandMenuIcons {
 void showCommandMenu(
   BuildContext context, {
   required Offset position,
-  required CommandMenuConfig config,
+  CommandMenuConfig? config,
+  List<CommandMenuItem>? items,
+  VoidCallback? onClosed,
 }) {
+  final resolvedItems = items ?? buildCommandMenuItems(config!);
   final overlay = Overlay.of(context);
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder: (_) => _CommandMenuOverlay(
       position: position,
+      items: resolvedItems,
       config: config,
+      onClosed: onClosed,
       close: () => entry.remove(),
     ),
   );
@@ -381,12 +386,16 @@ class _Flyout {
 
 class _CommandMenuOverlay extends StatefulWidget {
   final Offset position;
-  final CommandMenuConfig config;
+  final List<CommandMenuItem> items;
+  final CommandMenuConfig? config;
+  final VoidCallback? onClosed;
   final VoidCallback close;
 
   const _CommandMenuOverlay({
     required this.position,
-    required this.config,
+    required this.items,
+    this.config,
+    this.onClosed,
     required this.close,
   });
 
@@ -394,14 +403,77 @@ class _CommandMenuOverlay extends StatefulWidget {
   State<_CommandMenuOverlay> createState() => _CommandMenuOverlayState();
 }
 
-class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
-  static const double menuWidth = 224;
+class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
+    with SingleTickerProviderStateMixin {
+  static const double menuWidth = 260;
   static const double itemHeight = 32;
   static const double dividerHeight = 9;
   static const double searchBlockHeight = 8 + 34 + 8 + 1;
+  static const double _screenMargin = 8;
+  // 对齐 contextmenu（animations 包 FadeScaleTransition）：出现 150ms
+  // （fade 前 30% 完成 + scale 0.8→1）、消失 75ms 纯 fade、
+  // 避障修正滑动 75ms。
+  static const Duration _openDuration = Duration(milliseconds: 150);
+  static const Duration _closeDuration = Duration(milliseconds: 75);
+  static const Duration _moveDuration = Duration(milliseconds: 75);
 
   _Flyout? _flyout;
-  Offset _menuPos = Offset.zero;
+  late Offset _menuPos;
+  bool _repositioned = false;
+  bool _closing = false;
+  VoidCallback? _afterClose;
+  late final AnimationController _anim;
+  late final Animation<double> _fadeIn;
+  late final Animation<double> _scaleIn;
+
+  @override
+  void initState() {
+    super.initState();
+    _menuPos = widget.position;
+    _anim = AnimationController(vsync: this, duration: _openDuration)
+      ..forward();
+    _fadeIn = CurvedAnimation(
+      parent: _anim,
+      curve: const Interval(0.0, 0.3),
+    );
+    _scaleIn = Tween<double>(begin: 0.80, end: 1.00).animate(
+      CurvedAnimation(parent: _anim, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  /// 避障：请求位置越界时平移回屏幕内（保留 8px 边距）。
+  static Offset _avoidBounds(Offset requested, Size size, Size screen) {
+    var x = requested.dx;
+    if (x + size.width > screen.width - _screenMargin) {
+      x = screen.width - _screenMargin - size.width;
+    }
+    if (x < _screenMargin) x = _screenMargin;
+    var y = requested.dy;
+    if (y + size.height > screen.height - _screenMargin) {
+      y = screen.height - _screenMargin - size.height;
+    }
+    if (y < _screenMargin) y = _screenMargin;
+    return Offset(x, y);
+  }
+
+  /// 播放消失动画（75ms 纯 fade），结束后移除菜单并执行回调。
+  void _startClose([VoidCallback? onClosed]) {
+    if (_closing) return;
+    setState(() => _closing = true);
+    _afterClose = onClosed;
+    _anim.duration = _closeDuration;
+    _anim.reverse().whenComplete(() {
+      widget.close();
+      widget.onClosed?.call();
+      _afterClose?.call();
+    });
+  }
 
   double _listHeight(List<CommandMenuItem> items) {
     double h = 0;
@@ -412,8 +484,7 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
   }
 
   void _run(CommandMenuItem item) {
-    widget.close();
-    item.onAction?.call();
+    _startClose(item.onAction);
   }
 
   void _openFlyout(CommandMenuItem item, BuildContext itemContext) {
@@ -422,11 +493,16 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
     final topRight = box.localToGlobal(Offset(box.size.width, 0));
     final screen = MediaQuery.sizeOf(context);
     final fh = 8 + _listHeight(item.children ?? const []);
+    // flyout 优先挂在主菜单右侧，放不下时翻到左侧。
     var x = topRight.dx - 6;
-    if (x + menuWidth > screen.width - 8) x = _menuPos.dx - menuWidth + 6;
+    if (x + menuWidth > screen.width - _screenMargin) {
+      x = _menuPos.dx - menuWidth + 6;
+    }
     var y = topRight.dy - 6;
-    if (y + fh > screen.height - 8) y = screen.height - 8 - fh;
-    if (y < 8) y = 8;
+    if (y + fh > screen.height - _screenMargin) {
+      y = screen.height - _screenMargin - fh;
+    }
+    if (y < _screenMargin) y = _screenMargin;
     setState(() => _flyout = _Flyout(item, Offset(x, y)));
   }
 
@@ -445,20 +521,24 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final items = buildCommandMenuItems(widget.config);
-    final mh = searchBlockHeight + 8 + _listHeight(items);
-    var x = widget.position.dx;
-    var y = widget.position.dy;
-    if (x + menuWidth > screen.width - 8) x = screen.width - 8 - menuWidth;
-    if (y + mh > screen.height - 8) y = screen.height - 8 - mh;
-    if (y < 8) y = 8;
-    _menuPos = Offset(x, y);
+    final items = widget.items;
+    final mh = (widget.config != null ? searchBlockHeight : 0) +
+        8 +
+        _listHeight(items);
+    // 避障修正：第一帧按请求位置渲染，post-frame 后滑向屏幕内目标位置。
+    final target = _avoidBounds(widget.position, Size(menuWidth, mh), screen);
+    if (!_repositioned && target != widget.position) {
+      _repositioned = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _menuPos = target);
+      });
+    }
 
     return Focus(
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.escape) {
-          widget.close();
+          _startClose();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -468,30 +548,56 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: widget.close,
+              onTap: _startClose,
               child: const ColoredBox(color: Colors.transparent),
             ),
           ),
-          Positioned(
-            left: x,
-            top: y,
-            child: _panel(
-              context,
-              searchHeader: true,
-              items: items,
-              maxHeight: screen.height - y - 8,
-            ),
+          AnimatedPositioned(
+            duration: _moveDuration,
+            curve: Curves.easeOut,
+            left: _menuPos.dx,
+            top: _menuPos.dy,
+            child: _closing
+                ? FadeTransition(opacity: _anim, child: _panel(
+                    context,
+                    config: widget.config,
+                    items: items,
+                    maxHeight: screen.height - _menuPos.dy - _screenMargin,
+                  ))
+                : FadeTransition(
+                    opacity: _fadeIn,
+                    child: ScaleTransition(
+                      scale: _scaleIn,
+                      child: _panel(
+                        context,
+                        config: widget.config,
+                        items: items,
+                        maxHeight:
+                            screen.height - _menuPos.dy - _screenMargin,
+                      ),
+                    ),
+                  ),
           ),
           if (_flyout != null)
-            Positioned(
+            AnimatedPositioned(
+              duration: _moveDuration,
+              curve: Curves.easeOut,
               left: _flyout!.position.dx,
               top: _flyout!.position.dy,
-              child: _panel(
-                context,
-                searchHeader: false,
-                isFlyout: true,
-                items: _flyout!.item.children ?? const [],
-                maxHeight: screen.height - _flyout!.position.dy - 8,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: _openDuration,
+                curve: Curves.easeOut,
+                builder: (_, t, child) => Opacity(
+                  opacity: Interval(0.0, 0.3).transform(t),
+                  child: Transform.scale(scale: 0.8 + 0.2 * t, child: child),
+                ),
+                child: _panel(
+                  context,
+                  isFlyout: true,
+                  items: _flyout!.item.children ?? const [],
+                  maxHeight: screen.height - _flyout!.position.dy - _screenMargin,
+                ),
               ),
             ),
         ],
@@ -501,19 +607,20 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
 
   Widget _panel(
     BuildContext context, {
-    required bool searchHeader,
+    CommandMenuConfig? config,
     bool isFlyout = false,
     required List<CommandMenuItem> items,
     required double maxHeight,
   }) {
     final c = context.colors;
+    // Win11 flyout 结构（圆角 8）+ active pane 同款描边 + macOS 略暗中性灰底。
     return Material(
-      color: c.surface,
-      elevation: 8,
-      shadowColor: c.scrim,
+      color: c.menuSurface,
+      elevation: 6,
+      shadowColor: c.shadow,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
-        side: BorderSide(color: c.border),
+        borderRadius: BorderRadius.circular(AppMetrics.menuRadius),
+        side: BorderSide(color: c.accent.withValues(alpha: 0.6)),
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -526,16 +633,16 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (searchHeader) ...[
+              if (config != null) ...[
                 Padding(
                   padding: const EdgeInsets.all(8),
                   child: FileSearchField(
-                    query: widget.config.searchQuery,
+                    query: config.searchQuery,
                     autofocus: true,
-                    onChanged: widget.config.onSearchChanged,
+                    onChanged: config.onSearchChanged,
                   ),
                 ),
-                Divider(height: 1, thickness: 1, color: c.border),
+                Divider(height: 1, thickness: 1, color: c.menuBorder),
               ],
               const SizedBox(height: 4),
               for (final item in items)
@@ -575,66 +682,82 @@ class _MenuItemRow extends StatelessWidget {
         height: 9,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Divider(height: 1, thickness: 1, color: c.border),
+          child: Divider(height: 1, thickness: 1, color: c.menuBorder),
         ),
       );
     }
     final iconColor = item.enabled ? c.textSecondary : c.textTertiary;
     final labelColor = item.enabled ? c.textPrimary : c.textTertiary;
+    // Win11 菜单项：hover 是四周留边的 4px 圆角高亮块。
     return MouseRegion(
       onEnter: (_) => onHover(item, context),
-      child: InkWell(
-        onTap: !item.enabled
-            ? null
-            : () {
-                if (item.children != null) {
-                  onOpenFlyout(item, context);
-                } else {
-                  onAction();
-                }
-              },
-        hoverColor: c.surfaceHover,
-        child: SizedBox(
-          height: 32,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 16,
-                  child: item.checked
-                      ? Icon(Icons.check, size: AppMetrics.iconSm, color: c.accent)
-                      : item.icon != null
-                      ? Icon(item.icon, size: AppMetrics.iconSm, color: iconColor)
-                      : null,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    item.label ?? '',
-                    style: TextStyle(
-                      fontSize: AppMetrics.fontBody,
-                      color: labelColor,
+      child: SizedBox(
+        height: 32,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: InkWell(
+            onTap: !item.enabled
+                ? null
+                : () {
+                    if (item.children != null) {
+                      onOpenFlyout(item, context);
+                    } else {
+                      onAction();
+                    }
+                  },
+            hoverColor: c.surfaceHover,
+            borderRadius: BorderRadius.circular(AppMetrics.menuItemRadius),
+            child: SizedBox(
+              height: 26,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      child: item.checked
+                          ? Icon(
+                              Icons.check,
+                              size: AppMetrics.iconSm,
+                              color: c.accent,
+                            )
+                          : item.icon != null
+                          ? Icon(
+                              item.icon,
+                              size: AppMetrics.iconSm,
+                              color: iconColor,
+                            )
+                          : null,
                     ),
-                  ),
-                ),
-                if (item.shortcut != null)
-                  Text(
-                    item.shortcut!,
-                    style: TextStyle(
-                      fontSize: AppMetrics.fontSmall,
-                      color: c.textTertiary,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.label ?? '',
+                        style: TextStyle(
+                          fontSize: AppMetrics.fontBody,
+                          color: labelColor,
+                        ),
+                      ),
                     ),
-                  ),
-                if (item.children != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.chevron_right,
-                    size: AppMetrics.iconSm,
-                    color: c.textTertiary,
-                  ),
-                ],
-              ],
+                    if (item.shortcut != null)
+                      Text(
+                        item.shortcut!,
+                        style: TextStyle(
+                          fontSize: AppMetrics.fontSmall,
+                          color: c.textTertiary,
+                        ),
+                      ),
+                    if (item.children != null) ...[
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.chevron_right,
+                        size: AppMetrics.iconSm,
+                        color: c.textTertiary,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),

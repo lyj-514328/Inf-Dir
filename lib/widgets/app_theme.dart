@@ -67,6 +67,15 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Alt 遮罩层压暗色 / 浮层阴影色
   final Color scrim;
 
+  /// 浮层投影色（菜单、flyout）
+  final Color shadow;
+
+  /// Win11 菜单细描边（10% 黑 / 8% 白）
+  final Color menuBorder;
+
+  /// 菜单背景（macOS 观感：比 surface 略暗一档的中性灰）
+  final Color menuSurface;
+
   const AppColors({
     required this.windowBg,
     required this.surface,
@@ -87,6 +96,9 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.iconFolder,
     required this.iconFile,
     required this.scrim,
+    required this.shadow,
+    required this.menuBorder,
+    required this.menuSurface,
   });
 
   /// 亮色 —— 现代极简：冷中性灰基底 + 靛蓝强调色
@@ -110,6 +122,9 @@ class AppColors extends ThemeExtension<AppColors> {
     iconFolder: Color(0xFFE8A33D),
     iconFile: Color(0xFF969CA6),
     scrim: Color(0x14000000),
+    shadow: Color(0x26000000),
+    menuBorder: Color(0x1A000000),
+    menuSurface: Color(0xFFF2F2F2),
   );
 
   /// 深色 —— 低对比中性灰 + 提亮靛蓝
@@ -133,6 +148,9 @@ class AppColors extends ThemeExtension<AppColors> {
     iconFolder: Color(0xFFE8A33D),
     iconFile: Color(0xFFA6A6AC),
     scrim: Color(0x66000000),
+    shadow: Color(0x52000000),
+    menuBorder: Color(0x14FFFFFF),
+    menuSurface: Color(0xFF2A2A2C),
   );
 
   @override
@@ -156,6 +174,9 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? iconFolder,
     Color? iconFile,
     Color? scrim,
+    Color? shadow,
+    Color? menuBorder,
+    Color? menuSurface,
   }) {
     return AppColors(
       windowBg: windowBg ?? this.windowBg,
@@ -178,6 +199,9 @@ class AppColors extends ThemeExtension<AppColors> {
       iconFolder: iconFolder ?? this.iconFolder,
       iconFile: iconFile ?? this.iconFile,
       scrim: scrim ?? this.scrim,
+      shadow: shadow ?? this.shadow,
+      menuBorder: menuBorder ?? this.menuBorder,
+      menuSurface: menuSurface ?? this.menuSurface,
     );
   }
 
@@ -205,6 +229,9 @@ class AppColors extends ThemeExtension<AppColors> {
       iconFolder: Color.lerp(iconFolder, other.iconFolder, t)!,
       iconFile: Color.lerp(iconFile, other.iconFile, t)!,
       scrim: Color.lerp(scrim, other.scrim, t)!,
+      shadow: Color.lerp(shadow, other.shadow, t)!,
+      menuBorder: Color.lerp(menuBorder, other.menuBorder, t)!,
+      menuSurface: Color.lerp(menuSurface, other.menuSurface, t)!,
     );
   }
 }
@@ -233,6 +260,8 @@ abstract final class AppMetrics {
   // 圆角
   static const double paneRadius = 10;
   static const double cardRadius = 8;
+  static const double menuRadius = 8;
+  static const double menuItemRadius = 4;
   static const double controlRadius = 6;
   static const double tabRadius = 6;
 
@@ -322,21 +351,6 @@ abstract final class AppTheme {
           ],
         ),
         textStyle: TextStyle(fontSize: AppMetrics.fontSmall, color: c.textPrimary),
-      ),
-      popupMenuTheme: PopupMenuThemeData(
-        color: c.surface,
-        surfaceTintColor: Colors.transparent,
-        elevation: 8,
-        shadowColor: c.scrim,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
-          side: BorderSide(color: c.border),
-        ),
-        menuPadding: const EdgeInsets.symmetric(vertical: 4),
-        textStyle: TextStyle(
-          fontSize: AppMetrics.fontBody,
-          color: c.textPrimary,
-        ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: c.surface,
