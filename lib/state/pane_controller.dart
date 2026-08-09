@@ -582,6 +582,12 @@ class PaneController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 主文件夹选中项镜像（HomeView 持有本地选中态，这里同步路径供
+  /// F3 快速查看等全局命令读取）。不触发通知，避免每次点击重读列表。
+  void setHomeSelection(String? path) {
+    _focusedPath = path;
+  }
+
   void toggleSelection(String path) {
     if (_selectedPaths.contains(path)) {
       _selectedPaths.remove(path);

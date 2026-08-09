@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -52,6 +53,7 @@ class _HomeViewState extends State<HomeView> {
   bool _quickAccessExpanded = true;
   bool _activityExpanded = true;
   _HomeSection _activeActivity = _HomeSection.recent;
+  String? _selectedPath;
   int _loadId = 0;
   final ScrollController _scrollController = ScrollController();
 
@@ -273,7 +275,9 @@ class _HomeViewState extends State<HomeView> {
               _HomeListRow(
                 item: item,
                 showFileExtensions: widget.showFileExtensions,
-                onTap: () => _openItem(section, item),
+                isSelected: item.path == _selectedPath,
+                onSingleTap: () => _selectItem(item),
+                onDoubleTap: () => _openItem(section, item),
               ),
           ],
         ),
@@ -289,7 +293,9 @@ class _HomeViewState extends State<HomeView> {
               item: item,
               section: section,
               showFileExtensions: widget.showFileExtensions,
-              onTap: () => _openItem(section, item),
+              isSelected: item.path == _selectedPath,
+              onSingleTap: () => _selectItem(item),
+              onDoubleTap: () => _openItem(section, item),
             ),
         ],
       ),
@@ -311,7 +317,9 @@ class _HomeViewState extends State<HomeView> {
               section: section,
               content: content,
               showFileExtensions: widget.showFileExtensions,
-              onTap: () => _openItem(section, item),
+              isSelected: item.path == _selectedPath,
+              onSingleTap: () => _selectItem(item),
+              onDoubleTap: () => _openItem(section, item),
             ),
         ],
       ),
@@ -347,7 +355,9 @@ class _HomeViewState extends State<HomeView> {
                       mode == PaneViewMode.smallIcons ||
                       mode == PaneViewMode.compact,
                   showFileExtensions: widget.showFileExtensions,
-                  onTap: () => _openItem(section, item),
+                  isSelected: item.path == _selectedPath,
+                  onSingleTap: () => _selectItem(item),
+                  onDoubleTap: () => _openItem(section, item),
                 ),
               ),
           ],
@@ -362,6 +372,13 @@ class _HomeViewState extends State<HomeView> {
       return;
     }
     FileService.openFile(item.path);
+  }
+
+  void _selectItem(_HomeItem item) {
+    widget.controller.setHomeSelection(item.path);
+    if (item.path != _selectedPath) {
+      setState(() => _selectedPath = item.path);
+    }
   }
 
   Widget _emptyLine(BuildContext context, String text) => Padding(
@@ -546,13 +563,17 @@ class _HomeDetailsRow extends StatefulWidget {
   final _HomeItem item;
   final _HomeSection section;
   final bool showFileExtensions;
-  final VoidCallback onTap;
+  final bool isSelected;
+  final VoidCallback onSingleTap;
+  final VoidCallback onDoubleTap;
 
   const _HomeDetailsRow({
     required this.item,
     required this.section,
     required this.showFileExtensions,
-    required this.onTap,
+    required this.isSelected,
+    required this.onSingleTap,
+    required this.onDoubleTap,
   });
 
   @override
@@ -566,20 +587,30 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final date = widget.item.date == null ? '' : _formatDate(widget.item.date!);
+    final selectedBg = widget.isSelected ? c.accent : c.surfaceHover;
+    final nameColor = widget.isSelected ? c.onAccent : c.textPrimary;
+    final secondaryColor = widget.isSelected
+        ? c.onAccent.withValues(alpha: 0.75)
+        : c.textSecondary;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: widget.onTap,
-          hoverColor: Colors.transparent,
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+      child: Listener(
+        onPointerDown: (event) {
+          // 鼠标按下即选中：避免 onTap 等待双击判定（kDoubleTapTimeout）的延迟
+          if (event.buttons & kPrimaryMouseButton != 0) widget.onSingleTap();
+        },
+        child: GestureDetector(
+          onDoubleTap: widget.onDoubleTap,
           child: Container(
             height: AppMetrics.rowHeight,
             margin: const EdgeInsets.symmetric(horizontal: 2),
             decoration: BoxDecoration(
-              color: _hovering ? c.surfaceHover : Colors.transparent,
+              color: widget.isSelected
+                  ? selectedBg
+                  : _hovering
+                  ? c.surfaceHover
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -609,7 +640,7 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: AppMetrics.fontBody,
-                              color: c.textPrimary,
+                              color: nameColor,
                             ),
                           ),
                         ),
@@ -626,7 +657,7 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: AppMetrics.fontSmall,
-                        color: c.textSecondary,
+                        color: secondaryColor,
                       ),
                     ),
                   ),
@@ -638,52 +669,73 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: AppMetrics.fontSmall,
-                        color: c.textSecondary,
+                        color: secondaryColor,
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
           ),
         ),
+      ),
     );
   }
 }
 
-class _HomeListRow extends StatelessWidget {
+class _HomeListRow extends StatefulWidget {
   final _HomeItem item;
   final bool showFileExtensions;
-  final VoidCallback onTap;
+  final bool isSelected;
+  final VoidCallback onSingleTap;
+  final VoidCallback onDoubleTap;
 
   const _HomeListRow({
     required this.item,
     required this.showFileExtensions,
-    required this.onTap,
+    required this.isSelected,
+    required this.onSingleTap,
+    required this.onDoubleTap,
   });
+
+  @override
+  State<_HomeListRow> createState() => _HomeListRowState();
+}
+
+class _HomeListRowState extends State<_HomeListRow> {
+  bool _hovering = false;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          hoverColor: c.surfaceHover,
-          child: SizedBox(
-            height: AppMetrics.rowHeight,
-            child: Padding(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: Listener(
+          onPointerDown: (event) {
+            // 鼠标按下即选中：避免 onTap 等待双击判定（kDoubleTapTimeout）的延迟
+            if (event.buttons & kPrimaryMouseButton != 0) widget.onSingleTap();
+          },
+          child: GestureDetector(
+            onDoubleTap: widget.onDoubleTap,
+            child: Container(
+              height: AppMetrics.rowHeight,
+              decoration: BoxDecoration(
+                color: widget.isSelected
+                    ? c.accent
+                    : _hovering
+                    ? c.surfaceHover
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Row(
                 children: [
                   _HomeIcon(
-                    path: item.path,
-                    isDirectory: item.isDirectory,
-                    fallback: item.isDirectory
+                    path: widget.item.path,
+                    isDirectory: widget.item.isDirectory,
+                    fallback: widget.item.isDirectory
                         ? Icons.folder_outlined
                         : Icons.insert_drive_file_outlined,
                     size: 20,
@@ -692,15 +744,17 @@ class _HomeListRow extends StatelessWidget {
                   Expanded(
                     child: Text(
                       _displayHomeName(
-                        item.name,
-                        item.isDirectory,
-                        showFileExtensions,
+                        widget.item.name,
+                        widget.item.isDirectory,
+                        widget.showFileExtensions,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: AppMetrics.fontBody,
-                        color: c.textPrimary,
+                        color: widget.isSelected
+                            ? c.onAccent
+                            : c.textPrimary,
                       ),
                     ),
                   ),
@@ -714,104 +768,134 @@ class _HomeListRow extends StatelessWidget {
   }
 }
 
-class _HomeContentRow extends StatelessWidget {
+class _HomeContentRow extends StatefulWidget {
   final _HomeItem item;
   final _HomeSection section;
   final bool content;
   final bool showFileExtensions;
-  final VoidCallback onTap;
+  final bool isSelected;
+  final VoidCallback onSingleTap;
+  final VoidCallback onDoubleTap;
 
   const _HomeContentRow({
     required this.item,
     required this.section,
     required this.content,
     required this.showFileExtensions,
-    required this.onTap,
+    required this.isSelected,
+    required this.onSingleTap,
+    required this.onDoubleTap,
   });
+
+  @override
+  State<_HomeContentRow> createState() => _HomeContentRowState();
+}
+
+class _HomeContentRowState extends State<_HomeContentRow> {
+  bool _hovering = false;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final secondary = section == _HomeSection.recent && item.date != null
-        ? '最近访问 ${_formatDate(item.date!)}'
-        : item.isDirectory
+    final secondary = widget.section == _HomeSection.recent &&
+            widget.item.date != null
+        ? '最近访问 ${_formatDate(widget.item.date!)}'
+        : widget.item.isDirectory
         ? '文件夹'
         : '文件';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          hoverColor: c.surfaceHover,
-          child: Container(
-            constraints: BoxConstraints(minHeight: content ? 68 : 58),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-            children: [
-              _HomeIcon(
-                path: item.path,
-                isDirectory: item.isDirectory,
-                fallback: item.isDirectory
-                    ? Icons.folder_outlined
-                    : Icons.insert_drive_file_outlined,
-                size: content ? 40 : 34,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: Listener(
+          onPointerDown: (event) {
+            // 鼠标按下即选中：避免 onTap 等待双击判定（kDoubleTapTimeout）的延迟
+            if (event.buttons & kPrimaryMouseButton != 0) widget.onSingleTap();
+          },
+          child: GestureDetector(
+            onDoubleTap: widget.onDoubleTap,
+            child: Container(
+              constraints: BoxConstraints(minHeight: widget.content ? 68 : 58),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: widget.isSelected
+                    ? c.accent
+                    : _hovering
+                    ? c.surfaceHover
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 5,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _displayHomeName(
-                        item.name,
-                        item.isDirectory,
-                        showFileExtensions,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontBody,
-                        fontWeight: FontWeight.w500,
-                        color: c.textPrimary,
-                      ),
+              child: Row(
+                children: [
+                  _HomeIcon(
+                    path: widget.item.path,
+                    isDirectory: widget.item.isDirectory,
+                    fallback: widget.item.isDirectory
+                        ? Icons.folder_outlined
+                        : Icons.insert_drive_file_outlined,
+                    size: widget.content ? 40 : 34,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _displayHomeName(
+                            widget.item.name,
+                            widget.item.isDirectory,
+                            widget.showFileExtensions,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: AppMetrics.fontBody,
+                            fontWeight: FontWeight.w500,
+                            color: widget.isSelected
+                                ? c.onAccent
+                                : c.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          secondary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: AppMetrics.fontSmall,
+                            color: widget.isSelected
+                                ? c.onAccent.withValues(alpha: 0.75)
+                                : c.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      secondary,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontSmall,
-                        color: c.textSecondary,
+                  ),
+                  if (widget.content) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 5,
+                      child: Text(
+                        widget.item.path,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: AppMetrics.fontSmall,
+                          color: widget.isSelected
+                              ? c.onAccent.withValues(alpha: 0.75)
+                              : c.textSecondary,
+                        ),
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
-              if (content) ...[
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 5,
-                  child: Text(
-                    item.path,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: AppMetrics.fontSmall,
-                      color: c.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -822,14 +906,18 @@ class _HomeIconTile extends StatefulWidget {
   final double iconSize;
   final bool horizontal;
   final bool showFileExtensions;
-  final VoidCallback onTap;
+  final bool isSelected;
+  final VoidCallback onSingleTap;
+  final VoidCallback onDoubleTap;
 
   const _HomeIconTile({
     required this.item,
     required this.iconSize,
     required this.horizontal,
     required this.showFileExtensions,
-    required this.onTap,
+    required this.isSelected,
+    required this.onSingleTap,
+    required this.onDoubleTap,
   });
 
   @override
@@ -848,8 +936,15 @@ class _HomeIconTileState extends State<_HomeIconTile> {
           ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
           : const EdgeInsets.fromLTRB(6, 6, 6, 5),
       decoration: BoxDecoration(
-        color: _hovering ? c.surfaceHover : Colors.transparent,
+        color: widget.isSelected
+            ? c.accentSubtle
+            : _hovering
+            ? c.surfaceHover
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+        border: Border.all(
+          color: widget.isSelected ? c.accent : Colors.transparent,
+        ),
       ),
       child: widget.horizontal
           ? Row(
@@ -888,32 +983,35 @@ class _HomeIconTileState extends State<_HomeIconTile> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
-        child: InkWell(
-          onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+      child: Listener(
+        onPointerDown: (event) {
+          // 鼠标按下即选中：避免 onTap 等待双击判定（kDoubleTapTimeout）的延迟
+          if (event.buttons & kPrimaryMouseButton != 0) widget.onSingleTap();
+        },
+        child: GestureDetector(
+          onDoubleTap: widget.onDoubleTap,
           child: tile,
         ),
       ),
     );
   }
 
-  Widget _tileName(BuildContext context) => Text(
-    _displayHomeName(
-      widget.item.name,
-      widget.item.isDirectory,
-      widget.showFileExtensions,
-    ),
-    maxLines: widget.horizontal ? 1 : 2,
-    textAlign: widget.horizontal ? TextAlign.start : TextAlign.center,
-    overflow: TextOverflow.ellipsis,
-    style: TextStyle(
-      fontSize: AppMetrics.fontBody,
-      color: context.colors.textPrimary,
-    ),
-  );
+  Widget _tileName(BuildContext context) {
+    return Text(
+      _displayHomeName(
+        widget.item.name,
+        widget.item.isDirectory,
+        widget.showFileExtensions,
+      ),
+      maxLines: widget.horizontal ? 1 : 2,
+      textAlign: widget.horizontal ? TextAlign.start : TextAlign.center,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: AppMetrics.fontBody,
+        color: context.colors.textPrimary,
+      ),
+    );
+  }
 }
 
 class _HomeIcon extends StatelessWidget {
