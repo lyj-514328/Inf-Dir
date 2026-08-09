@@ -245,10 +245,10 @@ abstract final class AppMetrics {
   static const double iconMd = 16;
 
   // 字号
-  static const double fontTitle = 13;
-  static const double fontBody = 12;
-  static const double fontSmall = 11;
-  static const double fontCaption = 10.5;
+  static const double fontTitle = 14;
+  static const double fontBody = 13;
+  static const double fontSmall = 12;
+  static const double fontCaption = 11;
 }
 
 // ── ThemeData 工厂 ───────────────────────────────────────────────────
@@ -278,7 +278,8 @@ abstract final class AppTheme {
       brightness: brightness,
       scaffoldBackgroundColor: c.windowBg,
       dividerColor: c.border,
-      fontFamily: 'Segoe UI',
+      fontFamily: 'Segoe UI Variable',
+      fontFamilyFallback: const ['Segoe UI', 'Microsoft YaHei'],
       visualDensity: VisualDensity.compact,
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
