@@ -27,6 +27,12 @@ enum PaneViewMode {
 /// never changes the directory enumeration cache.
 enum EntryFilter { all, folders, files, images, documents }
 
+/// 过滤输入的模式：由用户显式选择（状态栏过滤框右侧菜单）。
+/// - [keyword]：普通子串匹配（大小写由 [PaneController.caseSensitive] 决定）
+/// - [glob]：`*` / `?` 通配，按整名匹配
+/// - [regex]：正则部分匹配
+enum QueryFilterMode { keyword, glob, regex }
+
 class TabInfo {
   final String path;
   final String label;
@@ -68,6 +74,8 @@ class PaneController extends ChangeNotifier {
   bool _sortAscending = true;
   String _filterQuery = '';
   EntryFilter _entryFilter = EntryFilter.all;
+  QueryFilterMode _filterMode = QueryFilterMode.keyword;
+  bool _caseSensitive = false;
   PaneViewMode _viewMode = PaneViewMode.details;
   bool _showDetailsPane = false;
   bool _showPreviewPane = false;
@@ -104,6 +112,8 @@ class PaneController extends ChangeNotifier {
     _sortAscending = snapshot.sortAscending;
     _filterQuery = snapshot.filterQuery;
     _entryFilter = EntryFilter.values.byName(snapshot.entryFilter);
+    _filterMode = QueryFilterMode.values.byName(snapshot.filterMode);
+    _caseSensitive = snapshot.caseSensitive;
     _viewMode = PaneViewMode.values.byName(snapshot.viewMode);
     _showDetailsPane = snapshot.showDetailsPane;
     _showPreviewPane = snapshot.showPreviewPane;
@@ -130,8 +140,16 @@ class PaneController extends ChangeNotifier {
   }
 
   List<FileEntry> get entries => _entries;
-  List<FileEntry> get visibleEntries =>
-      _entries.where(_matchesFilter).toList(growable: false);
+  List<FileEntry> get visibleEntries {
+    final nameMatch = _compileNameMatcher();
+    return _entries
+        .where(
+          (e) =>
+              (nameMatch == null || nameMatch(e.name)) &&
+              _matchesEntryFilter(e),
+        )
+        .toList(growable: false);
+  }
   bool get canGoBack => _backStack.isNotEmpty;
   bool get canGoForward => _forwardStack.isNotEmpty;
   bool get canGoUp {
@@ -166,17 +184,15 @@ class PaneController extends ChangeNotifier {
     sortAscending: _sortAscending,
     filterQuery: _filterQuery,
     entryFilter: _entryFilter.name,
+    filterMode: _filterMode.name,
+    caseSensitive: _caseSensitive,
     viewMode: _viewMode.name,
     showDetailsPane: _showDetailsPane,
     showPreviewPane: _showPreviewPane,
     columnWidths: List.unmodifiable(_columnWidths),
   );
 
-  bool _matchesFilter(FileEntry entry) {
-    final query = _filterQuery.trim().toLowerCase();
-    if (query.isNotEmpty && !entry.name.toLowerCase().contains(query)) {
-      return false;
-    }
+  bool _matchesEntryFilter(FileEntry entry) {
     switch (_entryFilter) {
       case EntryFilter.all:
         return true;
@@ -215,6 +231,57 @@ class PaneController extends ChangeNotifier {
               p.extension(entry.name).toLowerCase().replaceFirst('.', ''),
             );
     }
+  }
+
+  /// 当前显式选择的过滤模式（状态栏过滤框右侧菜单）。
+  QueryFilterMode get filterMode => _filterMode;
+
+  /// 关键字/glob/正则匹配是否区分大小写。
+  bool get caseSensitive => _caseSensitive;
+
+  /// 切换过滤模式（可选同时设置大小写敏感）。
+  void setFilterMode(QueryFilterMode mode, {bool? caseSensitive}) {
+    final nextCase = caseSensitive ?? _caseSensitive;
+    if (_filterMode == mode && _caseSensitive == nextCase) return;
+    _filterMode = mode;
+    _caseSensitive = nextCase;
+    _clearSelectionWithoutNotify();
+    notifyListeners();
+  }
+
+  /// 把过滤输入编译成名称匹配器（每次求值时只编译一次），null 表示无过滤。
+  bool Function(String)? _compileNameMatcher() {
+    final query = _filterQuery.trim();
+    if (query.isEmpty) return null;
+    switch (_filterMode) {
+      case QueryFilterMode.regex:
+        try {
+          final re = RegExp(query, caseSensitive: _caseSensitive);
+          return re.hasMatch;
+        } on FormatException {
+          // 无效正则退化为关键字匹配，避免整列误伤消失。
+          return (name) => _nameContains(name, query);
+        }
+      case QueryFilterMode.glob:
+        return _globToRegExp(query, caseSensitive: _caseSensitive).hasMatch;
+      case QueryFilterMode.keyword:
+        return (name) => _nameContains(name, query);
+    }
+  }
+
+  bool _nameContains(String name, String query) {
+    if (_caseSensitive) return name.contains(query);
+    return name.toLowerCase().contains(query.toLowerCase());
+  }
+
+  /// glob → 锚定整名的正则。
+  static RegExp _globToRegExp(String glob, {bool caseSensitive = false}) {
+    final escaped = glob.replaceAllMapped(
+      RegExp(r'[.+^${}()|[\]\\]'),
+      (m) => '\\${m[0]}',
+    );
+    final pattern = escaped.replaceAll('*', '.*').replaceAll('?', '.');
+    return RegExp('^$pattern\$', caseSensitive: caseSensitive);
   }
 
   void setFilterQuery(String query) {

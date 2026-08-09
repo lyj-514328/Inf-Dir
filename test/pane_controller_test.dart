@@ -95,6 +95,81 @@ void main() {
       },
     );
 
+    test('filter query supports keyword / glob / regex modes', () async {
+      source = FakeCursorSource({
+        'C:\\Modes': [
+          [
+            fileEntry('C:\\Modes\\report2024.txt'),
+            fileEntry('C:\\Modes\\report2025.pdf'),
+            fileEntry('C:\\Modes\\notes.md'),
+            fileEntry('C:\\Modes\\data.tmp'),
+            dirEntry('C:\\Modes\\Reports'),
+          ],
+          null,
+        ],
+      });
+      repo = DirectoryRepository(
+        cursorFactory: source.open,
+        yieldFrame: pump.yieldFrame,
+        hasChildrenProbe: (_) => true,
+      );
+
+      final pc = makePane('C:\\Modes');
+      await runToIdle(pump);
+
+      // 关键字（默认忽略大小写）
+      pc.setFilterQuery('REPORT');
+      expect(pc.filterMode, QueryFilterMode.keyword);
+      expect(pc.caseSensitive, isFalse);
+      expect(pc.visibleEntries.map((e) => e.name), [
+        'Reports',
+        'report2024.txt',
+        'report2025.pdf',
+      ]);
+
+      // 关键字（大小写敏感）
+      pc.setFilterMode(QueryFilterMode.keyword, caseSensitive: true);
+      // 当前 query 'REPORT'（大写）不再匹配小写文件名
+      expect(pc.visibleEntries, isEmpty);
+      pc.setFilterQuery('report');
+      expect(pc.visibleEntries.map((e) => e.name), [
+        'report2024.txt',
+        'report2025.pdf',
+      ]);
+      pc.setFilterQuery('Reports');
+      expect(pc.visibleEntries.map((e) => e.name), ['Reports']);
+
+      // glob：* 任意串（整名锚定）
+      pc.setFilterMode(QueryFilterMode.glob);
+      pc.setFilterQuery('*.txt');
+      expect(pc.visibleEntries.map((e) => e.name), ['report2024.txt']);
+
+      pc.setFilterQuery('report*2025.*');
+      expect(pc.visibleEntries.map((e) => e.name), ['report2025.pdf']);
+
+      pc.setFilterQuery('?.md');
+      expect(pc.visibleEntries, isEmpty);
+
+      // 正则：显式模式，直接写表达式
+      pc.setFilterMode(QueryFilterMode.regex);
+      pc.setFilterQuery(r'^note');
+      expect(pc.visibleEntries.map((e) => e.name), ['notes.md']);
+
+      pc.setFilterQuery(r'report\d+');
+      expect(pc.visibleEntries.map((e) => e.name), [
+        'report2024.txt',
+        'report2025.pdf',
+      ]);
+
+      // 无效正则退化为关键字匹配，不崩溃
+      pc.setFilterQuery(r'[');
+      expect(pc.visibleEntries, isEmpty);
+
+      pc.setFilterQuery('');
+      expect(pc.visibleEntries, hasLength(5));
+      pc.dispose();
+    });
+
     test('keeps every published page globally sorted', () async {
       source = FakeCursorSource({
         'C:\\Paged': [

@@ -593,10 +593,29 @@ class _StatusBarSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<PaneController, (int, bool, int)>(
-      selector: (_, c) => (c.entryCount, c.isLoading, c.selectedCount),
-      builder: (context, sel, _) =>
-          _StatusBar(loaded: sel.$1, isLoading: sel.$2, selectedCount: sel.$3),
+    return Selector<PaneController, (int, int, bool, int, String, QueryFilterMode, bool)>(
+      selector: (_, c) => (
+        c.entryCount,
+        c.entries.length,
+        c.isLoading,
+        c.selectedCount,
+        c.filterQuery,
+        c.filterMode,
+        c.caseSensitive,
+      ),
+      builder: (context, sel, _) => _StatusBar(
+        visibleCount: sel.$1,
+        totalCount: sel.$2,
+        isLoading: sel.$3,
+        selectedCount: sel.$4,
+        filterQuery: sel.$5,
+        filterMode: sel.$6,
+        caseSensitive: sel.$7,
+        onFilterChanged: context.read<PaneController>().setFilterQuery,
+        onModeSelected: (mode, caseSensitive) => context
+            .read<PaneController>()
+            .setFilterMode(mode, caseSensitive: caseSensitive),
+      ),
     );
   }
 }
@@ -803,24 +822,39 @@ Future<String?> _showInputDialog(
 }
 
 class _StatusBar extends StatelessWidget {
-  final int loaded;
+  final int visibleCount;
+  final int totalCount;
   final bool isLoading;
   final int selectedCount;
+  final String filterQuery;
+  final QueryFilterMode filterMode;
+  final bool caseSensitive;
+  final ValueChanged<String> onFilterChanged;
+  final void Function(QueryFilterMode mode, bool caseSensitive) onModeSelected;
 
   const _StatusBar({
-    required this.loaded,
+    required this.visibleCount,
+    required this.totalCount,
     required this.isLoading,
     required this.selectedCount,
+    required this.filterQuery,
+    required this.filterMode,
+    required this.caseSensitive,
+    required this.onFilterChanged,
+    required this.onModeSelected,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final hasFilter = filterQuery.trim().isNotEmpty;
     String text;
     if (isLoading) {
       text = '正在加载...';
+    } else if (hasFilter) {
+      text = '$visibleCount / $totalCount 个对象';
     } else {
-      text = '$loaded 个对象';
+      text = '$visibleCount 个对象';
     }
     if (selectedCount > 0) {
       text = '已选择 $selectedCount 个对象  |  $text';
@@ -829,11 +863,246 @@ class _StatusBar extends StatelessWidget {
       height: AppMetrics.statusBarHeight,
       decoration: BoxDecoration(color: c.surfaceSubtle),
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      alignment: Alignment.centerLeft,
-      child: Text(
-        text,
-        style: TextStyle(fontSize: AppMetrics.fontSmall, color: c.textTertiary),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: AppMetrics.fontSmall,
+                color: c.textTertiary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 168,
+            child: _StatusFilterField(
+              query: filterQuery,
+              filterMode: filterMode,
+              caseSensitive: caseSensitive,
+              onChanged: onFilterChanged,
+              onModeSelected: onModeSelected,
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+/// 状态栏右侧的过滤输入框：右侧按钮点击切换 关键字（忽略/区分大小写）/
+/// glob / 正则 模式。
+class _StatusFilterField extends StatefulWidget {
+  final String query;
+  final QueryFilterMode filterMode;
+  final bool caseSensitive;
+  final ValueChanged<String> onChanged;
+  final void Function(QueryFilterMode mode, bool caseSensitive) onModeSelected;
+
+  const _StatusFilterField({
+    required this.query,
+    required this.filterMode,
+    required this.caseSensitive,
+    required this.onChanged,
+    required this.onModeSelected,
+  });
+
+  @override
+  State<_StatusFilterField> createState() => _StatusFilterFieldState();
+}
+
+class _StatusFilterFieldState extends State<_StatusFilterField> {
+  late final TextEditingController _textController;
+  late final FocusNode _focusNode;
+  bool _hovering = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController(text: widget.query);
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant _StatusFilterField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.query != widget.query &&
+        _textController.text != widget.query) {
+      _textController.value = TextEditingValue(
+        text: widget.query,
+        selection: TextSelection.collapsed(offset: widget.query.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  String get _modeLabel => switch (widget.filterMode) {
+    QueryFilterMode.keyword => '关键字',
+    QueryFilterMode.glob => 'glob',
+    QueryFilterMode.regex => '正则',
+  };
+
+  String get _modeTooltip => switch (widget.filterMode) {
+    QueryFilterMode.keyword => widget.caseSensitive
+        ? '关键字匹配（大小写敏感）'
+        : '关键字匹配（忽略大小写）',
+    QueryFilterMode.glob => 'glob 通配匹配（* 任意串，? 单字符，整名）',
+    QueryFilterMode.regex => '正则匹配（大小写由设置决定）',
+  };
+
+  bool _isActive(QueryFilterMode mode, bool caseSensitive) {
+    if (widget.filterMode != mode) return false;
+    if (mode == QueryFilterMode.keyword) {
+      return widget.caseSensitive == caseSensitive;
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final hasQuery = widget.query.trim().isNotEmpty;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Tooltip(
+        message: '过滤当前文件夹',
+        waitDuration: const Duration(milliseconds: 600),
+        child: Container(
+          height: 20,
+          padding: const EdgeInsets.only(left: 6, right: 2),
+          decoration: BoxDecoration(
+            color: c.surface,
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            border: Border.all(
+              width: 1,
+              color: _focusNode.hasFocus ? c.accent : c.border,
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Focus(
+                  onFocusChange: (_) => setState(() {}),
+                  child: TextField(
+                    controller: _textController,
+                    focusNode: _focusNode,
+                    onChanged: widget.onChanged,
+                    style: TextStyle(
+                      fontSize: AppMetrics.fontSmall,
+                      color: c.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: '过滤',
+                      hintStyle: TextStyle(
+                        fontSize: AppMetrics.fontSmall,
+                        color: c.textTertiary,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+              ),
+              if (hasQuery) ...[
+                const SizedBox(width: 2),
+                Tooltip(
+                  message: '清除过滤',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+                    onTap: () {
+                      _textController.clear();
+                      widget.onChanged('');
+                      _focusNode.requestFocus();
+                      setState(() {});
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(Icons.close, size: 12, color: c.textSecondary),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(width: 2),
+              Tooltip(
+                message: _modeTooltip,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+                  onTap: _openModeMenu,
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.filter_alt_outlined,
+                          size: AppMetrics.iconSm,
+                          color: c.textSecondary,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          _modeLabel,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            color: c.textSecondary,
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: 12,
+                          color: c.textTertiary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openModeMenu() {
+    final box = context.findRenderObject()! as RenderBox;
+    final position = box.localToGlobal(Offset(box.size.width, box.size.height));
+    showCommandMenu(
+      context,
+      position: position,
+      items: [
+        CommandMenuItem(
+          label: '关键字（忽略大小写）',
+          checked: _isActive(QueryFilterMode.keyword, false),
+          onAction: () => widget.onModeSelected(QueryFilterMode.keyword, false),
+        ),
+        CommandMenuItem(
+          label: '关键字（大小写敏感）',
+          checked: _isActive(QueryFilterMode.keyword, true),
+          onAction: () => widget.onModeSelected(QueryFilterMode.keyword, true),
+        ),
+        const CommandMenuItem.divider(),
+        CommandMenuItem(
+          label: 'glob（* ? 通配）',
+          checked: _isActive(QueryFilterMode.glob, false),
+          onAction: () => widget.onModeSelected(QueryFilterMode.glob, false),
+        ),
+        CommandMenuItem(
+          label: '正则表达式',
+          checked: _isActive(QueryFilterMode.regex, false),
+          onAction: () => widget.onModeSelected(QueryFilterMode.regex, false),
+        ),
+      ],
     );
   }
 }

@@ -11,6 +11,8 @@ class PaneLayoutSnapshot {
     required this.sortAscending,
     required this.filterQuery,
     required this.entryFilter,
+    this.filterMode = 'keyword',
+    this.caseSensitive = false,
     required this.viewMode,
     this.showDetailsPane = false,
     this.showPreviewPane = false,
@@ -81,6 +83,12 @@ class PaneLayoutSnapshot {
         allowEmpty: true,
       ),
       entryFilter: entryFilter,
+      filterMode: switch (json['filterMode']) {
+        'glob' => 'glob',
+        'regex' => 'regex',
+        _ => 'keyword',
+      },
+      caseSensitive: json['caseSensitive'] == true,
       viewMode: viewMode,
       showDetailsPane: json['showDetailsPane'] == true,
       showPreviewPane: json['showPreviewPane'] == true,
@@ -97,6 +105,8 @@ class PaneLayoutSnapshot {
   final bool sortAscending;
   final String filterQuery;
   final String entryFilter;
+  final String filterMode;
+  final bool caseSensitive;
   final String viewMode;
   final bool showDetailsPane;
   final bool showPreviewPane;
@@ -112,6 +122,8 @@ class PaneLayoutSnapshot {
     'sortAscending': sortAscending,
     'filterQuery': filterQuery,
     'entryFilter': entryFilter,
+    'filterMode': filterMode,
+    'caseSensitive': caseSensitive,
     'viewMode': viewMode,
     'showDetailsPane': showDetailsPane,
     'showPreviewPane': showPreviewPane,
