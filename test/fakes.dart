@@ -18,7 +18,7 @@ class FakeCursor implements DirectoryCursor {
   bool get isOpen => _open;
 
   @override
-  List<FileEntry>? nextPage({int count = 100}) {
+  Future<List<FileEntry>?> nextPage({int count = 100}) async {
     nextPageCalls++;
     if (!_open) return null;
     if (nextPageCalls > pages.length) return null;
@@ -39,7 +39,8 @@ class FakeCursorSource {
   FakeCursorSource(Map<String, List<List<FileEntry>?>> raw)
       : data = {for (final e in raw.entries) normPath(e.key): e.value};
 
-  DirectoryCursor? open(String path, {bool directoriesOnly = false}) {
+  Future<DirectoryCursor?> open(String path,
+      {bool directoriesOnly = false}) async {
     final pages = data[normPath(path)];
     if (pages == null) return null;
     final cursor = FakeCursor(pages);

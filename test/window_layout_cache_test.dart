@@ -11,7 +11,7 @@ import 'package:inf_dir/state/layout_state.dart';
 import 'package:inf_dir/state/pane_controller.dart';
 
 DirectoryRepository _emptyRepository() => DirectoryRepository(
-  cursorFactory: (path, {bool directoriesOnly = false}) => null,
+  cursorFactory: (path, {bool directoriesOnly = false}) async => null,
   yieldFrame: () async {},
   hasChildrenProbe: (_) => false,
 );

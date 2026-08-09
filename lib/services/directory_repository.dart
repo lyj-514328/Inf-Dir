@@ -5,8 +5,8 @@ import '../utils/path_utils.dart';
 import 'directory_service.dart';
 import 'sidebar_service.dart';
 
-/// 打开目录枚举 cursor 的工厂。默认走 FFI，测试注入 fake。
-typedef CursorFactory = DirectoryCursor? Function(String path,
+/// 打开目录枚举 cursor 的工厂。默认走 worker isolate FFI，测试注入 fake。
+typedef CursorFactory = Future<DirectoryCursor?> Function(String path,
     {bool directoriesOnly});
 
 /// 帧边界让步函数。生产环境用 postFrameCallback，测试用 microtask / 手动 pump。
@@ -35,7 +35,9 @@ class RequestToken {
 class DirectoryLoadTask {
   final int requestId;
   final String pathKey;
-  final DirectoryCursor cursor;
+
+  /// 可能为 null：任务先占位注册，cursor 由 factory 填充后再赋值。
+  DirectoryCursor? cursor;
   List<FileEntry> partialChildren = const [];
   bool complete = false;
   final Completer<List<FileEntry>?> done = Completer<List<FileEntry>?>();
@@ -92,7 +94,7 @@ class DirectoryRepository {
       // owner 校验：只清理仍由该 task 占有的条目
       if (identical(_activeTasks[e.key], e.value)) {
         _activeTasks.remove(e.key);
-        e.value.cursor.close();
+        e.value.cursor?.close();
       }
     }
   }
@@ -100,7 +102,8 @@ class DirectoryRepository {
   // ── cursor ─────────────────────────────────────────────────
 
   /// 给 FilePane 列表加载使用：与 sidebar 共用同一 cursor 生命周期（§2.7）。
-  DirectoryCursor? openCursor(String path, {bool directoriesOnly = false}) =>
+  Future<DirectoryCursor?> openCursor(String path,
+          {bool directoriesOnly = false}) =>
       _cursorFactory(path, directoriesOnly: directoriesOnly);
 
   // ── complete cache ─────────────────────────────────────────
@@ -123,7 +126,7 @@ class DirectoryRepository {
     final tasks = _activeTasks.values.toList();
     _activeTasks.clear();
     for (final t in tasks) {
-      t.cursor.close();
+      t.cursor?.close();
       if (!t.done.isCompleted) t.done.complete(null);
     }
     _completeCache.clear();
@@ -183,7 +186,8 @@ class DirectoryRepository {
     final cached = _completeCache[key];
     if (cached != null) return cached;
 
-    // 同一路径已有活动任务：不再开新 cursor，等待其完成（ownership 不变）。
+    // 同一路径已有活动任务（含占位）：不再开新 cursor，等待其完成
+    //（ownership 不变）。
     final existing = _activeTasks[key];
     if (existing != null) {
       final result = await existing.done.future;
@@ -191,27 +195,38 @@ class DirectoryRepository {
       return result;
     }
 
-    final cursor = _cursorFactory(path, directoriesOnly: true);
-    if (cursor == null) {
-      // native begin 失败：按空目录处理并缓存，避免重复 begin。
-      const empty = <FileEntry>[];
-      _completeCache[key] = empty;
-      _hasChildrenCache[key] = false;
-      return empty;
-    }
-
-    final task = DirectoryLoadTask(token.id, key, cursor);
+    // 先注册占位任务再 await factory：factory 的异步等待期间，并发请求
+    // 会看到占位任务并等待其 done，不会重复 begin（原同步实现靠同步
+    // factory 保证原子性，异步化后必须显式占位）。
+    final task = DirectoryLoadTask(token.id, key, null);
     _activeTasks[key] = task;
     onPartial?.call(key, const [], true, token.id);
 
     try {
+      final cursor = await _cursorFactory(path, directoriesOnly: true);
+      task.cursor = cursor;
+
+      if (!token.isActive) return null;
+      if (cursor == null) {
+        // native begin 失败：按空目录处理并缓存，避免重复 begin。
+        const empty = <FileEntry>[];
+        _completeCache[key] = empty;
+        _hasChildrenCache[key] = false;
+        if (identical(_activeTasks[key], task)) {
+          _activeTasks.remove(key);
+          onPartial?.call(key, empty, false, token.id);
+        }
+        task.done.complete(empty);
+        return empty;
+      }
+
       while (true) {
         await _yieldFrame();
         if (!token.isActive) return null;
 
-        final page = cursor.nextPage(count: pageSize);
+        final page = await cursor.nextPage(count: pageSize);
 
-        // 同步 FFI 无法中途打断：页允许返回，但取消后立即丢弃（§3）。
+        // worker 上的页已经返回：取消后立即丢弃（§3）。
         if (!token.isActive) return null;
         if (page == null) break;
 
@@ -243,7 +258,7 @@ class DirectoryRepository {
       return task.partialChildren;
     } finally {
       // 每个 task 只关闭自己的 cursor（§5）。
-      cursor.close();
+      task.cursor?.close();
       if (identical(_activeTasks[key], task) && !task.complete) {
         _activeTasks.remove(key);
       }

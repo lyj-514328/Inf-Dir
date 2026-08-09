@@ -323,8 +323,14 @@ class PaneController extends ChangeNotifier {
     final totalSw = Stopwatch()..start();
 
     final sessionSw = Stopwatch()..start();
-    final cursor = _repository.openCursor(path);
+    final cursor = await _repository.openCursor(path);
     sessionSw.stop();
+
+    // 等 cursor 期间可能已有新 request：只关闭自己拿到的 cursor（§11）。
+    if (revision != _revision) {
+      cursor?.close();
+      return;
+    }
 
     final request = _ListingRequest(revision, path, cursor);
     _activeRequest = request;
@@ -344,7 +350,7 @@ class PaneController extends ChangeNotifier {
 
     // 第一页
     final firstSw = Stopwatch()..start();
-    final firstPage = cursor.nextPage(count: 100);
+    final firstPage = await cursor.nextPage(count: 100);
     firstSw.stop();
 
     if (!_isCurrent(request)) {
@@ -387,9 +393,8 @@ class PaneController extends ChangeNotifier {
       if (!_isCurrent(request)) break;
 
       final sw = Stopwatch()..start();
-      final page = cursor.nextPage(count: pageSize);
+      final page = await cursor.nextPage(count: pageSize);
       sw.stop();
-
       // 页允许返回，但结果不能提交给已易主的 UI（§2.3）。
       if (!_isCurrent(request)) break;
       if (page == null) break;

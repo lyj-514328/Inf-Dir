@@ -2,6 +2,7 @@ import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import '../models/file_entry.dart';
+import 'enumeration_worker.dart';
 
 // Native function signatures
 
@@ -302,9 +303,15 @@ class DirectoryService {
 
   /// Open a paged enumeration cursor for [path].
   /// Returns null when the native begin call fails.
-  static DirectoryCursor? openCursor(String path,
-      {bool directoriesOnly = false}) {
-    final id = beginShellEnum(path, directoriesOnly: directoriesOnly);
+  ///
+  /// 枚举 session 在常驻 worker isolate 的线程上创建与翻页（COM 线程
+  /// 亲和性），不再阻塞 UI isolate。
+  static Future<DirectoryCursor?> openCursor(String path,
+      {bool directoriesOnly = false}) async {
+    final id = await EnumerationWorker.instance.begin(
+      path,
+      directoriesOnly: directoriesOnly,
+    );
     if (id <= 0) return null;
     return _ShellDirectoryCursor._(id);
   }
@@ -315,9 +322,10 @@ class DirectoryService {
 /// - close 可以重复调用；
 /// - close 后 nextPage 直接返回 null；
 /// - session id 只存在于 cursor 内部，上层不保存全局 session id。
+/// - 底层 session 由 [EnumerationWorker] 在 worker 线程独占。
 abstract interface class DirectoryCursor {
   /// 取下一页；返回 null 表示没有更多（或 cursor 已关闭）。
-  List<FileEntry>? nextPage({int count = 100});
+  Future<List<FileEntry>?> nextPage({int count = 100});
 
   /// 幂等关闭底层 session。
   void close();
@@ -334,15 +342,15 @@ class _ShellDirectoryCursor implements DirectoryCursor {
   bool get isOpen => _sessionId > 0;
 
   @override
-  List<FileEntry>? nextPage({int count = 100}) {
+  Future<List<FileEntry>?> nextPage({int count = 100}) async {
     if (_sessionId <= 0) return null;
-    return DirectoryService.getNextEnumPage(_sessionId, count: count);
+    return EnumerationWorker.instance.nextPage(_sessionId, count: count);
   }
 
   @override
   void close() {
     if (_sessionId <= 0) return;
-    DirectoryService.endShellEnum(_sessionId);
+    EnumerationWorker.instance.end(_sessionId);
     _sessionId = -1;
   }
 }

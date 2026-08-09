@@ -41,9 +41,10 @@ void main() {
       );
     });
 
-    test('构造后同步拿到第一页，分页完成后排序', () async {
+    test('构造后尽快拿到第一页（worker 异步），分页完成后排序', () async {
       final pc = makePane('C:\\A');
-      // 第一页同步提交
+      // 第一页经 worker isolate 异步返回
+      await settle();
       expect(pc.entries.length, 2);
       expect(pc.entries.map((e) => e.name), ['a1', 'f1.txt']);
       expect(pc.isLoading, isFalse);
@@ -119,6 +120,7 @@ void main() {
       );
 
       final pc = makePane('C:\\Paged');
+      await settle();
       expect(pc.entries.map((e) => e.name), [
         'a-dir',
         'z-dir',
@@ -164,6 +166,7 @@ void main() {
       );
 
       final pc = makePane('C:\\Natural');
+      await settle();
       expect(pc.entries.map((entry) => entry.name), [
         'file1.txt',
         'file2.txt',
@@ -174,7 +177,7 @@ void main() {
       pc.dispose();
     });
 
-    test('home is a virtual page and participates in navigation history', () {
+    test('home is a virtual page and participates in navigation history', () async {
       final pc = makePane(FileService.homeViewPath);
 
       expect(pc.isHome, isTrue);
@@ -186,6 +189,7 @@ void main() {
 
       pc.navigateTo('C:\\A');
       expect(pc.isHome, isFalse);
+      await settle();
       expect(source.created, hasLength(1));
 
       pc.goBack();
@@ -249,11 +253,14 @@ void main() {
 
     test('快速 A -> B -> C：只显示 C，A/B 的 cursor 都关闭', () async {
       final pc = makePane('C:\\A');
+      await settle();
       final cursorA = source.last;
 
       pc.navigateTo('C:\\B');
+      await settle();
       final cursorB = source.last;
       pc.navigateTo('C:\\C');
+      await settle();
       final cursorC = source.last;
 
       await runToIdle(pump);
@@ -268,10 +275,12 @@ void main() {
 
     test('旧 request 晚返回只关闭自己的 cursor，不污染当前 entries', () async {
       final pc = makePane('C:\\A');
+      await settle();
       final cursorA = source.last;
       expect(pc.entries.length, 2); // A 第一页
 
       pc.navigateTo('C:\\B');
+      await settle();
       expect(pc.entries.map((e) => e.name), ['b1']);
 
       // A 的分页循环此时恢复：不得把 a2 追加进来，不得再翻页
@@ -297,6 +306,7 @@ void main() {
 
       pc.refresh();
       expect(repo.cachedChildren('C:\\A'), isNull); // 定点失效
+      await settle();
       expect(source.created.length, greaterThan(cursorsBefore)); // 新 cursor
 
       await runToIdle(pump);
@@ -304,15 +314,17 @@ void main() {
       pc.dispose();
     });
 
-    test('native begin 失败：entries 清空、loading 结束', () {
+    test('native begin 失败：entries 清空、loading 结束', () async {
       final pc = makePane('C:\\Nowhere');
+      await settle();
       expect(pc.entries, isEmpty);
       expect(pc.isLoading, isFalse);
       pc.dispose();
     });
 
-    test('native page 返回 null：空目录正常结束', () {
+    test('native page 返回 null：空目录正常结束', () async {
       final pc = makePane('C:\\Empty');
+      await settle();
       expect(pc.entries, isEmpty);
       expect(pc.isLoading, isFalse);
       expect(source.last.isOpen, isFalse);
@@ -336,6 +348,7 @@ void main() {
 
     test('dispose 时仍有 page task：cursor 关闭、不再 setState', () async {
       final pc = makePane('C:\\A');
+      await settle();
       final cursor = source.last;
       expect(cursor.isOpen, isTrue);
 
