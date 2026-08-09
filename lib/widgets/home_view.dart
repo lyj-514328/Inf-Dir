@@ -602,6 +602,7 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
                           child: Text(
                             _displayHomeName(
                               widget.item.name,
+                              widget.item.isDirectory,
                               widget.showFileExtensions,
                             ),
                             maxLines: 1,
@@ -690,7 +691,11 @@ class _HomeListRow extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _displayHomeName(item.name, showFileExtensions),
+                      _displayHomeName(
+                        item.name,
+                        item.isDirectory,
+                        showFileExtensions,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -762,7 +767,11 @@ class _HomeContentRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _displayHomeName(item.name, showFileExtensions),
+                      _displayHomeName(
+                        item.name,
+                        item.isDirectory,
+                        showFileExtensions,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -892,7 +901,11 @@ class _HomeIconTileState extends State<_HomeIconTile> {
   }
 
   Widget _tileName(BuildContext context) => Text(
-    _displayHomeName(widget.item.name, widget.showFileExtensions),
+    _displayHomeName(
+      widget.item.name,
+      widget.item.isDirectory,
+      widget.showFileExtensions,
+    ),
     maxLines: widget.horizontal ? 1 : 2,
     textAlign: widget.horizontal ? TextAlign.start : TextAlign.center,
     overflow: TextOverflow.ellipsis,
@@ -960,8 +973,13 @@ class _HomeIcon extends StatelessWidget {
 String _formatDate(DateTime date) =>
     '${date.year}/${date.month}/${date.day} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 
-String _displayHomeName(String name, bool showFileExtensions) {
-  if (showFileExtensions) return name;
+/// 目录名始终完整显示（与资源管理器一致），隐藏后缀只作用于文件。
+String _displayHomeName(
+  String name,
+  bool isDirectory,
+  bool showFileExtensions,
+) {
+  if (showFileExtensions || isDirectory) return name;
   final extension = p.extension(name);
   return extension.isEmpty ? name : p.basenameWithoutExtension(name);
 }

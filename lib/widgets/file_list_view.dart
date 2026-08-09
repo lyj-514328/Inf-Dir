@@ -9,8 +9,13 @@ import 'app_theme.dart';
 /// 云同步"状态"列的固定宽度（不参与列宽拖拽）。
 const double _statusColWidth = 48;
 
-String _displayEntryName(String name, bool showFileExtensions) {
-  if (showFileExtensions) return name;
+/// 目录名始终完整显示（与资源管理器一致），隐藏后缀只作用于文件。
+String _displayEntryName(
+  String name,
+  bool isDirectory,
+  bool showFileExtensions,
+) {
+  if (showFileExtensions || isDirectory) return name;
   final extension = p.extension(name);
   return extension.isEmpty ? name : p.basenameWithoutExtension(name);
 }
@@ -511,6 +516,7 @@ class _ExplorerTileState extends State<_ExplorerTile> {
                         child: Text(
                           _displayEntryName(
                             widget.entry.name,
+                            widget.entry.isDirectory,
                             widget.showFileExtensions,
                           ),
                           maxLines: 1,
@@ -539,6 +545,7 @@ class _ExplorerTileState extends State<_ExplorerTile> {
                       Text(
                         _displayEntryName(
                           widget.entry.name,
+                          widget.entry.isDirectory,
                           widget.showFileExtensions,
                         ),
                         maxLines: 2,
@@ -639,6 +646,7 @@ class _ExplorerContentRowState extends State<_ExplorerContentRow> {
                       Text(
                         _displayEntryName(
                           widget.entry.name,
+                          widget.entry.isDirectory,
                           widget.showFileExtensions,
                         ),
                         maxLines: 1,
@@ -1001,6 +1009,7 @@ class _FileRowState extends State<_FileRow> {
                                 child: Text(
                                   _displayEntryName(
                                     widget.entry.name,
+                                    widget.entry.isDirectory,
                                     widget.showFileExtensions,
                                   ),
                                   style: TextStyle(
