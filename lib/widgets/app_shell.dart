@@ -4,6 +4,7 @@ import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:toastification/toastification.dart';
 import 'package:window_manager/window_manager.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../features/quick_view/viewer_associations_dialog.dart';
@@ -122,9 +123,13 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   Future<void> _openQuickView(String path) async {
     final result = await context.read<QuickViewService>().open(path);
     if (!mounted || result.started) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(result.message)));
+    toastification.show(
+      title: const Text('快速查看'),
+      description: Text(result.message),
+      type: ToastificationType.warning,
+      style: ToastificationStyle.flatColored,
+      autoCloseDuration: const Duration(seconds: 4),
+    );
   }
 
   @override

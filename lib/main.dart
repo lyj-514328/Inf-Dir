@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:toastification/toastification.dart';
 import 'package:window_manager/window_manager.dart';
 import 'features/quick_view/quick_view_service.dart';
 import 'services/directory_repository.dart';
@@ -63,7 +64,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeController()),
         ChangeNotifierProvider(create: (_) => QuickViewService()),
       ],
-      child: const InfDirApp(),
+      child: const ToastificationWrapper(child: InfDirApp()),
     ),
   );
 }
