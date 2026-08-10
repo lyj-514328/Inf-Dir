@@ -20,6 +20,8 @@ class FileSearchDialog extends StatefulWidget {
 }
 
 class _FileSearchDialogState extends State<FileSearchDialog> {
+  static const double _resultRowExtent = 44;
+
   late final TextEditingController _queryController;
   late final FocusNode _queryFocusNode;
   FileSearchPatternMode _patternMode = FileSearchPatternMode.keyword;
@@ -33,6 +35,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
   bool _searching = false;
   bool _hasSearched = false;
   int _searchRevision = 0;
+  bool _resultUpdateScheduled = false;
 
   @override
   void initState() {
@@ -63,6 +66,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
 
   void _invalidateSearch() {
     _searchRevision++;
+    _resultUpdateScheduled = false;
     setState(() {
       _results = <FileSearchResult>[];
       _error = null;
@@ -73,6 +77,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
 
   Future<void> _runSearch() async {
     final revision = ++_searchRevision;
+    _resultUpdateScheduled = false;
     setState(() {
       _searching = true;
       _error = null;
@@ -86,7 +91,10 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
         options: _options,
         onResult: (result) {
           if (!mounted || revision != _searchRevision) return;
-          setState(() => _results.add(result));
+          // fd can emit hundreds of results per frame. Coalesce notifications
+          // so a burst only rebuilds the dialog once per Flutter frame.
+          _results.add(result);
+          _scheduleResultUpdate(revision);
         },
       );
       if (!mounted || revision != _searchRevision) return;
@@ -102,6 +110,16 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
         _error = error is FileSearchException ? error.message : '搜索失败：$error';
       });
     }
+  }
+
+  void _scheduleResultUpdate(int revision) {
+    if (_resultUpdateScheduled) return;
+    _resultUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _resultUpdateScheduled = false;
+      if (!mounted || revision != _searchRevision) return;
+      setState(() {});
+    });
   }
 
   void _openResult(FileSearchResult result) {
@@ -332,46 +350,54 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
               Expanded(
                 child: _results.isEmpty
                     ? const SizedBox.shrink()
-                    : ListView.separated(
+                    : ListView.builder(
+                        itemExtent: _resultRowExtent,
                         itemCount: _results.length,
-                        separatorBuilder: (_, _) =>
-                            Divider(height: 1, color: c.border),
                         itemBuilder: (context, index) {
                           final result = _results[index];
-                          return ListTile(
-                            dense: true,
-                            visualDensity: VisualDensity.compact,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                            ),
-                            leading: Icon(
-                              result.isDirectory
-                                  ? Icons.folder_outlined
-                                  : Icons.insert_drive_file_outlined,
-                              size: AppMetrics.iconMd,
-                              color: result.isDirectory
-                                  ? c.iconFolder
-                                  : c.iconFile,
-                            ),
-                            title: Text(
-                              p.basename(result.path),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: AppMetrics.fontBody,
-                                color: c.textPrimary,
+                          return DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(color: c.border),
                               ),
                             ),
-                            subtitle: Text(
-                              result.path,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: AppMetrics.fontCaption,
-                                color: c.textTertiary,
+                            child: ListTile(
+                              dense: true,
+                              minTileHeight: _resultRowExtent,
+                              minVerticalPadding: 0,
+                              visualDensity: VisualDensity.compact,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 4,
                               ),
+                              leading: Icon(
+                                result.isDirectory
+                                    ? Icons.folder_outlined
+                                    : Icons.insert_drive_file_outlined,
+                                size: AppMetrics.iconMd,
+                                color: result.isDirectory
+                                    ? c.iconFolder
+                                    : c.iconFile,
+                              ),
+                              title: Text(
+                                p.basename(result.path),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: AppMetrics.fontBody,
+                                  color: c.textPrimary,
+                                ),
+                              ),
+                              subtitle: Text(
+                                result.path,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: AppMetrics.fontCaption,
+                                  color: c.textTertiary,
+                                ),
+                              ),
+                              onTap: () => _openResult(result),
                             ),
-                            onTap: () => _openResult(result),
                           );
                         },
                       ),

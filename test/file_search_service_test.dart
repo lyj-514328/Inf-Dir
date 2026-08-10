@@ -180,6 +180,40 @@ void main() {
       expect(results.single.ranges.single.end, 12);
     });
 
+    test(
+      'trims long matching lines without losing UTF-8 highlight offsets',
+      () async {
+        final prefix =
+            '${List.filled(80, '中').join()}${List.filled(500, 'a').join()}';
+        final lineText = '$prefix needle ${List.filled(500, 'z').join()}';
+        final byteStart = utf8.encode('$prefix ').length;
+        final matchLine = jsonEncode({
+          'type': 'match',
+          'data': {
+            'path': {'text': 'long.svg'},
+            'lines': {'text': '$lineText\n'},
+            'line_number': 9,
+            'submatches': [
+              {'start': byteStart, 'end': byteStart + 6},
+            ],
+          },
+        });
+        final service = TextSearchService(
+          executable: 'rg-test',
+          runner: (executable, arguments, {workingDirectory}) async =>
+              ProcessResult(1, 0, '$matchLine\n', ''),
+        );
+
+        final results = await service.search(root.path, 'needle');
+        final match = results.single;
+        final range = match.ranges.single;
+
+        expect(match.column, byteStart + 1);
+        expect(match.text.length, lessThanOrEqualTo(520));
+        expect(match.text.substring(range.start, range.end), 'needle');
+      },
+    );
+
     test('limits text search by distinct matching files', () async {
       String matchLine(String path, int line) => jsonEncode({
         'type': 'match',
@@ -305,14 +339,22 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('最大匹配文件数'), findsOneWidget);
       expect(find.text('文件内最大匹配行数'), findsOneWidget);
+      final patternCenter = tester.getCenter(
+        find.byType(SegmentedButton<TextSearchPatternMode>),
+      );
+      final limitCenter = tester.getCenter(
+        find.byType(DropdownButton<int>).first,
+      );
+      expect((patternCenter.dy - limitCenter.dy).abs(), lessThan(4));
       await tester.enterText(find.byType(TextField), 'report');
       await tester.tap(find.widgetWithText(FilledButton, '搜索'));
       await tester.pumpAndSettle();
 
       expect(find.text('report.txt (1)'), findsOneWidget);
-      expect(find.text('3:7'), findsOneWidget);
+      expect(find.text('report.txt'), findsOneWidget);
+      expect(find.text('3:'), findsOneWidget);
       expect(find.text('hello report'), findsOneWidget);
-      await tester.tap(find.text('3:7'));
+      await tester.tap(find.text('3:'));
       await tester.pumpAndSettle();
       expect((await dialogFuture)!.path, file);
     });

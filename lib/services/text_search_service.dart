@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'search_plugin_resolver.dart';
+import '../utils/perf_log.dart';
 
 enum TextSearchPatternMode { keyword, regex }
 
@@ -101,6 +102,9 @@ class _TextSearchJsonEvent {
 }
 
 class TextSearchService {
+  static const int _maxPreviewCodeUnits = 512;
+  static const int _previewLeadCodeUnits = 128;
+
   final String executable;
   // A buffered runner remains available for deterministic tests.
   final TextSearchRunner? _runner;
@@ -188,6 +192,7 @@ class TextSearchService {
     TextSearchOptions options, {
     TextSearchMatchCallback? onMatch,
   }) async {
+    final searchSw = Stopwatch()..start();
     late final ProcessResult result;
     try {
       result = await _runner!(
@@ -200,7 +205,7 @@ class TextSearchService {
     }
 
     _throwOnExit(result.exitCode, result.stderr.toString());
-    return _parseOutput(
+    final results = _parseOutput(
       result.stdout is String
           ? result.stdout as String
           : result.stdout.toString(),
@@ -208,6 +213,11 @@ class TextSearchService {
       options.maxFiles,
       onMatch: onMatch,
     );
+    searchSw.stop();
+    PerfLog.write(
+      '[TextSearchService] buffered matches=${results.length} totalMs=${searchSw.elapsedMilliseconds}',
+    );
+    return results;
   }
 
   Future<List<TextSearchMatch>> _searchStreaming(
@@ -216,6 +226,9 @@ class TextSearchService {
     TextSearchOptions options, {
     TextSearchMatchCallback? onMatch,
   }) async {
+    final searchSw = Stopwatch()..start();
+    final parseSw = Stopwatch();
+    var callbackMicros = 0;
     late final Process process;
     try {
       process = await _processStarter(
@@ -246,7 +259,12 @@ class TextSearchService {
           if (seenFiles.length == options.maxFiles) stopAfterPath = key;
         }
         matches.add(match);
-        onMatch?.call(match);
+        if (onMatch != null) {
+          final callbackSw = Stopwatch()..start();
+          onMatch(match);
+          callbackSw.stop();
+          callbackMicros += callbackSw.elapsedMicroseconds;
+        }
       }
 
       return stopAfterPath != null &&
@@ -266,10 +284,12 @@ class TextSearchService {
       while (true) {
         final end = text.indexOf('\n', start);
         if (end < 0) break;
+        parseSw.start();
         final event = _parseLine(
           text.substring(start, end).replaceFirst(RegExp(r'\r$'), ''),
           rootPath,
         );
+        parseSw.stop();
         if (accept(event)) {
           stoppedByFileLimit = true;
           process.kill();
@@ -280,12 +300,20 @@ class TextSearchService {
       pending = StringBuffer(text.substring(start));
     }
     if (!stoppedByFileLimit) {
+      parseSw.start();
       accept(_parseLine(pending.toString(), rootPath));
+      parseSw.stop();
     }
 
     final exitCode = await process.exitCode;
     final stderr = (await stderrFuture).trim();
     if (!stoppedByFileLimit) _throwOnExit(exitCode, stderr);
+    searchSw.stop();
+    PerfLog.write(
+      '[TextSearchService] streaming matches=${matches.length} files=${seenFiles.length} '
+      'parseMs=${parseSw.elapsedMilliseconds} callbackMs=${(callbackMicros / 1000).toStringAsFixed(1)} '
+      'totalMs=${searchSw.elapsedMilliseconds} stoppedByLimit=$stoppedByFileLimit',
+    );
     return matches;
   }
 
@@ -348,8 +376,7 @@ class TextSearchService {
           )
         : '';
     final submatches = data['submatches'];
-    final ranges = <TextSearchMatchRange>[];
-    var firstStart = 0;
+    final byteRanges = <({int start, int end})>[];
     if (submatches is List) {
       for (final submatch in submatches) {
         if (submatch is! Map) continue;
@@ -358,19 +385,25 @@ class TextSearchService {
         if (byteStart == null || byteEnd == null || byteEnd <= byteStart) {
           continue;
         }
-        final start = _byteOffsetToCodeUnit(text, byteStart);
-        final end = _byteOffsetToCodeUnit(text, byteEnd);
-        if (end <= start) continue;
-        if (ranges.isEmpty) firstStart = byteStart;
-        ranges.add(TextSearchMatchRange(start: start, end: end));
+        byteRanges.add((start: byteStart, end: byteEnd));
       }
     }
+    final firstStart = byteRanges.isEmpty ? 0 : byteRanges.first.start;
+    final offsets = _byteOffsetsToCodeUnits(text, byteRanges);
+    final ranges = <TextSearchMatchRange>[];
+    for (final range in byteRanges) {
+      final start = offsets[range.start] ?? 0;
+      final end = offsets[range.end] ?? start;
+      if (end <= start) continue;
+      ranges.add(TextSearchMatchRange(start: start, end: end));
+    }
+    final preview = _buildPreview(text, ranges);
     final match = TextSearchMatch(
       path: path,
       line: lineNumber,
       column: firstStart + 1,
-      text: text,
-      ranges: ranges,
+      text: preview.text,
+      ranges: preview.ranges,
     );
     return _TextSearchJsonEvent(type: type, path: path, match: match);
   }
@@ -380,19 +413,93 @@ class TextSearchService {
     return Platform.isWindows ? normalized.toLowerCase() : normalized;
   }
 
-  int _byteOffsetToCodeUnit(String text, int byteOffset) {
-    if (byteOffset <= 0) return 0;
+  Map<int, int> _byteOffsetsToCodeUnits(
+    String text,
+    List<({int start, int end})> ranges,
+  ) {
+    if (ranges.isEmpty) return const <int, int>{};
+    final targets = <int>{
+      for (final range in ranges) range.start,
+      for (final range in ranges) range.end,
+    }.toList()..sort();
+    final converted = <int, int>{};
+    var targetIndex = 0;
     var bytes = 0;
     var codeUnits = 0;
     for (final rune in text.runes) {
-      final value = String.fromCharCode(rune);
-      final runeBytes = utf8.encode(value).length;
-      if (bytes + runeBytes > byteOffset) break;
-      bytes += runeBytes;
-      codeUnits += value.length;
-      if (bytes == byteOffset) break;
+      final nextBytes = bytes + _utf8Length(rune);
+      while (targetIndex < targets.length && targets[targetIndex] < nextBytes) {
+        converted[targets[targetIndex]] = codeUnits;
+        targetIndex++;
+      }
+      bytes = nextBytes;
+      codeUnits += rune > 0xffff ? 2 : 1;
+      while (targetIndex < targets.length && targets[targetIndex] == bytes) {
+        converted[targets[targetIndex]] = codeUnits;
+        targetIndex++;
+      }
+      if (targetIndex == targets.length) break;
     }
-    return codeUnits;
+    while (targetIndex < targets.length) {
+      converted[targets[targetIndex]] = codeUnits;
+      targetIndex++;
+    }
+    return converted;
+  }
+
+  int _utf8Length(int rune) {
+    if (rune <= 0x7f) return 1;
+    if (rune <= 0x7ff) return 2;
+    if (rune <= 0xffff) return 3;
+    return 4;
+  }
+
+  ({String text, List<TextSearchMatchRange> ranges}) _buildPreview(
+    String text,
+    List<TextSearchMatchRange> ranges,
+  ) {
+    if (text.length <= _maxPreviewCodeUnits) {
+      return (text: text, ranges: ranges);
+    }
+    final anchor = ranges.isEmpty ? 0 : ranges.first.start;
+    var start = (anchor - _previewLeadCodeUnits).clamp(0, text.length);
+    var end = (start + _maxPreviewCodeUnits).clamp(0, text.length);
+    if (end - start < _maxPreviewCodeUnits) {
+      start = (end - _maxPreviewCodeUnits).clamp(0, text.length);
+    }
+    start = _safeCodeUnitBoundary(text, start);
+    end = _safeCodeUnitBoundary(text, end);
+
+    final prefix = start > 0 ? '... ' : '';
+    final suffix = end < text.length ? ' ...' : '';
+    final previewRanges = <TextSearchMatchRange>[];
+    for (final range in ranges) {
+      final visibleStart = range.start.clamp(start, end);
+      final visibleEnd = range.end.clamp(start, end);
+      if (visibleEnd <= visibleStart) continue;
+      previewRanges.add(
+        TextSearchMatchRange(
+          start: prefix.length + visibleStart - start,
+          end: prefix.length + visibleEnd - start,
+        ),
+      );
+    }
+    return (
+      text: '$prefix${text.substring(start, end)}$suffix',
+      ranges: previewRanges,
+    );
+  }
+
+  int _safeCodeUnitBoundary(String text, int index) {
+    if (index <= 0 || index >= text.length) return index;
+    final current = text.codeUnitAt(index);
+    final previous = text.codeUnitAt(index - 1);
+    final splitsSurrogatePair =
+        current >= 0xdc00 &&
+        current <= 0xdfff &&
+        previous >= 0xd800 &&
+        previous <= 0xdbff;
+    return splitsSurrogatePair ? index - 1 : index;
   }
 
   void _throwOnExit(int exitCode, String stderr) {

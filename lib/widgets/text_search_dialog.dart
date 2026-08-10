@@ -1,8 +1,13 @@
+import 'dart:ui' show FrameTiming;
+
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/text_search_service.dart';
+import '../utils/perf_log.dart';
 import 'app_theme.dart';
+
+enum _TextSearchRowKind { fileName, relativePath, match }
 
 class TextSearchDialog extends StatefulWidget {
   final String rootPath;
@@ -19,6 +24,8 @@ class TextSearchDialog extends StatefulWidget {
 }
 
 class _TextSearchDialogState extends State<TextSearchDialog> {
+  static const double _resultRowExtent = 26;
+
   late final TextEditingController _queryController;
   late final FocusNode _queryFocusNode;
   TextSearchPatternMode _patternMode = TextSearchPatternMode.keyword;
@@ -28,20 +35,29 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
   int _maxFiles = 200;
   int _maxMatchesPerFile = 500;
   List<TextSearchMatch> _results = <TextSearchMatch>[];
+  final Map<String, List<TextSearchMatch>> _groupedResultsByPath =
+      <String, List<TextSearchMatch>>{};
   String? _error;
   bool _searching = false;
   bool _hasSearched = false;
   int _searchRevision = 0;
+  bool _resultUpdateScheduled = false;
+  final Set<String> _collapsedPaths = <String>{};
+  final Stopwatch _searchSw = Stopwatch();
+  int _lastPerfResultCount = 0;
+  int _lastSlowFrameLogAtMs = 0;
 
   @override
   void initState() {
     super.initState();
     _queryController = TextEditingController();
     _queryFocusNode = FocusNode();
+    WidgetsBinding.instance.addTimingsCallback(_onFrameTimings);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeTimingsCallback(_onFrameTimings);
     _queryController.dispose();
     _queryFocusNode.dispose();
     super.dispose();
@@ -58,8 +74,11 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
 
   void _invalidateSearch() {
     _searchRevision++;
+    _resultUpdateScheduled = false;
     setState(() {
       _results = <TextSearchMatch>[];
+      _groupedResultsByPath.clear();
+      _collapsedPaths.clear();
       _error = null;
       _hasSearched = false;
       _searching = false;
@@ -68,10 +87,17 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
 
   Future<void> _runSearch() async {
     final revision = ++_searchRevision;
+    _searchSw
+      ..reset()
+      ..start();
+    _lastPerfResultCount = 0;
+    _resultUpdateScheduled = false;
     setState(() {
       _searching = true;
       _error = null;
       _results = <TextSearchMatch>[];
+      _groupedResultsByPath.clear();
+      _collapsedPaths.clear();
       _hasSearched = false;
     });
     try {
@@ -81,21 +107,77 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
         options: _options,
         onMatch: (match) {
           if (!mounted || revision != _searchRevision) return;
-          setState(() => _results.add(match));
+          // ripgrep may produce a very dense stream. Keep the model current,
+          // but repaint at most once per frame to preserve scroll smoothness.
+          _results.add(match);
+          _groupedResultsByPath
+              .putIfAbsent(match.path, () => <TextSearchMatch>[])
+              .add(match);
+          if (_results.length - _lastPerfResultCount >= 500) {
+            _lastPerfResultCount = _results.length;
+            PerfLog.write(
+              '[TextSearchDialog] streaming results=${_results.length} '
+              'files=${_groupedResultsByPath.length} elapsedMs=${_searchSw.elapsedMilliseconds}',
+            );
+          }
+          _scheduleResultUpdate(revision);
         },
       );
       if (!mounted || revision != _searchRevision) return;
       setState(() {
         _searching = false;
         _results = results;
+        _rebuildGroupedResults();
         _hasSearched = true;
       });
+      _searchSw.stop();
+      PerfLog.write(
+        '[TextSearchDialog] completed results=${_results.length} '
+        'files=${_groupedResultsByPath.length} totalMs=${_searchSw.elapsedMilliseconds}',
+      );
     } catch (error) {
       if (!mounted || revision != _searchRevision) return;
       setState(() {
         _searching = false;
         _error = error is TextSearchException ? error.message : '搜索失败：$error';
       });
+    }
+  }
+
+  void _onFrameTimings(List<FrameTiming> timings) {
+    if (!mounted || (!_searching && _results.isEmpty)) return;
+    for (final timing in timings) {
+      final totalMicros = timing.totalSpan.inMicroseconds;
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      if (totalMicros < 16000 || nowMs - _lastSlowFrameLogAtMs < 1000) {
+        continue;
+      }
+      _lastSlowFrameLogAtMs = nowMs;
+      PerfLog.write(
+        '[TextSearchDialog] slowFrame totalMs=${(totalMicros / 1000).toStringAsFixed(1)} '
+        'buildMs=${(timing.buildDuration.inMicroseconds / 1000).toStringAsFixed(1)} '
+        'rasterMs=${(timing.rasterDuration.inMicroseconds / 1000).toStringAsFixed(1)} '
+        'results=${_results.length} files=${_groupedResultsByPath.length} searching=$_searching',
+      );
+    }
+  }
+
+  void _scheduleResultUpdate(int revision) {
+    if (_resultUpdateScheduled) return;
+    _resultUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _resultUpdateScheduled = false;
+      if (!mounted || revision != _searchRevision) return;
+      setState(() {});
+    });
+  }
+
+  void _rebuildGroupedResults() {
+    _groupedResultsByPath.clear();
+    for (final result in _results) {
+      _groupedResultsByPath
+          .putIfAbsent(result.path, () => <TextSearchMatch>[])
+          .add(result);
     }
   }
 
@@ -202,50 +284,7 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
                 onChanged: (_) => _invalidateSearch(),
               ),
               const SizedBox(height: 12),
-              SegmentedButton<TextSearchPatternMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: TextSearchPatternMode.keyword,
-                    icon: Icon(Icons.text_fields),
-                    label: Text('关键词'),
-                  ),
-                  ButtonSegment(
-                    value: TextSearchPatternMode.regex,
-                    icon: Icon(Icons.code),
-                    label: Text('正则'),
-                  ),
-                ],
-                selected: {_patternMode},
-                showSelectedIcon: false,
-                onSelectionChanged: (selection) {
-                  setState(() => _patternMode = selection.first);
-                  _invalidateSearch();
-                },
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _limitDropdown(
-                      c,
-                      label: '最大匹配文件数',
-                      value: _maxFiles,
-                      values: const [20, 50, 100, 200, 500, 1000, 2000],
-                      onChanged: (value) => _maxFiles = value,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _limitDropdown(
-                      c,
-                      label: '文件内最大匹配行数',
-                      value: _maxMatchesPerFile,
-                      values: const [20, 50, 100, 200, 500, 1000, 2000],
-                      onChanged: (value) => _maxMatchesPerFile = value,
-                    ),
-                  ),
-                ],
-              ),
+              _modeAndLimitControls(c),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -334,70 +373,126 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
               Expanded(
                 child: _results.isEmpty
                     ? const SizedBox.shrink()
-                    : ListView.separated(
-                        itemCount: groupedResults.length,
-                        separatorBuilder: (_, _) =>
-                            Divider(height: 1, color: c.border),
+                    : ListView.builder(
+                        itemExtent: _resultRowExtent,
+                        itemCount: _visibleRowCount(groupedResults),
                         itemBuilder: (context, index) {
-                          final group = groupedResults[index];
-                          return ExpansionTile(
-                            key: PageStorageKey(group.key),
-                            initiallyExpanded: true,
-                            tilePadding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                            ),
-                            leading: Icon(
-                              Icons.description_outlined,
-                              size: AppMetrics.iconMd,
-                              color: c.iconFile,
-                            ),
-                            title: Text(
-                              '${p.basename(group.key)} (${group.value.length})',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: AppMetrics.fontBody,
-                                color: c.textPrimary,
-                              ),
-                            ),
-                            subtitle: Text(
+                          final row = _rowAt(groupedResults, index);
+                          if (row.kind == _TextSearchRowKind.fileName) {
+                            final group = row.group!;
+                            final collapsed = _collapsedPaths.contains(
                               group.key,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: AppMetrics.fontCaption,
-                                color: c.textTertiary,
+                            );
+                            return InkWell(
+                              key: ValueKey('file:${group.key}'),
+                              onTap: () {
+                                setState(() {
+                                  if (collapsed) {
+                                    _collapsedPaths.remove(group.key);
+                                  } else {
+                                    _collapsedPaths.add(group.key);
+                                  }
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.description_outlined,
+                                      size: AppMetrics.iconSm,
+                                      color: c.accent,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '${p.basename(group.key)} (${group.value.length})',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: AppMetrics.fontBody,
+                                          fontWeight: FontWeight.w600,
+                                          color: c.accent,
+                                        ),
+                                      ),
+                                    ),
+                                    Icon(
+                                      collapsed
+                                          ? Icons.chevron_right
+                                          : Icons.expand_more,
+                                      size: AppMetrics.iconSm,
+                                      color: c.textTertiary,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            children: [
-                              for (final result in group.value)
-                                ListTile(
-                                  dense: true,
-                                  visualDensity: VisualDensity.compact,
-                                  contentPadding: const EdgeInsets.only(
-                                    left: 44,
-                                    right: 4,
+                            );
+                          }
+                          if (row.kind == _TextSearchRowKind.relativePath) {
+                            final relativePath = p.relative(
+                              row.group!.key,
+                              from: widget.rootPath,
+                            );
+                            return Padding(
+                              key: ValueKey('path:${row.group!.key}'),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.folder_open_outlined,
+                                    size: AppMetrics.iconSm,
+                                    color: c.textTertiary,
                                   ),
-                                  leading: SizedBox(
-                                    width: 52,
+                                  const SizedBox(width: 8),
+                                  Expanded(
                                     child: Text(
-                                      '${result.line}:${result.column}',
-                                      textAlign: TextAlign.right,
+                                      relativePath,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        fontSize: AppMetrics.fontCaption,
+                                        fontSize: AppMetrics.fontBody,
                                         color: c.textTertiary,
                                       ),
                                     ),
                                   ),
-                                  title: Text.rich(
-                                    _highlightedText(result, c),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                ],
+                              ),
+                            );
+                          }
+                          final result = row.match!;
+                          return InkWell(
+                            key: ValueKey('${result.path}:${result.line}'),
+                            onTap: () => Navigator.of(context).pop(result),
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8, right: 8),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 40,
+                                    child: Text(
+                                      '${result.line}:',
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        fontSize: AppMetrics.fontBody,
+                                        color: c.success,
+                                      ),
+                                    ),
                                   ),
-                                  onTap: () =>
-                                      Navigator.of(context).pop(result),
-                                ),
-                            ],
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text.rich(
+                                      _highlightedText(result, c),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -460,6 +555,75 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
     );
   }
 
+  Widget _modeAndLimitControls(AppColors c) {
+    Widget patternModeControl() => SegmentedButton<TextSearchPatternMode>(
+      segments: const [
+        ButtonSegment(
+          value: TextSearchPatternMode.keyword,
+          icon: Icon(Icons.text_fields),
+          label: Text('关键词'),
+        ),
+        ButtonSegment(
+          value: TextSearchPatternMode.regex,
+          icon: Icon(Icons.code),
+          label: Text('正则'),
+        ),
+      ],
+      selected: {_patternMode},
+      showSelectedIcon: false,
+      onSelectionChanged: (selection) {
+        setState(() => _patternMode = selection.first);
+        _invalidateSearch();
+      },
+    );
+
+    Widget maxFilesControl() => _limitDropdown(
+      c,
+      label: '最大匹配文件数',
+      value: _maxFiles,
+      values: const [20, 50, 100, 200, 500, 1000, 2000],
+      onChanged: (value) => _maxFiles = value,
+    );
+
+    Widget maxMatchesControl() => _limitDropdown(
+      c,
+      label: '文件内最大匹配行数',
+      value: _maxMatchesPerFile,
+      values: const [20, 50, 100, 200, 500, 1000, 2000],
+      onChanged: (value) => _maxMatchesPerFile = value,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 620) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              patternModeControl(),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: maxFilesControl()),
+                  const SizedBox(width: 8),
+                  Expanded(child: maxMatchesControl()),
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(flex: 5, child: patternModeControl()),
+            const SizedBox(width: 8),
+            Expanded(flex: 4, child: maxFilesControl()),
+            const SizedBox(width: 8),
+            Expanded(flex: 4, child: maxMatchesControl()),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _optionChip({
     required String label,
     required IconData icon,
@@ -477,21 +641,58 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
   }
 
   List<MapEntry<String, List<TextSearchMatch>>> get _groupedResults {
-    final grouped = <String, List<TextSearchMatch>>{};
-    for (final result in _results) {
-      grouped.putIfAbsent(result.path, () => <TextSearchMatch>[]).add(result);
+    return _groupedResultsByPath.entries.toList(growable: false);
+  }
+
+  int _visibleRowCount(List<MapEntry<String, List<TextSearchMatch>>> groups) {
+    var count = 0;
+    for (final group in groups) {
+      count++;
+      if (!_collapsedPaths.contains(group.key)) {
+        count += 1 + group.value.length;
+      }
     }
-    return grouped.entries.toList();
+    return count;
+  }
+
+  ({
+    _TextSearchRowKind kind,
+    MapEntry<String, List<TextSearchMatch>>? group,
+    TextSearchMatch? match,
+  })
+  _rowAt(List<MapEntry<String, List<TextSearchMatch>>> groups, int index) {
+    var remaining = index;
+    for (final group in groups) {
+      if (remaining == 0) {
+        return (kind: _TextSearchRowKind.fileName, group: group, match: null);
+      }
+      remaining--;
+      if (_collapsedPaths.contains(group.key)) continue;
+      if (remaining == 0) {
+        return (
+          kind: _TextSearchRowKind.relativePath,
+          group: group,
+          match: null,
+        );
+      }
+      remaining--;
+      if (remaining < group.value.length) {
+        return (
+          kind: _TextSearchRowKind.match,
+          group: null,
+          match: group.value[remaining],
+        );
+      }
+      remaining -= group.value.length;
+    }
+    throw RangeError.index(index, groups, 'index');
   }
 
   TextSpan _highlightedText(TextSearchMatch result, AppColors c) {
     if (result.ranges.isEmpty) {
       return TextSpan(
         text: result.text,
-        style: TextStyle(
-          fontSize: AppMetrics.fontCaption,
-          color: c.textSecondary,
-        ),
+        style: TextStyle(fontSize: AppMetrics.fontBody, color: c.textSecondary),
       );
     }
 
@@ -507,7 +708,7 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
           TextSpan(
             text: result.text.substring(cursor, start),
             style: TextStyle(
-              fontSize: AppMetrics.fontCaption,
+              fontSize: AppMetrics.fontBody,
               color: c.textSecondary,
             ),
           ),
@@ -518,9 +719,8 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
           TextSpan(
             text: result.text.substring(start, end),
             style: TextStyle(
-              fontSize: AppMetrics.fontCaption,
-              color: c.textPrimary,
-              backgroundColor: c.accentSubtle,
+              fontSize: AppMetrics.fontBody,
+              color: c.danger,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -533,7 +733,7 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
         TextSpan(
           text: result.text.substring(cursor),
           style: TextStyle(
-            fontSize: AppMetrics.fontCaption,
+            fontSize: AppMetrics.fontBody,
             color: c.textSecondary,
           ),
         ),

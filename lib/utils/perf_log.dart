@@ -3,6 +3,7 @@ import 'dart:io';
 /// Simple performance log that writes to a file on Desktop.
 class PerfLog {
   static File? _file;
+  static Future<void> _pendingWrite = Future<void>.value();
 
   static File get _logFile {
     if (_file != null) return _file!;
@@ -15,6 +16,9 @@ class PerfLog {
 
   static void write(String msg) {
     final ts = DateTime.now().millisecondsSinceEpoch;
-    _logFile.writeAsStringSync('[$ts] $msg\n', mode: FileMode.append);
+    final line = '[$ts] $msg\n';
+    _pendingWrite = _pendingWrite.catchError((_) {}).then((_) async {
+      await _logFile.writeAsString(line, mode: FileMode.append);
+    });
   }
 }
