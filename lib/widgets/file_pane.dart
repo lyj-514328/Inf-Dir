@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import '../models/file_entry.dart';
 import '../models/layout_node.dart';
@@ -9,11 +10,13 @@ import '../state/layout_state.dart';
 import '../state/pane_controller.dart';
 import '../services/cloud_drive_service.dart';
 import '../services/file_service.dart';
+import '../services/file_search_service.dart';
 import '../services/shell_context_menu.dart';
 import 'app_theme.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
 import 'command_menu.dart';
+import 'file_search_dialog.dart';
 import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
 import 'home_view.dart';
@@ -235,6 +238,7 @@ class _PaneContent extends StatelessWidget {
     final currentPath = controller.currentPath;
     final selectionCount = controller.selectedPaths.length;
     final canSelect = !isHome && selectionCount > 0;
+    final canSearch = !isHome && !FileService.isSpecialPath(currentPath);
     final canCreate =
         !isHome &&
         !FileService.isSpecialPath(currentPath) &&
@@ -249,8 +253,7 @@ class _PaneContent extends StatelessWidget {
       context,
       position: position,
       config: CommandMenuConfig(
-        searchQuery: controller.filterQuery,
-        onSearchChanged: controller.setFilterQuery,
+        canSearch: canSearch,
         canCreate: canCreate,
         canCut: canSelect && !FileService.isRecycleBinPath(currentPath),
         canCopy: canSelect,
@@ -276,6 +279,7 @@ class _PaneContent extends StatelessWidget {
         onSortAscending: controller.setSortAscending,
         onViewMode: controller.setViewMode,
         onFilter: controller.setEntryFilter,
+        onSearch: () => _openFileSearch(context, currentPath),
         onSelectAll: controller.selectAll,
         onRefresh: controller.refresh,
         onToggleHiddenFiles: () {
@@ -288,6 +292,21 @@ class _PaneContent extends StatelessWidget {
         onProperties: () => _showProperties(context),
       ),
     );
+  }
+
+  Future<void> _openFileSearch(BuildContext context, String rootPath) async {
+    final result = await showDialog<FileSearchResult>(
+      context: context,
+      builder: (_) => FileSearchDialog(rootPath: rootPath),
+    );
+    if (!context.mounted || result == null) return;
+
+    final controller = context.read<PaneController>();
+    if (result.isDirectory) {
+      await controller.navigateTo(result.path);
+    } else {
+      await FileService.openFile(result.path);
+    }
   }
 
   void _showNativeMenuAtToolbar(BuildContext context, List<String> paths) {
@@ -893,8 +912,7 @@ class _StatusBar extends StatelessWidget {
   }
 }
 
-/// 状态栏右侧的过滤输入框：右侧按钮点击切换 关键字（忽略/区分大小写）/
-/// glob / 正则 模式。
+/// 状态栏右侧的过滤输入框：右侧图标显示当前模式，点击弹出模式菜单。
 class _StatusFilterField extends StatefulWidget {
   final String query;
   final QueryFilterMode filterMode;
@@ -945,18 +963,18 @@ class _StatusFilterFieldState extends State<_StatusFilterField> {
     super.dispose();
   }
 
-  String get _modeLabel => switch (widget.filterMode) {
-    QueryFilterMode.keyword => '关键字',
-    QueryFilterMode.glob => 'glob',
-    QueryFilterMode.regex => '正则',
-  };
-
   String get _modeTooltip => switch (widget.filterMode) {
-    QueryFilterMode.keyword => widget.caseSensitive
-        ? '关键字匹配（大小写敏感）'
-        : '关键字匹配（忽略大小写）',
+    QueryFilterMode.keyword =>
+      widget.caseSensitive ? '关键字匹配（大小写敏感）' : '关键字匹配（忽略大小写）',
     QueryFilterMode.glob => 'glob 通配匹配（* 任意串，? 单字符，整名）',
     QueryFilterMode.regex => '正则匹配（大小写由设置决定）',
+  };
+
+  IconData get _modeIcon => switch ((widget.filterMode, widget.caseSensitive)) {
+    (QueryFilterMode.keyword, false) => Symbols.match_case_off,
+    (QueryFilterMode.keyword, true) => Symbols.match_case,
+    (QueryFilterMode.glob, _) => Symbols.g_mobiledata_badge,
+    (QueryFilterMode.regex, _) => Symbols.regular_expression,
   };
 
   bool _isActive(QueryFilterMode mode, bool caseSensitive) {
@@ -981,11 +999,17 @@ class _StatusFilterFieldState extends State<_StatusFilterField> {
           height: 20,
           padding: const EdgeInsets.only(left: 6, right: 2),
           decoration: BoxDecoration(
-            color: c.surface,
+            color: _hovering || _focusNode.hasFocus
+                ? c.surfaceHover
+                : c.surface,
             borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
             border: Border.all(
               width: 1,
-              color: _focusNode.hasFocus ? c.accent : c.border,
+              color: _focusNode.hasFocus
+                  ? c.accent
+                  : _hovering
+                  ? c.borderStrong
+                  : c.border,
             ),
           ),
           child: Row(
@@ -1001,12 +1025,7 @@ class _StatusFilterFieldState extends State<_StatusFilterField> {
                       fontSize: AppMetrics.fontSmall,
                       color: c.textPrimary,
                     ),
-                    decoration: InputDecoration(
-                      hintText: '过滤',
-                      hintStyle: TextStyle(
-                        fontSize: AppMetrics.fontSmall,
-                        color: c.textTertiary,
-                      ),
+                    decoration: const InputDecoration(
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: EdgeInsets.zero,
@@ -1019,7 +1038,9 @@ class _StatusFilterFieldState extends State<_StatusFilterField> {
                 Tooltip(
                   message: '清除过滤',
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+                    borderRadius: BorderRadius.circular(
+                      AppMetrics.controlRadius,
+                    ),
                     onTap: () {
                       _textController.clear();
                       widget.onChanged('');
@@ -1028,41 +1049,30 @@ class _StatusFilterFieldState extends State<_StatusFilterField> {
                     },
                     child: Padding(
                       padding: const EdgeInsets.all(2),
-                      child: Icon(Icons.close, size: 12, color: c.textSecondary),
+                      child: Icon(
+                        Icons.close,
+                        size: 12,
+                        color: c.textSecondary,
+                      ),
                     ),
                   ),
                 ),
               ],
               const SizedBox(width: 2),
               Tooltip(
-                message: _modeTooltip,
+                message: '$_modeTooltip，点击选择',
                 child: InkWell(
                   borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
                   onTap: _openModeMenu,
-                  child: Padding(
-                    padding: const EdgeInsets.all(2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.filter_alt_outlined,
-                          size: AppMetrics.iconSm,
-                          color: c.textSecondary,
-                        ),
-                        const SizedBox(width: 2),
-                        Text(
-                          _modeLabel,
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            color: c.textSecondary,
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_drop_down,
-                          size: 12,
-                          color: c.textTertiary,
-                        ),
-                      ],
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Center(
+                      child: Icon(
+                        _modeIcon,
+                        size: AppMetrics.iconSm,
+                        color: hasQuery ? c.accent : c.textSecondary,
+                      ),
                     ),
                   ),
                 ),
@@ -1082,22 +1092,26 @@ class _StatusFilterFieldState extends State<_StatusFilterField> {
       position: position,
       items: [
         CommandMenuItem(
+          icon: Symbols.match_case_off,
           label: '关键字（忽略大小写）',
           checked: _isActive(QueryFilterMode.keyword, false),
           onAction: () => widget.onModeSelected(QueryFilterMode.keyword, false),
         ),
         CommandMenuItem(
+          icon: Symbols.match_case,
           label: '关键字（大小写敏感）',
           checked: _isActive(QueryFilterMode.keyword, true),
           onAction: () => widget.onModeSelected(QueryFilterMode.keyword, true),
         ),
         const CommandMenuItem.divider(),
         CommandMenuItem(
+          icon: Symbols.g_mobiledata_badge,
           label: 'glob（* ? 通配）',
           checked: _isActive(QueryFilterMode.glob, false),
           onAction: () => widget.onModeSelected(QueryFilterMode.glob, false),
         ),
         CommandMenuItem(
+          icon: Symbols.regular_expression,
           label: '正则表达式',
           checked: _isActive(QueryFilterMode.regex, false),
           onAction: () => widget.onModeSelected(QueryFilterMode.regex, false),

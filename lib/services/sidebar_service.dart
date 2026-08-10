@@ -139,13 +139,13 @@ class SidebarService {
   /// Reads a counted wchar_t string from the buffer at [offset].
   /// Returns (decoded string, new offset).
   static (String, int) _readString(Pointer<Uint8> buf, int offset) {
-    final len = buf.elementAt(offset).cast<Int32>().value;
+    final len = (buf + offset).cast<Int32>().value;
     offset += 4;
     if (len <= 0) return ('', offset);
     final chars = <int>[];
     for (int i = 0; i < len; i++) {
-      final low = buf.elementAt(offset + i * 2).value;
-      final high = buf.elementAt(offset + i * 2 + 1).value;
+      final low = (buf + offset + i * 2).value;
+      final high = (buf + offset + i * 2 + 1).value;
       chars.add((high << 8) | low);
     }
     offset += len * 2;
@@ -165,7 +165,7 @@ class SidebarService {
       offset = newOffset1;
       final (path, newOffset2) = _readString(buf, offset);
       offset = newOffset2;
-      final isPinned = buf.elementAt(offset).cast<Int32>().value != 0;
+      final isPinned = (buf + offset).cast<Int32>().value != 0;
       offset += 4;
       items.add(QuickAccessItem(name, path, isPinned));
     }

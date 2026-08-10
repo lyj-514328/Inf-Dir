@@ -169,28 +169,27 @@ class DirectoryService {
 
       int isDir = 0;
       if (offset + 4 <= totalSize) {
-        isDir = buf.elementAt(offset).cast<Int32>().value;
+        isDir = (buf + offset).cast<Int32>().value;
         offset += 4;
       }
 
       int hasChildren = 0;
       if (offset + 4 <= totalSize) {
-        hasChildren = buf.elementAt(offset).cast<Int32>().value;
+        hasChildren = (buf + offset).cast<Int32>().value;
         offset += 4;
       }
 
       int sizeBytes = 0;
       if (offset + 8 <= totalSize) {
-        sizeBytes = buf.elementAt(offset).cast<Int64>().value;
+        sizeBytes = (buf + offset).cast<Int64>().value;
         offset += 8;
       }
 
       final (modifiedDateStr, o4) = _readWStr(buf, offset);
       offset = o4;
 
-      int isRecycle = 0;
       if (offset + 4 <= totalSize) {
-        isRecycle = buf.elementAt(offset).cast<Int32>().value;
+        // isRecycleBinItem; parsingName below carries the same signal.
         offset += 4;
       }
 
@@ -224,13 +223,13 @@ class DirectoryService {
 
   /// Read a counted wchar_t string from buffer.
   static (String, int) _readWStr(Pointer<Uint8> buf, int offset) {
-    final len = buf.elementAt(offset).cast<Int32>().value;
+    final len = (buf + offset).cast<Int32>().value;
     offset += 4;
     if (len <= 0) return ('', offset);
     final chars = <int>[];
     for (int i = 0; i < len; i++) {
-      final low = buf.elementAt(offset + i * 2).value;
-      final high = buf.elementAt(offset + i * 2 + 1).value;
+      final low = (buf + offset + i * 2).value;
+      final high = (buf + offset + i * 2 + 1).value;
       chars.add((high << 8) | low);
     }
     offset += len * 2;

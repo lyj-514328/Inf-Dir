@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../state/pane_controller.dart';
 import 'app_theme.dart';
-import 'file_search_field.dart';
 
 class CommandMenuItem {
   final IconData? icon;
@@ -37,8 +36,7 @@ class CommandMenuItem {
 }
 
 class CommandMenuConfig {
-  final String searchQuery;
-  final ValueChanged<String> onSearchChanged;
+  final bool canSearch;
   final bool canCreate;
   final bool canCut;
   final bool canCopy;
@@ -64,6 +62,7 @@ class CommandMenuConfig {
   final ValueChanged<bool>? onSortAscending;
   final ValueChanged<PaneViewMode>? onViewMode;
   final ValueChanged<EntryFilter>? onFilter;
+  final VoidCallback? onSearch;
   final VoidCallback? onSelectAll;
   final VoidCallback? onRefresh;
   final VoidCallback? onToggleHiddenFiles;
@@ -71,8 +70,7 @@ class CommandMenuConfig {
   final VoidCallback? onProperties;
 
   const CommandMenuConfig({
-    required this.searchQuery,
-    required this.onSearchChanged,
+    this.canSearch = true,
     this.canCreate = true,
     this.canCut = false,
     this.canCopy = false,
@@ -98,6 +96,7 @@ class CommandMenuConfig {
     this.onSortAscending,
     this.onViewMode,
     this.onFilter,
+    this.onSearch,
     this.onSelectAll,
     this.onRefresh,
     this.onToggleHiddenFiles,
@@ -124,6 +123,12 @@ CommandMenuItem _checked({
 
 List<CommandMenuItem> buildCommandMenuItems(CommandMenuConfig m) {
   return [
+    CommandMenuItem(
+      icon: Icons.search,
+      label: '搜索',
+      enabled: m.canSearch,
+      onAction: m.onSearch,
+    ),
     CommandMenuItem(
       icon: Icons.add,
       label: '新建',
@@ -369,7 +374,6 @@ void showCommandMenu(
     builder: (_) => _CommandMenuOverlay(
       position: position,
       items: resolvedItems,
-      config: config,
       onClosed: onClosed,
       close: () => entry.remove(),
     ),
@@ -387,14 +391,12 @@ class _Flyout {
 class _CommandMenuOverlay extends StatefulWidget {
   final Offset position;
   final List<CommandMenuItem> items;
-  final CommandMenuConfig? config;
   final VoidCallback? onClosed;
   final VoidCallback close;
 
   const _CommandMenuOverlay({
     required this.position,
     required this.items,
-    this.config,
     this.onClosed,
     required this.close,
   });
@@ -408,7 +410,6 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
   static const double menuWidth = 260;
   static const double itemHeight = 32;
   static const double dividerHeight = 9;
-  static const double searchBlockHeight = 8 + 34 + 8 + 1;
   static const double _screenMargin = 8;
   // 对齐 contextmenu（animations 包 FadeScaleTransition）：出现 150ms
   // （fade 前 30% 完成 + scale 0.8→1）、消失 75ms 纯 fade、
@@ -522,9 +523,7 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
     final items = widget.items;
-    final mh = (widget.config != null ? searchBlockHeight : 0) +
-        8 +
-        _listHeight(items);
+    final mh = 8 + _listHeight(items);
     // 避障修正：第一帧按请求位置渲染，post-frame 后滑向屏幕内目标位置。
     final target = _avoidBounds(widget.position, Size(menuWidth, mh), screen);
     if (!_repositioned && target != widget.position) {
@@ -560,7 +559,6 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
             child: _closing
                 ? FadeTransition(opacity: _anim, child: _panel(
                     context,
-                    config: widget.config,
                     items: items,
                     maxHeight: screen.height - _menuPos.dy - _screenMargin,
                   ))
@@ -570,7 +568,6 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
                       scale: _scaleIn,
                       child: _panel(
                         context,
-                        config: widget.config,
                         items: items,
                         maxHeight:
                             screen.height - _menuPos.dy - _screenMargin,
@@ -607,7 +604,6 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
 
   Widget _panel(
     BuildContext context, {
-    CommandMenuConfig? config,
     bool isFlyout = false,
     required List<CommandMenuItem> items,
     required double maxHeight,
@@ -633,17 +629,6 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (config != null) ...[
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: FileSearchField(
-                    query: config.searchQuery,
-                    autofocus: true,
-                    onChanged: config.onSearchChanged,
-                  ),
-                ),
-                Divider(height: 1, thickness: 1, color: c.menuBorder),
-              ],
               const SizedBox(height: 4),
               for (final item in items)
                 _MenuItemRow(
