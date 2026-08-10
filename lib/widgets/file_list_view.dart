@@ -1098,7 +1098,7 @@ class _FileIcon extends StatelessWidget {
     final iconSize = size;
     // Shell overlay HICON contains transparent padding; keep enough canvas for
     // the shortcut arrow to stay close to Explorer's large-icon proportion.
-    final badgeSize = (size * 0.50).clamp(8.0, 48.0);
+    final badgeSize = (size * 0.42).clamp(8.0, 36.0);
 
     final png = IconService.getFileIconPng(path, isDirectory, iconSize.round());
     final overlayPng = IconService.getFileOverlayPng(path, badgeSize.round());
@@ -1130,8 +1130,8 @@ class _FileIcon extends StatelessWidget {
         children: [
           base,
           Positioned(
-            left: -2,
-            bottom: -2,
+            left: 0,
+            bottom: 0,
             child: Image.memory(
               overlayPng,
               width: badgeSize,
