@@ -36,7 +36,8 @@ class CommandMenuItem {
 }
 
 class CommandMenuConfig {
-  final bool canSearch;
+  final bool canSearchFiles;
+  final bool canSearchText;
   final bool canCreate;
   final bool canCut;
   final bool canCopy;
@@ -62,7 +63,8 @@ class CommandMenuConfig {
   final ValueChanged<bool>? onSortAscending;
   final ValueChanged<PaneViewMode>? onViewMode;
   final ValueChanged<EntryFilter>? onFilter;
-  final VoidCallback? onSearch;
+  final VoidCallback? onSearchFiles;
+  final VoidCallback? onSearchText;
   final VoidCallback? onSelectAll;
   final VoidCallback? onRefresh;
   final VoidCallback? onToggleHiddenFiles;
@@ -70,7 +72,8 @@ class CommandMenuConfig {
   final VoidCallback? onProperties;
 
   const CommandMenuConfig({
-    this.canSearch = true,
+    this.canSearchFiles = true,
+    this.canSearchText = true,
     this.canCreate = true,
     this.canCut = false,
     this.canCopy = false,
@@ -96,7 +99,8 @@ class CommandMenuConfig {
     this.onSortAscending,
     this.onViewMode,
     this.onFilter,
-    this.onSearch,
+    this.onSearchFiles,
+    this.onSearchText,
     this.onSelectAll,
     this.onRefresh,
     this.onToggleHiddenFiles,
@@ -125,9 +129,15 @@ List<CommandMenuItem> buildCommandMenuItems(CommandMenuConfig m) {
   return [
     CommandMenuItem(
       icon: Icons.search,
-      label: '搜索',
-      enabled: m.canSearch,
-      onAction: m.onSearch,
+      label: '搜索文件',
+      enabled: m.canSearchFiles,
+      onAction: m.onSearchFiles,
+    ),
+    CommandMenuItem(
+      icon: Icons.find_in_page_outlined,
+      label: '搜索文本',
+      enabled: m.canSearchText,
+      onAction: m.onSearchText,
     ),
     CommandMenuItem(
       icon: Icons.add,
@@ -433,13 +443,11 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
     _menuPos = widget.position;
     _anim = AnimationController(vsync: this, duration: _openDuration)
       ..forward();
-    _fadeIn = CurvedAnimation(
-      parent: _anim,
-      curve: const Interval(0.0, 0.3),
-    );
-    _scaleIn = Tween<double>(begin: 0.80, end: 1.00).animate(
-      CurvedAnimation(parent: _anim, curve: Curves.easeOut),
-    );
+    _fadeIn = CurvedAnimation(parent: _anim, curve: const Interval(0.0, 0.3));
+    _scaleIn = Tween<double>(
+      begin: 0.80,
+      end: 1.00,
+    ).animate(CurvedAnimation(parent: _anim, curve: Curves.easeOut));
   }
 
   @override
@@ -557,11 +565,14 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
             left: _menuPos.dx,
             top: _menuPos.dy,
             child: _closing
-                ? FadeTransition(opacity: _anim, child: _panel(
-                    context,
-                    items: items,
-                    maxHeight: screen.height - _menuPos.dy - _screenMargin,
-                  ))
+                ? FadeTransition(
+                    opacity: _anim,
+                    child: _panel(
+                      context,
+                      items: items,
+                      maxHeight: screen.height - _menuPos.dy - _screenMargin,
+                    ),
+                  )
                 : FadeTransition(
                     opacity: _fadeIn,
                     child: ScaleTransition(
@@ -569,8 +580,7 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
                       child: _panel(
                         context,
                         items: items,
-                        maxHeight:
-                            screen.height - _menuPos.dy - _screenMargin,
+                        maxHeight: screen.height - _menuPos.dy - _screenMargin,
                       ),
                     ),
                   ),
@@ -593,7 +603,8 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
                   context,
                   isFlyout: true,
                   items: _flyout!.item.children ?? const [],
-                  maxHeight: screen.height - _flyout!.position.dy - _screenMargin,
+                  maxHeight:
+                      screen.height - _flyout!.position.dy - _screenMargin,
                 ),
               ),
             ),

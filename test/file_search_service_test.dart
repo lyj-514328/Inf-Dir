@@ -1,24 +1,35 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/services/file_search_service.dart';
+import 'package:inf_dir/services/text_search_service.dart';
 import 'package:inf_dir/widgets/app_theme.dart';
 import 'package:inf_dir/widgets/command_menu.dart';
 import 'package:inf_dir/widgets/file_search_dialog.dart';
+import 'package:inf_dir/widgets/text_search_dialog.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
   test('command menu exposes search as an action item', () {
-    var invoked = false;
+    var fileSearchInvoked = false;
+    var textSearchInvoked = false;
     final items = buildCommandMenuItems(
-      CommandMenuConfig(onSearch: () => invoked = true),
+      CommandMenuConfig(
+        onSearchFiles: () => fileSearchInvoked = true,
+        onSearchText: () => textSearchInvoked = true,
+      ),
     );
 
-    expect(items.first.label, '搜索');
-    expect(items.first.icon, Icons.search);
-    items.first.onAction!();
-    expect(invoked, isTrue);
+    expect(items[0].label, '搜索文件');
+    expect(items[1].label, '搜索文本');
+    expect(items[0].icon, Icons.search);
+    expect(items[1].icon, Icons.find_in_page_outlined);
+    items[0].onAction!();
+    items[1].onAction!();
+    expect(fileSearchInvoked, isTrue);
+    expect(textSearchInvoked, isTrue);
   });
 
   group('FileSearchOptions', () {
@@ -48,6 +59,18 @@ void main() {
         'src*',
         r'C:\work',
       ]);
+    });
+  });
+
+  group('TextSearchOptions', () {
+    test('maps the per-file line limit to rg max-count', () {
+      final args = const TextSearchOptions(
+        maxFiles: 20,
+        maxMatchesPerFile: 50,
+      ).buildArguments('needle', r'C:\work');
+
+      expect(args, containsAllInOrder(['--max-count', '50']));
+      expect(args, isNot(contains('20')));
     });
   });
 
@@ -121,6 +144,81 @@ void main() {
       expect(called, isFalse);
     });
 
+    test('parses streaming-style rg JSON matches', () async {
+      final matchLine = jsonEncode({
+        'type': 'match',
+        'data': {
+          'path': {'text': 'report.txt'},
+          'lines': {'text': 'hello report\n'},
+          'line_number': 3,
+          'submatches': [
+            {'start': 6, 'end': 12},
+          ],
+        },
+      });
+      final streamed = <TextSearchMatch>[];
+      final service = TextSearchService(
+        executable: 'rg-test',
+        runner: (executable, arguments, {workingDirectory}) async =>
+            ProcessResult(1, 0, '$matchLine\n', ''),
+      );
+
+      final results = await service.search(
+        root.path,
+        'report',
+        onMatch: streamed.add,
+      );
+
+      expect(results, hasLength(1));
+      expect(streamed, hasLength(1));
+      expect(results.single.path, p.join(root.path, 'report.txt'));
+      expect(results.single.line, 3);
+      expect(results.single.column, 7);
+      expect(results.single.text, 'hello report');
+      expect(results.single.ranges, hasLength(1));
+      expect(results.single.ranges.single.start, 6);
+      expect(results.single.ranges.single.end, 12);
+    });
+
+    test('limits text search by distinct matching files', () async {
+      String matchLine(String path, int line) => jsonEncode({
+        'type': 'match',
+        'data': {
+          'path': {'text': path},
+          'lines': {'text': 'needle\n'},
+          'line_number': line,
+          'submatches': [
+            {'start': 0, 'end': 6},
+          ],
+        },
+      });
+
+      final output = [
+        matchLine('first.txt', 1),
+        matchLine('first.txt', 2),
+        matchLine('second.txt', 1),
+      ].join('\n');
+      final streamed = <TextSearchMatch>[];
+      final service = TextSearchService(
+        executable: 'rg-test',
+        runner: (executable, arguments, {workingDirectory}) async =>
+            ProcessResult(1, 0, output, ''),
+      );
+
+      final results = await service.search(
+        root.path,
+        'needle',
+        options: const TextSearchOptions(maxFiles: 1, maxMatchesPerFile: 20),
+        onMatch: streamed.add,
+      );
+
+      expect(results, hasLength(2));
+      expect(streamed, hasLength(2));
+      expect(results.map((match) => p.basename(match.path)).toSet(), {
+        'first.txt',
+      });
+    });
+
     testWidgets('dialog runs search and opens a selected result', (
       tester,
     ) async {
@@ -163,6 +261,60 @@ void main() {
       await tester.tap(find.text('report.txt'));
       await tester.pumpAndSettle();
       expect(await dialogFuture, isA<FileSearchResult>());
+    });
+
+    testWidgets('text search dialog shows and opens a matching file', (
+      tester,
+    ) async {
+      final file = p.join(root.path, 'report.txt');
+      final matchLine = jsonEncode({
+        'type': 'match',
+        'data': {
+          'path': {'text': 'report.txt'},
+          'lines': {'text': 'hello report\n'},
+          'line_number': 3,
+          'submatches': [
+            {'start': 6, 'end': 12},
+          ],
+        },
+      });
+      final service = TextSearchService(
+        executable: 'rg-test',
+        runner: (executable, arguments, {workingDirectory}) async =>
+            ProcessResult(1, 0, '$matchLine\n', ''),
+      );
+      late BuildContext hostContext;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: Builder(
+            builder: (context) {
+              hostContext = context;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      final dialogFuture = showDialog<TextSearchMatch>(
+        context: hostContext,
+        builder: (_) =>
+            TextSearchDialog(rootPath: root.path, searchService: service),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('最大匹配文件数'), findsOneWidget);
+      expect(find.text('文件内最大匹配行数'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'report');
+      await tester.tap(find.widgetWithText(FilledButton, '搜索'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('report.txt (1)'), findsOneWidget);
+      expect(find.text('3:7'), findsOneWidget);
+      expect(find.text('hello report'), findsOneWidget);
+      await tester.tap(find.text('3:7'));
+      await tester.pumpAndSettle();
+      expect((await dialogFuture)!.path, file);
     });
   });
 }

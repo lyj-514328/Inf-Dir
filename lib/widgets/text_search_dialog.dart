@@ -1,34 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
 
-import '../services/file_search_service.dart';
+import '../services/text_search_service.dart';
 import 'app_theme.dart';
 
-class FileSearchDialog extends StatefulWidget {
+class TextSearchDialog extends StatefulWidget {
   final String rootPath;
-  final FileSearchService searchService;
+  final TextSearchService searchService;
 
-  FileSearchDialog({
+  TextSearchDialog({
     super.key,
     required this.rootPath,
-    FileSearchService? searchService,
-  }) : searchService = searchService ?? FileSearchService();
+    TextSearchService? searchService,
+  }) : searchService = searchService ?? TextSearchService();
 
   @override
-  State<FileSearchDialog> createState() => _FileSearchDialogState();
+  State<TextSearchDialog> createState() => _TextSearchDialogState();
 }
 
-class _FileSearchDialogState extends State<FileSearchDialog> {
+class _TextSearchDialogState extends State<TextSearchDialog> {
   late final TextEditingController _queryController;
   late final FocusNode _queryFocusNode;
-  FileSearchPatternMode _patternMode = FileSearchPatternMode.keyword;
-  FileSearchEntryKind _entryKind = FileSearchEntryKind.all;
+  TextSearchPatternMode _patternMode = TextSearchPatternMode.keyword;
   bool _includeHidden = false;
   bool _caseSensitive = false;
   bool _followLinks = false;
-  int _maxResults = 500;
-  List<FileSearchResult> _results = <FileSearchResult>[];
+  int _maxFiles = 200;
+  int _maxMatchesPerFile = 500;
+  List<TextSearchMatch> _results = <TextSearchMatch>[];
   String? _error;
   bool _searching = false;
   bool _hasSearched = false;
@@ -48,23 +47,19 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
     super.dispose();
   }
 
-  FileSearchOptions get _options => FileSearchOptions(
+  TextSearchOptions get _options => TextSearchOptions(
     patternMode: _patternMode,
-    entryKind: _entryKind,
     includeHidden: _includeHidden,
     caseSensitive: _caseSensitive,
     followLinks: _followLinks,
-    maxResults: _maxResults,
+    maxFiles: _maxFiles,
+    maxMatchesPerFile: _maxMatchesPerFile,
   );
-
-  void _markOptionsChanged() {
-    _invalidateSearch();
-  }
 
   void _invalidateSearch() {
     _searchRevision++;
     setState(() {
-      _results = <FileSearchResult>[];
+      _results = <TextSearchMatch>[];
       _error = null;
       _hasSearched = false;
       _searching = false;
@@ -76,7 +71,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
     setState(() {
       _searching = true;
       _error = null;
-      _results = <FileSearchResult>[];
+      _results = <TextSearchMatch>[];
       _hasSearched = false;
     });
     try {
@@ -84,9 +79,9 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
         widget.rootPath,
         _queryController.text,
         options: _options,
-        onResult: (result) {
+        onMatch: (match) {
           if (!mounted || revision != _searchRevision) return;
-          setState(() => _results.add(result));
+          setState(() => _results.add(match));
         },
       );
       if (!mounted || revision != _searchRevision) return;
@@ -99,13 +94,9 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
       if (!mounted || revision != _searchRevision) return;
       setState(() {
         _searching = false;
-        _error = error is FileSearchException ? error.message : '搜索失败：$error';
+        _error = error is TextSearchException ? error.message : '搜索失败：$error';
       });
     }
-  }
-
-  void _openResult(FileSearchResult result) {
-    Navigator.of(context).pop(result);
   }
 
   String get _rootLabel {
@@ -117,8 +108,9 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final size = MediaQuery.sizeOf(context);
-    final dialogWidth = (size.width - 32).clamp(360.0, 680.0).toDouble();
-    final dialogHeight = (size.height - 32).clamp(420.0, 640.0).toDouble();
+    final dialogWidth = (size.width - 32).clamp(380.0, 760.0).toDouble();
+    final dialogHeight = (size.height - 32).clamp(440.0, 680.0).toDouble();
+    final groupedResults = _groupedResults;
 
     return Dialog(
       child: SizedBox(
@@ -131,14 +123,14 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.search, size: AppMetrics.iconMd, color: c.accent),
+                  Icon(Icons.find_in_page_outlined, color: c.accent),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '搜索文件',
+                          '搜索文本',
                           style: TextStyle(
                             fontSize: AppMetrics.fontTitle,
                             fontWeight: FontWeight.w600,
@@ -162,7 +154,6 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                     child: IconButton(
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.close),
-                      iconSize: AppMetrics.iconMd,
                       color: c.textSecondary,
                       visualDensity: VisualDensity.compact,
                     ),
@@ -181,7 +172,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                 ),
                 decoration: InputDecoration(
                   labelText: '搜索内容',
-                  hintText: '输入文件名',
+                  hintText: '输入要匹配的文本',
                   prefixIcon: Icon(Icons.search, color: c.textTertiary),
                   suffixIcon: _queryController.text.isEmpty
                       ? null
@@ -211,20 +202,15 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                 onChanged: (_) => _invalidateSearch(),
               ),
               const SizedBox(height: 12),
-              SegmentedButton<FileSearchPatternMode>(
+              SegmentedButton<TextSearchPatternMode>(
                 segments: const [
                   ButtonSegment(
-                    value: FileSearchPatternMode.keyword,
+                    value: TextSearchPatternMode.keyword,
                     icon: Icon(Icons.text_fields),
-                    label: Text('关键字'),
+                    label: Text('关键词'),
                   ),
                   ButtonSegment(
-                    value: FileSearchPatternMode.glob,
-                    icon: Icon(Icons.auto_awesome_mosaic_outlined),
-                    label: Text('Glob'),
-                  ),
-                  ButtonSegment(
-                    value: FileSearchPatternMode.regex,
+                    value: TextSearchPatternMode.regex,
                     icon: Icon(Icons.code),
                     label: Text('正则'),
                   ),
@@ -233,15 +219,31 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                 showSelectedIcon: false,
                 onSelectionChanged: (selection) {
                   setState(() => _patternMode = selection.first);
-                  _markOptionsChanged();
+                  _invalidateSearch();
                 },
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: _entryKindDropdown(c)),
+                  Expanded(
+                    child: _limitDropdown(
+                      c,
+                      label: '最大匹配文件数',
+                      value: _maxFiles,
+                      values: const [20, 50, 100, 200, 500, 1000, 2000],
+                      onChanged: (value) => _maxFiles = value,
+                    ),
+                  ),
                   const SizedBox(width: 10),
-                  Expanded(child: _maxResultsDropdown(c)),
+                  Expanded(
+                    child: _limitDropdown(
+                      c,
+                      label: '文件内最大匹配行数',
+                      value: _maxMatchesPerFile,
+                      values: const [20, 50, 100, 200, 500, 1000, 2000],
+                      onChanged: (value) => _maxMatchesPerFile = value,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -250,21 +252,21 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                 runSpacing: 6,
                 children: [
                   _optionChip(
-                    label: '隐藏项目',
+                    label: '包含隐藏文件',
                     icon: Icons.visibility_outlined,
                     selected: _includeHidden,
                     onSelected: (value) {
                       setState(() => _includeHidden = value);
-                      _markOptionsChanged();
+                      _invalidateSearch();
                     },
                   ),
                   _optionChip(
                     label: '区分大小写',
-                    icon: Symbols.match_case,
+                    icon: Icons.text_format,
                     selected: _caseSensitive,
                     onSelected: (value) {
                       setState(() => _caseSensitive = value);
-                      _markOptionsChanged();
+                      _invalidateSearch();
                     },
                   ),
                   _optionChip(
@@ -273,7 +275,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                     selected: _followLinks,
                     onSelected: (value) {
                       setState(() => _followLinks = value);
-                      _markOptionsChanged();
+                      _invalidateSearch();
                     },
                   ),
                 ],
@@ -311,7 +313,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    '没有找到结果',
+                    '没有找到匹配内容',
                     style: TextStyle(
                       fontSize: AppMetrics.fontSmall,
                       color: c.textTertiary,
@@ -322,7 +324,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8, bottom: 4),
                   child: Text(
-                    '找到 ${_results.length} 个结果',
+                    '找到 ${groupedResults.length} 个文件，${_results.length} 个匹配行',
                     style: TextStyle(
                       fontSize: AppMetrics.fontSmall,
                       color: c.textSecondary,
@@ -333,28 +335,24 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                 child: _results.isEmpty
                     ? const SizedBox.shrink()
                     : ListView.separated(
-                        itemCount: _results.length,
+                        itemCount: groupedResults.length,
                         separatorBuilder: (_, _) =>
                             Divider(height: 1, color: c.border),
                         itemBuilder: (context, index) {
-                          final result = _results[index];
-                          return ListTile(
-                            dense: true,
-                            visualDensity: VisualDensity.compact,
-                            contentPadding: const EdgeInsets.symmetric(
+                          final group = groupedResults[index];
+                          return ExpansionTile(
+                            key: PageStorageKey(group.key),
+                            initiallyExpanded: true,
+                            tilePadding: const EdgeInsets.symmetric(
                               horizontal: 4,
                             ),
                             leading: Icon(
-                              result.isDirectory
-                                  ? Icons.folder_outlined
-                                  : Icons.insert_drive_file_outlined,
+                              Icons.description_outlined,
                               size: AppMetrics.iconMd,
-                              color: result.isDirectory
-                                  ? c.iconFolder
-                                  : c.iconFile,
+                              color: c.iconFile,
                             ),
                             title: Text(
-                              p.basename(result.path),
+                              '${p.basename(group.key)} (${group.value.length})',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -363,7 +361,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                               ),
                             ),
                             subtitle: Text(
-                              result.path,
+                              group.key,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -371,7 +369,35 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                                 color: c.textTertiary,
                               ),
                             ),
-                            onTap: () => _openResult(result),
+                            children: [
+                              for (final result in group.value)
+                                ListTile(
+                                  dense: true,
+                                  visualDensity: VisualDensity.compact,
+                                  contentPadding: const EdgeInsets.only(
+                                    left: 44,
+                                    right: 4,
+                                  ),
+                                  leading: SizedBox(
+                                    width: 52,
+                                    child: Text(
+                                      '${result.line}:${result.column}',
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        fontSize: AppMetrics.fontCaption,
+                                        color: c.textTertiary,
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text.rich(
+                                    _highlightedText(result, c),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  onTap: () =>
+                                      Navigator.of(context).pop(result),
+                                ),
+                            ],
                           );
                         },
                       ),
@@ -399,49 +425,16 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
     );
   }
 
-  Widget _entryKindDropdown(AppColors c) {
+  Widget _limitDropdown(
+    AppColors c, {
+    required String label,
+    required int value,
+    required List<int> values,
+    required ValueChanged<int> onChanged,
+  }) {
     return InputDecorator(
       decoration: InputDecoration(
-        labelText: '范围',
-        isDense: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          borderSide: BorderSide(color: c.border),
-        ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<FileSearchEntryKind>(
-          value: _entryKind,
-          isExpanded: true,
-          isDense: true,
-          items: const [
-            DropdownMenuItem(
-              value: FileSearchEntryKind.all,
-              child: Text('文件和文件夹'),
-            ),
-            DropdownMenuItem(
-              value: FileSearchEntryKind.files,
-              child: Text('仅文件'),
-            ),
-            DropdownMenuItem(
-              value: FileSearchEntryKind.directories,
-              child: Text('仅文件夹'),
-            ),
-          ],
-          onChanged: (value) {
-            if (value == null) return;
-            setState(() => _entryKind = value);
-            _markOptionsChanged();
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _maxResultsDropdown(AppColors c) {
-    return InputDecorator(
-      decoration: InputDecoration(
-        labelText: '最多结果',
+        labelText: label,
         isDense: true,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
@@ -450,19 +443,17 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<int>(
-          value: _maxResults,
+          value: value,
           isExpanded: true,
           isDense: true,
-          items: const [
-            DropdownMenuItem(value: 200, child: Text('200')),
-            DropdownMenuItem(value: 500, child: Text('500')),
-            DropdownMenuItem(value: 1000, child: Text('1000')),
-            DropdownMenuItem(value: 2000, child: Text('2000')),
+          items: [
+            for (final item in values)
+              DropdownMenuItem(value: item, child: Text(item.toString())),
           ],
           onChanged: (value) {
             if (value == null) return;
-            setState(() => _maxResults = value);
-            _markOptionsChanged();
+            setState(() => onChanged(value));
+            _invalidateSearch();
           },
         ),
       ),
@@ -483,5 +474,71 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
       showCheckmark: false,
       visualDensity: VisualDensity.compact,
     );
+  }
+
+  List<MapEntry<String, List<TextSearchMatch>>> get _groupedResults {
+    final grouped = <String, List<TextSearchMatch>>{};
+    for (final result in _results) {
+      grouped.putIfAbsent(result.path, () => <TextSearchMatch>[]).add(result);
+    }
+    return grouped.entries.toList();
+  }
+
+  TextSpan _highlightedText(TextSearchMatch result, AppColors c) {
+    if (result.ranges.isEmpty) {
+      return TextSpan(
+        text: result.text,
+        style: TextStyle(
+          fontSize: AppMetrics.fontCaption,
+          color: c.textSecondary,
+        ),
+      );
+    }
+
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    final ranges = [...result.ranges]
+      ..sort((a, b) => a.start.compareTo(b.start));
+    for (final range in ranges) {
+      final start = range.start.clamp(0, result.text.length).toInt();
+      final end = range.end.clamp(start, result.text.length).toInt();
+      if (start > cursor) {
+        spans.add(
+          TextSpan(
+            text: result.text.substring(cursor, start),
+            style: TextStyle(
+              fontSize: AppMetrics.fontCaption,
+              color: c.textSecondary,
+            ),
+          ),
+        );
+      }
+      if (end > start) {
+        spans.add(
+          TextSpan(
+            text: result.text.substring(start, end),
+            style: TextStyle(
+              fontSize: AppMetrics.fontCaption,
+              color: c.textPrimary,
+              backgroundColor: c.accentSubtle,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+        cursor = end;
+      }
+    }
+    if (cursor < result.text.length) {
+      spans.add(
+        TextSpan(
+          text: result.text.substring(cursor),
+          style: TextStyle(
+            fontSize: AppMetrics.fontCaption,
+            color: c.textSecondary,
+          ),
+        ),
+      );
+    }
+    return TextSpan(children: spans);
   }
 }

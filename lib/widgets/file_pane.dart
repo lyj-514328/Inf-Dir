@@ -11,12 +11,14 @@ import '../state/pane_controller.dart';
 import '../services/cloud_drive_service.dart';
 import '../services/file_service.dart';
 import '../services/file_search_service.dart';
+import '../services/text_search_service.dart';
 import '../services/shell_context_menu.dart';
 import 'app_theme.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
 import 'command_menu.dart';
 import 'file_search_dialog.dart';
+import 'text_search_dialog.dart';
 import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
 import 'home_view.dart';
@@ -253,7 +255,8 @@ class _PaneContent extends StatelessWidget {
       context,
       position: position,
       config: CommandMenuConfig(
-        canSearch: canSearch,
+        canSearchFiles: canSearch,
+        canSearchText: canSearch,
         canCreate: canCreate,
         canCut: canSelect && !FileService.isRecycleBinPath(currentPath),
         canCopy: canSelect,
@@ -279,7 +282,8 @@ class _PaneContent extends StatelessWidget {
         onSortAscending: controller.setSortAscending,
         onViewMode: controller.setViewMode,
         onFilter: controller.setEntryFilter,
-        onSearch: () => _openFileSearch(context, currentPath),
+        onSearchFiles: () => _openFileSearch(context, currentPath),
+        onSearchText: () => _openTextSearch(context, currentPath),
         onSelectAll: controller.selectAll,
         onRefresh: controller.refresh,
         onToggleHiddenFiles: () {
@@ -307,6 +311,15 @@ class _PaneContent extends StatelessWidget {
     } else {
       await FileService.openFile(result.path);
     }
+  }
+
+  Future<void> _openTextSearch(BuildContext context, String rootPath) async {
+    final result = await showDialog<TextSearchMatch>(
+      context: context,
+      builder: (_) => TextSearchDialog(rootPath: rootPath),
+    );
+    if (!context.mounted || result == null) return;
+    await FileService.openFile(result.path);
   }
 
   void _showNativeMenuAtToolbar(BuildContext context, List<String> paths) {
@@ -612,7 +625,10 @@ class _StatusBarSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<PaneController, (int, int, bool, int, String, QueryFilterMode, bool)>(
+    return Selector<
+      PaneController,
+      (int, int, bool, int, String, QueryFilterMode, bool)
+    >(
       selector: (_, c) => (
         c.entryCount,
         c.entries.length,
