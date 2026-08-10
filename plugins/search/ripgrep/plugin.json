@@ -1,0 +1,18 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.ripgrep-search",
+  "name": "ripgrep 文本搜索",
+  "version": "15.2.0",
+  "entrypoint": "rg.exe",
+  "capabilities": {
+    "search": {
+      "type": "content",
+      "protocol": "ripgrep-json-v1"
+    }
+  },
+  "source": {
+    "repository": "https://github.com/BurntSushi/ripgrep",
+    "release": "15.2.0",
+    "license": ["MIT", "Unlicense"]
+  }
+}

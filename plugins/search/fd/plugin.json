@@ -1,0 +1,18 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.fd-search",
+  "name": "fd 文件搜索",
+  "version": "10.4.2",
+  "entrypoint": "fd.exe",
+  "capabilities": {
+    "search": {
+      "type": "fileName",
+      "protocol": "fd-nul-v1"
+    }
+  },
+  "source": {
+    "repository": "https://github.com/sharkdp/fd",
+    "release": "v10.4.2",
+    "license": ["Apache-2.0", "MIT"]
+  }
+}

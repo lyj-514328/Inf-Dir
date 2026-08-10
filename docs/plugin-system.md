@@ -1,10 +1,11 @@
-# Inf-Dir Viewer 插件规范
+# Inf-Dir 插件规范
 
-本文定义 Inf-Dir Quick View 插件包、Manifest、用户关联配置和 F3 解析规则。
+本文定义 Inf-Dir Quick View 与搜索提供器插件包、Manifest、构建方式、用户关联配置和 F3 解析规则。
 
 ## 1. 设计原则
 
 - 插件使用独立进程运行，不把第三方 DLL 加载到 Flutter 主进程。
+- `quickView` 与 `search` 是独立能力；搜索插件不参与 Viewer 关联解析。
 - Manifest 只声明插件能力，不声明插件优先级。
 - 用户关联配置中的插件 ID 数组顺序就是候选顺序。
 - `extensions`、`fileNames`、`mimeTypes` 是三种独立的匹配方式，彼此为 OR。
@@ -21,10 +22,18 @@ Inf-Dir/
     ├── inf-dir.image-view/
     │   ├── plugin.json
     │   └── img-view.exe
-    └── inf-dir.pdf-view/
+    ├── inf-dir.pdf-view/
+    │   ├── plugin.json
+    │   ├── pdf-view.exe
+    │   └── pdfium.dll
+    ├── inf-dir.fd-search/
+    │   ├── plugin.json
+    │   ├── fd.exe
+    │   └── LICENSE-MIT
+    └── inf-dir.ripgrep-search/
         ├── plugin.json
-        ├── pdf-view.exe
-        └── pdfium.dll
+        ├── rg.exe
+        └── LICENSE-MIT
 ```
 
 每个插件拥有独立目录。`entrypoint` 相对于 `plugin.json` 所在目录解析，且不得逃逸插件目录。
@@ -61,9 +70,9 @@ Inf-Dir/
 | `name` | 配置界面显示名称 |
 | `version` | 插件版本 |
 | `entrypoint` | 插件目录内的 EXE 相对路径 |
-| `capabilities.quickView` | Quick View 能力声明 |
+| `capabilities` | 至少声明一个受支持能力：`quickView` 或 `search` |
 
-`quickView` 至少要包含一个非空匹配组。绝大多数插件只需要 `extensions`。
+Viewer 插件的 `quickView` 至少要包含一个非空匹配组。绝大多数 Viewer 插件只需要 `extensions`。
 
 ### 3.2 规范化
 
@@ -79,6 +88,48 @@ Inf-Dir/
 ```
 
 插件工作目录设为插件包目录。后续协议升级通过新增 Manifest 字段完成，不改变版本 1 的行为。
+
+### 3.3 搜索提供器
+
+搜索插件通过 `capabilities.search` 声明后端类型和主程序支持的输出协议：
+
+```json
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.ripgrep-search",
+  "name": "ripgrep 文本搜索",
+  "version": "15.2.0",
+  "entrypoint": "rg.exe",
+  "capabilities": {
+    "search": {
+      "type": "content",
+      "protocol": "ripgrep-json-v1"
+    }
+  }
+}
+```
+
+当前支持：
+
+| `type` | 内置插件 | 协议 | 用途 |
+| --- | --- | --- | --- |
+| `fileName` | `inf-dir.fd-search` | `fd-nul-v1` | 文件名、Glob、正则搜索，NUL 分隔输出 |
+| `content` | `inf-dir.ripgrep-search` | `ripgrep-json-v1` | 文件内容搜索，JSON Lines 输出 |
+
+主程序优先读取 `INF_DIR_FD_PATH` / `INF_DIR_RG_PATH` 显式覆盖；否则依次从
+`INF_DIR_PLUGIN_DIR`、程序旁 `plugins/`、开发目录 `plugins/dist/` 和用户插件目录发现
+对应 manifest。插件不可用时才回退到旧式程序目录、`tools/` 和 `PATH` 查找。
+
+### 3.4 搜索插件构建
+
+`plugins/search/build.bat` 从官方 GitHub Release 构建两个自包含插件包：
+
+- `fd 10.4.2`：`sharkdp/fd` 的 Windows x64 MSVC ZIP；
+- `ripgrep 15.2.0`：`BurntSushi/ripgrep` 的 Windows x64 MSVC ZIP。
+
+版本、下载 URL 和 SHA-256 均固定在脚本内。脚本会验证下载、解压 EXE，并把上游许可证与
+`THIRD_PARTY_NOTICES.txt` 一起安装到 `plugins/dist/<plugin-id>/`。主
+`plugins/build.bat` 会自动调用该脚本；也可以单独运行 `plugins/search/build.bat` 只构建搜索插件。
 
 ## 4. 用户关联配置
 

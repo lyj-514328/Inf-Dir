@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'search_plugin_resolver.dart';
+
 enum FileSearchPatternMode { keyword, glob, regex }
 
 enum FileSearchEntryKind { all, files, directories }
@@ -109,6 +111,12 @@ class FileSearchService {
   static String _resolveExecutable() {
     final overridePath = Platform.environment['INF_DIR_FD_PATH'];
     if (overridePath?.trim().isNotEmpty == true) return overridePath!.trim();
+
+    final pluginExecutable = SearchPluginResolver.resolve(
+      pluginId: 'inf-dir.fd-search',
+      type: SearchPluginType.fileName,
+    );
+    if (pluginExecutable != null) return pluginExecutable;
 
     final appDirectory = p.dirname(Platform.resolvedExecutable);
     final bundled = File(p.join(appDirectory, 'fd.exe'));

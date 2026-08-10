@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 REM ============================================================
 REM  Inf-Dir plugins one-click build script
-REM  Prerequisites: rustup, cargo, 7z (scoop install 7zip)
+REM  Prerequisites: rustup, cargo, curl, PowerShell, 7z (scoop install 7zip)
 REM ============================================================
 
 set "SCRIPT_DIR=%~dp0"
@@ -24,6 +24,13 @@ set "HLJS_VERSION=11.10.0"
 set "GHCSS_VERSION=5.7.0"
 set "MERMAID_VERSION=11.4.1"
 set "MD_WEB=%SCRIPT_DIR%markdown-view-web"
+
+REM --- Download and package pinned search-provider plugins ---
+call "%SCRIPT_DIR%search\build.bat" "%DIST_DIR%"
+if errorlevel 1 (
+    echo [ERROR] Search plugin build failed.
+    exit /b 1
+)
 
 REM --- Add MinGW-w64 (ucrt64) to PATH for GNU target ---
 if exist "C:\msys64\ucrt64\bin" (

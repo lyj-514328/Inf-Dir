@@ -171,6 +171,32 @@ void main() {
       );
     });
 
+    test('ignores manifests that only declare search capability', () {
+      final directory = Directory(p.join(pluginRoot.path, 'inf-dir.fd-search'))
+        ..createSync();
+      File(p.join(directory.path, 'fd.exe')).writeAsBytesSync(const []);
+      File(p.join(directory.path, 'plugin.json')).writeAsStringSync(
+        jsonEncode({
+          'manifestVersion': 1,
+          'id': 'inf-dir.fd-search',
+          'name': 'fd',
+          'version': '10.4.2',
+          'entrypoint': 'fd.exe',
+          'capabilities': {
+            'search': {'type': 'fileName', 'protocol': 'fd-nul-v1'},
+          },
+        }),
+      );
+
+      service.reload();
+
+      expect(
+        service.plugins.map((plugin) => plugin.manifest.id),
+        isNot(contains('inf-dir.fd-search')),
+      );
+      expect(service.issues, isEmpty);
+    });
+
     test('uses the platform MIME resolver when no MIME is supplied', () {
       final resolvingService = QuickViewService(
         pluginRoots: [pluginRoot],

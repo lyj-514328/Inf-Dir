@@ -1,0 +1,7 @@
+ripgrep 15.2.0
+Copyright (c) Andrew Gallant and the ripgrep contributors
+Source: https://github.com/BurntSushi/ripgrep/releases/tag/15.2.0
+
+ripgrep is distributed under the MIT License or the Unlicense.
+The upstream LICENSE-MIT, UNLICENSE, and COPYING files are copied into the
+built plugin package by plugins/search/build.bat.

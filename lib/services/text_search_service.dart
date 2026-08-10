@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'search_plugin_resolver.dart';
+
 enum TextSearchPatternMode { keyword, regex }
 
 class TextSearchOptions {
@@ -115,6 +117,12 @@ class TextSearchService {
   static String _resolveExecutable() {
     final overridePath = Platform.environment['INF_DIR_RG_PATH'];
     if (overridePath?.trim().isNotEmpty == true) return overridePath!.trim();
+
+    final pluginExecutable = SearchPluginResolver.resolve(
+      pluginId: 'inf-dir.ripgrep-search',
+      type: SearchPluginType.content,
+    );
+    if (pluginExecutable != null) return pluginExecutable;
 
     final appDirectory = p.dirname(Platform.resolvedExecutable);
     final bundled = File(p.join(appDirectory, 'rg.exe'));

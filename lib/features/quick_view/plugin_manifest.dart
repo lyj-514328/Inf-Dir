@@ -153,6 +153,15 @@ class PluginManifest {
     return PluginManifest.fromJson(decoded);
   }
 
+  static bool declaresQuickView(File file) {
+    final decoded = jsonDecode(file.readAsStringSync());
+    if (decoded is! Map) {
+      throw const FormatException('Manifest 根节点必须是对象');
+    }
+    final capabilities = decoded['capabilities'];
+    return capabilities is Map && capabilities.containsKey('quickView');
+  }
+
   static String _requiredString(Map<String, Object?> json, String key) {
     final value = json[key];
     if (value is! String || value.trim().isEmpty) {

@@ -1,0 +1,7 @@
+fd 10.4.2
+Copyright (c) the fd contributors
+Source: https://github.com/sharkdp/fd/releases/tag/v10.4.2
+
+fd is distributed under the Apache License 2.0 or the MIT License.
+The upstream LICENSE-APACHE and LICENSE-MIT files are copied into the built
+plugin package by plugins/search/build.bat.

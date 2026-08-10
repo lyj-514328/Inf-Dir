@@ -112,6 +112,7 @@ class QuickViewService extends ChangeNotifier {
         final manifestFile = File(p.join(packageDirectory.path, 'plugin.json'));
         if (!manifestFile.existsSync()) continue;
         try {
+          if (!PluginManifest.declaresQuickView(manifestFile)) continue;
           final manifest = PluginManifest.read(manifestFile);
           if (_plugins.containsKey(manifest.id)) {
             _issues.add(
