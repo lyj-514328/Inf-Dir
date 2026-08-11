@@ -30,20 +30,22 @@ void main() {
     ], FileGroupBy.name);
 
     expect(groups.map((group) => group.label), [
+      '0 - 9',
+      'A - F',
+      'M - S',
+      'T - Z',
       '拼音 A - F',
       '拼音 G - L',
       '拼音 M - S',
-      '拼音 T - Z',
-      '0 - 9',
     ]);
     expect(groups.expand((group) => group.entries).map((item) => item.name), [
+      '2.txt',
       'alpha.txt',
+      'note.txt',
+      'z.txt',
       '百度网盘同步空间',
       '简历',
-      'note.txt',
       '赛博清明上河图',
-      'z.txt',
-      '2.txt',
     ]);
   });
 

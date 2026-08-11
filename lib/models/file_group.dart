@@ -78,23 +78,38 @@ _GroupDescriptor _descriptorFor(
 }
 
 _GroupDescriptor _nameDescriptor(String name) {
-  if (name.isEmpty) return const _GroupDescriptor('other', '其他', 5);
+  if (name.isEmpty) return const _GroupDescriptor('other', '其他', 10);
   final first = name.codeUnitAt(0);
   if (first >= 0x30 && first <= 0x39) {
-    return const _GroupDescriptor('0-9', '0 - 9', 4);
+    return const _GroupDescriptor('0-9', '0 - 9', 0);
   }
-  final letter = _initialLetter(name);
-  if (letter == null) return const _GroupDescriptor('other', '其他', 5);
-  if (letter <= 0x66) return const _GroupDescriptor('a-f', '拼音 A - F', 0);
-  if (letter <= 0x6C) return const _GroupDescriptor('g-l', '拼音 G - L', 1);
-  if (letter <= 0x73) return const _GroupDescriptor('m-s', '拼音 M - S', 2);
-  return const _GroupDescriptor('t-z', '拼音 T - Z', 3);
+  final letter = _englishInitial(name);
+  if (letter != null) return _letterRange(letter);
+  final pinyin = _pinyinInitial(name);
+  if (pinyin != null) return _letterRange(pinyin, pinyin: true);
+  return const _GroupDescriptor('other', '其他', 10);
 }
 
-// 与 Explorer 一致：中文按拼音首字母归入字母区间。返回 a-z 码位。
-int? _initialLetter(String name) {
+// 英文按首字母归入字母区间；中文按拼音首字母归入独立的“拼音”区间。
+_GroupDescriptor _letterRange(int letter, {bool pinyin = false}) {
+  final (key, label, order) = switch (letter) {
+    <= 0x66 => ('a-f', 'A - F', 1),
+    <= 0x6C => ('g-l', 'G - L', 2),
+    <= 0x73 => ('m-s', 'M - S', 3),
+    _ => ('t-z', 'T - Z', 4),
+  };
+  if (!pinyin) return _GroupDescriptor(key, label, order);
+  return _GroupDescriptor('py-$key', '拼音 $label', order + 5);
+}
+
+// 返回 a-z 码位，非英文字母返回 null。
+int? _englishInitial(String name) {
   final code = name[0].toLowerCase().codeUnitAt(0);
-  if (code >= 0x61 && code <= 0x7A) return code;
+  return (code >= 0x61 && code <= 0x7A) ? code : null;
+}
+
+// 中文转拼音取首字母，返回 a-z 码位。
+int? _pinyinInitial(String name) {
   if (!ChineseHelper.isChinese(name[0])) return null;
   final pinyin = PinyinHelper.getFirstWordPinyin(name).toLowerCase();
   if (pinyin.isEmpty) return null;

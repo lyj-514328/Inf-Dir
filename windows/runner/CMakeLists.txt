@@ -13,6 +13,7 @@ add_executable(${BINARY_NAME} WIN32
   "main.cpp"
   "recent_files.cpp"
   "shell_context_menu.cpp"
+  "shell_new.cpp"
   "sidebar_helper.cpp"
   "utils.cpp"
   "win32_window.cpp"
@@ -38,7 +39,7 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # Add dependency libraries and include directories. Add any application-specific
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
-target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib" "shell32.lib" "ole32.lib" "gdiplus.lib" "comctl32.lib" "propsys.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib" "shell32.lib" "ole32.lib" "gdiplus.lib" "comctl32.lib" "propsys.lib" "advapi32.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.

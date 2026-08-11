@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/models/file_group.dart';
+import 'package:inf_dir/services/shell_new_service.dart';
 import 'package:inf_dir/state/pane_controller.dart';
 import 'package:inf_dir/widgets/file_context_menu.dart';
 
@@ -98,6 +101,7 @@ void main() {
       onSelectAll: () {},
       onOpenInTerminal: () {},
       onShowMoreOptions: () {},
+      onCreateFromTemplate: (_) {},
     );
 
     expect(items.where((item) => !item.isDivider).map((item) => item.label), [
@@ -147,6 +151,7 @@ void main() {
       onPaste: () {},
       onSelectAll: () {},
       onShowMoreOptions: () {},
+      onCreateFromTemplate: (_) {},
     );
 
     final labels = items
@@ -156,5 +161,49 @@ void main() {
     expect(labels, isNot(contains('粘贴')));
     expect(labels, isNot(contains('在 Windows 终端中打开')));
     expect(items.last.label, '显示更多选项');
+  });
+
+  test('folder context menu lists registry-driven new items', () {
+    final items = buildFolderContextMenuItems(
+      sortColumn: SortColumn.name,
+      sortAscending: true,
+      viewMode: PaneViewMode.details,
+      groupBy: FileGroupBy.none,
+      groupAscending: true,
+      canWrite: true,
+      canPaste: false,
+      canSelectAll: true,
+      onSortColumn: (_) {},
+      onSortAscending: (_) {},
+      onViewMode: (_) {},
+      onGroupBy: (_) {},
+      onGroupAscending: (_) {},
+      onRefresh: () {},
+      onCreateFolder: () {},
+      onCreateTextFile: () {},
+      onPaste: () {},
+      onSelectAll: () {},
+      onShowMoreOptions: () {},
+      onCreateFromTemplate: (_) {},
+      shellNewEntries: [
+        ShellNewEntry(
+          extension: '.docx',
+          name: 'Word 文档',
+          templatePath: '',
+          command: '',
+          data: Uint8List(0),
+          iconPng: Uint8List(0),
+        ),
+      ],
+    );
+
+    final newItem = items.firstWhere((item) => item.label == '新建');
+    expect(newItem.children!.map((item) => item.label), [
+      '文件夹',
+      '文本文档',
+      null, // divider
+      'Word 文档',
+    ]);
+    newItem.children!.last.onAction!();
   });
 }

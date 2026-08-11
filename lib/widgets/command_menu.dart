@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/shell_new_service.dart';
 import '../state/pane_controller.dart';
 import 'app_theme.dart';
 
 class CommandMenuItem {
   final IconData? icon;
+  final ImageProvider<Object>? image;
   final String? label;
   final String? shortcut;
   final bool enabled;
@@ -18,6 +20,7 @@ class CommandMenuItem {
 
   const CommandMenuItem({
     this.icon,
+    this.image,
     this.label,
     this.shortcut,
     this.enabled = true,
@@ -28,6 +31,7 @@ class CommandMenuItem {
 
   const CommandMenuItem.divider()
     : icon = null,
+      image = null,
       label = null,
       shortcut = null,
       enabled = true,
@@ -56,6 +60,8 @@ class CommandMenuConfig {
   final EntryFilter entryFilter;
   final VoidCallback? onCreateFolder;
   final VoidCallback? onCreateTextFile;
+  final List<ShellNewEntry> shellNewEntries;
+  final ValueChanged<ShellNewEntry>? onCreateFromTemplate;
   final VoidCallback? onCut;
   final VoidCallback? onCopy;
   final VoidCallback? onPaste;
@@ -92,6 +98,8 @@ class CommandMenuConfig {
     this.entryFilter = EntryFilter.all,
     this.onCreateFolder,
     this.onCreateTextFile,
+    this.shellNewEntries = const [],
+    this.onCreateFromTemplate,
     this.onCut,
     this.onCopy,
     this.onPaste,
@@ -257,6 +265,16 @@ List<CommandMenuItem> buildCommandMenuItems(CommandMenuConfig m) {
           label: '文本文档',
           onAction: m.onCreateTextFile,
         ),
+        if (m.shellNewEntries.isNotEmpty) ...[
+          const CommandMenuItem.divider(),
+          for (final entry in m.shellNewEntries)
+            CommandMenuItem(
+              image: entry.hasIcon ? MemoryImage(entry.iconPng) : null,
+              icon: entry.hasIcon ? null : Icons.insert_drive_file_outlined,
+              label: entry.name,
+              onAction: () => m.onCreateFromTemplate?.call(entry),
+            ),
+        ],
       ],
     ),
     CommandMenuItem(
@@ -732,6 +750,16 @@ class _MenuItemRow extends StatelessWidget {
                               Icons.check,
                               size: AppMetrics.iconSm,
                               color: c.accent,
+                            )
+                          : item.image != null
+                          ? SizedBox(
+                              width: AppMetrics.iconSm,
+                              height: AppMetrics.iconSm,
+                              child: Image(
+                                image: item.image!,
+                                fit: BoxFit.contain,
+                                color: item.enabled ? null : c.textTertiary,
+                              ),
                             )
                           : item.icon != null
                           ? Icon(

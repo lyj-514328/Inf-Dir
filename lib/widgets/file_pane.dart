@@ -15,6 +15,7 @@ import '../services/file_service.dart';
 import '../services/file_search_service.dart';
 import '../services/text_search_service.dart';
 import '../services/shell_context_menu.dart';
+import '../services/shell_new_service.dart';
 import 'app_theme.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
@@ -235,6 +236,46 @@ class _PaneContent extends StatelessWidget {
     }
   }
 
+  /// Registry-driven "New" items (ShellNew), minus .txt which is already
+  /// offered as a built-in item.
+  List<ShellNewEntry> get _shellNewEntries {
+    return ShellNewService.getEntries()
+        .where(
+          (entry) =>
+              entry.extension.toLowerCase() != '.txt' &&
+              entry.extension.toLowerCase() != '.rtf',
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> _createFromTemplate(
+    BuildContext context,
+    ShellNewEntry entry,
+  ) async {
+    final controller = context.read<PaneController>();
+    if (controller.isHome ||
+        FileService.isSpecialPath(controller.currentPath)) {
+      return;
+    }
+    final name = await _showInputDialog(
+      context,
+      title: '新建${entry.name}',
+      initialValue: '新建 ${entry.name}',
+      confirmText: '创建',
+    );
+    if (name == null || name.trim().isEmpty) return;
+    try {
+      await ShellNewService.create(
+        controller.currentPath,
+        entry,
+        name.trim(),
+      );
+      controller.refresh();
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '创建文件失败', e);
+    }
+  }
+
   void _showProperties(BuildContext context) {
     final controller = context.read<PaneController>();
     final paths = controller.selectedPaths.toList();
@@ -282,6 +323,8 @@ class _PaneContent extends StatelessWidget {
         entryFilter: controller.entryFilter,
         onCreateFolder: () => _createFolder(context),
         onCreateTextFile: () => _createTextFile(context),
+        shellNewEntries: _shellNewEntries,
+        onCreateFromTemplate: (entry) => _createFromTemplate(context, entry),
         onCut: () => _cutSelected(context),
         onCopy: () => _copySelected(context),
         onPaste: () => _paste(context),
@@ -307,11 +350,11 @@ class _PaneContent extends StatelessWidget {
     );
   }
 
-  void _openItemContextMenu(
+  Future<void> _openItemContextMenu(
     BuildContext context,
     String clickedPath,
     Offset position,
-  ) {
+  ) async {
     final controller = context.read<PaneController>();
 
     // Preserve a multi-selection when right-clicking one of its items.
@@ -409,6 +452,8 @@ class _PaneContent extends StatelessWidget {
         onRefresh: controller.refresh,
         onCreateFolder: () => _createFolder(context),
         onCreateTextFile: () => _createTextFile(context),
+        shellNewEntries: _shellNewEntries,
+        onCreateFromTemplate: (entry) => _createFromTemplate(context, entry),
         onPaste: () => _paste(context),
         onSelectAll: controller.selectAll,
         onOpenInTerminal: canWrite

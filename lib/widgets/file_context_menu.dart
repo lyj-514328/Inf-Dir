@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/file_group.dart';
 import '../models/layout_node.dart';
+import '../services/shell_new_service.dart';
 import '../state/pane_controller.dart';
 import 'command_menu.dart';
 
@@ -223,6 +224,8 @@ List<CommandMenuItem> buildFolderContextMenuItems({
   required VoidCallback onSelectAll,
   VoidCallback? onOpenInTerminal,
   required VoidCallback onShowMoreOptions,
+  List<ShellNewEntry> shellNewEntries = const [],
+  required ValueChanged<ShellNewEntry> onCreateFromTemplate,
 }) {
   final sharedConfig = CommandMenuConfig(
     sortColumn: sortColumn,
@@ -249,6 +252,17 @@ List<CommandMenuItem> buildFolderContextMenuItems({
             label: '文本文档',
             onAction: onCreateTextFile,
           ),
+          for (final entry in shellNewEntries) ...[
+            const CommandMenuItem.divider(),
+            CommandMenuItem(
+              image: entry.hasIcon
+                  ? MemoryImage(entry.iconPng)
+                  : null,
+              icon: entry.hasIcon ? null : Icons.insert_drive_file_outlined,
+              label: entry.name,
+              onAction: () => onCreateFromTemplate(entry),
+            ),
+          ],
         ],
       ),
       CommandMenuItem(
