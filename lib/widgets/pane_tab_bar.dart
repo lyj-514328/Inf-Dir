@@ -3,6 +3,7 @@ import '../state/pane_controller.dart';
 import '../services/icon_service.dart';
 import '../services/file_service.dart';
 import 'app_theme.dart';
+import 'home_icon.dart';
 
 class PaneTabBar extends StatelessWidget {
   final List<TabInfo> tabs;
@@ -125,7 +126,7 @@ class _TabItemState extends State<_TabItem> {
         ? null
         : IconService.getFileIconPng(widget.path, true, 16);
     final iconWidget = FileService.isHomePath(widget.path)
-        ? Icon(Icons.home, size: AppMetrics.iconSm, color: c.textSecondary)
+        ? const HomeIcon(size: AppMetrics.iconSm)
         : iconBytes != null
         ? Image.memory(
             iconBytes,

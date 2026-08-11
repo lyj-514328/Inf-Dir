@@ -7,6 +7,7 @@ import '../services/file_service.dart';
 import '../state/sidebar_controller.dart';
 import '../utils/path_utils.dart';
 import 'app_theme.dart';
+import 'home_icon.dart';
 
 enum _RowType { home, thisPc, drive, cloudDrive, directory, loadingIndicator }
 
@@ -51,7 +52,7 @@ class _SidebarTreeState extends State<SidebarTree> {
 
   // ── 布局常量：整个侧栏内容按固定行高排布 ──────────────────
   static const double _rowHeight = AppMetrics.sidebarRowHeight;
-  static const double _homeRowHeight = 30;
+  static const double _homeRowHeight = _rowHeight;
   static const double _homeDividerHeight = 1;
   static const double _homeGapHeight = 4;
   static const double _quickAccessHeaderHeight =
@@ -668,9 +669,9 @@ class _HomeSidebarRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     final pillRadius = BorderRadius.circular(AppMetrics.controlRadius);
-    // 与树行一致的 pill 选中态：accentSubtle 圆角底 + accent 前景。
+    // 与快速访问项保持相同的行高、缩进和文字层级。
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       child: Material(
         color: Colors.transparent,
         borderRadius: pillRadius,
@@ -679,18 +680,18 @@ class _HomeSidebarRow extends StatelessWidget {
           hoverColor: selected ? Colors.transparent : c.surfaceHover,
           borderRadius: pillRadius,
           child: Container(
+            height: double.infinity,
+            width: double.infinity,
             decoration: selected
                 ? BoxDecoration(color: c.accentSubtle, borderRadius: pillRadius)
                 : null,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: [
-                Icon(
-                  Icons.home,
-                  size: AppMetrics.iconMd,
-                  color: selected ? c.accent : c.iconFolder,
-                ),
                 const SizedBox(width: 8),
+                const SizedBox(width: 12),
+                const SizedBox(width: 2),
+                const SizedBox(width: 15, child: HomeIcon(size: 15)),
+                const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     '主文件夹',
@@ -698,11 +699,11 @@ class _HomeSidebarRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: AppMetrics.fontBody,
-                      fontWeight: FontWeight.w600,
                       color: selected ? c.accent : c.textPrimary,
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
               ],
             ),
           ),

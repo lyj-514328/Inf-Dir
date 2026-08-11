@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../services/icon_service.dart';
 import '../services/file_service.dart';
 import 'app_theme.dart';
+import 'home_icon.dart';
 
 class AddressBar extends StatefulWidget {
   final String currentPath;
@@ -99,7 +100,7 @@ class _AddressBarState extends State<AddressBar> {
   Widget _buildIcon() {
     final c = context.colors;
     if (FileService.isHomePath(widget.iconPath)) {
-      return Icon(Icons.home, size: AppMetrics.iconSm, color: c.textSecondary);
+      return const HomeIcon(size: AppMetrics.iconSm);
     }
     final bytes = IconService.getFileIconPng(widget.iconPath, true, 16);
     if (bytes != null) {
@@ -195,8 +196,8 @@ class _AddressBarState extends State<AddressBar> {
           if (event is PointerScrollEvent && event.scrollDelta.dy != 0) {
             final pos = _scrollController.position;
             _scrollController.jumpTo(
-              (pos.pixels + event.scrollDelta.dy)
-                  .clamp(0.0, pos.maxScrollExtent),
+            (pos.pixels + event.scrollDelta.dy)
+                .clamp(0.0, pos.maxScrollExtent),
             );
           }
         },
