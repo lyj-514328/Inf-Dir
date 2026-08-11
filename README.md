@@ -6,6 +6,7 @@ A new Flutter project.
 
 - [Viewer plugin system](docs/plugin-system.md)
 - [Sidebar synchronization](docs/sidebar-sync-refactor.md)
+- [Windows plugin junction workaround](docs/windows-plugin-junction-workaround.md)
 
 ## Getting Started
 
