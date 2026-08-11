@@ -39,6 +39,7 @@ dependencies:
   window_manager: ^0.5.2
   toastification: ^3.2.0
   flutter_svg: ^2.3.0
+  lpinyin: ^2.0.3
 
 dev_dependencies:
   flutter_test:

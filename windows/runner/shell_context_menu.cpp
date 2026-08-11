@@ -303,3 +303,92 @@ HRESULT ShowShellContextMenuW(
     return S_OK;
 }
 
+extern "C" __declspec(dllexport)
+HRESULT CreateShortcutW(
+    const wchar_t* targetPath,
+    const wchar_t* linkPath)
+{
+    IShellLink* psl = nullptr;
+    HRESULT hr = CoCreateInstance(CLSID_ShellLink, nullptr,
+        CLSCTX_INPROC_SERVER, IID_IShellLink,
+        reinterpret_cast<void**>(&psl));
+    if (FAILED(hr)) return hr;
+
+    psl->SetPath(targetPath);
+    if (GetFileAttributesW(targetPath) & FILE_ATTRIBUTE_DIRECTORY) {
+        psl->SetWorkingDirectory(targetPath);
+    }
+
+    IPersistFile* ppf = nullptr;
+    hr = psl->QueryInterface(IID_IPersistFile,
+        reinterpret_cast<void**>(&ppf));
+    if (SUCCEEDED(hr)) {
+        hr = ppf->Save(linkPath, TRUE);
+        ppf->Release();
+    }
+    psl->Release();
+    return hr;
+}
+
+extern "C" __declspec(dllexport)
+HRESULT InvokeShellVerbW(
+    HWND hwnd,
+    const wchar_t* folderPath,
+    const wchar_t** selectedPaths,
+    int selectedCount,
+    const wchar_t* verb)
+{
+    if (selectedCount <= 0 || !selectedPaths || !verb) return E_INVALIDARG;
+
+    IShellFolder* folder = nullptr;
+    HRESULT hr = GetFolderShellFolder(&folder, folderPath);
+    if (FAILED(hr)) return hr;
+
+    PIDLIST_RELATIVE* pidls = new PIDLIST_RELATIVE[selectedCount]();
+    bool ok = true;
+    for (int i = 0; i < selectedCount && ok; i++) {
+        const wchar_t* name = FileNameFromPath(selectedPaths[i]);
+        ULONG eaten = 0;
+        hr = folder->ParseDisplayName(nullptr, nullptr,
+            const_cast<LPWSTR>(name), &eaten, &pidls[i], nullptr);
+        if (FAILED(hr)) ok = false;
+    }
+
+    IContextMenu* pcm = nullptr;
+    if (ok) {
+        hr = folder->GetUIObjectOf(hwnd, selectedCount,
+            const_cast<LPCITEMIDLIST*>(pidls),
+            IID_IContextMenu, nullptr,
+            reinterpret_cast<void**>(&pcm));
+    } else {
+        hr = E_FAIL;
+    }
+
+    for (int i = 0; i < selectedCount; i++) {
+        if (pidls[i]) CoTaskMemFree(pidls[i]);
+    }
+    delete[] pidls;
+    folder->Release();
+
+    if (FAILED(hr) || !pcm) return FAILED(hr) ? hr : E_FAIL;
+
+    char verbA[256] = {};
+    WideCharToMultiByte(CP_ACP, 0, verb, -1, verbA, 256, nullptr, nullptr);
+
+    CMINVOKECOMMANDINFOEX ici = {};
+    ici.cbSize = sizeof(ici);
+    ici.hwnd = hwnd;
+    ici.fMask = CMIC_MASK_UNICODE;
+    ici.lpVerb = verbA;
+    ici.lpVerbW = verb;
+
+    __try {
+        hr = pcm->InvokeCommand(
+            reinterpret_cast<LPCMINVOKECOMMANDINFO>(&ici));
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        hr = E_FAIL;
+    }
+    pcm->Release();
+    return hr;
+}
+

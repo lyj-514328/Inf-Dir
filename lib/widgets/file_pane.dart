@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
+import '../features/quick_view/quick_view_service.dart';
 import '../models/file_entry.dart';
 import '../models/layout_node.dart';
 import '../state/app_state.dart';
@@ -17,6 +19,7 @@ import 'app_theme.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
 import 'command_menu.dart';
+import 'file_context_menu.dart';
 import 'file_search_dialog.dart';
 import 'text_search_dialog.dart';
 import 'nav_toolbar.dart';
@@ -166,7 +169,13 @@ class _PaneContent extends StatelessWidget {
                     }
                     return KeyEventResult.ignored;
                   },
-                  child: _FileListSection(isActive: isActive),
+                  child: _FileListSection(
+                    isActive: isActive,
+                    onItemContextMenu: (path, position) =>
+                        _openItemContextMenu(context, path, position),
+                    onFolderContextMenu: (position) =>
+                        _openFolderContextMenu(context, position),
+                  ),
                 ),
         ),
         if (!controller.isHome) const _StatusBarSection(),
@@ -298,6 +307,221 @@ class _PaneContent extends StatelessWidget {
     );
   }
 
+  void _openItemContextMenu(
+    BuildContext context,
+    String clickedPath,
+    Offset position,
+  ) {
+    final controller = context.read<PaneController>();
+
+    // Preserve a multi-selection when right-clicking one of its items.
+    if (!controller.selectedPaths.contains(clickedPath)) {
+      controller.selectSingle(clickedPath);
+    }
+
+    final paths = controller.selectedPaths.toList();
+    final singlePath = paths.length == 1 ? paths.first : null;
+    final singleEntry = singlePath == null
+        ? null
+        : _findEntry(controller, singlePath);
+    final isRecycleBin = FileService.isRecycleBinPath(controller.currentPath);
+    final canModify =
+        paths.isNotEmpty && !FileService.isSpecialPath(controller.currentPath);
+    final isDir = singleEntry?.isDirectory ?? false;
+    final canOpenDir = singleEntry != null && isDir && !isRecycleBin;
+    final canOpenFile = singleEntry != null && !isDir && !isRecycleBin;
+
+    String? compressName;
+    if (canModify) {
+      compressName = (singleEntry != null && !singleEntry.isDirectory)
+          ? p.basenameWithoutExtension(paths.first)
+          : p.basename(paths.first);
+    }
+
+    showCommandMenu(
+      context,
+      position: position,
+      items: buildFileItemContextMenuItems(
+        onOpen: singleEntry != null && !isRecycleBin
+            ? () => _handleDoubleTap(context, controller, singlePath!)
+            : null,
+        onOpenWith: canOpenFile ? () => _openWith(context, singlePath!) : null,
+        onQuickView: canOpenFile
+            ? () => _openQuickView(context, singlePath!)
+            : null,
+        onOpenInNewTab: canOpenDir
+            ? () => controller.addTab(singlePath!)
+            : null,
+        onOpenInNewWindow: canOpenDir ? () {} : null,
+        onOpenInNewPane: canOpenDir
+            ? (direction) => _openInNewPane(context, direction, singlePath!)
+            : null,
+        onCut: canModify ? () => _cutSelected(context) : null,
+        onCopy: canModify ? () => _copySelected(context) : null,
+        onRename: canModify && paths.length == 1
+            ? () => _renameSelected(context)
+            : null,
+        onDelete: canModify ? () => _deleteSelected(context) : null,
+        onPasteShortcut: canModify && context.read<AppState>().hasClipboard
+            ? () => _pasteShortcut(context)
+            : null,
+        onCopyPath: () => _copySelectedPaths(context),
+        onCreateFolderWithSelection: canModify
+            ? () => _createFolderWithSelection(context)
+            : null,
+        onCreateShortcut: canModify ? () => _createShortcuts(context) : null,
+        compressName: compressName,
+        onCompressZip: canModify ? () => _compressZip(context) : null,
+        onSendTo: canModify ? () {} : null,
+        onOpenInTerminal: canOpenDir
+            ? () => _openTerminal(context, singlePath!)
+            : null,
+        onPinToSidebar: canOpenDir ? () {} : null,
+        onProperties: canModify ? () => _showPropertiesVerb(context, paths) : null,
+        onShowMoreOptions: () => _showNativeMenu(context, paths, position),
+      ),
+    );
+  }
+
+  void _openFolderContextMenu(BuildContext context, Offset position) {
+    final controller = context.read<PaneController>();
+    final appState = context.read<AppState>();
+    controller.clearSelection();
+
+    final canWrite = !FileService.isSpecialPath(controller.currentPath);
+    showCommandMenu(
+      context,
+      position: position,
+      items: buildFolderContextMenuItems(
+        sortColumn: controller.sortColumn,
+        sortAscending: controller.sortAscending,
+        viewMode: controller.viewMode,
+        groupBy: controller.groupBy,
+        groupAscending: controller.groupAscending,
+        canWrite: canWrite,
+        canPaste: canWrite && appState.hasClipboard,
+        canSelectAll: controller.visibleEntries.isNotEmpty,
+        onSortColumn: controller.setSortColumn,
+        onSortAscending: controller.setSortAscending,
+        onViewMode: controller.setViewMode,
+        onGroupBy: controller.setGroupBy,
+        onGroupAscending: controller.setGroupAscending,
+        onRefresh: controller.refresh,
+        onCreateFolder: () => _createFolder(context),
+        onCreateTextFile: () => _createTextFile(context),
+        onPaste: () => _paste(context),
+        onSelectAll: controller.selectAll,
+        onOpenInTerminal: canWrite
+            ? () => _openTerminal(context, controller.currentPath)
+            : null,
+        onShowMoreOptions: () => _showNativeMenu(context, const [], position),
+      ),
+    );
+  }
+
+  Future<void> _openQuickView(BuildContext context, String path) async {
+    final result = await context.read<QuickViewService>().open(path);
+    if (!context.mounted || result.started) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(result.message),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Future<void> _openWith(BuildContext context, String path) async {
+    try {
+      await FileService.openWithDialog(path);
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '打开方式失败', e);
+    }
+  }
+
+  Future<void> _openInNewPane(
+    BuildContext context,
+    SplitDirection direction,
+    String path,
+  ) async {
+    final newController = context
+        .read<LayoutState>()
+        .splitPane(paneNode, direction);
+    if (newController != null) await newController.navigateTo(path);
+  }
+
+  Future<void> _pasteShortcut(BuildContext context) async {
+    final appState = context.read<AppState>();
+    final controller = context.read<PaneController>();
+    try {
+      for (final path in appState.clipboardPaths) {
+        await FileService.createShortcutIn(path, controller.currentPath);
+      }
+      controller.refresh();
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '粘贴快捷方式失败', e);
+    }
+  }
+
+  Future<void> _createFolderWithSelection(BuildContext context) async {
+    final controller = context.read<PaneController>();
+    final paths = controller.selectedPaths.toList();
+    if (paths.isEmpty) return;
+    try {
+      await FileService.createFolderWithSelection(paths, controller.currentPath);
+      controller.refresh();
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '创建文件夹失败', e);
+    }
+  }
+
+  Future<void> _createShortcuts(BuildContext context) async {
+    final controller = context.read<PaneController>();
+    final paths = controller.selectedPaths.toList();
+    if (paths.isEmpty) return;
+    try {
+      for (final path in paths) {
+        await FileService.createShortcutIn(path, controller.currentPath);
+      }
+      controller.refresh();
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '创建快捷方式失败', e);
+    }
+  }
+
+  Future<void> _compressZip(BuildContext context) async {
+    final controller = context.read<PaneController>();
+    final paths = controller.selectedPaths.toList();
+    if (paths.isEmpty) return;
+    final first = _findEntry(controller, paths.first);
+    final base = (first != null && !first.isDirectory)
+        ? p.basenameWithoutExtension(paths.first)
+        : p.basename(paths.first);
+    final zipPath = p.join(controller.currentPath, '$base.zip');
+    try {
+      await FileService.compressToZip(paths, zipPath);
+      controller.refresh();
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '压缩失败', e);
+    }
+  }
+
+  Future<void> _openTerminal(BuildContext context, String dirPath) async {
+    try {
+      await FileService.openTerminal(dirPath);
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '打开终端失败', e);
+    }
+  }
+
+  void _showPropertiesVerb(BuildContext context, List<String> paths) {
+    final controller = context.read<PaneController>();
+    ShellOperations.invokeVerb(
+      folderPath: controller.currentPath,
+      selectedPaths: paths,
+      verb: 'properties',
+    );
+  }
+
   Future<void> _openFileSearch(BuildContext context, String rootPath) async {
     final result = await showDialog<FileSearchResult>(
       context: context,
@@ -349,6 +573,14 @@ class _PaneContent extends StatelessWidget {
         ClipboardData(text: controller.selectedPaths.join('\n')),
       );
     }
+  }
+
+  void _copySelectedPaths(BuildContext context) {
+    final paths = context.read<PaneController>().selectedPaths;
+    if (paths.isEmpty) return;
+    Clipboard.setData(
+      ClipboardData(text: paths.map((path) => '"$path"').join('\n')),
+    );
   }
 
   void _cutSelected(BuildContext context) {
@@ -570,8 +802,14 @@ class _AddressBarSection extends StatelessWidget {
 
 class _FileListSection extends StatelessWidget {
   final bool isActive;
+  final void Function(String path, Offset position) onItemContextMenu;
+  final ValueChanged<Offset> onFolderContextMenu;
 
-  const _FileListSection({required this.isActive});
+  const _FileListSection({
+    required this.isActive,
+    required this.onItemContextMenu,
+    required this.onFolderContextMenu,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -590,6 +828,8 @@ class _FileListSection extends StatelessWidget {
             sortAscending: controller.sortAscending,
             onSort: controller.sortBy,
             viewMode: controller.viewMode,
+            groupBy: controller.groupBy,
+            groupAscending: controller.groupAscending,
             showFileExtensions: appState.showFileExtensions,
             columnWidths: controller.columnWidths,
             onResizeColumn: controller.resizeColumn,
@@ -610,9 +850,8 @@ class _FileListSection extends StatelessWidget {
               }
             },
             onDoubleTap: (path) => _handleDoubleTap(context, controller, path),
-            onItemRightClick: (path, pos) =>
-                _showNativeMenu(context, [path], pos),
-            onEmptyRightClick: (pos) => _showNativeMenu(context, [], pos),
+            onItemRightClick: onItemContextMenu,
+            onEmptyRightClick: onFolderContextMenu,
           ),
         ),
       ],

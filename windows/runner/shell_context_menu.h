@@ -32,6 +32,22 @@ HRESULT ShowShellContextMenuW(
     wchar_t* verbOut,
     int verbOutCch);
 
+// Creates a .lnk shortcut at linkPath pointing to targetPath.
+__declspec(dllexport)
+HRESULT CreateShortcutW(
+    const wchar_t* targetPath,
+    const wchar_t* linkPath);
+
+// Invokes a shell verb (e.g. "properties") on the selected items without
+// showing the context menu.
+__declspec(dllexport)
+HRESULT InvokeShellVerbW(
+    HWND hwnd,
+    const wchar_t* folderPath,
+    const wchar_t** selectedPaths,
+    int selectedCount,
+    const wchar_t* verb);
+
 #ifdef __cplusplus
 }
 #endif

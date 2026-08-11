@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -125,6 +127,107 @@ CommandMenuItem _checked({
   );
 }
 
+CommandMenuItem buildSortCommandMenuItem(
+  CommandMenuConfig m, {
+  String label = '排序',
+}) {
+  return CommandMenuItem(
+    icon: Icons.sort,
+    label: label,
+    children: [
+      _checked(
+        label: '名称',
+        checked: m.sortColumn == SortColumn.name,
+        onAction: () => m.onSortColumn?.call(SortColumn.name),
+      ),
+      _checked(
+        label: '修改日期',
+        checked: m.sortColumn == SortColumn.dateModified,
+        onAction: () => m.onSortColumn?.call(SortColumn.dateModified),
+      ),
+      _checked(
+        label: '类型',
+        checked: m.sortColumn == SortColumn.type,
+        onAction: () => m.onSortColumn?.call(SortColumn.type),
+      ),
+      _checked(
+        label: '大小',
+        checked: m.sortColumn == SortColumn.size,
+        onAction: () => m.onSortColumn?.call(SortColumn.size),
+      ),
+      const CommandMenuItem.divider(),
+      _checked(
+        label: '升序',
+        checked: m.sortAscending,
+        onAction: () => m.onSortAscending?.call(true),
+      ),
+      _checked(
+        label: '降序',
+        checked: !m.sortAscending,
+        onAction: () => m.onSortAscending?.call(false),
+      ),
+    ],
+  );
+}
+
+CommandMenuItem buildViewCommandMenuItem(CommandMenuConfig m) {
+  return CommandMenuItem(
+    icon: FileCommandMenuIcons.viewIcon(m.viewMode),
+    label: '查看',
+    children: [
+      _checked(
+        label: '超大图标',
+        checked: m.viewMode == PaneViewMode.extraLargeIcons,
+        icon: Icons.grid_on,
+        onAction: () => m.onViewMode?.call(PaneViewMode.extraLargeIcons),
+      ),
+      _checked(
+        label: '大图标',
+        checked: m.viewMode == PaneViewMode.largeIcons,
+        icon: Icons.view_module,
+        onAction: () => m.onViewMode?.call(PaneViewMode.largeIcons),
+      ),
+      _checked(
+        label: '中图标',
+        checked: m.viewMode == PaneViewMode.mediumIcons,
+        icon: Icons.grid_view,
+        onAction: () => m.onViewMode?.call(PaneViewMode.mediumIcons),
+      ),
+      _checked(
+        label: '小图标',
+        checked: m.viewMode == PaneViewMode.smallIcons,
+        icon: Icons.grid_view,
+        onAction: () => m.onViewMode?.call(PaneViewMode.smallIcons),
+      ),
+      const CommandMenuItem.divider(),
+      _checked(
+        label: '详细信息',
+        checked: m.viewMode == PaneViewMode.details,
+        icon: Icons.view_headline,
+        onAction: () => m.onViewMode?.call(PaneViewMode.details),
+      ),
+      _checked(
+        label: '列表',
+        checked: m.viewMode == PaneViewMode.list,
+        icon: Icons.view_list,
+        onAction: () => m.onViewMode?.call(PaneViewMode.list),
+      ),
+      _checked(
+        label: '平铺',
+        checked: m.viewMode == PaneViewMode.tiles,
+        icon: Icons.view_quilt,
+        onAction: () => m.onViewMode?.call(PaneViewMode.tiles),
+      ),
+      _checked(
+        label: '内容',
+        checked: m.viewMode == PaneViewMode.content,
+        icon: Icons.view_agenda,
+        onAction: () => m.onViewMode?.call(PaneViewMode.content),
+      ),
+    ],
+  );
+}
+
 List<CommandMenuItem> buildCommandMenuItems(CommandMenuConfig m) {
   return [
     CommandMenuItem(
@@ -192,98 +295,8 @@ List<CommandMenuItem> buildCommandMenuItems(CommandMenuConfig m) {
       onAction: m.onDelete,
     ),
     const CommandMenuItem.divider(),
-    CommandMenuItem(
-      icon: Icons.sort,
-      label: '排序',
-      children: [
-        _checked(
-          label: '名称',
-          checked: m.sortColumn == SortColumn.name,
-          onAction: () => m.onSortColumn?.call(SortColumn.name),
-        ),
-        _checked(
-          label: '修改日期',
-          checked: m.sortColumn == SortColumn.dateModified,
-          onAction: () => m.onSortColumn?.call(SortColumn.dateModified),
-        ),
-        _checked(
-          label: '类型',
-          checked: m.sortColumn == SortColumn.type,
-          onAction: () => m.onSortColumn?.call(SortColumn.type),
-        ),
-        _checked(
-          label: '大小',
-          checked: m.sortColumn == SortColumn.size,
-          onAction: () => m.onSortColumn?.call(SortColumn.size),
-        ),
-        const CommandMenuItem.divider(),
-        _checked(
-          label: '升序',
-          checked: m.sortAscending,
-          onAction: () => m.onSortAscending?.call(true),
-        ),
-        _checked(
-          label: '降序',
-          checked: !m.sortAscending,
-          onAction: () => m.onSortAscending?.call(false),
-        ),
-      ],
-    ),
-    CommandMenuItem(
-      icon: FileCommandMenuIcons.viewIcon(m.viewMode),
-      label: '查看',
-      children: [
-        _checked(
-          label: '超大图标',
-          checked: m.viewMode == PaneViewMode.extraLargeIcons,
-          icon: Icons.grid_on,
-          onAction: () => m.onViewMode?.call(PaneViewMode.extraLargeIcons),
-        ),
-        _checked(
-          label: '大图标',
-          checked: m.viewMode == PaneViewMode.largeIcons,
-          icon: Icons.view_module,
-          onAction: () => m.onViewMode?.call(PaneViewMode.largeIcons),
-        ),
-        _checked(
-          label: '中图标',
-          checked: m.viewMode == PaneViewMode.mediumIcons,
-          icon: Icons.grid_view,
-          onAction: () => m.onViewMode?.call(PaneViewMode.mediumIcons),
-        ),
-        _checked(
-          label: '小图标',
-          checked: m.viewMode == PaneViewMode.smallIcons,
-          icon: Icons.grid_view,
-          onAction: () => m.onViewMode?.call(PaneViewMode.smallIcons),
-        ),
-        const CommandMenuItem.divider(),
-        _checked(
-          label: '详细信息',
-          checked: m.viewMode == PaneViewMode.details,
-          icon: Icons.view_headline,
-          onAction: () => m.onViewMode?.call(PaneViewMode.details),
-        ),
-        _checked(
-          label: '列表',
-          checked: m.viewMode == PaneViewMode.list,
-          icon: Icons.view_list,
-          onAction: () => m.onViewMode?.call(PaneViewMode.list),
-        ),
-        _checked(
-          label: '平铺',
-          checked: m.viewMode == PaneViewMode.tiles,
-          icon: Icons.view_quilt,
-          onAction: () => m.onViewMode?.call(PaneViewMode.tiles),
-        ),
-        _checked(
-          label: '内容',
-          checked: m.viewMode == PaneViewMode.content,
-          icon: Icons.view_agenda,
-          onAction: () => m.onViewMode?.call(PaneViewMode.content),
-        ),
-      ],
-    ),
+    buildSortCommandMenuItem(m),
+    buildViewCommandMenuItem(m),
     CommandMenuItem(
       icon: Icons.filter_alt_outlined,
       label: '筛选器',
@@ -480,7 +493,10 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
     _anim.reverse().whenComplete(() {
       widget.close();
       widget.onClosed?.call();
-      _afterClose?.call();
+      final afterClose = _afterClose;
+      if (afterClose != null) {
+        Timer.run(afterClose);
+      }
     });
   }
 

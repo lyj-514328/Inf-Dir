@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:inf_dir/services/directory_repository.dart';
 import 'package:inf_dir/services/file_service.dart';
 import 'package:inf_dir/services/window_layout_store.dart';
+import 'package:inf_dir/models/file_group.dart';
 import 'package:inf_dir/models/layout_node.dart';
 import 'package:inf_dir/models/window_layout_snapshot.dart';
 import 'package:inf_dir/state/layout_state.dart';
@@ -17,73 +18,82 @@ DirectoryRepository _emptyRepository() => DirectoryRepository(
 );
 
 void main() {
-  test('restores workspace tree and pane state from the previous session', () async {
-    final temp = Directory.systemTemp.createTempSync('inf-dir-layout-');
-    addTearDown(() => temp.deleteSync(recursive: true));
-    final store = WindowLayoutStore(
-      filePath: p.join(temp.path, 'window_layout.json'),
-    );
+  test(
+    'restores workspace tree and pane state from the previous session',
+    () async {
+      final temp = Directory.systemTemp.createTempSync('inf-dir-layout-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      final store = WindowLayoutStore(
+        filePath: p.join(temp.path, 'window_layout.json'),
+      );
 
-    final layout = LayoutState(
-      repository: _emptyRepository(),
-      layoutStore: store,
-    );
-    final firstNode = layout.allPaneNodes.first;
-    final first = layout.controllerFor(firstNode)!;
-    await first.navigateTo(r'C:\Alpha');
-    first.addTab(r'C:\Beta');
-    first.setSortColumn(SortColumn.size);
-    first.setSortAscending(false);
-    first.setEntryFilter(EntryFilter.files);
-    first.setFilterQuery('report');
-    first.setViewMode(PaneViewMode.compact);
-    first.resizeColumn(0, 30);
+      final layout = LayoutState(
+        repository: _emptyRepository(),
+        layoutStore: store,
+      );
+      final firstNode = layout.allPaneNodes.first;
+      final first = layout.controllerFor(firstNode)!;
+      await first.navigateTo(r'C:\Alpha');
+      first.addTab(r'C:\Beta');
+      first.setSortColumn(SortColumn.size);
+      first.setSortAscending(false);
+      first.setGroupBy(FileGroupBy.type);
+      first.setGroupAscending(false);
+      first.setEntryFilter(EntryFilter.files);
+      first.setFilterQuery('report');
+      first.setViewMode(PaneViewMode.compact);
+      first.resizeColumn(0, 30);
 
-    layout.splitPane(firstNode, SplitDirection.horizontal);
-    final secondNode = layout.allPaneNodes.last;
-    layout.focusNode(secondNode);
-    await layout.controllerFor(secondNode)!.navigateTo(r'C:\Gamma');
+      layout.splitPane(firstNode, SplitDirection.horizontal);
+      final secondNode = layout.allPaneNodes.last;
+      layout.focusNode(secondNode);
+      await layout.controllerFor(secondNode)!.navigateTo(r'C:\Gamma');
 
-    layout.addWorkspace();
-    await layout.controllerFor(layout.allPaneNodes.single)!.navigateTo(
-      r'C:\Workspace2',
-    );
-    layout.splitPane(layout.allPaneNodes.single, SplitDirection.vertical);
-    layout.focusNode(layout.allPaneNodes.last);
-    layout.setSidebarWidth(312);
-    layout.flushLayoutCache();
-    layout.dispose();
+      layout.addWorkspace();
+      await layout
+          .controllerFor(layout.allPaneNodes.single)!
+          .navigateTo(r'C:\Workspace2');
+      layout.splitPane(layout.allPaneNodes.single, SplitDirection.vertical);
+      layout.focusNode(layout.allPaneNodes.last);
+      layout.setSidebarWidth(312);
+      layout.flushLayoutCache();
+      layout.dispose();
 
-    final restored = LayoutState(
-      repository: _emptyRepository(),
-      layoutStore: store,
-    );
-    addTearDown(restored.dispose);
+      final restored = LayoutState(
+        repository: _emptyRepository(),
+        layoutStore: store,
+      );
+      addTearDown(restored.dispose);
 
-    expect(restored.workspaces, hasLength(2));
-    expect(restored.activeWorkspaceIndex, 1);
-    expect(restored.sidebarWidth, 312);
-    expect(restored.allPaneNodes, hasLength(2));
-    expect(restored.focusedNodeId, restored.allPaneNodes.last.id);
-    expect(
-      restored.controllerFor(restored.allPaneNodes.first)!.currentPath,
-      r'C:\Workspace2',
-    );
+      expect(restored.workspaces, hasLength(2));
+      expect(restored.activeWorkspaceIndex, 1);
+      expect(restored.sidebarWidth, 312);
+      expect(restored.allPaneNodes, hasLength(2));
+      expect(restored.focusedNodeId, restored.allPaneNodes.last.id);
+      expect(
+        restored.controllerFor(restored.allPaneNodes.first)!.currentPath,
+        r'C:\Workspace2',
+      );
 
-    restored.switchWorkspace(0);
-    final restoredFirst = restored.controllerFor(restored.allPaneNodes.first)!;
-    expect(
-      restoredFirst.tabs.map((tab) => tab.path),
-      [r'C:\Alpha', r'C:\Beta'],
-    );
-    expect(restoredFirst.canGoBack, isTrue);
-    expect(restoredFirst.sortColumn, SortColumn.size);
-    expect(restoredFirst.sortAscending, isFalse);
-    expect(restoredFirst.entryFilter, EntryFilter.files);
-    expect(restoredFirst.filterQuery, 'report');
-    expect(restoredFirst.viewMode, PaneViewMode.compact);
-    expect(restoredFirst.columnWidths.first, 330);
-  });
+      restored.switchWorkspace(0);
+      final restoredFirst = restored.controllerFor(
+        restored.allPaneNodes.first,
+      )!;
+      expect(restoredFirst.tabs.map((tab) => tab.path), [
+        r'C:\Alpha',
+        r'C:\Beta',
+      ]);
+      expect(restoredFirst.canGoBack, isTrue);
+      expect(restoredFirst.sortColumn, SortColumn.size);
+      expect(restoredFirst.sortAscending, isFalse);
+      expect(restoredFirst.groupBy, FileGroupBy.type);
+      expect(restoredFirst.groupAscending, isFalse);
+      expect(restoredFirst.entryFilter, EntryFilter.files);
+      expect(restoredFirst.filterQuery, 'report');
+      expect(restoredFirst.viewMode, PaneViewMode.compact);
+      expect(restoredFirst.columnWidths.first, 330);
+    },
+  );
 
   test('ignores a corrupt cache and starts with the default layout', () {
     final temp = Directory.systemTemp.createTempSync('inf-dir-layout-');

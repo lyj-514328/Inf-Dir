@@ -9,6 +9,8 @@ class PaneLayoutSnapshot {
     required this.forwardStack,
     required this.sortColumn,
     required this.sortAscending,
+    this.groupBy = 'none',
+    this.groupAscending = true,
     required this.filterQuery,
     required this.entryFilter,
     this.filterMode = 'keyword',
@@ -34,11 +36,12 @@ class PaneLayoutSnapshot {
       throw const FormatException('pane.currentPath 与激活标签页不一致');
     }
 
-    final sortColumn = _enumValue(
-      json['sortColumn'],
-      'pane.sortColumn',
-      const {'name', 'dateModified', 'type', 'size'},
-    );
+    final sortColumn = _enumValue(json['sortColumn'], 'pane.sortColumn', const {
+      'name',
+      'dateModified',
+      'type',
+      'size',
+    });
     final entryFilter = _enumValue(
       json['entryFilter'],
       'pane.entryFilter',
@@ -77,6 +80,14 @@ class PaneLayoutSnapshot {
       forwardStack: _stringList(json['forwardStack'], 'pane.forwardStack'),
       sortColumn: sortColumn,
       sortAscending: _boolValue(json['sortAscending'], 'pane.sortAscending'),
+      groupBy: switch (json['groupBy']) {
+        'name' => 'name',
+        'dateModified' => 'dateModified',
+        'type' => 'type',
+        'size' => 'size',
+        _ => 'none',
+      },
+      groupAscending: json['groupAscending'] != false,
       filterQuery: _stringValue(
         json['filterQuery'],
         'pane.filterQuery',
@@ -103,6 +114,8 @@ class PaneLayoutSnapshot {
   final List<String> forwardStack;
   final String sortColumn;
   final bool sortAscending;
+  final String groupBy;
+  final bool groupAscending;
   final String filterQuery;
   final String entryFilter;
   final String filterMode;
@@ -120,6 +133,8 @@ class PaneLayoutSnapshot {
     'forwardStack': forwardStack,
     'sortColumn': sortColumn,
     'sortAscending': sortAscending,
+    'groupBy': groupBy,
+    'groupAscending': groupAscending,
     'filterQuery': filterQuery,
     'entryFilter': entryFilter,
     'filterMode': filterMode,
@@ -155,9 +170,8 @@ class LayoutNodeSnapshot {
     );
     final children = _listValue(json['children'], 'node.children')
         .map(
-          (child) => LayoutNodeSnapshot.fromJson(
-            _mapValue(child, 'node.children[]'),
-          ),
+          (child) =>
+              LayoutNodeSnapshot.fromJson(_mapValue(child, 'node.children[]')),
         )
         .toList(growable: false);
 
@@ -211,9 +225,8 @@ class WindowLayoutSnapshot {
 
     final workspaces = _listValue(json['workspaces'], 'workspaces')
         .map(
-          (workspace) => LayoutNodeSnapshot.fromJson(
-            _mapValue(workspace, 'workspaces[]'),
-          ),
+          (workspace) =>
+              LayoutNodeSnapshot.fromJson(_mapValue(workspace, 'workspaces[]')),
         )
         .toList(growable: false);
     if (workspaces.isEmpty) {
@@ -232,8 +245,7 @@ class WindowLayoutSnapshot {
       json['activeWorkspaceIndex'],
       'activeWorkspaceIndex',
     );
-    if (activeWorkspaceIndex < 0 ||
-        activeWorkspaceIndex >= workspaces.length) {
+    if (activeWorkspaceIndex < 0 || activeWorkspaceIndex >= workspaces.length) {
       throw const FormatException('activeWorkspaceIndex 超出范围');
     }
 
@@ -266,7 +278,9 @@ class WindowLayoutSnapshot {
     'nextPaneCounter': nextPaneCounter,
     'sidebarWidth': sidebarWidth,
     'workspaces': workspaces.map((workspace) => workspace.toJson()).toList(),
-    'panes': {for (final entry in panes.entries) entry.key: entry.value.toJson()},
+    'panes': {
+      for (final entry in panes.entries) entry.key: entry.value.toJson(),
+    },
   };
 
   void _validate() {
@@ -369,11 +383,7 @@ List<Object?> _listValue(Object? value, String name) {
   return List<Object?>.from(value);
 }
 
-String _stringValue(
-  Object? value,
-  String name, {
-  bool allowEmpty = false,
-}) {
+String _stringValue(Object? value, String name, {bool allowEmpty = false}) {
   if (value is! String || (!allowEmpty && value.isEmpty)) {
     throw FormatException('$name 必须是${allowEmpty ? '' : '非空'}字符串');
   }

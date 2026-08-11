@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../models/file_group.dart';
 import '../models/layout_node.dart';
 import '../models/window_layout_snapshot.dart';
 import 'pane_controller.dart';
@@ -20,11 +21,9 @@ class LayoutState extends ChangeNotifier {
   /// 用独立的 ValueNotifier，避免无关 notify 也触发侧栏同步。
   final ValueNotifier<String> activePanePath = ValueNotifier<String>('');
 
-  LayoutState({
-    DirectoryRepository? repository,
-    WindowLayoutStore? layoutStore,
-  }) : _repository = repository ?? DirectoryRepository(),
-       _layoutStore = layoutStore {
+  LayoutState({DirectoryRepository? repository, WindowLayoutStore? layoutStore})
+    : _repository = repository ?? DirectoryRepository(),
+      _layoutStore = layoutStore {
     final cached = _layoutStore?.load();
     if (cached != null &&
         !_isLegacySinglePaneDefault(cached) &&
@@ -91,6 +90,8 @@ class LayoutState extends ChangeNotifier {
         pane.forwardStack.isEmpty &&
         pane.sortColumn == SortColumn.name.name &&
         pane.sortAscending &&
+        pane.groupBy == FileGroupBy.none.name &&
+        pane.groupAscending &&
         pane.filterQuery.isEmpty &&
         pane.entryFilter == EntryFilter.all.name &&
         pane.viewMode == PaneViewMode.content.name &&
@@ -347,18 +348,17 @@ class LayoutState extends ChangeNotifier {
   // ============================================================
   // Split 操作
   // ============================================================
-  void splitPane(LayoutNode node, SplitDirection direction) {
-    if (!node.isPane) return;
+  PaneController? splitPane(LayoutNode node, SplitDirection direction) {
+    if (!node.isPane) return null;
     final newPaneId = _nextPaneId();
-    _addController(
-      newPaneId,
-      PaneController(
-        controllerFor(node)?.currentPath ?? FileService.desktopPath,
-        repository: _repository,
-      ),
+    final controller = PaneController(
+      controllerFor(node)?.currentPath ?? FileService.desktopPath,
+      repository: _repository,
     );
+    _addController(newPaneId, controller);
     _tree.splitNode(node, direction, newPaneId);
     notifyListeners();
+    return controller;
   }
 
   // ============================================================

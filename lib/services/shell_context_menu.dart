@@ -131,3 +131,82 @@ class ShellContextMenu {
     }
   }
 }
+
+class ShellOperations {
+  static final _CreateShortcutDart _createShortcut = DynamicLibrary.process()
+      .lookupFunction<_CreateShortcutNative, _CreateShortcutDart>(
+          'CreateShortcutW');
+
+  static final _InvokeShellVerbDart _invokeShellVerb = DynamicLibrary.process()
+      .lookupFunction<_InvokeShellVerbNative, _InvokeShellVerbDart>(
+          'InvokeShellVerbW');
+
+  /// Creates a .lnk shortcut at [linkPath] pointing to [targetPath].
+  static void createShortcut(String targetPath, String linkPath) {
+    final targetPtr = targetPath.toNativeUtf16();
+    final linkPtr = linkPath.toNativeUtf16();
+    try {
+      _createShortcut(targetPtr, linkPtr);
+    } finally {
+      calloc.free(targetPtr);
+      calloc.free(linkPtr);
+    }
+  }
+
+  /// Invokes a shell verb (e.g. "properties") on [selectedPaths].
+  static void invokeVerb({
+    required String folderPath,
+    required List<String> selectedPaths,
+    required String verb,
+  }) {
+    final hwnd = ShellContextMenu._getActiveWindow();
+    final folderPtr = folderPath.toNativeUtf16();
+    final verbPtr = verb.toNativeUtf16();
+    final pathPtrs = <Pointer<Utf16>>[];
+    Pointer<Pointer<Utf16>> pathsArray = nullptr;
+
+    try {
+      if (selectedPaths.isNotEmpty) {
+        pathsArray = calloc<Pointer<Utf16>>(selectedPaths.length);
+        for (int i = 0; i < selectedPaths.length; i++) {
+          pathPtrs.add(selectedPaths[i].toNativeUtf16());
+          pathsArray[i] = pathPtrs[i];
+        }
+      }
+      _invokeShellVerb(
+        hwnd,
+        folderPtr,
+        pathsArray,
+        selectedPaths.length,
+        verbPtr,
+      );
+    } finally {
+      calloc.free(folderPtr);
+      calloc.free(verbPtr);
+      for (final p in pathPtrs) {
+        calloc.free(p);
+      }
+      if (pathsArray != nullptr) calloc.free(pathsArray);
+    }
+  }
+}
+
+typedef _CreateShortcutNative = Int32 Function(
+    Pointer<Utf16> targetPath, Pointer<Utf16> linkPath);
+
+typedef _CreateShortcutDart = int Function(
+    Pointer<Utf16> targetPath, Pointer<Utf16> linkPath);
+
+typedef _InvokeShellVerbNative = Int32 Function(
+    IntPtr hwnd,
+    Pointer<Utf16> folderPath,
+    Pointer<Pointer<Utf16>> selectedPaths,
+    Int32 selectedCount,
+    Pointer<Utf16> verb);
+
+typedef _InvokeShellVerbDart = int Function(
+    int hwnd,
+    Pointer<Utf16> folderPath,
+    Pointer<Pointer<Utf16>> selectedPaths,
+    int selectedCount,
+    Pointer<Utf16> verb);

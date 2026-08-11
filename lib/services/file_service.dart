@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
 import 'directory_service.dart';
+import 'shell_context_menu.dart';
 
 class FileService {
   /// Virtual path used by the Files home page. It is not a filesystem path.
@@ -135,6 +136,59 @@ class FileService {
       await Directory(srcPath).rename(destPath);
     } else {
       await File(srcPath).rename(destPath);
+    }
+  }
+
+  static Future<void> openWithDialog(String filePath) async {
+    await Process.run('rundll32.exe', [
+      'shell32.dll,OpenAs_RunDLL',
+      filePath,
+    ]);
+  }
+
+  static Future<void> openTerminal(String dirPath) async {
+    await Process.run('wt.exe', ['-d', dirPath]);
+  }
+
+  static Future<String> createShortcutIn(String targetPath, String destDir) async {
+    final base = p.basename(targetPath);
+    var linkPath = p.join(destDir, '$base - 快捷方式.lnk');
+    var n = 2;
+    while (File(linkPath).existsSync()) {
+      linkPath = p.join(destDir, '$base - 快捷方式 ($n).lnk');
+      n++;
+    }
+    ShellOperations.createShortcut(targetPath, linkPath);
+    return linkPath;
+  }
+
+  static Future<String> createFolderWithSelection(
+    List<String> paths,
+    String destDir,
+  ) async {
+    final base = p.basename(paths.first);
+    var dirPath = p.join(destDir, base);
+    var n = 2;
+    while (Directory(dirPath).existsSync()) {
+      dirPath = p.join(destDir, '$base ($n)');
+      n++;
+    }
+    await Directory(dirPath).create();
+    for (final path in paths) {
+      await moveEntry(path, dirPath);
+    }
+    return dirPath;
+  }
+
+  static Future<void> compressToZip(List<String> paths, String zipPath) async {
+    final literal = paths.map((path) => '"$path"').join(',');
+    final result = await Process.run('powershell.exe', [
+      '-NoProfile',
+      '-Command',
+      'Compress-Archive -LiteralPath $literal -DestinationPath "$zipPath"',
+    ]);
+    if (result.exitCode != 0) {
+      throw FileSystemException('Compress-Archive failed', zipPath);
     }
   }
 }

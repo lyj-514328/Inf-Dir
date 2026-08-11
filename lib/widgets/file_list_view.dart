@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
+import '../models/file_group.dart';
 import '../services/icon_service.dart';
 import '../state/pane_controller.dart';
 import 'app_theme.dart';
@@ -36,6 +37,8 @@ class FileListView extends StatefulWidget {
   final Function(int colIndex, double deltaPx) onResizeColumn;
   final Function(double paneWidth)? onInitWidths;
   final PaneViewMode viewMode;
+  final FileGroupBy groupBy;
+  final bool groupAscending;
   final bool showFileExtensions;
 
   /// 当前目录位于云同步区时，追加只读的"状态"列（资源管理器同款）。
@@ -58,6 +61,8 @@ class FileListView extends StatefulWidget {
     required this.onResizeColumn,
     this.onInitWidths,
     this.viewMode = PaneViewMode.details,
+    this.groupBy = FileGroupBy.none,
+    this.groupAscending = true,
     this.showFileExtensions = true,
     this.showStatusColumn = false,
   });
@@ -91,6 +96,14 @@ class _FileListViewState extends State<FileListView> {
   }
 
   double get _listWidth => _totalColWidth + _blankWidth;
+
+  bool get _showGroupHeaders => widget.groupBy != FileGroupBy.none;
+
+  List<FileEntryGroup> get _groups => groupFileEntries(
+    widget.entries,
+    widget.groupBy,
+    ascending: widget.groupAscending,
+  );
 
   void _handleResize(int colIndex, double delta) {
     final newW = (widget.columnWidths[colIndex] + delta).clamp(
@@ -189,34 +202,48 @@ class _FileListViewState extends State<FileListView> {
                             : Scrollbar(
                                 controller: _vScrollController,
                                 thumbVisibility: _scrollbarHovered,
-                                child: ListView.builder(
+                                child: CustomScrollView(
                                   controller: _vScrollController,
-                                  itemCount: widget.entries.length,
-                                  itemExtent: AppMetrics.rowHeight,
-                                  padding: EdgeInsets.zero,
-                                  itemBuilder: (context, index) {
-                                    final entry = widget.entries[index];
-                                    return _FileRow(
-                                      entry: entry,
-                                      isSelected: widget.selectedPaths.contains(
-                                        entry.path,
+                                  slivers: [
+                                    for (final group in _groups) ...[
+                                      if (_showGroupHeaders)
+                                        SliverToBoxAdapter(
+                                          child: _FileGroupHeader(
+                                            label: group.label,
+                                            count: group.entries.length,
+                                          ),
+                                        ),
+                                      SliverFixedExtentList(
+                                        itemExtent: AppMetrics.rowHeight,
+                                        delegate: SliverChildBuilderDelegate((
+                                          context,
+                                          index,
+                                        ) {
+                                          final entry = group.entries[index];
+                                          return _FileRow(
+                                            entry: entry,
+                                            isSelected: widget.selectedPaths
+                                                .contains(entry.path),
+                                            isActive: widget.isActive,
+                                            columnWidths: widget.columnWidths,
+                                            blankWidth: blankW,
+                                            viewMode: widget.viewMode,
+                                            showFileExtensions:
+                                                widget.showFileExtensions,
+                                            showStatusColumn:
+                                                widget.showStatusColumn,
+                                            onSingleTap: () =>
+                                                widget.onSingleTap(entry.path),
+                                            onDoubleTap: () =>
+                                                widget.onDoubleTap(entry.path),
+                                            onRightClick: (pos) => widget
+                                                .onItemRightClick
+                                                ?.call(entry.path, pos),
+                                          );
+                                        }, childCount: group.entries.length),
                                       ),
-                                      isActive: widget.isActive,
-                                      columnWidths: widget.columnWidths,
-                                      blankWidth: blankW,
-                                      viewMode: widget.viewMode,
-                                      showFileExtensions:
-                                          widget.showFileExtensions,
-                                      showStatusColumn: widget.showStatusColumn,
-                                      onSingleTap: () =>
-                                          widget.onSingleTap(entry.path),
-                                      onDoubleTap: () =>
-                                          widget.onDoubleTap(entry.path),
-                                      onRightClick: (pos) => widget
-                                          .onItemRightClick
-                                          ?.call(entry.path, pos),
-                                    );
-                                  },
+                                    ],
+                                  ],
                                 ),
                               ),
                       ),
@@ -281,31 +308,45 @@ class _FileListViewState extends State<FileListView> {
       },
       onEmptyRightClick: widget.onEmptyRightClick,
       empty: widget.entries.isEmpty,
-      child: GridView.builder(
+      child: CustomScrollView(
         controller: _vScrollController,
-        padding: const EdgeInsets.all(6),
-        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: spec.tileWidth,
-          mainAxisExtent: spec.tileHeight,
-          crossAxisSpacing: 4,
-          mainAxisSpacing: 4,
-        ),
-        itemCount: widget.entries.length,
-        itemBuilder: (context, index) {
-          final entry = widget.entries[index];
-          return _ExplorerTile(
-            entry: entry,
-            iconSize: spec.iconSize,
-            horizontal: spec.horizontal,
-            showFileExtensions: widget.showFileExtensions,
-            isSelected: widget.selectedPaths.contains(entry.path),
-            isActive: widget.isActive,
-            onSingleTap: () => widget.onSingleTap(entry.path),
-            onDoubleTap: () => widget.onDoubleTap(entry.path),
-            onRightClick: (position) =>
-                widget.onItemRightClick?.call(entry.path, position),
-          );
-        },
+        slivers: [
+          for (final group in _groups) ...[
+            if (_showGroupHeaders)
+              SliverToBoxAdapter(
+                child: _FileGroupHeader(
+                  label: group.label,
+                  count: group.entries.length,
+                ),
+              ),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(6, _showGroupHeaders ? 0 : 6, 6, 6),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: spec.tileWidth,
+                  mainAxisExtent: spec.tileHeight,
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: 4,
+                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final entry = group.entries[index];
+                  return _ExplorerTile(
+                    entry: entry,
+                    iconSize: spec.iconSize,
+                    horizontal: spec.horizontal,
+                    showFileExtensions: widget.showFileExtensions,
+                    isSelected: widget.selectedPaths.contains(entry.path),
+                    isActive: widget.isActive,
+                    onSingleTap: () => widget.onSingleTap(entry.path),
+                    onDoubleTap: () => widget.onDoubleTap(entry.path),
+                    onRightClick: (position) =>
+                        widget.onItemRightClick?.call(entry.path, position),
+                  );
+                }, childCount: group.entries.length),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -325,25 +366,39 @@ class _FileListViewState extends State<FileListView> {
       },
       onEmptyRightClick: widget.onEmptyRightClick,
       empty: widget.entries.isEmpty,
-      child: ListView.builder(
+      child: CustomScrollView(
         controller: _vScrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        itemExtent: contentMode ? 68 : 58,
-        itemCount: widget.entries.length,
-        itemBuilder: (context, index) {
-          final entry = widget.entries[index];
-          return _ExplorerContentRow(
-            entry: entry,
-            contentMode: contentMode,
-            showFileExtensions: widget.showFileExtensions,
-            isSelected: widget.selectedPaths.contains(entry.path),
-            isActive: widget.isActive,
-            onSingleTap: () => widget.onSingleTap(entry.path),
-            onDoubleTap: () => widget.onDoubleTap(entry.path),
-            onRightClick: (position) =>
-                widget.onItemRightClick?.call(entry.path, position),
-          );
-        },
+        slivers: [
+          for (final group in _groups) ...[
+            if (_showGroupHeaders)
+              SliverToBoxAdapter(
+                child: _FileGroupHeader(
+                  label: group.label,
+                  count: group.entries.length,
+                ),
+              ),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(6, _showGroupHeaders ? 0 : 4, 6, 4),
+              sliver: SliverFixedExtentList(
+                itemExtent: contentMode ? 68 : 58,
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final entry = group.entries[index];
+                  return _ExplorerContentRow(
+                    entry: entry,
+                    contentMode: contentMode,
+                    showFileExtensions: widget.showFileExtensions,
+                    isSelected: widget.selectedPaths.contains(entry.path),
+                    isActive: widget.isActive,
+                    onSingleTap: () => widget.onSingleTap(entry.path),
+                    onDoubleTap: () => widget.onDoubleTap(entry.path),
+                    onRightClick: (position) =>
+                        widget.onItemRightClick?.call(entry.path, position),
+                  );
+                }, childCount: group.entries.length),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -359,30 +414,76 @@ class _FileListViewState extends State<FileListView> {
       },
       onEmptyRightClick: widget.onEmptyRightClick,
       empty: widget.entries.isEmpty,
-      child: GridView.builder(
+      child: CustomScrollView(
         controller: _vScrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 286,
-          mainAxisExtent: 64,
-          crossAxisSpacing: 5,
-          mainAxisSpacing: 3,
+        slivers: [
+          for (final group in _groups) ...[
+            if (_showGroupHeaders)
+              SliverToBoxAdapter(
+                child: _FileGroupHeader(
+                  label: group.label,
+                  count: group.entries.length,
+                ),
+              ),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(6, _showGroupHeaders ? 0 : 4, 6, 4),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 286,
+                  mainAxisExtent: 64,
+                  crossAxisSpacing: 5,
+                  mainAxisSpacing: 3,
+                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final entry = group.entries[index];
+                  return _ExplorerContentRow(
+                    entry: entry,
+                    contentMode: false,
+                    showFileExtensions: widget.showFileExtensions,
+                    isSelected: widget.selectedPaths.contains(entry.path),
+                    isActive: widget.isActive,
+                    onSingleTap: () => widget.onSingleTap(entry.path),
+                    onDoubleTap: () => widget.onDoubleTap(entry.path),
+                    onRightClick: (position) =>
+                        widget.onItemRightClick?.call(entry.path, position),
+                  );
+                }, childCount: group.entries.length),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FileGroupHeader extends StatelessWidget {
+  final String label;
+  final int count;
+
+  const _FileGroupHeader({required this.label, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return SizedBox(
+      height: 32,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+        child: Row(
+          children: [
+            Text(
+              '$label ($count)',
+              style: TextStyle(
+                fontSize: AppMetrics.fontSmall,
+                fontWeight: FontWeight.w600,
+                color: c.accent,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Divider(height: 1, color: c.border)),
+          ],
         ),
-        itemCount: widget.entries.length,
-        itemBuilder: (context, index) {
-          final entry = widget.entries[index];
-          return _ExplorerContentRow(
-            entry: entry,
-            contentMode: false,
-            showFileExtensions: widget.showFileExtensions,
-            isSelected: widget.selectedPaths.contains(entry.path),
-            isActive: widget.isActive,
-            onSingleTap: () => widget.onSingleTap(entry.path),
-            onDoubleTap: () => widget.onDoubleTap(entry.path),
-            onRightClick: (position) =>
-                widget.onItemRightClick?.call(entry.path, position),
-          );
-        },
       ),
     );
   }

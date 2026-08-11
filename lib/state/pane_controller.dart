@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
+import '../models/file_group.dart';
 import '../services/file_service.dart';
 import '../services/directory_service.dart';
 import '../services/directory_repository.dart';
@@ -72,6 +73,8 @@ class PaneController extends ChangeNotifier {
   final Future<void> Function() _frameYield;
   SortColumn _sortColumn = SortColumn.name;
   bool _sortAscending = true;
+  FileGroupBy _groupBy = FileGroupBy.none;
+  bool _groupAscending = true;
   String _filterQuery = '';
   EntryFilter _entryFilter = EntryFilter.all;
   QueryFilterMode _filterMode = QueryFilterMode.keyword;
@@ -110,6 +113,8 @@ class PaneController extends ChangeNotifier {
     _forwardStack.addAll(snapshot.forwardStack);
     _sortColumn = SortColumn.values.byName(snapshot.sortColumn);
     _sortAscending = snapshot.sortAscending;
+    _groupBy = FileGroupBy.values.byName(snapshot.groupBy);
+    _groupAscending = snapshot.groupAscending;
     _filterQuery = snapshot.filterQuery;
     _entryFilter = EntryFilter.values.byName(snapshot.entryFilter);
     _filterMode = QueryFilterMode.values.byName(snapshot.filterMode);
@@ -142,14 +147,21 @@ class PaneController extends ChangeNotifier {
   List<FileEntry> get entries => _entries;
   List<FileEntry> get visibleEntries {
     final nameMatch = _compileNameMatcher();
-    return _entries
+    final visible = _entries
         .where(
           (e) =>
               (nameMatch == null || nameMatch(e.name)) &&
               _matchesEntryFilter(e),
         )
         .toList(growable: false);
+    if (_groupBy == FileGroupBy.none) return visible;
+    return groupFileEntries(
+      visible,
+      _groupBy,
+      ascending: _groupAscending,
+    ).expand((group) => group.entries).toList(growable: false);
   }
+
   bool get canGoBack => _backStack.isNotEmpty;
   bool get canGoForward => _forwardStack.isNotEmpty;
   bool get canGoUp {
@@ -167,6 +179,8 @@ class PaneController extends ChangeNotifier {
   int get selectedCount => _selectedPaths.length;
   SortColumn get sortColumn => _sortColumn;
   bool get sortAscending => _sortAscending;
+  FileGroupBy get groupBy => _groupBy;
+  bool get groupAscending => _groupAscending;
   String get filterQuery => _filterQuery;
   EntryFilter get entryFilter => _entryFilter;
   PaneViewMode get viewMode => _viewMode;
@@ -182,6 +196,8 @@ class PaneController extends ChangeNotifier {
     forwardStack: List.unmodifiable(_forwardStack),
     sortColumn: _sortColumn.name,
     sortAscending: _sortAscending,
+    groupBy: _groupBy.name,
+    groupAscending: _groupAscending,
     filterQuery: _filterQuery,
     entryFilter: _entryFilter.name,
     filterMode: _filterMode.name,
@@ -719,6 +735,18 @@ class PaneController extends ChangeNotifier {
     if (_sortAscending == ascending) return;
     _sortAscending = ascending;
     _applySort();
+    notifyListeners();
+  }
+
+  void setGroupBy(FileGroupBy groupBy) {
+    if (_groupBy == groupBy) return;
+    _groupBy = groupBy;
+    notifyListeners();
+  }
+
+  void setGroupAscending(bool ascending) {
+    if (_groupAscending == ascending) return;
+    _groupAscending = ascending;
     notifyListeners();
   }
 
