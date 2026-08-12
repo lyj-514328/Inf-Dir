@@ -18,6 +18,7 @@ List<CommandMenuItem> _joinSections(List<List<CommandMenuItem>> sections) {
 
 List<CommandMenuItem> buildFileItemContextMenuItems({
   VoidCallback? onOpen,
+  ImageProvider<Object>? openImage,
   VoidCallback? onOpenWith,
   List<CommandMenuItem>? openWithChildren,
   VoidCallback? onQuickView,
@@ -43,7 +44,8 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
   final openItems = <CommandMenuItem>[
     if (onOpen != null)
       CommandMenuItem(
-        icon: Icons.launch,
+        icon: openImage == null ? Icons.launch : null,
+        image: openImage,
         label: '打开',
         shortcut: 'Enter',
         onAction: onOpen,

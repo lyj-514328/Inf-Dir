@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/models/file_group.dart';
 import 'package:inf_dir/services/shell_new_service.dart';
@@ -10,8 +11,10 @@ import 'package:inf_dir/widgets/command_menu.dart';
 void main() {
   test('item context menu follows Files structure', () {
     var showMoreInvoked = false;
+    final openImage = MemoryImage(Uint8List.fromList([1, 2, 3]));
     final items = buildFileItemContextMenuItems(
       onOpen: () {},
+      openImage: openImage,
       onOpenWith: () {},
       openWithChildren: [CommandMenuItem(label: 'Notepad', onAction: () {})],
       onQuickView: () {},
@@ -66,6 +69,10 @@ void main() {
 
     final openWith = items.firstWhere((item) => item.label == '打开方式');
     expect(openWith.children!.single.label, 'Notepad');
+
+    final open = items.firstWhere((item) => item.label == '打开');
+    expect(open.image, same(openImage));
+    expect(open.icon, isNull);
 
     expect(items.last.label, '显示更多选项');
     items.last.onAction!();

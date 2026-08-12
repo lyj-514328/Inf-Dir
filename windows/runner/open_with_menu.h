@@ -11,6 +11,7 @@ extern "C" {
 // original Shell icon resource at iconSize physical pixels.
 // The returned buffer uses this layout:
 //   [count: int32]
+//   [defaultAppIconPngLen: int32] [defaultAppIconPngBytes: uint8[]]
 //   for each entry:
 //     [kind: int32] [commandId: int32] [enabled: int32]
 //     [labelLen: int32] [labelChars: wchar_t[]]

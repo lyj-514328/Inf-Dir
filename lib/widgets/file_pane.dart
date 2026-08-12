@@ -411,10 +411,10 @@ class _PaneContent extends StatelessWidget {
     final isDir = singleEntry?.isDirectory ?? false;
     final canOpenDir = singleEntry != null && isDir && !isRecycleBin;
     final canOpenFile = singleEntry != null && !isDir && !isRecycleBin;
-    final openWithIconSize =
-        (AppMetrics.iconMd * View.of(context).devicePixelRatio).ceil();
-    final openWithChildren = canOpenFile
-        ? _buildOpenWithMenuItems(singlePath!, openWithIconSize)
+    final menuIconSize = (AppMetrics.iconMd * View.of(context).devicePixelRatio)
+        .ceil();
+    final openWithData = canOpenFile
+        ? _buildOpenWithMenu(singlePath!, menuIconSize)
         : null;
 
     String? compressName;
@@ -431,8 +431,9 @@ class _PaneContent extends StatelessWidget {
         onOpen: singleEntry != null && !isRecycleBin
             ? () => _handleDoubleTap(context, controller, singlePath!)
             : null,
+        openImage: openWithData?.defaultAppImage,
         onOpenWith: canOpenFile ? () => _openWith(context, singlePath!) : null,
-        openWithChildren: openWithChildren,
+        openWithChildren: openWithData?.items,
         onQuickView: canOpenFile
             ? () => _openQuickView(context, singlePath!)
             : null,
@@ -530,28 +531,37 @@ class _PaneContent extends StatelessWidget {
     }
   }
 
-  List<CommandMenuItem>? _buildOpenWithMenuItems(String path, int iconSize) {
+  _OpenWithMenu? _buildOpenWithMenu(String path, int iconSize) {
     try {
-      final entries = OpenWithMenuService.getEntries(path, iconSize: iconSize);
-      if (entries.isEmpty) return null;
-      return [
-        for (final entry in entries)
-          if (entry.isDivider)
-            const CommandMenuItem.divider()
-          else
-            CommandMenuItem(
-              image: entry.iconPng == null ? null : MemoryImage(entry.iconPng!),
-              label: entry.label,
-              enabled: entry.enabled,
-              onAction: () => OpenWithMenuService.invoke(entry.commandId),
-            ),
-        const CommandMenuItem.divider(),
-        CommandMenuItem(
-          icon: Icons.add_circle_outline,
-          label: '选择其他应用',
-          onAction: () => FileService.openWithDialog(path),
-        ),
-      ];
+      final data = OpenWithMenuService.getData(path, iconSize: iconSize);
+      final items = data.entries.isEmpty
+          ? null
+          : <CommandMenuItem>[
+              for (final entry in data.entries)
+                if (entry.isDivider)
+                  const CommandMenuItem.divider()
+                else
+                  CommandMenuItem(
+                    image: entry.iconPng == null
+                        ? null
+                        : MemoryImage(entry.iconPng!),
+                    label: entry.label,
+                    enabled: entry.enabled,
+                    onAction: () => OpenWithMenuService.invoke(entry.commandId),
+                  ),
+              const CommandMenuItem.divider(),
+              CommandMenuItem(
+                icon: Icons.add_circle_outline,
+                label: '选择其他应用',
+                onAction: () => FileService.openWithDialog(path),
+              ),
+            ];
+      return _OpenWithMenu(
+        defaultAppImage: data.defaultAppIconPng == null
+            ? null
+            : MemoryImage(data.defaultAppIconPng!),
+        items: items,
+      );
     } catch (_) {
       return null;
     }
@@ -799,6 +809,13 @@ class _PaneContent extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OpenWithMenu {
+  final ImageProvider<Object>? defaultAppImage;
+  final List<CommandMenuItem>? items;
+
+  const _OpenWithMenu({this.defaultAppImage, this.items});
 }
 
 // ── Sections：按需重建，避免选中/加载时整个面板 rebuild ──────────────

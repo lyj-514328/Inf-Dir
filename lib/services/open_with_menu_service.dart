@@ -33,6 +33,13 @@ class OpenWithMenuEntry {
   const OpenWithMenuEntry.divider() : this._(isDivider: true);
 }
 
+class OpenWithMenuData {
+  final Uint8List? defaultAppIconPng;
+  final List<OpenWithMenuEntry> entries;
+
+  const OpenWithMenuData({this.defaultAppIconPng, this.entries = const []});
+}
+
 typedef _GetEntriesNative =
     Pointer<Uint8> Function(
       Pointer<Utf16> filePath,
@@ -70,15 +77,14 @@ class OpenWithMenuService {
       .lookupFunction<_InvokeEntryNative, _InvokeEntryDart>(
         'InvokeOpenWithMenuEntry',
       );
-  static List<OpenWithMenuEntry> getEntries(
-    String filePath, {
-    required int iconSize,
-  }) {
+  static OpenWithMenuData getData(String filePath, {required int iconSize}) {
     final path = filePath.toNativeUtf16();
     final outSize = calloc<Int32>();
     try {
       final ptr = _getEntries(path, iconSize, outSize);
-      if (ptr == nullptr || outSize.value < 4) return const [];
+      if (ptr == nullptr || outSize.value < 8) {
+        return const OpenWithMenuData();
+      }
       try {
         return _parse(ptr, outSize.value);
       } finally {
@@ -94,11 +100,25 @@ class OpenWithMenuService {
     _invokeEntry(commandId);
   }
 
-  static List<OpenWithMenuEntry> _parse(Pointer<Uint8> buffer, int byteSize) {
+  static OpenWithMenuData _parse(Pointer<Uint8> buffer, int byteSize) {
     var offset = 0;
     final count = _readInt32(buffer, offset, byteSize);
     offset += 4;
-    if (count == null || count < 0 || count > 256) return const [];
+    if (count == null || count < 0 || count > 256) {
+      return const OpenWithMenuData();
+    }
+
+    final defaultIconLength = _readInt32(buffer, offset, byteSize);
+    offset += 4;
+    if (defaultIconLength == null ||
+        defaultIconLength < 0 ||
+        offset + defaultIconLength > byteSize) {
+      return const OpenWithMenuData();
+    }
+    final defaultAppIconPng = defaultIconLength == 0
+        ? null
+        : Uint8List.fromList((buffer + offset).asTypedList(defaultIconLength));
+    offset += defaultIconLength;
 
     final entries = <OpenWithMenuEntry>[];
     for (var index = 0; index < count; index++) {
@@ -116,7 +136,7 @@ class OpenWithMenuService {
           labelLength == null ||
           labelLength < 0 ||
           offset + labelLength * 2 > byteSize) {
-        return const [];
+        return const OpenWithMenuData();
       }
 
       final label = _readUtf16(buffer, offset, labelLength);
@@ -126,7 +146,7 @@ class OpenWithMenuService {
       if (iconLength == null ||
           iconLength < 0 ||
           offset + iconLength > byteSize) {
-        return const [];
+        return const OpenWithMenuData();
       }
       final iconPng = iconLength == 0
           ? null
@@ -145,7 +165,10 @@ class OpenWithMenuService {
         );
       }
     }
-    return entries;
+    return OpenWithMenuData(
+      defaultAppIconPng: defaultAppIconPng,
+      entries: entries,
+    );
   }
 
   static int? _readInt32(Pointer<Uint8> buffer, int offset, int byteSize) {

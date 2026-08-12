@@ -247,6 +247,89 @@ int ImageListForSize(int iconSize) {
     return SHIL_JUMBO;
 }
 
+std::vector<unsigned char> LoadIconPath(
+    const wchar_t* iconPath,
+    int iconIndex,
+    int iconSize) {
+    std::vector<unsigned char> result;
+    if (!iconPath || !*iconPath || iconSize <= 0)
+        return result;
+
+    // Packaged apps commonly resolve to a PNG asset rather than an icon
+    // resource in an executable or DLL.
+    result = ImageFileToPng(iconPath, iconSize);
+    if (!result.empty())
+        return result;
+
+    HICON icon = nullptr;
+    const int cachedIndex =
+        Shell_GetCachedImageIndexW(iconPath, iconIndex, 0);
+    if (cachedIndex >= 0) {
+        IImageList* imageList = nullptr;
+        if (SUCCEEDED(SHGetImageList(
+                ImageListForSize(iconSize),
+                IID_IImageList,
+                reinterpret_cast<void**>(&imageList))) &&
+            imageList) {
+            imageList->GetIcon(cachedIndex, ILD_TRANSPARENT, &icon);
+            imageList->Release();
+        }
+    }
+
+    if (!icon) {
+        SHDefExtractIconW(
+            iconPath,
+            iconIndex,
+            0,
+            iconSize > 16 ? &icon : nullptr,
+            iconSize <= 16 ? &icon : nullptr,
+            MAKELONG(iconSize, iconSize));
+    }
+    if (icon) {
+        result = IconToPng(icon, iconSize);
+        DestroyIcon(icon);
+    }
+    return result;
+}
+
+std::vector<unsigned char> LoadIconReference(
+    const std::wstring& iconReference,
+    int iconSize) {
+    if (iconReference.empty() || iconSize <= 0)
+        return {};
+
+    if (iconReference[0] == L'@') {
+        std::vector<wchar_t> resolvedPath(32768, L'\0');
+        if (SUCCEEDED(SHLoadIndirectString(
+                iconReference.c_str(),
+                resolvedPath.data(),
+                static_cast<UINT>(resolvedPath.size()),
+                nullptr)) &&
+            resolvedPath[0]) {
+            auto result = LoadIconPath(resolvedPath.data(), 0, iconSize);
+            if (!result.empty())
+                return result;
+        }
+    }
+
+    std::vector<wchar_t> reference(
+        iconReference.begin(), iconReference.end());
+    reference.push_back(L'\0');
+    const int iconIndex = PathParseIconLocationW(reference.data());
+    PathUnquoteSpacesW(reference.data());
+
+    std::vector<wchar_t> expandedPath(32768, L'\0');
+    const DWORD expandedLength = ExpandEnvironmentStringsW(
+        reference.data(),
+        expandedPath.data(),
+        static_cast<DWORD>(expandedPath.size()));
+    const wchar_t* iconPath =
+        expandedLength > 0 && expandedLength <= expandedPath.size()
+        ? expandedPath.data()
+        : reference.data();
+    return LoadIconPath(iconPath, iconIndex, iconSize);
+}
+
 std::vector<unsigned char> LoadHandlerIcon(
     IAssocHandler* handler,
     int iconSize) {
@@ -275,7 +358,7 @@ std::vector<unsigned char> LoadHandlerIcon(
                 static_cast<UINT>(resolvedPath.size()),
                 nullptr)) &&
             resolvedPath[0]) {
-            result = ImageFileToPng(resolvedPath.data(), iconSize);
+            result = LoadIconPath(resolvedPath.data(), 0, iconSize);
         }
         CoTaskMemFree(iconPath);
         if (!result.empty())
@@ -288,38 +371,48 @@ std::vector<unsigned char> LoadHandlerIcon(
         }
     }
 
-    HICON icon = nullptr;
-    const int cachedIndex =
-        Shell_GetCachedImageIndexW(iconPath, iconIndex, 0);
-    if (cachedIndex >= 0) {
-        IImageList* imageList = nullptr;
-        if (SUCCEEDED(SHGetImageList(
-                ImageListForSize(iconSize),
-                IID_IImageList,
-                reinterpret_cast<void**>(&imageList))) &&
-            imageList) {
-            imageList->GetIcon(cachedIndex, ILD_TRANSPARENT, &icon);
-            imageList->Release();
-        }
-    }
-
-    // Fall back to direct extraction when the shared image cache has no entry.
-    if (!icon) {
-        SHDefExtractIconW(
-            iconPath,
-            iconIndex,
-            0,
-            iconSize > 16 ? &icon : nullptr,
-            iconSize <= 16 ? &icon : nullptr,
-            MAKELONG(iconSize, iconSize));
-    }
+    result = LoadIconPath(iconPath, iconIndex, iconSize);
     CoTaskMemFree(iconPath);
-
-    if (icon) {
-        result = IconToPng(icon, iconSize);
-        DestroyIcon(icon);
-    }
     return result;
+}
+
+std::wstring QueryAssociationString(
+    const std::wstring& extension,
+    ASSOCSTR value) {
+    DWORD length = 0;
+    const ASSOCF flags = ASSOCF_NOTRUNCATE;
+    AssocQueryStringW(
+        flags, value, extension.c_str(), nullptr, nullptr, &length);
+    if (length <= 1)
+        return L"";
+
+    std::vector<wchar_t> buffer(length, L'\0');
+    if (FAILED(AssocQueryStringW(
+            flags,
+            value,
+            extension.c_str(),
+            nullptr,
+            buffer.data(),
+            &length)) ||
+        !buffer[0]) {
+        return L"";
+    }
+    return buffer.data();
+}
+
+std::vector<unsigned char> LoadDefaultOpenAppIcon(
+    const std::wstring& extension,
+    int iconSize) {
+    auto iconReference = QueryAssociationString(
+        extension, ASSOCSTR_APPICONREFERENCE);
+    auto result = LoadIconReference(iconReference, iconSize);
+    if (!result.empty())
+        return result;
+
+    // Older Win32 registrations may expose only the executable.
+    const auto executable = QueryAssociationString(
+        extension, ASSOCSTR_EXECUTABLE);
+    return LoadIconReference(executable, iconSize);
 }
 
 std::wstring ExtensionFromPath(const wchar_t* filePath) {
@@ -400,43 +493,46 @@ unsigned char* GetOpenWithMenuEntriesW(
     if (extension.empty())
         return nullptr;
 
+    const int resolvedIconSize = std::clamp(iconSize, 16, 256);
+    const auto defaultAppIcon = LoadDefaultOpenAppIcon(
+        extension, resolvedIconSize);
+
     IEnumAssocHandlers* enumerator = nullptr;
     HRESULT hr = SHAssocEnumHandlers(
         extension.c_str(),
         ASSOC_FILTER_RECOMMENDED,
         &enumerator);
-    if (FAILED(hr) || !enumerator)
-        return nullptr;
-
-    const int resolvedIconSize = std::clamp(iconSize, 16, 256);
-    IAssocHandler* handler = nullptr;
-    ULONG fetched = 0;
-    while (enumerator->Next(1, &handler, &fetched) == S_OK &&
-           fetched == 1 && handler) {
-        LPWSTR uiName = nullptr;
-        hr = handler->GetUIName(&uiName);
-        if (SUCCEEDED(hr) && uiName && *uiName) {
-            const std::wstring label(uiName);
-            if (!ContainsHandler(g_assocHandlers.entries, label, handler)) {
-                g_assocHandlers.entries.push_back({
-                    static_cast<int32_t>(g_assocHandlers.entries.size() + 1),
-                    label,
-                    LoadHandlerIcon(handler, resolvedIconSize),
-                    handler,
-                });
+    if (SUCCEEDED(hr) && enumerator) {
+        IAssocHandler* handler = nullptr;
+        ULONG fetched = 0;
+        while (enumerator->Next(1, &handler, &fetched) == S_OK &&
+               fetched == 1 && handler) {
+            LPWSTR uiName = nullptr;
+            hr = handler->GetUIName(&uiName);
+            if (SUCCEEDED(hr) && uiName && *uiName) {
+                const std::wstring label(uiName);
+                if (!ContainsHandler(g_assocHandlers.entries, label, handler)) {
+                    g_assocHandlers.entries.push_back({
+                        static_cast<int32_t>(g_assocHandlers.entries.size() + 1),
+                        label,
+                        LoadHandlerIcon(handler, resolvedIconSize),
+                        handler,
+                    });
+                    handler = nullptr;
+                }
+            }
+            if (uiName) CoTaskMemFree(uiName);
+            if (handler) {
+                handler->Release();
                 handler = nullptr;
             }
         }
-        if (uiName) CoTaskMemFree(uiName);
-        if (handler) {
+        if (handler)
             handler->Release();
-            handler = nullptr;
-        }
+        enumerator->Release();
     }
-    if (handler)
-        handler->Release();
-    enumerator->Release();
-    if (g_assocHandlers.entries.empty())
+
+    if (defaultAppIcon.empty() && g_assocHandlers.entries.empty())
         return nullptr;
     g_assocHandlers.filePath = filePath;
 
@@ -444,6 +540,7 @@ unsigned char* GetOpenWithMenuEntriesW(
     AppendInt32(
         buffer,
         static_cast<int32_t>(g_assocHandlers.entries.size()));
+    AppendBytes(buffer, defaultAppIcon);
     for (const auto& entry : g_assocHandlers.entries) {
         AppendInt32(buffer, 0);
         AppendInt32(buffer, entry.id);
