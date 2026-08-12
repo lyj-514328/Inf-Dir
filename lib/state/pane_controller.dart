@@ -24,8 +24,8 @@ enum PaneViewMode {
   content,
 }
 
-/// Quick filters exposed by the command bar. Filtering is local to a pane and
-/// never changes the directory enumeration cache.
+/// Quick filters exposed by the status-bar filter field. Filtering is local to
+/// a pane and never changes the directory enumeration cache.
 enum EntryFilter { all, folders, files, images, documents }
 
 /// 过滤输入的模式：由用户显式选择（状态栏过滤框右侧菜单）。

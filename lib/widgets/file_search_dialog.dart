@@ -8,11 +8,15 @@ import 'app_theme.dart';
 class FileSearchDialog extends StatefulWidget {
   final String rootPath;
   final FileSearchService searchService;
+  final Widget? modeSelector;
+  final ValueChanged<FileSearchResult>? onResult;
 
   FileSearchDialog({
     super.key,
     required this.rootPath,
     FileSearchService? searchService,
+    this.modeSelector,
+    this.onResult,
   }) : searchService = searchService ?? FileSearchService();
 
   @override
@@ -123,7 +127,12 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
   }
 
   void _openResult(FileSearchResult result) {
-    Navigator.of(context).pop(result);
+    final onResult = widget.onResult;
+    if (onResult != null) {
+      onResult(result);
+    } else {
+      Navigator.of(context).pop(result);
+    }
   }
 
   String get _rootLabel {
@@ -135,8 +144,13 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final size = MediaQuery.sizeOf(context);
-    final dialogWidth = (size.width - 32).clamp(360.0, 680.0).toDouble();
-    final dialogHeight = (size.height - 32).clamp(420.0, 640.0).toDouble();
+    final merged = widget.modeSelector != null;
+    final dialogWidth = (size.width - 32)
+        .clamp(merged ? 380.0 : 360.0, merged ? 760.0 : 680.0)
+        .toDouble();
+    final dialogHeight = (size.height - 32)
+        .clamp(merged ? 440.0 : 420.0, merged ? 680.0 : 640.0)
+        .toDouble();
 
     return Dialog(
       child: SizedBox(
@@ -187,6 +201,10 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                   ),
                 ],
               ),
+              if (widget.modeSelector != null) ...[
+                const SizedBox(height: 10),
+                widget.modeSelector!,
+              ],
               const SizedBox(height: 14),
               TextField(
                 controller: _queryController,

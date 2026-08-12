@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inf_dir/state/pane_controller.dart';
 import 'package:inf_dir/widgets/app_theme.dart';
 import 'package:inf_dir/widgets/command_menu.dart';
 
@@ -42,5 +43,26 @@ void main() {
       lessThan(tester.getRect(find.text(nextLabel)).top),
     );
     expect(tester.takeException(), isNull);
+  });
+
+  test('entry filter menu selects a type', () {
+    EntryFilter? selected;
+    final item = buildEntryFilterCommandMenuItem(
+      selected: EntryFilter.images,
+      onSelected: (value) => selected = value,
+    );
+
+    expect(item.label, '过滤类型');
+    expect(item.children!.map((child) => child.label), [
+      '全部',
+      '文件夹',
+      '文件',
+      '图片',
+      '文档',
+    ]);
+    expect(item.children!.singleWhere((child) => child.checked).label, '图片');
+
+    item.children!.first.onAction!();
+    expect(selected, EntryFilter.all);
   });
 }

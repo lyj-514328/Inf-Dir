@@ -41,83 +41,21 @@ class CommandMenuItem {
       onAction = null;
 }
 
-class CommandMenuConfig {
-  final bool canSearchFiles;
-  final bool canSearchText;
-  final bool canCreate;
-  final bool canCut;
-  final bool canCopy;
-  final bool canPaste;
-  final bool canRename;
-  final bool canDelete;
-  final bool canSelectAll;
-  final bool canShowProperties;
-  final bool showHiddenFiles;
-  final bool showFileExtensions;
+class ViewSortMenuConfig {
   final SortColumn sortColumn;
   final bool sortAscending;
   final PaneViewMode viewMode;
-  final EntryFilter entryFilter;
-  final VoidCallback? onCreateFolder;
-  final VoidCallback? onCreateFile;
-  final VoidCallback? onCreateShortcut;
-  final List<ShellNewEntry> shellNewEntries;
-  final ValueChanged<ShellNewEntry>? onCreateFromTemplate;
-  final VoidCallback? onCut;
-  final VoidCallback? onCopy;
-  final VoidCallback? onPaste;
-  final VoidCallback? onRename;
-  final VoidCallback? onDelete;
   final ValueChanged<SortColumn>? onSortColumn;
   final ValueChanged<bool>? onSortAscending;
   final ValueChanged<PaneViewMode>? onViewMode;
-  final ValueChanged<EntryFilter>? onFilter;
-  final VoidCallback? onSearchFiles;
-  final VoidCallback? onSearchText;
-  final VoidCallback? onSelectAll;
-  final VoidCallback? onRefresh;
-  final VoidCallback? onToggleHiddenFiles;
-  final VoidCallback? onToggleFileExtensions;
-  final VoidCallback? onProperties;
 
-  const CommandMenuConfig({
-    this.canSearchFiles = true,
-    this.canSearchText = true,
-    this.canCreate = true,
-    this.canCut = false,
-    this.canCopy = false,
-    this.canPaste = false,
-    this.canRename = false,
-    this.canDelete = false,
-    this.canSelectAll = false,
-    this.canShowProperties = false,
-    this.showHiddenFiles = false,
-    this.showFileExtensions = true,
+  const ViewSortMenuConfig({
     this.sortColumn = SortColumn.name,
     this.sortAscending = true,
     this.viewMode = PaneViewMode.details,
-    this.entryFilter = EntryFilter.all,
-    this.onCreateFolder,
-    this.onCreateFile,
-    this.onCreateShortcut,
-    this.shellNewEntries = const [],
-    this.onCreateFromTemplate,
-    this.onCut,
-    this.onCopy,
-    this.onPaste,
-    this.onRename,
-    this.onDelete,
     this.onSortColumn,
     this.onSortAscending,
     this.onViewMode,
-    this.onFilter,
-    this.onSearchFiles,
-    this.onSearchText,
-    this.onSelectAll,
-    this.onRefresh,
-    this.onToggleHiddenFiles,
-    this.onToggleFileExtensions,
-    this.onProperties,
   });
 }
 
@@ -173,8 +111,33 @@ List<CommandMenuItem> buildNewItemMenuItems({
   ];
 }
 
+CommandMenuItem buildEntryFilterCommandMenuItem({
+  required EntryFilter selected,
+  required ValueChanged<EntryFilter> onSelected,
+}) {
+  CommandMenuItem option(String label, EntryFilter filter) {
+    return CommandMenuItem(
+      label: label,
+      checked: selected == filter,
+      onAction: () => onSelected(filter),
+    );
+  }
+
+  return CommandMenuItem(
+    icon: Icons.filter_alt_outlined,
+    label: '过滤类型',
+    children: [
+      option('全部', EntryFilter.all),
+      option('文件夹', EntryFilter.folders),
+      option('文件', EntryFilter.files),
+      option('图片', EntryFilter.images),
+      option('文档', EntryFilter.documents),
+    ],
+  );
+}
+
 CommandMenuItem buildSortCommandMenuItem(
-  CommandMenuConfig m, {
+  ViewSortMenuConfig m, {
   String label = '排序',
 }) {
   return CommandMenuItem(
@@ -216,7 +179,7 @@ CommandMenuItem buildSortCommandMenuItem(
   );
 }
 
-CommandMenuItem buildViewCommandMenuItem(CommandMenuConfig m) {
+CommandMenuItem buildViewCommandMenuItem(ViewSortMenuConfig m) {
   return CommandMenuItem(
     icon: FileCommandMenuIcons.viewIcon(m.viewMode),
     label: '查看',
@@ -274,141 +237,6 @@ CommandMenuItem buildViewCommandMenuItem(CommandMenuConfig m) {
   );
 }
 
-List<CommandMenuItem> buildCommandMenuItems(CommandMenuConfig m) {
-  return [
-    CommandMenuItem(
-      icon: Icons.search,
-      label: '搜索文件',
-      enabled: m.canSearchFiles,
-      onAction: m.onSearchFiles,
-    ),
-    CommandMenuItem(
-      icon: Icons.find_in_page_outlined,
-      label: '搜索文本',
-      enabled: m.canSearchText,
-      onAction: m.onSearchText,
-    ),
-    CommandMenuItem(
-      icon: Icons.add,
-      label: '新建',
-      enabled: m.canCreate,
-      children: buildNewItemMenuItems(
-        onCreateFolder: m.onCreateFolder,
-        onCreateFile: m.onCreateFile,
-        onCreateShortcut: m.onCreateShortcut,
-        shellNewEntries: m.shellNewEntries,
-        onCreateFromTemplate: m.onCreateFromTemplate,
-      ),
-    ),
-    CommandMenuItem(
-      icon: Icons.content_cut,
-      label: '剪切',
-      shortcut: 'Ctrl+X',
-      enabled: m.canCut,
-      onAction: m.onCut,
-    ),
-    CommandMenuItem(
-      icon: Icons.content_copy,
-      label: '复制',
-      shortcut: 'Ctrl+C',
-      enabled: m.canCopy,
-      onAction: m.onCopy,
-    ),
-    CommandMenuItem(
-      icon: Icons.content_paste,
-      label: '粘贴',
-      shortcut: 'Ctrl+V',
-      enabled: m.canPaste,
-      onAction: m.onPaste,
-    ),
-    CommandMenuItem(
-      icon: Icons.drive_file_rename_outline,
-      label: '重命名',
-      shortcut: 'F2',
-      enabled: m.canRename,
-      onAction: m.onRename,
-    ),
-    CommandMenuItem(
-      icon: Icons.delete_outline,
-      label: '删除',
-      shortcut: 'Delete',
-      enabled: m.canDelete,
-      onAction: m.onDelete,
-    ),
-    const CommandMenuItem.divider(),
-    buildSortCommandMenuItem(m),
-    buildViewCommandMenuItem(m),
-    CommandMenuItem(
-      icon: Icons.filter_alt_outlined,
-      label: '筛选器',
-      children: [
-        _checked(
-          label: '全部',
-          checked: m.entryFilter == EntryFilter.all,
-          onAction: () => m.onFilter?.call(EntryFilter.all),
-        ),
-        _checked(
-          label: '文件夹',
-          checked: m.entryFilter == EntryFilter.folders,
-          onAction: () => m.onFilter?.call(EntryFilter.folders),
-        ),
-        _checked(
-          label: '文件',
-          checked: m.entryFilter == EntryFilter.files,
-          onAction: () => m.onFilter?.call(EntryFilter.files),
-        ),
-        _checked(
-          label: '图片',
-          checked: m.entryFilter == EntryFilter.images,
-          onAction: () => m.onFilter?.call(EntryFilter.images),
-        ),
-        _checked(
-          label: '文档',
-          checked: m.entryFilter == EntryFilter.documents,
-          onAction: () => m.onFilter?.call(EntryFilter.documents),
-        ),
-      ],
-    ),
-    const CommandMenuItem.divider(),
-    CommandMenuItem(
-      icon: Icons.more_horiz,
-      label: '更多',
-      children: [
-        CommandMenuItem(
-          icon: Icons.select_all,
-          label: '全选',
-          shortcut: 'Ctrl+A',
-          enabled: m.canSelectAll,
-          onAction: m.onSelectAll,
-        ),
-        CommandMenuItem(
-          icon: Icons.refresh,
-          label: '刷新',
-          shortcut: 'F5',
-          onAction: m.onRefresh,
-        ),
-        const CommandMenuItem.divider(),
-        _checked(
-          label: '显示隐藏项目',
-          checked: m.showHiddenFiles,
-          onAction: m.onToggleHiddenFiles,
-        ),
-        _checked(
-          label: '显示文件后缀名',
-          checked: m.showFileExtensions,
-          onAction: m.onToggleFileExtensions,
-        ),
-        CommandMenuItem(
-          icon: Icons.info_outline,
-          label: '属性',
-          enabled: m.canShowProperties,
-          onAction: m.onProperties,
-        ),
-      ],
-    ),
-  ];
-}
-
 abstract final class FileCommandMenuIcons {
   static IconData viewIcon(PaneViewMode mode) {
     return switch (mode) {
@@ -427,17 +255,15 @@ abstract final class FileCommandMenuIcons {
 void showCommandMenu(
   BuildContext context, {
   required Offset position,
-  CommandMenuConfig? config,
-  List<CommandMenuItem>? items,
+  required List<CommandMenuItem> items,
   VoidCallback? onClosed,
 }) {
-  final resolvedItems = items ?? buildCommandMenuItems(config!);
   final overlay = Overlay.of(context);
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder: (_) => _CommandMenuOverlay(
       position: position,
-      items: resolvedItems,
+      items: items,
       onClosed: onClosed,
       close: () => entry.remove(),
     ),

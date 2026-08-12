@@ -6,32 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/services/file_search_service.dart';
 import 'package:inf_dir/services/text_search_service.dart';
 import 'package:inf_dir/widgets/app_theme.dart';
-import 'package:inf_dir/widgets/command_menu.dart';
 import 'package:inf_dir/widgets/file_search_dialog.dart';
+import 'package:inf_dir/widgets/search_dialog.dart';
 import 'package:inf_dir/widgets/text_search_dialog.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
-  test('command menu exposes search as an action item', () {
-    var fileSearchInvoked = false;
-    var textSearchInvoked = false;
-    final items = buildCommandMenuItems(
-      CommandMenuConfig(
-        onSearchFiles: () => fileSearchInvoked = true,
-        onSearchText: () => textSearchInvoked = true,
-      ),
-    );
-
-    expect(items[0].label, '搜索文件');
-    expect(items[1].label, '搜索文本');
-    expect(items[0].icon, Icons.search);
-    expect(items[1].icon, Icons.find_in_page_outlined);
-    items[0].onAction!();
-    items[1].onAction!();
-    expect(fileSearchInvoked, isTrue);
-    expect(textSearchInvoked, isTrue);
-  });
-
   group('FileSearchOptions', () {
     test('builds fd arguments for glob directory search', () {
       final args = const FileSearchOptions(
@@ -295,6 +275,26 @@ void main() {
       await tester.tap(find.text('report.txt'));
       await tester.pumpAndSettle();
       expect(await dialogFuture, isA<FileSearchResult>());
+    });
+
+    testWidgets('unified search defaults to files and switches to text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: SearchDialog(rootPath: root.path),
+        ),
+      );
+
+      expect(find.text('搜索文件'), findsOneWidget);
+      expect(find.text('输入文件名'), findsOneWidget);
+
+      await tester.tap(find.text('文本'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('搜索文本'), findsOneWidget);
+      expect(find.text('输入要匹配的文本'), findsOneWidget);
     });
 
     testWidgets('text search dialog shows and opens a matching file', (

@@ -6,24 +6,20 @@ class NavToolbar extends StatelessWidget {
   final bool canGoBack;
   final bool canGoForward;
   final bool canGoUp;
-  final bool commandMenuActive;
   final VoidCallback onBack;
   final VoidCallback onForward;
   final VoidCallback onUp;
   final VoidCallback onRefresh;
-  final ValueChanged<Offset> onCommandMenu;
 
   const NavToolbar({
     super.key,
     required this.canGoBack,
     required this.canGoForward,
     required this.canGoUp,
-    this.commandMenuActive = false,
     required this.onBack,
     required this.onForward,
     required this.onUp,
     required this.onRefresh,
-    required this.onCommandMenu,
   });
 
   @override
@@ -55,20 +51,6 @@ class NavToolbar extends StatelessWidget {
           enabled: true,
           onPressed: onRefresh,
         ),
-        Builder(
-          builder: (btnContext) => _NavButton(
-            icon: Icons.keyboard_command_key,
-            tooltip: '命令',
-            enabled: true,
-            active: commandMenuActive,
-            onPressed: () {
-              final box = btnContext.findRenderObject()! as RenderBox;
-              onCommandMenu(
-                box.localToGlobal(Offset(0, box.size.height + 2)),
-              );
-            },
-          ),
-        ),
       ],
     );
   }
@@ -78,7 +60,6 @@ class _NavButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final bool enabled;
-  final bool active;
   final VoidCallback onPressed;
 
   const _NavButton({
@@ -86,17 +67,12 @@ class _NavButton extends StatelessWidget {
     required this.tooltip,
     required this.enabled,
     required this.onPressed,
-    this.active = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final color = !enabled
-        ? c.textTertiary
-        : active
-        ? c.accent
-        : c.textSecondary;
+    final color = !enabled ? c.textTertiary : c.textSecondary;
     return Tooltip(
       message: tooltip,
       child: InkWell(

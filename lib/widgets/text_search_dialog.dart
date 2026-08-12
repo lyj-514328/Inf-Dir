@@ -12,11 +12,15 @@ enum _TextSearchRowKind { fileName, relativePath, match }
 class TextSearchDialog extends StatefulWidget {
   final String rootPath;
   final TextSearchService searchService;
+  final Widget? modeSelector;
+  final ValueChanged<TextSearchMatch>? onResult;
 
   TextSearchDialog({
     super.key,
     required this.rootPath,
     TextSearchService? searchService,
+    this.modeSelector,
+    this.onResult,
   }) : searchService = searchService ?? TextSearchService();
 
   @override
@@ -242,6 +246,10 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
                   ),
                 ],
               ),
+              if (widget.modeSelector != null) ...[
+                const SizedBox(height: 10),
+                widget.modeSelector!,
+              ],
               const SizedBox(height: 14),
               TextField(
                 controller: _queryController,
@@ -466,7 +474,14 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
                           final result = row.match!;
                           return InkWell(
                             key: ValueKey('${result.path}:${result.line}'),
-                            onTap: () => Navigator.of(context).pop(result),
+                            onTap: () {
+                              final onResult = widget.onResult;
+                              if (onResult != null) {
+                                onResult(result);
+                              } else {
+                                Navigator.of(context).pop(result);
+                              }
+                            },
                             child: Padding(
                               padding: const EdgeInsets.only(left: 8, right: 8),
                               child: Row(

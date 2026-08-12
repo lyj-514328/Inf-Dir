@@ -12,8 +12,6 @@ import '../state/layout_state.dart';
 import '../state/pane_controller.dart';
 import '../services/cloud_drive_service.dart';
 import '../services/file_service.dart';
-import '../services/file_search_service.dart';
-import '../services/text_search_service.dart';
 import '../services/shell_context_menu.dart';
 import '../services/shell_new_service.dart';
 import '../services/open_with_menu_service.dart';
@@ -22,11 +20,10 @@ import 'file_list_view.dart';
 import 'address_bar.dart';
 import 'command_menu.dart';
 import 'file_context_menu.dart';
-import 'file_search_dialog.dart';
-import 'text_search_dialog.dart';
 import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
 import 'home_view.dart';
+import 'search_dialog.dart';
 
 class FilePane extends StatelessWidget {
   final String paneId;
@@ -78,9 +75,7 @@ class _PaneContent extends StatelessWidget {
                   AppMetrics.paneGap,
                   5,
                 ),
-                child: _PaneLocationSection(
-                  onCommandMenu: (pos) => _openCommandMenu(context, pos),
-                ),
+                child: const _PaneLocationSection(),
               ),
             ],
           ),
@@ -190,7 +185,17 @@ class _PaneContent extends StatelessWidget {
         '[Perf] _PaneContent build: ${sw.elapsedMilliseconds}ms, entries=${controller.entries.length}',
       );
     }
-    return result;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
+          if (!controller.isHome &&
+              !FileService.isSpecialPath(controller.currentPath)) {
+            _openSearch(context, controller.currentPath);
+          }
+        },
+      },
+      child: result,
+    );
   }
 
   // ── Open / Navigate ────────────────────────────────────────────────
@@ -311,81 +316,6 @@ class _PaneContent extends StatelessWidget {
     } catch (e) {
       if (context.mounted) _showOperationError(context, '创建文件失败', e);
     }
-  }
-
-  void _showProperties(BuildContext context) {
-    final controller = context.read<PaneController>();
-    final paths = controller.selectedPaths.toList();
-    if (paths.isEmpty) return;
-    _showNativeMenuAtToolbar(context, paths);
-  }
-
-  void _openCommandMenu(BuildContext context, Offset position) {
-    final controller = context.read<PaneController>();
-    final appState = context.read<AppState>();
-    final isHome = controller.isHome;
-    final currentPath = controller.currentPath;
-    final selectionCount = controller.selectedPaths.length;
-    final canSelect = !isHome && selectionCount > 0;
-    final canSearch = !isHome && !FileService.isSpecialPath(currentPath);
-    final canCreate =
-        !isHome &&
-        !FileService.isSpecialPath(currentPath) &&
-        !FileService.isRecycleBinPath(currentPath);
-    final canRename =
-        canSelect &&
-        selectionCount == 1 &&
-        !FileService.isRecycleBinPath(currentPath);
-    final canDelete = canSelect && !FileService.isRecycleBinPath(currentPath);
-
-    showCommandMenu(
-      context,
-      position: position,
-      config: CommandMenuConfig(
-        canSearchFiles: canSearch,
-        canSearchText: canSearch,
-        canCreate: canCreate,
-        canCut: canSelect && !FileService.isRecycleBinPath(currentPath),
-        canCopy: canSelect,
-        canPaste: canCreate && appState.hasClipboard,
-        canRename: canRename,
-        canDelete: canDelete,
-        canSelectAll: !isHome && controller.visibleEntries.isNotEmpty,
-        canShowProperties: canSelect,
-        showHiddenFiles: appState.showHiddenFiles,
-        showFileExtensions: appState.showFileExtensions,
-        sortColumn: controller.sortColumn,
-        sortAscending: controller.sortAscending,
-        viewMode: controller.viewMode,
-        entryFilter: controller.entryFilter,
-        onCreateFolder: () => _createFolder(context),
-        onCreateFile: () => _createFile(context),
-        onCreateShortcut: () => _createShortcutFromDialog(context),
-        shellNewEntries: _shellNewEntries(context),
-        onCreateFromTemplate: (entry) => _createFromTemplate(context, entry),
-        onCut: () => _cutSelected(context),
-        onCopy: () => _copySelected(context),
-        onPaste: () => _paste(context),
-        onRename: () => _renameSelected(context),
-        onDelete: () => _deleteSelected(context),
-        onSortColumn: controller.setSortColumn,
-        onSortAscending: controller.setSortAscending,
-        onViewMode: controller.setViewMode,
-        onFilter: controller.setEntryFilter,
-        onSearchFiles: () => _openFileSearch(context, currentPath),
-        onSearchText: () => _openTextSearch(context, currentPath),
-        onSelectAll: controller.selectAll,
-        onRefresh: controller.refresh,
-        onToggleHiddenFiles: () {
-          appState.setShowHiddenFiles(!appState.showHiddenFiles);
-          context.read<LayoutState>().refreshAllPanes();
-        },
-        onToggleFileExtensions: () {
-          appState.setShowFileExtensions(!appState.showFileExtensions);
-        },
-        onProperties: () => _showProperties(context),
-      ),
-    );
   }
 
   Future<void> _openItemContextMenu(
@@ -655,10 +585,10 @@ class _PaneContent extends StatelessWidget {
     );
   }
 
-  Future<void> _openFileSearch(BuildContext context, String rootPath) async {
-    final result = await showDialog<FileSearchResult>(
+  Future<void> _openSearch(BuildContext context, String rootPath) async {
+    final result = await showDialog<SearchDialogResult>(
       context: context,
-      builder: (_) => FileSearchDialog(rootPath: rootPath),
+      builder: (_) => SearchDialog(rootPath: rootPath),
     );
     if (!context.mounted || result == null) return;
 
@@ -668,24 +598,6 @@ class _PaneContent extends StatelessWidget {
     } else {
       await FileService.openFile(result.path);
     }
-  }
-
-  Future<void> _openTextSearch(BuildContext context, String rootPath) async {
-    final result = await showDialog<TextSearchMatch>(
-      context: context,
-      builder: (_) => TextSearchDialog(rootPath: rootPath),
-    );
-    if (!context.mounted || result == null) return;
-    await FileService.openFile(result.path);
-  }
-
-  void _showNativeMenuAtToolbar(BuildContext context, List<String> paths) {
-    final size = MediaQuery.sizeOf(context);
-    _showNativeMenu(
-      context,
-      paths,
-      Offset(size.width * 0.5, AppMetrics.commandBarHeight * 3.5),
-    );
   }
 
   void _openSelected(BuildContext context, PaneController controller) {
@@ -870,9 +782,7 @@ class _PaneTabBarSection extends StatelessWidget {
 }
 
 class _PaneLocationSection extends StatelessWidget {
-  final ValueChanged<Offset> onCommandMenu;
-
-  const _PaneLocationSection({required this.onCommandMenu});
+  const _PaneLocationSection();
 
   @override
   Widget build(BuildContext context) {
@@ -880,7 +790,7 @@ class _PaneLocationSection extends StatelessWidget {
       height: AppMetrics.addressBarHeight,
       child: Row(
         children: [
-          _NavToolbarSection(onCommandMenu: onCommandMenu),
+          const _NavToolbarSection(),
           const SizedBox(width: 4),
           const Expanded(child: _AddressBarSection()),
         ],
@@ -890,31 +800,22 @@ class _PaneLocationSection extends StatelessWidget {
 }
 
 class _NavToolbarSection extends StatelessWidget {
-  final ValueChanged<Offset> onCommandMenu;
-
-  const _NavToolbarSection({required this.onCommandMenu});
+  const _NavToolbarSection();
 
   @override
   Widget build(BuildContext context) {
-    return Selector<PaneController, (bool, bool, bool, bool)>(
-      selector: (_, c) => (
-        c.canGoBack,
-        c.canGoForward,
-        c.canGoUp,
-        c.filterQuery.isNotEmpty || c.entryFilter != EntryFilter.all,
-      ),
+    return Selector<PaneController, (bool, bool, bool)>(
+      selector: (_, c) => (c.canGoBack, c.canGoForward, c.canGoUp),
       builder: (context, sel, _) {
         final controller = context.read<PaneController>();
         return NavToolbar(
           canGoBack: sel.$1,
           canGoForward: sel.$2,
           canGoUp: sel.$3,
-          commandMenuActive: sel.$4,
           onBack: controller.goBack,
           onForward: controller.goForward,
           onUp: controller.goUp,
           onRefresh: controller.refresh,
-          onCommandMenu: onCommandMenu,
         );
       },
     );
@@ -1006,7 +907,7 @@ class _StatusBarSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Selector<
       PaneController,
-      (int, int, bool, int, String, QueryFilterMode, bool)
+      (int, int, bool, int, String, QueryFilterMode, bool, EntryFilter)
     >(
       selector: (_, c) => (
         c.entryCount,
@@ -1016,6 +917,7 @@ class _StatusBarSection extends StatelessWidget {
         c.filterQuery,
         c.filterMode,
         c.caseSensitive,
+        c.entryFilter,
       ),
       builder: (context, sel, _) => _StatusBar(
         visibleCount: sel.$1,
@@ -1025,10 +927,12 @@ class _StatusBarSection extends StatelessWidget {
         filterQuery: sel.$5,
         filterMode: sel.$6,
         caseSensitive: sel.$7,
+        entryFilter: sel.$8,
         onFilterChanged: context.read<PaneController>().setFilterQuery,
         onModeSelected: (mode, caseSensitive) => context
             .read<PaneController>()
             .setFilterMode(mode, caseSensitive: caseSensitive),
+        onEntryFilterSelected: context.read<PaneController>().setEntryFilter,
       ),
     );
   }
@@ -1243,8 +1147,10 @@ class _StatusBar extends StatelessWidget {
   final String filterQuery;
   final QueryFilterMode filterMode;
   final bool caseSensitive;
+  final EntryFilter entryFilter;
   final ValueChanged<String> onFilterChanged;
   final void Function(QueryFilterMode mode, bool caseSensitive) onModeSelected;
+  final ValueChanged<EntryFilter> onEntryFilterSelected;
 
   const _StatusBar({
     required this.visibleCount,
@@ -1254,14 +1160,17 @@ class _StatusBar extends StatelessWidget {
     required this.filterQuery,
     required this.filterMode,
     required this.caseSensitive,
+    required this.entryFilter,
     required this.onFilterChanged,
     required this.onModeSelected,
+    required this.onEntryFilterSelected,
   });
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final hasFilter = filterQuery.trim().isNotEmpty;
+    final hasFilter =
+        filterQuery.trim().isNotEmpty || entryFilter != EntryFilter.all;
     String text;
     if (isLoading) {
       text = '正在加载...';
@@ -1297,8 +1206,10 @@ class _StatusBar extends StatelessWidget {
               query: filterQuery,
               filterMode: filterMode,
               caseSensitive: caseSensitive,
+              entryFilter: entryFilter,
               onChanged: onFilterChanged,
               onModeSelected: onModeSelected,
+              onEntryFilterSelected: onEntryFilterSelected,
             ),
           ),
         ],
@@ -1307,20 +1218,24 @@ class _StatusBar extends StatelessWidget {
   }
 }
 
-/// 状态栏右侧的过滤输入框：右侧图标显示当前模式，点击弹出模式菜单。
+/// 状态栏右侧的过滤输入框：右侧图标打开匹配模式和类型菜单。
 class _StatusFilterField extends StatefulWidget {
   final String query;
   final QueryFilterMode filterMode;
   final bool caseSensitive;
+  final EntryFilter entryFilter;
   final ValueChanged<String> onChanged;
   final void Function(QueryFilterMode mode, bool caseSensitive) onModeSelected;
+  final ValueChanged<EntryFilter> onEntryFilterSelected;
 
   const _StatusFilterField({
     required this.query,
     required this.filterMode,
     required this.caseSensitive,
+    required this.entryFilter,
     required this.onChanged,
     required this.onModeSelected,
+    required this.onEntryFilterSelected,
   });
 
   @override
@@ -1384,6 +1299,7 @@ class _StatusFilterFieldState extends State<_StatusFilterField> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final hasQuery = widget.query.trim().isNotEmpty;
+    final hasFilter = hasQuery || widget.entryFilter != EntryFilter.all;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -1466,7 +1382,7 @@ class _StatusFilterFieldState extends State<_StatusFilterField> {
                       child: Icon(
                         _modeIcon,
                         size: AppMetrics.iconSm,
-                        color: hasQuery ? c.accent : c.textSecondary,
+                        color: hasFilter ? c.accent : c.textSecondary,
                       ),
                     ),
                   ),
@@ -1510,6 +1426,11 @@ class _StatusFilterFieldState extends State<_StatusFilterField> {
           label: '正则表达式',
           checked: _isActive(QueryFilterMode.regex, false),
           onAction: () => widget.onModeSelected(QueryFilterMode.regex, false),
+        ),
+        const CommandMenuItem.divider(),
+        buildEntryFilterCommandMenuItem(
+          selected: widget.entryFilter,
+          onSelected: widget.onEntryFilterSelected,
         ),
       ],
     );

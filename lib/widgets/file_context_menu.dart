@@ -232,7 +232,7 @@ List<CommandMenuItem> buildFolderContextMenuItems({
   List<ShellNewEntry> shellNewEntries = const [],
   required ValueChanged<ShellNewEntry> onCreateFromTemplate,
 }) {
-  final sharedConfig = CommandMenuConfig(
+  final sharedConfig = ViewSortMenuConfig(
     sortColumn: sortColumn,
     sortAscending: sortAscending,
     viewMode: viewMode,
