@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Code View</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <header class="toolbar" aria-label="Code viewer toolbar">
+    <div class="file-identity">
+      <i data-lucide="file-code-2" aria-hidden="true"></i>
+      <div class="file-copy">
+        <strong id="file-name">Code View</strong>
+        <span id="file-path"></span>
+      </div>
+      <span class="readonly-badge">Read only</span>
+    </div>
+
+    <div class="toolbar-actions">
+      <button id="search-button" class="icon-button" type="button" title="Find" aria-label="Find">
+        <i data-lucide="search" aria-hidden="true"></i>
+      </button>
+      <button id="goto-button" class="icon-button" type="button" title="Go to line" aria-label="Go to line">
+        <i data-lucide="list-ordered" aria-hidden="true"></i>
+      </button>
+      <button id="wrap-button" class="icon-button" type="button" title="Word wrap" aria-label="Word wrap" aria-pressed="false">
+        <i data-lucide="wrap-text" aria-hidden="true"></i>
+      </button>
+      <button id="fold-button" class="icon-button" type="button" title="Fold all" aria-label="Fold all">
+        <i data-lucide="fold-vertical" aria-hidden="true"></i>
+      </button>
+      <button id="unfold-button" class="icon-button" type="button" title="Unfold all" aria-label="Unfold all">
+        <i data-lucide="unfold-vertical" aria-hidden="true"></i>
+      </button>
+      <button id="reload-button" class="icon-button" type="button" title="Reload file" aria-label="Reload file">
+        <i data-lucide="refresh-cw" aria-hidden="true"></i>
+      </button>
+
+      <span class="toolbar-separator" aria-hidden="true"></span>
+
+      <label class="select-control" title="Syntax language">
+        <i data-lucide="braces" aria-hidden="true"></i>
+        <select id="language-select" aria-label="Syntax language">
+          <option value="auto">Auto detect</option>
+          <option value="plain">Plain text</option>
+        </select>
+      </label>
+
+      <div class="zoom-control" aria-label="Font size">
+        <button id="zoom-out-button" class="icon-button compact" type="button" title="Decrease font size" aria-label="Decrease font size">
+          <i data-lucide="minus" aria-hidden="true"></i>
+        </button>
+        <span id="zoom-value">100%</span>
+        <button id="zoom-in-button" class="icon-button compact" type="button" title="Increase font size" aria-label="Increase font size">
+          <i data-lucide="plus" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <label class="select-control theme-control" title="Color theme">
+        <i data-lucide="sun-moon" aria-hidden="true"></i>
+        <select id="theme-select" aria-label="Color theme">
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main id="editor" aria-label="Read-only source code"></main>
+
+  <footer class="statusbar">
+    <div class="status-group">
+      <span id="cursor-status">Ln 1, Col 1</span>
+      <span id="selection-status" hidden></span>
+    </div>
+    <div class="status-group status-secondary">
+      <span id="language-status">Plain text</span>
+      <span id="encoding-status">UTF-8</span>
+      <span id="document-status">0 lines, 0 B</span>
+    </div>
+  </footer>
+
+  <div id="loading" class="loading-state">
+    <span class="spinner" aria-hidden="true"></span>
+    <span id="loading-label">Opening file...</span>
+  </div>
+
+  <script src="./app.bundle.js"></script>
+</body>
+</html>

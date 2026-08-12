@@ -1,0 +1,17 @@
+[package]
+name = "code-view"
+version = "0.1.0"
+edition = "2021"
+description = "Read-only CodeMirror viewer for Inf-Dir Quick View (WebView2)"
+
+[dependencies]
+dpi = "0.1"
+http = "1"
+percent-encoding = "2.3"
+winit = "0.30"
+wry = "0.56"
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+strip = true

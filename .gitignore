@@ -30,6 +30,8 @@ plugins/office-view-web/
 plugins/office-view/_ooxml.tgz
 plugins/markdown-view-web/
 plugins/markdown-view/_web_tmp/
+plugins/code-view/node_modules/
+plugins/code-view-web/
 plugins/office-view.exe.WebView2/
 plugins/*.log
 plugins/search/_cache/

@@ -1,0 +1,11 @@
+CodeMirror 6 and Lezer parser packages
+Copyright (C) 2018-2026 by Marijn Haverbeke and others
+License: MIT
+https://codemirror.net/
+
+Lucide
+Copyright (c) 2020-2026 Lucide Contributors
+License: ISC
+https://lucide.dev/
+
+esbuild is used only during development and is not included in the runtime package.

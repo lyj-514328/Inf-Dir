@@ -1,0 +1,31 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.code-view",
+  "name": "代码查看器",
+  "version": "0.1.0",
+  "entrypoint": "code-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [
+        ".bat", ".bash", ".c", ".cc", ".cjs", ".cmake", ".conf",
+        ".config", ".cpp", ".cs", ".css", ".cxx", ".dart",
+        ".diff", ".fish", ".fs", ".fsx", ".go", ".gradle", ".graphql",
+        ".groovy", ".gql", ".h", ".hh", ".hlsl", ".hpp", ".htm",
+        ".html", ".hxx", ".ini", ".java", ".js", ".json", ".jsonc",
+        ".jsx", ".kt", ".kts", ".less", ".lua", ".mjs", ".php",
+        ".properties", ".proto", ".ps1", ".py", ".r", ".rb", ".rs",
+        ".sass", ".scala", ".scss", ".sh", ".sql", ".svelte", ".swift",
+        ".tex", ".toml", ".ts", ".tsx", ".vb", ".vue", ".xml", ".yaml",
+        ".yml", ".zsh"
+      ],
+      "fileNames": [
+        ".editorconfig", ".env", ".gitattributes", ".gitignore",
+        "cmakelists.txt", "dockerfile", "makefile"
+      ],
+      "mimeTypes": [
+        "application/javascript", "application/json", "application/xml",
+        "text/css", "text/html", "text/javascript"
+      ]
+    }
+  }
+}
