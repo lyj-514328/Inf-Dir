@@ -34,22 +34,27 @@ class OpenWithMenuEntry {
 }
 
 typedef _GetEntriesNative =
-    Pointer<Uint8> Function(Pointer<Utf16> filePath, Pointer<Int32> outSize);
+    Pointer<Uint8> Function(
+      Pointer<Utf16> filePath,
+      Int32 iconSize,
+      Pointer<Int32> outSize,
+    );
 typedef _GetEntriesDart =
-    Pointer<Uint8> Function(Pointer<Utf16> filePath, Pointer<Int32> outSize);
+    Pointer<Uint8> Function(
+      Pointer<Utf16> filePath,
+      int iconSize,
+      Pointer<Int32> outSize,
+    );
 
 typedef _FreeEntriesNative = Void Function(Pointer<Uint8> ptr);
 typedef _FreeEntriesDart = void Function(Pointer<Uint8> ptr);
 
-typedef _InvokeEntryNative = Int32 Function(Int32 commandId, IntPtr hwnd);
-typedef _InvokeEntryDart = int Function(int commandId, int hwnd);
+typedef _InvokeEntryNative = Int32 Function(Int32 commandId);
+typedef _InvokeEntryDart = int Function(int commandId);
 
-typedef _GetActiveWindowNative = IntPtr Function();
-typedef _GetActiveWindowDart = int Function();
-
-/// Hosts Windows' own Open With handler and exposes its submenu entries to the
-/// Flutter command menu. The native handler owns the selected file's menu
-/// until [invoke] is called or another file is queried.
+/// Enumerates Windows association handlers and exposes them to the Flutter
+/// command menu. Native handlers remain valid until [invoke] is called or
+/// another file is queried.
 class OpenWithMenuService {
   OpenWithMenuService._();
 
@@ -65,16 +70,14 @@ class OpenWithMenuService {
       .lookupFunction<_InvokeEntryNative, _InvokeEntryDart>(
         'InvokeOpenWithMenuEntry',
       );
-  static final _getActiveWindow = DynamicLibrary.open('user32.dll')
-      .lookupFunction<_GetActiveWindowNative, _GetActiveWindowDart>(
-        'GetActiveWindow',
-      );
-
-  static List<OpenWithMenuEntry> getEntries(String filePath) {
+  static List<OpenWithMenuEntry> getEntries(
+    String filePath, {
+    required int iconSize,
+  }) {
     final path = filePath.toNativeUtf16();
     final outSize = calloc<Int32>();
     try {
-      final ptr = _getEntries(path, outSize);
+      final ptr = _getEntries(path, iconSize, outSize);
       if (ptr == nullptr || outSize.value < 4) return const [];
       try {
         return _parse(ptr, outSize.value);
@@ -88,7 +91,7 @@ class OpenWithMenuService {
   }
 
   static void invoke(int commandId) {
-    _invokeEntry(commandId, _getActiveWindow());
+    _invokeEntry(commandId);
   }
 
   static List<OpenWithMenuEntry> _parse(Pointer<Uint8> buffer, int byteSize) {

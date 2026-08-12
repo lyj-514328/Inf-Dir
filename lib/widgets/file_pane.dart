@@ -411,8 +411,10 @@ class _PaneContent extends StatelessWidget {
     final isDir = singleEntry?.isDirectory ?? false;
     final canOpenDir = singleEntry != null && isDir && !isRecycleBin;
     final canOpenFile = singleEntry != null && !isDir && !isRecycleBin;
+    final openWithIconSize =
+        (AppMetrics.iconMd * View.of(context).devicePixelRatio).ceil();
     final openWithChildren = canOpenFile
-        ? _buildOpenWithMenuItems(singlePath!)
+        ? _buildOpenWithMenuItems(singlePath!, openWithIconSize)
         : null;
 
     String? compressName;
@@ -528,9 +530,9 @@ class _PaneContent extends StatelessWidget {
     }
   }
 
-  List<CommandMenuItem>? _buildOpenWithMenuItems(String path) {
+  List<CommandMenuItem>? _buildOpenWithMenuItems(String path, int iconSize) {
     try {
-      final entries = OpenWithMenuService.getEntries(path);
+      final entries = OpenWithMenuService.getEntries(path, iconSize: iconSize);
       if (entries.isEmpty) return null;
       return [
         for (final entry in entries)

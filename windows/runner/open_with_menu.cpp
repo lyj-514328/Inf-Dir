@@ -2,6 +2,8 @@
 
 #include <shlobj.h>
 #include <shobjidl.h>
+#include <shlwapi.h>
+#include <commoncontrols.h>
 #include <gdiplus.h>
 
 #include <algorithm>
@@ -11,36 +13,28 @@
 
 namespace {
 
-// This CLSID is declared by the Windows Shell API, but is absent from some
-// recent SDK header variants. It is the documented Shell Open With handler.
-const CLSID kOpenWithMenuClsid = {
-    0x09799afb, 0xad67, 0x11d1, {0xab, 0xcd, 0x00, 0xc0, 0x4f, 0xc3, 0x09, 0x36}};
+struct AssocHandlerEntry {
+    int32_t id;
+    std::wstring label;
+    std::vector<unsigned char> iconPng;
+    IAssocHandler* handler = nullptr;
+};
 
-struct OpenWithMenuState {
-    IContextMenu* contextMenu = nullptr;
-    HMENU menu = nullptr;
+struct AssocHandlerState {
+    std::wstring filePath;
+    std::vector<AssocHandlerEntry> entries;
 
     void Reset() {
-        if (menu) {
-            DestroyMenu(menu);
-            menu = nullptr;
+        for (auto& entry : entries) {
+            if (entry.handler)
+                entry.handler->Release();
         }
-        if (contextMenu) {
-            contextMenu->Release();
-            contextMenu = nullptr;
-        }
+        entries.clear();
+        filePath.clear();
     }
 };
 
-OpenWithMenuState g_openWithMenu;
-
-struct OpenWithEntry {
-    int32_t kind;
-    int32_t commandId;
-    int32_t enabled;
-    std::wstring label;
-    std::vector<unsigned char> iconPng;
-};
+AssocHandlerState g_assocHandlers;
 
 void AppendInt32(std::vector<unsigned char>& buffer, int32_t value) {
     buffer.insert(
@@ -76,10 +70,13 @@ bool GetPngEncoder(CLSID* pngClsid) {
         if (Gdiplus::GdiplusStartup(&token, &input, nullptr) == Gdiplus::Ok) {
             UINT count = 0;
             UINT size = 0;
-            if (Gdiplus::GetImageEncodersSize(&count, &size) == Gdiplus::Ok && size > 0) {
+            if (Gdiplus::GetImageEncodersSize(&count, &size) == Gdiplus::Ok &&
+                size > 0) {
                 std::vector<unsigned char> buffer(size);
-                auto* codecs = reinterpret_cast<Gdiplus::ImageCodecInfo*>(buffer.data());
-                if (Gdiplus::GetImageEncoders(count, size, codecs) == Gdiplus::Ok) {
+                auto* codecs =
+                    reinterpret_cast<Gdiplus::ImageCodecInfo*>(buffer.data());
+                if (Gdiplus::GetImageEncoders(count, size, codecs) ==
+                    Gdiplus::Ok) {
                     for (UINT index = 0; index < count; index++) {
                         if (wcscmp(codecs[index].MimeType, L"image/png") == 0) {
                             clsid = codecs[index].Clsid;
@@ -91,522 +88,373 @@ bool GetPngEncoder(CLSID* pngClsid) {
             }
         }
     }
-    if (available && pngClsid) *pngClsid = clsid;
+    if (available && pngClsid)
+        *pngClsid = clsid;
     return available;
 }
 
-std::vector<unsigned char> PixelsToPng(
-    int width,
-    int height,
-    int stride,
-    unsigned char* pixels) {
+std::vector<unsigned char> IconToPng(HICON icon, int iconSize) {
     std::vector<unsigned char> result;
-    if (width <= 0 || height <= 0 || stride < width * 4 || !pixels)
-        return result;
-
     CLSID pngClsid = {};
-    if (!GetPngEncoder(&pngClsid))
+    if (!icon || iconSize <= 0 || !GetPngEncoder(&pngClsid))
         return result;
 
-    Gdiplus::Bitmap bitmap(
-        width,
-        height,
-        stride,
-        PixelFormat32bppARGB,
-        pixels);
-    if (bitmap.GetLastStatus() != Gdiplus::Ok)
-        return result;
-
-    IStream* stream = nullptr;
-    if (CreateStreamOnHGlobal(nullptr, TRUE, &stream) != S_OK)
-        return result;
-    if (bitmap.Save(stream, &pngClsid, nullptr) == Gdiplus::Ok) {
-        STATSTG stat = {};
-        if (stream->Stat(&stat, STATFLAG_NONAME) == S_OK &&
-            stat.cbSize.QuadPart > 0 && stat.cbSize.QuadPart < 1024 * 1024) {
-            result.resize(static_cast<size_t>(stat.cbSize.QuadPart));
-            LARGE_INTEGER start = {};
-            stream->Seek(start, STREAM_SEEK_SET, nullptr);
-            ULONG read = 0;
-            if (stream->Read(result.data(), static_cast<ULONG>(result.size()), &read) != S_OK)
-                result.clear();
-            else
-                result.resize(read);
-        }
-    }
-    stream->Release();
-    return result;
-}
-
-// Shell menu bitmaps use premultiplied BGRA. Constructing a GDI+ Bitmap
-// directly from HBITMAP drops that alpha on some app icons, leaving their
-// transparent area filled with the bitmap's RGB background.
-std::vector<unsigned char> BitmapToPng(HBITMAP bitmapHandle) {
-    std::vector<unsigned char> result;
-    if (!bitmapHandle || bitmapHandle == HBMMENU_CALLBACK)
-        return result;
-
-    // Values below HBMMENU_MBAR_CLOSE are predefined menu glyph constants,
-    // not real GDI bitmap handles.
-    if (reinterpret_cast<UINT_PTR>(bitmapHandle) <=
-        reinterpret_cast<UINT_PTR>(HBMMENU_MBAR_CLOSE)) {
-        return result;
-    }
-
-    BITMAP bitmap = {};
-    if (!GetObjectW(bitmapHandle, sizeof(bitmap), &bitmap) ||
-        bitmap.bmWidth <= 0 || bitmap.bmHeight == 0) {
-        return result;
-    }
-
-    const int width = bitmap.bmWidth;
-    const int height = std::abs(bitmap.bmHeight);
-    const int stride = width * 4;
-    std::vector<unsigned char> pixels(static_cast<size_t>(stride) * height);
     BITMAPINFO info = {};
     info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    info.bmiHeader.biWidth = width;
-    info.bmiHeader.biHeight = -height;
+    info.bmiHeader.biWidth = iconSize;
+    info.bmiHeader.biHeight = -iconSize;
     info.bmiHeader.biPlanes = 1;
     info.bmiHeader.biBitCount = 32;
     info.bmiHeader.biCompression = BI_RGB;
 
-    HDC screenDc = GetDC(nullptr);
-    const int rows = GetDIBits(
-        screenDc,
-        bitmapHandle,
-        0,
-        height,
-        pixels.data(),
-        &info,
-        DIB_RGB_COLORS);
-    ReleaseDC(nullptr, screenDc);
-    if (rows != height)
-        return result;
-
-    bool hasNonZeroAlpha = false;
-    bool hasPartialAlpha = false;
-    bool canBePremultiplied = true;
-    for (size_t offset = 0; offset < pixels.size(); offset += 4) {
-        const unsigned char alpha = pixels[offset + 3];
-        hasNonZeroAlpha |= alpha != 0;
-        hasPartialAlpha |= alpha != 0 && alpha != 255;
-        if (alpha != 0 && alpha != 255 &&
-            (pixels[offset] > alpha ||
-             pixels[offset + 1] > alpha ||
-             pixels[offset + 2] > alpha)) {
-            canBePremultiplied = false;
-        }
-    }
-
-    // Files uses Bitmap.MakeTransparent() here. Shell sometimes returns an
-    // opaque menu bitmap whose top-left pixel is a color key (Todoist, for
-    // example, uses the current blue menu background). Preserve real alpha,
-    // but apply the same corner-color rule when the bitmap has no partial
-    // alpha channel.
-    const unsigned char keyBlue = pixels[0];
-    const unsigned char keyGreen = pixels[1];
-    const unsigned char keyRed = pixels[2];
-    for (size_t offset = 0; offset < pixels.size(); offset += 4) {
-        unsigned char& blue = pixels[offset];
-        unsigned char& green = pixels[offset + 1];
-        unsigned char& red = pixels[offset + 2];
-        unsigned char& alpha = pixels[offset + 3];
-        if (!hasPartialAlpha) {
-            if (blue == keyBlue && green == keyGreen && red == keyRed) {
-                blue = green = red = alpha = 0;
-            } else if (!hasNonZeroAlpha) {
-                alpha = 255;
-            }
-        } else if (alpha == 0) {
-            blue = green = red = 0;
-        } else if (canBePremultiplied && alpha < 255) {
-            blue = static_cast<unsigned char>(
-                std::min(255, (static_cast<int>(blue) * 255 + alpha / 2) / alpha));
-            green = static_cast<unsigned char>(
-                std::min(255, (static_cast<int>(green) * 255 + alpha / 2) / alpha));
-            red = static_cast<unsigned char>(
-                std::min(255, (static_cast<int>(red) * 255 + alpha / 2) / alpha));
-        }
-    }
-    return PixelsToPng(width, height, stride, pixels.data());
-}
-
-struct RenderSurface {
-    HDC dc = nullptr;
-    HBITMAP bitmap = nullptr;
-    HGDIOBJ previous = nullptr;
     unsigned char* pixels = nullptr;
-    int width = 0;
-    int height = 0;
-
-    bool Create(int requestedWidth, int requestedHeight, unsigned char background) {
-        width = requestedWidth;
-        height = requestedHeight;
-        BITMAPINFO info = {};
-        info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-        info.bmiHeader.biWidth = width;
-        info.bmiHeader.biHeight = -height;
-        info.bmiHeader.biPlanes = 1;
-        info.bmiHeader.biBitCount = 32;
-        info.bmiHeader.biCompression = BI_RGB;
-
-        HDC screenDc = GetDC(nullptr);
-        bitmap = CreateDIBSection(
-            screenDc,
-            &info,
-            DIB_RGB_COLORS,
-            reinterpret_cast<void**>(&pixels),
-            nullptr,
-            0);
-        ReleaseDC(nullptr, screenDc);
-        if (!bitmap || !pixels)
-            return false;
-
-        dc = CreateCompatibleDC(nullptr);
-        if (!dc)
-            return false;
-        previous = SelectObject(dc, bitmap);
-        for (int index = 0; index < width * height; index++) {
-            pixels[index * 4] = background;
-            pixels[index * 4 + 1] = background;
-            pixels[index * 4 + 2] = background;
-            pixels[index * 4 + 3] = 255;
-        }
-        return true;
-    }
-
-    ~RenderSurface() {
-        if (dc && previous)
-            SelectObject(dc, previous);
-        if (dc)
-            DeleteDC(dc);
-        if (bitmap)
-            DeleteObject(bitmap);
-    }
-};
-
-bool DrawCallbackMenuItem(
-    IContextMenu2* contextMenu,
-    HMENU menu,
-    const MENUITEMINFOW& info,
-    RenderSurface* surface) {
-    if (!contextMenu || !menu || !surface || !surface->dc)
-        return false;
-
-    DRAWITEMSTRUCT draw = {};
-    draw.CtlType = ODT_MENU;
-    draw.itemID = info.wID;
-    draw.itemAction = ODA_DRAWENTIRE;
-    if (info.fState & MFS_CHECKED) draw.itemState |= ODS_CHECKED;
-    if (info.fState & MFS_DEFAULT) draw.itemState |= ODS_DEFAULT;
-    if (info.fState & (MFS_DISABLED | MFS_GRAYED))
-        draw.itemState |= ODS_DISABLED | ODS_GRAYED;
-    draw.hwndItem = reinterpret_cast<HWND>(menu);
-    draw.hDC = surface->dc;
-    draw.rcItem = {0, 0, surface->width, surface->height};
-    draw.itemData = info.dwItemData;
-    return SUCCEEDED(contextMenu->HandleMenuMsg(
-        WM_DRAWITEM,
-        0,
-        reinterpret_cast<LPARAM>(&draw)));
-}
-
-std::vector<unsigned char> CallbackBitmapToPng(
-    IContextMenu2* contextMenu,
-    HMENU menu,
-    const MENUITEMINFOW& info) {
-    std::vector<unsigned char> result;
-    if (!contextMenu)
-        return result;
-
-    MEASUREITEMSTRUCT measure = {};
-    measure.CtlType = ODT_MENU;
-    measure.itemID = info.wID;
-    measure.itemData = info.dwItemData;
-    contextMenu->HandleMenuMsg(
-        WM_MEASUREITEM,
-        0,
-        reinterpret_cast<LPARAM>(&measure));
-
-    const int height = std::max(
-        static_cast<int>(measure.itemHeight),
-        std::max(16, GetSystemMetrics(SM_CYMENU)));
-    const int width = std::max(
-        static_cast<int>(measure.itemWidth),
-        height * 8);
-    RenderSurface black;
-    RenderSurface white;
-    if (!black.Create(width, height, 0) ||
-        !white.Create(width, height, 255) ||
-        !DrawCallbackMenuItem(contextMenu, menu, info, &black) ||
-        !DrawCallbackMenuItem(contextMenu, menu, info, &white)) {
-        return result;
-    }
-
-    // The handler draws the complete native row. Only inspect the check/icon
-    // gutter, so the command label never becomes part of the exported image.
-    const int gutterWidth = std::min(
-        width,
-        std::max(
-            height + GetSystemMetrics(SM_CXEDGE) * 2,
-            GetSystemMetrics(SM_CXMENUCHECK) + GetSystemMetrics(SM_CXEDGE) * 4));
-    std::vector<unsigned char> reconstructed(
-        static_cast<size_t>(gutterWidth) * height * 4);
-    int left = gutterWidth;
-    int top = height;
-    int right = -1;
-    int bottom = -1;
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < gutterWidth; x++) {
-            const size_t source = (static_cast<size_t>(y) * width + x) * 4;
-            const size_t target = (static_cast<size_t>(y) * gutterWidth + x) * 4;
-            int transparency = 0;
-            for (int channel = 0; channel < 3; channel++) {
-                transparency += std::clamp(
-                    static_cast<int>(white.pixels[source + channel]) -
-                        static_cast<int>(black.pixels[source + channel]),
-                    0,
-                    255);
-            }
-            const int alpha = 255 - transparency / 3;
-            reconstructed[target + 3] = static_cast<unsigned char>(alpha);
-            if (alpha <= 2) {
-                reconstructed[target] = 0;
-                reconstructed[target + 1] = 0;
-                reconstructed[target + 2] = 0;
-                continue;
-            }
-            for (int channel = 0; channel < 3; channel++) {
-                reconstructed[target + channel] = static_cast<unsigned char>(
-                    std::min(
-                        255,
-                        (static_cast<int>(black.pixels[source + channel]) * 255 +
-                         alpha / 2) /
-                            alpha));
-            }
-            left = std::min(left, x);
-            top = std::min(top, y);
-            right = std::max(right, x);
-            bottom = std::max(bottom, y);
-        }
-    }
-    if (right < left || bottom < top)
-        return result;
-
-    left = std::max(0, left - 1);
-    top = std::max(0, top - 1);
-    right = std::min(gutterWidth - 1, right + 1);
-    bottom = std::min(height - 1, bottom + 1);
-    const int croppedWidth = right - left + 1;
-    const int croppedHeight = bottom - top + 1;
-    const int croppedStride = croppedWidth * 4;
-    std::vector<unsigned char> cropped(
-        static_cast<size_t>(croppedStride) * croppedHeight);
-    for (int y = 0; y < croppedHeight; y++) {
-        memcpy(
-            cropped.data() + static_cast<size_t>(y) * croppedStride,
-            reconstructed.data() +
-                (static_cast<size_t>(y + top) * gutterWidth + left) * 4,
-            croppedStride);
-    }
-    return PixelsToPng(
-        croppedWidth,
-        croppedHeight,
-        croppedStride,
-        cropped.data());
-}
-
-std::wstring ReadMenuLabel(HMENU menu, UINT index) {
-    constexpr UINT kLabelBufferLength = 256;
-    MENUITEMINFOW info = {};
-    info.cbSize = sizeof(info);
-    info.fMask = MIIM_STRING;
-    std::vector<wchar_t> buffer(kLabelBufferLength, L'\0');
-    info.dwTypeData = buffer.data();
-    info.cch = kLabelBufferLength;
-    if (!GetMenuItemInfoW(menu, index, TRUE, &info))
-        return L"";
-
-    std::wstring label(buffer.data(), info.cch);
-    std::wstring normalized;
-    normalized.reserve(label.size());
-    for (size_t i = 0; i < label.size(); i++) {
-        if (label[i] != L'&') {
-            normalized.push_back(label[i]);
-        } else if (i + 1 < label.size() && label[i + 1] == L'&') {
-            normalized.push_back(L'&');
-            i++;
-        }
-    }
-    return normalized;
-}
-
-HRESULT CreateOpenWithMenu(const wchar_t* filePath, OpenWithMenuState* state) {
-    if (!filePath || !*filePath || !state)
-        return E_INVALIDARG;
-
-    IContextMenu* contextMenu = nullptr;
-    IShellExtInit* shellExtInit = nullptr;
-    IContextMenu2* contextMenu2 = nullptr;
-    IShellItem* shellItem = nullptr;
-    IDataObject* dataObject = nullptr;
-    HMENU menu = nullptr;
-    HMENU submenu = nullptr;
-
-    HRESULT hr = CoCreateInstance(
-        kOpenWithMenuClsid,
+    HDC screenDc = GetDC(nullptr);
+    HBITMAP bitmap = CreateDIBSection(
+        screenDc,
+        &info,
+        DIB_RGB_COLORS,
+        reinterpret_cast<void**>(&pixels),
         nullptr,
-        CLSCTX_INPROC_SERVER,
-        IID_IContextMenu,
-        reinterpret_cast<void**>(&contextMenu));
-    if (FAILED(hr)) goto cleanup;
+        0);
+    ReleaseDC(nullptr, screenDc);
+    if (!bitmap || !pixels) {
+        if (bitmap) DeleteObject(bitmap);
+        return result;
+    }
+    memset(pixels, 0, static_cast<size_t>(iconSize) * iconSize * 4);
 
-    hr = contextMenu->QueryInterface(IID_IShellExtInit, reinterpret_cast<void**>(&shellExtInit));
-    if (FAILED(hr)) goto cleanup;
-    hr = contextMenu->QueryInterface(IID_IContextMenu2, reinterpret_cast<void**>(&contextMenu2));
-    if (FAILED(hr)) goto cleanup;
+    HDC memoryDc = CreateCompatibleDC(nullptr);
+    HGDIOBJ previous = SelectObject(memoryDc, bitmap);
+    DrawIconEx(
+        memoryDc,
+        0,
+        0,
+        icon,
+        iconSize,
+        iconSize,
+        0,
+        nullptr,
+        DI_NORMAL);
+    SelectObject(memoryDc, previous);
+    DeleteDC(memoryDc);
 
-    hr = SHCreateItemFromParsingName(
+    Gdiplus::Bitmap pngBitmap(
+        iconSize,
+        iconSize,
+        iconSize * 4,
+        PixelFormat32bppARGB,
+        pixels);
+    IStream* stream = nullptr;
+    if (CreateStreamOnHGlobal(nullptr, TRUE, &stream) == S_OK) {
+        if (pngBitmap.Save(stream, &pngClsid, nullptr) == Gdiplus::Ok) {
+            STATSTG stat = {};
+            if (stream->Stat(&stat, STATFLAG_NONAME) == S_OK &&
+                stat.cbSize.QuadPart > 0 &&
+                stat.cbSize.QuadPart < 1024 * 1024) {
+                result.resize(static_cast<size_t>(stat.cbSize.QuadPart));
+                LARGE_INTEGER start = {};
+                stream->Seek(start, STREAM_SEEK_SET, nullptr);
+                ULONG read = 0;
+                if (stream->Read(
+                        result.data(),
+                        static_cast<ULONG>(result.size()),
+                        &read) != S_OK) {
+                    result.clear();
+                } else {
+                    result.resize(read);
+                }
+            }
+        }
+        stream->Release();
+    }
+    DeleteObject(bitmap);
+    return result;
+}
+
+std::vector<unsigned char> ImageFileToPng(
+    const wchar_t* imagePath,
+    int iconSize) {
+    std::vector<unsigned char> result;
+    CLSID pngClsid = {};
+    if (!imagePath || !*imagePath || iconSize <= 0 ||
+        !GetPngEncoder(&pngClsid)) {
+        return result;
+    }
+
+    Gdiplus::Bitmap source(imagePath);
+    if (source.GetLastStatus() != Gdiplus::Ok ||
+        source.GetWidth() == 0 || source.GetHeight() == 0) {
+        return result;
+    }
+
+    Gdiplus::Bitmap destination(
+        iconSize,
+        iconSize,
+        PixelFormat32bppARGB);
+    if (destination.GetLastStatus() != Gdiplus::Ok)
+        return result;
+
+    Gdiplus::Graphics graphics(&destination);
+    graphics.SetCompositingMode(Gdiplus::CompositingModeSourceCopy);
+    graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+    graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
+
+    const double scale = (std::min)(
+        static_cast<double>(iconSize) / source.GetWidth(),
+        static_cast<double>(iconSize) / source.GetHeight());
+    const int width = (std::max)(
+        1,
+        static_cast<int>(source.GetWidth() * scale + 0.5));
+    const int height = (std::max)(
+        1,
+        static_cast<int>(source.GetHeight() * scale + 0.5));
+    const int x = (iconSize - width) / 2;
+    const int y = (iconSize - height) / 2;
+    if (graphics.DrawImage(&source, x, y, width, height) != Gdiplus::Ok)
+        return result;
+
+    IStream* stream = nullptr;
+    if (CreateStreamOnHGlobal(nullptr, TRUE, &stream) == S_OK) {
+        if (destination.Save(stream, &pngClsid, nullptr) == Gdiplus::Ok) {
+            STATSTG stat = {};
+            if (stream->Stat(&stat, STATFLAG_NONAME) == S_OK &&
+                stat.cbSize.QuadPart > 0 &&
+                stat.cbSize.QuadPart < 1024 * 1024) {
+                result.resize(static_cast<size_t>(stat.cbSize.QuadPart));
+                LARGE_INTEGER start = {};
+                stream->Seek(start, STREAM_SEEK_SET, nullptr);
+                ULONG read = 0;
+                if (stream->Read(
+                        result.data(),
+                        static_cast<ULONG>(result.size()),
+                        &read) != S_OK) {
+                    result.clear();
+                } else {
+                    result.resize(read);
+                }
+            }
+        }
+        stream->Release();
+    }
+    return result;
+}
+
+int ImageListForSize(int iconSize) {
+    if (iconSize <= GetSystemMetrics(SM_CXSMICON)) return SHIL_SYSSMALL;
+    if (iconSize <= 32) return SHIL_LARGE;
+    if (iconSize <= 48) return SHIL_EXTRALARGE;
+    return SHIL_JUMBO;
+}
+
+std::vector<unsigned char> LoadHandlerIcon(
+    IAssocHandler* handler,
+    int iconSize) {
+    std::vector<unsigned char> result;
+    if (!handler || iconSize <= 0)
+        return result;
+
+    LPWSTR iconPath = nullptr;
+    int iconIndex = 0;
+    HRESULT hr = handler->GetIconLocation(&iconPath, &iconIndex);
+    if (FAILED(hr) || !iconPath || !*iconPath) {
+        if (iconPath) CoTaskMemFree(iconPath);
+        iconPath = nullptr;
+        iconIndex = 0;
+        if (FAILED(handler->GetName(&iconPath)) || !iconPath || !*iconPath) {
+            if (iconPath) CoTaskMemFree(iconPath);
+            return result;
+        }
+    }
+
+    if (iconPath[0] == L'@') {
+        std::vector<wchar_t> resolvedPath(32768, L'\0');
+        if (SUCCEEDED(SHLoadIndirectString(
+                iconPath,
+                resolvedPath.data(),
+                static_cast<UINT>(resolvedPath.size()),
+                nullptr)) &&
+            resolvedPath[0]) {
+            result = ImageFileToPng(resolvedPath.data(), iconSize);
+        }
+        CoTaskMemFree(iconPath);
+        if (!result.empty())
+            return result;
+        iconPath = nullptr;
+        iconIndex = 0;
+        if (FAILED(handler->GetName(&iconPath)) || !iconPath || !*iconPath) {
+            if (iconPath) CoTaskMemFree(iconPath);
+            return result;
+        }
+    }
+
+    HICON icon = nullptr;
+    const int cachedIndex =
+        Shell_GetCachedImageIndexW(iconPath, iconIndex, 0);
+    if (cachedIndex >= 0) {
+        IImageList* imageList = nullptr;
+        if (SUCCEEDED(SHGetImageList(
+                ImageListForSize(iconSize),
+                IID_IImageList,
+                reinterpret_cast<void**>(&imageList))) &&
+            imageList) {
+            imageList->GetIcon(cachedIndex, ILD_TRANSPARENT, &icon);
+            imageList->Release();
+        }
+    }
+
+    // Fall back to direct extraction when the shared image cache has no entry.
+    if (!icon) {
+        SHDefExtractIconW(
+            iconPath,
+            iconIndex,
+            0,
+            iconSize > 16 ? &icon : nullptr,
+            iconSize <= 16 ? &icon : nullptr,
+            MAKELONG(iconSize, iconSize));
+    }
+    CoTaskMemFree(iconPath);
+
+    if (icon) {
+        result = IconToPng(icon, iconSize);
+        DestroyIcon(icon);
+    }
+    return result;
+}
+
+std::wstring ExtensionFromPath(const wchar_t* filePath) {
+    if (!filePath)
+        return L"";
+    const wchar_t* lastSeparator = wcsrchr(filePath, L'\\');
+    const wchar_t* lastForwardSeparator = wcsrchr(filePath, L'/');
+    if (!lastSeparator ||
+        (lastForwardSeparator && lastForwardSeparator > lastSeparator)) {
+        lastSeparator = lastForwardSeparator;
+    }
+    const wchar_t* extension = wcsrchr(filePath, L'.');
+    if (!extension || (lastSeparator && extension < lastSeparator) ||
+        !extension[1]) {
+        return L"";
+    }
+    return extension;
+}
+
+bool ContainsHandler(
+    const std::vector<AssocHandlerEntry>& entries,
+    const std::wstring& label,
+    IAssocHandler* candidate) {
+    LPWSTR candidateName = nullptr;
+    candidate->GetName(&candidateName);
+    for (const auto& entry : entries) {
+        if (_wcsicmp(entry.label.c_str(), label.c_str()) != 0)
+            continue;
+        LPWSTR existingName = nullptr;
+        entry.handler->GetName(&existingName);
+        const bool same = existingName && candidateName &&
+            _wcsicmp(existingName, candidateName) == 0;
+        if (existingName) CoTaskMemFree(existingName);
+        if (same) {
+            if (candidateName) CoTaskMemFree(candidateName);
+            return true;
+        }
+    }
+    if (candidateName) CoTaskMemFree(candidateName);
+    return false;
+}
+
+HRESULT CreateFileDataObject(const wchar_t* filePath, IDataObject** dataObject) {
+    if (!filePath || !*filePath || !dataObject)
+        return E_INVALIDARG;
+    *dataObject = nullptr;
+
+    IShellItem* shellItem = nullptr;
+    HRESULT hr = SHCreateItemFromParsingName(
         filePath,
         nullptr,
         IID_IShellItem,
         reinterpret_cast<void**>(&shellItem));
-    if (FAILED(hr)) goto cleanup;
-    hr = shellItem->BindToHandler(
-        nullptr,
-        BHID_DataObject,
-        IID_IDataObject,
-        reinterpret_cast<void**>(&dataObject));
-    if (FAILED(hr)) goto cleanup;
-    hr = shellExtInit->Initialize(nullptr, dataObject, nullptr);
-    if (FAILED(hr)) goto cleanup;
-
-    menu = CreatePopupMenu();
-    if (!menu) {
-        hr = HRESULT_FROM_WIN32(GetLastError());
-        goto cleanup;
+    if (SUCCEEDED(hr)) {
+        hr = shellItem->BindToHandler(
+            nullptr,
+            BHID_DataObject,
+            IID_IDataObject,
+            reinterpret_cast<void**>(dataObject));
+        shellItem->Release();
     }
-    hr = contextMenu->QueryContextMenu(menu, 0, 1, 0x7fff, CMF_NORMAL);
-    if (FAILED(hr)) goto cleanup;
-
-    submenu = GetSubMenu(menu, 0);
-    if (!submenu) {
-        hr = E_FAIL;
-        goto cleanup;
-    }
-    hr = contextMenu2->HandleMenuMsg(
-        WM_INITMENUPOPUP,
-        reinterpret_cast<WPARAM>(submenu),
-        0);
-    if (FAILED(hr)) goto cleanup;
-
-    state->contextMenu = contextMenu;
-    state->menu = menu;
-    contextMenu = nullptr;
-    menu = nullptr;
-
-cleanup:
-    if (menu) DestroyMenu(menu);
-    if (dataObject) dataObject->Release();
-    if (shellItem) shellItem->Release();
-    if (contextMenu2) contextMenu2->Release();
-    if (shellExtInit) shellExtInit->Release();
-    if (contextMenu) contextMenu->Release();
     return hr;
-}
-
-std::vector<OpenWithEntry> EnumerateEntries(
-    HMENU submenu,
-    IContextMenu* contextMenu) {
-    std::vector<OpenWithEntry> entries;
-    const int count = GetMenuItemCount(submenu);
-    bool lastWasSeparator = true;
-    IContextMenu2* contextMenu2 = nullptr;
-    if (contextMenu) {
-        contextMenu->QueryInterface(
-            IID_IContextMenu2,
-            reinterpret_cast<void**>(&contextMenu2));
-    }
-
-    for (int index = 0; index < count; index++) {
-        MENUITEMINFOW info = {};
-        info.cbSize = sizeof(info);
-        info.fMask =
-            MIIM_FTYPE | MIIM_ID | MIIM_STATE | MIIM_BITMAP | MIIM_DATA;
-        if (!GetMenuItemInfoW(submenu, index, TRUE, &info))
-            continue;
-
-        if (info.fType & MFT_SEPARATOR) {
-            if (!lastWasSeparator) {
-                entries.push_back({1, 0, 0, L"", {}});
-                lastWasSeparator = true;
-            }
-            continue;
-        }
-
-        const std::wstring label = ReadMenuLabel(submenu, index);
-        if (label.empty() || info.wID == 0)
-            continue;
-        std::vector<unsigned char> iconPng;
-        if (info.hbmpItem == HBMMENU_CALLBACK) {
-            iconPng = CallbackBitmapToPng(contextMenu2, submenu, info);
-        } else {
-            iconPng = BitmapToPng(info.hbmpItem);
-        }
-        entries.push_back({
-            0,
-            static_cast<int32_t>(info.wID),
-            (info.fState & (MFS_DISABLED | MFS_GRAYED)) == 0 ? 1 : 0,
-            label,
-            std::move(iconPng),
-        });
-        lastWasSeparator = false;
-    }
-
-    if (!entries.empty() && entries.back().kind == 1)
-        entries.pop_back();
-    if (contextMenu2)
-        contextMenu2->Release();
-    return entries;
 }
 
 } // namespace
 
 extern "C" __declspec(dllexport)
-unsigned char* GetOpenWithMenuEntriesW(const wchar_t* filePath, int* outSize) {
-    if (!outSize) return nullptr;
+unsigned char* GetOpenWithMenuEntriesW(
+    const wchar_t* filePath,
+    int iconSize,
+    int* outSize) {
+    if (!filePath || !*filePath || !outSize)
+        return nullptr;
     *outSize = 0;
-    g_openWithMenu.Reset();
+    g_assocHandlers.Reset();
 
-    const HRESULT hr = CreateOpenWithMenu(filePath, &g_openWithMenu);
-    if (FAILED(hr) || !g_openWithMenu.menu)
+    const std::wstring extension = ExtensionFromPath(filePath);
+    if (extension.empty())
         return nullptr;
 
-    const HMENU submenu = GetSubMenu(g_openWithMenu.menu, 0);
-    if (!submenu) {
-        g_openWithMenu.Reset();
+    IEnumAssocHandlers* enumerator = nullptr;
+    HRESULT hr = SHAssocEnumHandlers(
+        extension.c_str(),
+        ASSOC_FILTER_RECOMMENDED,
+        &enumerator);
+    if (FAILED(hr) || !enumerator)
         return nullptr;
+
+    const int resolvedIconSize = std::clamp(iconSize, 16, 256);
+    IAssocHandler* handler = nullptr;
+    ULONG fetched = 0;
+    while (enumerator->Next(1, &handler, &fetched) == S_OK &&
+           fetched == 1 && handler) {
+        LPWSTR uiName = nullptr;
+        hr = handler->GetUIName(&uiName);
+        if (SUCCEEDED(hr) && uiName && *uiName) {
+            const std::wstring label(uiName);
+            if (!ContainsHandler(g_assocHandlers.entries, label, handler)) {
+                g_assocHandlers.entries.push_back({
+                    static_cast<int32_t>(g_assocHandlers.entries.size() + 1),
+                    label,
+                    LoadHandlerIcon(handler, resolvedIconSize),
+                    handler,
+                });
+                handler = nullptr;
+            }
+        }
+        if (uiName) CoTaskMemFree(uiName);
+        if (handler) {
+            handler->Release();
+            handler = nullptr;
+        }
     }
-    const auto entries = EnumerateEntries(submenu, g_openWithMenu.contextMenu);
-    if (entries.empty()) {
-        g_openWithMenu.Reset();
+    if (handler)
+        handler->Release();
+    enumerator->Release();
+    if (g_assocHandlers.entries.empty())
         return nullptr;
-    }
+    g_assocHandlers.filePath = filePath;
 
     std::vector<unsigned char> buffer;
-    AppendInt32(buffer, static_cast<int32_t>(entries.size()));
-    for (const auto& entry : entries) {
-        AppendInt32(buffer, entry.kind);
-        AppendInt32(buffer, entry.commandId);
-        AppendInt32(buffer, entry.enabled);
+    AppendInt32(
+        buffer,
+        static_cast<int32_t>(g_assocHandlers.entries.size()));
+    for (const auto& entry : g_assocHandlers.entries) {
+        AppendInt32(buffer, 0);
+        AppendInt32(buffer, entry.id);
+        AppendInt32(buffer, 1);
         AppendWString(buffer, entry.label);
         AppendBytes(buffer, entry.iconPng);
     }
 
     auto* result = static_cast<unsigned char*>(CoTaskMemAlloc(buffer.size()));
     if (!result) {
-        g_openWithMenu.Reset();
+        g_assocHandlers.Reset();
         return nullptr;
     }
     memcpy(result, buffer.data(), buffer.size());
@@ -620,25 +468,28 @@ void FreeOpenWithMenuEntries(unsigned char* ptr) {
 }
 
 extern "C" __declspec(dllexport)
-HRESULT InvokeOpenWithMenuEntry(int commandId, HWND hwnd) {
-    if (commandId <= 0 || !g_openWithMenu.contextMenu)
+HRESULT InvokeOpenWithMenuEntry(int commandId) {
+    if (commandId <= 0 ||
+        commandId > static_cast<int>(g_assocHandlers.entries.size()) ||
+        g_assocHandlers.filePath.empty()) {
         return E_INVALIDARG;
+    }
 
-    CMINVOKECOMMANDINFOEX command = {};
-    command.cbSize = sizeof(command);
-    command.fMask = CMIC_MASK_UNICODE;
-    command.hwnd = hwnd;
-    command.lpVerb = MAKEINTRESOURCEA(commandId - 1);
-    command.lpVerbW = MAKEINTRESOURCEW(commandId - 1);
-    command.nShow = SW_SHOWNORMAL;
+    IDataObject* dataObject = nullptr;
+    HRESULT hr = CreateFileDataObject(
+        g_assocHandlers.filePath.c_str(),
+        &dataObject);
+    if (FAILED(hr) || !dataObject)
+        return FAILED(hr) ? hr : E_FAIL;
 
-    HRESULT hr = E_FAIL;
+    IAssocHandler* handler =
+        g_assocHandlers.entries[static_cast<size_t>(commandId - 1)].handler;
     __try {
-        hr = g_openWithMenu.contextMenu->InvokeCommand(
-            reinterpret_cast<LPCMINVOKECOMMANDINFO>(&command));
+        hr = handler->Invoke(dataObject);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         hr = E_FAIL;
     }
-    g_openWithMenu.Reset();
+    dataObject->Release();
+    g_assocHandlers.Reset();
     return hr;
 }
