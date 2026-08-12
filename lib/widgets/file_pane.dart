@@ -23,7 +23,6 @@ import 'file_context_menu.dart';
 import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
 import 'home_view.dart';
-import 'search_dialog.dart';
 
 class FilePane extends StatelessWidget {
   final String paneId;
@@ -185,17 +184,7 @@ class _PaneContent extends StatelessWidget {
         '[Perf] _PaneContent build: ${sw.elapsedMilliseconds}ms, entries=${controller.entries.length}',
       );
     }
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
-          if (!controller.isHome &&
-              !FileService.isSpecialPath(controller.currentPath)) {
-            _openSearch(context, controller.currentPath);
-          }
-        },
-      },
-      child: result,
-    );
+    return result;
   }
 
   // ── Open / Navigate ────────────────────────────────────────────────
@@ -583,21 +572,6 @@ class _PaneContent extends StatelessWidget {
       selectedPaths: paths,
       verb: 'properties',
     );
-  }
-
-  Future<void> _openSearch(BuildContext context, String rootPath) async {
-    final result = await showDialog<SearchDialogResult>(
-      context: context,
-      builder: (_) => SearchDialog(rootPath: rootPath),
-    );
-    if (!context.mounted || result == null) return;
-
-    final controller = context.read<PaneController>();
-    if (result.isDirectory) {
-      await controller.navigateTo(result.path);
-    } else {
-      await FileService.openFile(result.path);
-    }
   }
 
   void _openSelected(BuildContext context, PaneController controller) {
