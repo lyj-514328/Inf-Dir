@@ -122,9 +122,11 @@ class _TabItemState extends State<_TabItem> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final sourceSize =
+        (AppMetrics.iconSm * View.of(context).devicePixelRatio).ceil();
     final iconBytes = FileService.isHomePath(widget.path)
         ? null
-        : IconService.getFileIconPng(widget.path, true, 16);
+        : IconService.getFileIconPng(widget.path, true, sourceSize);
     final iconWidget = FileService.isHomePath(widget.path)
         ? const HomeIcon(size: AppMetrics.iconSm)
         : iconBytes != null

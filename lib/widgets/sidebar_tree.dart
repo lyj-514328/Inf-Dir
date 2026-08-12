@@ -729,7 +729,8 @@ class _ShellIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bytes = IconService.getFileIconPng(path, isDirectory, _iconSize);
+    final sourceSize = (_iconSize * View.of(context).devicePixelRatio).ceil();
+    final bytes = IconService.getFileIconPng(path, isDirectory, sourceSize);
     if (bytes != null) {
       return Image.memory(
         bytes,

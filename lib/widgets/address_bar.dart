@@ -102,7 +102,13 @@ class _AddressBarState extends State<AddressBar> {
     if (FileService.isHomePath(widget.iconPath)) {
       return const HomeIcon(size: AppMetrics.iconSm);
     }
-    final bytes = IconService.getFileIconPng(widget.iconPath, true, 16);
+    final sourceSize =
+        (AppMetrics.iconSm * View.of(context).devicePixelRatio).ceil();
+    final bytes = IconService.getFileIconPng(
+      widget.iconPath,
+      true,
+      sourceSize,
+    );
     if (bytes != null) {
       return Image.memory(
         bytes,
