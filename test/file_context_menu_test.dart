@@ -96,7 +96,8 @@ void main() {
       onGroupAscending: (_) {},
       onRefresh: () {},
       onCreateFolder: () {},
-      onCreateTextFile: () {},
+      onCreateFile: () {},
+      onCreateShortcut: () {},
       onPaste: () {},
       onSelectAll: () {},
       onOpenInTerminal: () {},
@@ -147,7 +148,8 @@ void main() {
       onGroupAscending: (_) {},
       onRefresh: () {},
       onCreateFolder: () {},
-      onCreateTextFile: () {},
+      onCreateFile: () {},
+      onCreateShortcut: () {},
       onPaste: () {},
       onSelectAll: () {},
       onShowMoreOptions: () {},
@@ -180,7 +182,8 @@ void main() {
       onGroupAscending: (_) {},
       onRefresh: () {},
       onCreateFolder: () {},
-      onCreateTextFile: () {},
+      onCreateFile: () {},
+      onCreateShortcut: () {},
       onPaste: () {},
       onSelectAll: () {},
       onShowMoreOptions: () {},
@@ -194,15 +197,25 @@ void main() {
           data: Uint8List(0),
           iconPng: Uint8List(0),
         ),
+        ShellNewEntry(
+          extension: '.xlsx',
+          name: 'Excel 工作表',
+          templatePath: '',
+          command: '',
+          data: Uint8List(0),
+          iconPng: Uint8List(0),
+        ),
       ],
     );
 
     final newItem = items.firstWhere((item) => item.label == '新建');
     expect(newItem.children!.map((item) => item.label), [
       '文件夹',
-      '文本文档',
+      '文件',
+      '快捷方式',
       null, // divider
       'Word 文档',
+      'Excel 工作表',
     ]);
     newItem.children!.last.onAction!();
   });

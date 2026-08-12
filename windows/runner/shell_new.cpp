@@ -55,30 +55,18 @@ std::wstring RegGetString(HKEY root, const std::wstring& subKey, const wchar_t* 
     return result;
 }
 
-// Display name: ItemName value > ProgID friendly name > registered type name.
+// Files uses StorageFile.DisplayType for a sample file. SHGetFileInfo returns
+// the same localized Windows file-type label without creating a temp file.
 std::wstring ResolveDisplayName(const std::wstring& extension) {
-    std::wstring shellNewPath = extension + L"\\ShellNew";
-    std::wstring name = RegGetString(HKEY_CLASSES_ROOT, shellNewPath, L"ItemName");
-    if (!name.empty())
-        return name;
-
-    std::wstring progId = RegGetString(HKEY_CLASSES_ROOT, extension, nullptr);
-    if (!progId.empty()) {
-        name = RegGetString(HKEY_CLASSES_ROOT, progId, nullptr);
-        if (!name.empty())
-            return name;
-    }
-
-    wchar_t typeName[256] = {};
     SHFILEINFOW sfi = {};
     // Leaf must carry the extension ("x.txt"); ".txt\x" parses as file "x"
     // with no extension and fails to resolve the type.
     if (SHGetFileInfoW((L"x" + extension).c_str(), FILE_ATTRIBUTE_NORMAL,
             &sfi, sizeof(sfi), SHGFI_TYPENAME | SHGFI_USEFILEATTRIBUTES) &&
         sfi.szTypeName[0] != L'\0') {
-        wcscpy_s(typeName, sfi.szTypeName);
+        return sfi.szTypeName;
     }
-    return typeName;
+    return L"file " + extension;
 }
 
 // FileName may be a bare filename kept in the system shellnew folder.
@@ -257,17 +245,17 @@ struct ShellNewEntry {
     std::vector<unsigned char> iconPng;
 };
 
-void CollectEntries(HKEY root, const std::wstring& extension,
+bool CollectEntry(HKEY root, const std::wstring& extension,
     const std::wstring& currentPath, std::vector<ShellNewEntry>& out) {
     HKEY key = nullptr;
     if (RegOpenKeyExW(root, currentPath.c_str(), 0, KEY_READ, &key) != ERROR_SUCCESS)
-        return;
+        return false;
 
-    DWORD subKeyCount = 0, maxNameLen = 0;
+    DWORD subKeyCount = 0, maxNameLen = 0, maxValueNameLen = 0;
     if (RegQueryInfoKeyW(key, nullptr, nullptr, nullptr, &subKeyCount, &maxNameLen,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS) {
+            nullptr, nullptr, &maxValueNameLen, nullptr, nullptr, nullptr) != ERROR_SUCCESS) {
         RegCloseKey(key);
-        return;
+        return false;
     }
 
     std::vector<wchar_t> nameBuf(maxNameLen + 2);
@@ -279,30 +267,33 @@ void CollectEntries(HKEY root, const std::wstring& extension,
         std::wstring subKey(nameBuf.data(), len);
         std::wstring fullPath = currentPath.empty() ? subKey : currentPath + L"\\" + subKey;
 
-        if (subKey == L"ShellNew") {
+        if (_wcsicmp(subKey.c_str(), L"ShellNew") == 0) {
             HKEY shellNew = nullptr;
             if (RegOpenKeyExW(root, fullPath.c_str(), 0, KEY_READ, &shellNew) == ERROR_SUCCESS) {
-                DWORD valueCount = 0;
+                DWORD valueCount = 0, shellNewMaxValueNameLen = 0;
                 bool hasContent = false;
                 std::wstring fileName, command;
                 if (RegQueryInfoKeyW(shellNew, nullptr, nullptr, nullptr, nullptr, nullptr,
-                        nullptr, &valueCount, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS) {
-                    std::vector<wchar_t> valueBuf(64);
+                        nullptr, &valueCount, &shellNewMaxValueNameLen, nullptr, nullptr,
+                        nullptr) == ERROR_SUCCESS) {
+                    std::vector<wchar_t> valueBuf(shellNewMaxValueNameLen + 2);
                     for (DWORD v = 0; v < valueCount; v++) {
                         DWORD vlen = (DWORD)valueBuf.size();
                         if (RegEnumValueW(shellNew, v, valueBuf.data(), &vlen,
                                 nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
                             continue;
                         std::wstring valueName(valueBuf.data(), vlen);
-                        if (valueName == L"NullFile") {
+                        if (_wcsicmp(valueName.c_str(), L"NullFile") == 0 ||
+                            _wcsicmp(valueName.c_str(), L"Name") == 0) {
                             hasContent = true;
-                        } else if (valueName == L"FileName") {
+                        } else if (_wcsicmp(valueName.c_str(), L"FileName") == 0) {
                             fileName = RegGetString(shellNew, L"", valueName.c_str());
                             hasContent = true;
-                        } else if (valueName == L"Command") {
+                        } else if (_wcsicmp(valueName.c_str(), L"Command") == 0) {
                             command = RegGetString(shellNew, L"", valueName.c_str());
                             hasContent = true;
-                        } else if (valueName == L"Data" || valueName == L"ItemName") {
+                        } else if (_wcsicmp(valueName.c_str(), L"Data") == 0 ||
+                            _wcsicmp(valueName.c_str(), L"ItemName") == 0) {
                             hasContent = true;
                         }
                     }
@@ -332,12 +323,20 @@ void CollectEntries(HKEY root, const std::wstring& extension,
                     out.push_back(std::move(entry));
                 }
                 RegCloseKey(shellNew);
+                if (hasContent) {
+                    RegCloseKey(key);
+                    return true;
+                }
             }
         } else {
-            CollectEntries(root, extension, fullPath, out);
+            if (CollectEntry(root, extension, fullPath, out)) {
+                RegCloseKey(key);
+                return true;
+            }
         }
     }
     RegCloseKey(key);
+    return false;
 }
 
 } // namespace
@@ -364,8 +363,22 @@ unsigned char* GetShellNewEntries(int* outSize) {
             std::wstring extension(nameBuf.data(), len);
             if (extension.empty() || extension[0] != L'.')
                 continue;
-            CollectEntries(root, extension, extension, entries);
+            if (_wcsicmp(extension.c_str(), L".library-ms") == 0 ||
+                _wcsicmp(extension.c_str(), L".url") == 0 ||
+                _wcsicmp(extension.c_str(), L".lnk") == 0)
+                continue;
+            CollectEntry(root, extension, extension, entries);
         }
+    }
+
+    if (std::none_of(entries.begin(), entries.end(), [](const ShellNewEntry& entry) {
+            return _wcsicmp(entry.extension.c_str(), L".txt") == 0;
+        })) {
+        ShellNewEntry textEntry;
+        textEntry.extension = L".txt";
+        textEntry.name = ResolveDisplayName(textEntry.extension);
+        textEntry.iconPng = TypeIconPng(textEntry.extension);
+        entries.push_back(std::move(textEntry));
     }
 
     std::vector<unsigned char> buf;
@@ -378,12 +391,6 @@ unsigned char* GetShellNewEntries(int* outSize) {
         });
 
     for (auto& e : entries) {
-        std::wstring lower = e.extension;
-        for (wchar_t& ch : lower)
-            ch = (wchar_t)towlower(ch);
-        if (lower == L".lnk" || lower == L".url")
-            continue;
-
         AppendWStr(buf, e.extension);
         AppendWStr(buf, e.name);
         AppendWStr(buf, e.templatePath);

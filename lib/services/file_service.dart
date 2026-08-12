@@ -96,10 +96,7 @@ class FileService {
     return newPath;
   }
 
-  /// Creates an empty file and returns its full path. Keeping this operation
-  /// in the service makes the command bar testable without tying it to a
-  /// platform-specific shell implementation.
-  static Future<String> createTextFile(String parentPath, String name) async {
+  static Future<String> createFile(String parentPath, String name) async {
     final newPath = p.join(parentPath, name);
     await File(newPath).create();
     return newPath;
@@ -150,12 +147,24 @@ class FileService {
     await Process.run('wt.exe', ['-d', dirPath]);
   }
 
-  static Future<String> createShortcutIn(String targetPath, String destDir) async {
-    final base = p.basename(targetPath);
-    var linkPath = p.join(destDir, '$base - 快捷方式.lnk');
+  static Future<String> createShortcutIn(
+    String targetPath,
+    String destDir, {
+    String? name,
+  }) async {
+    final targetName = p.basename(targetPath);
+    var linkName = name?.trim();
+    if (linkName == null || linkName.isEmpty) {
+      linkName = '$targetName - 快捷方式';
+    }
+    if (!linkName.toLowerCase().endsWith('.lnk')) {
+      linkName = '$linkName.lnk';
+    }
+    var linkPath = p.join(destDir, linkName);
     var n = 2;
     while (File(linkPath).existsSync()) {
-      linkPath = p.join(destDir, '$base - 快捷方式 ($n).lnk');
+      final stem = p.basenameWithoutExtension(linkName);
+      linkPath = p.join(destDir, '$stem ($n).lnk');
       n++;
     }
     ShellOperations.createShortcut(targetPath, linkPath);

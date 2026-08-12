@@ -7,10 +7,10 @@ extern "C" {
 
 // Enumerate the "New" menu items registered for HKCR extension keys
 // (ShellNew subkeys), mirroring Explorer's "New >" submenu. The display
-// name comes from the ItemName value, the ProgID's friendly name, or the
-// registered file type name. Each entry carries everything needed to
+// name comes from the Windows registered file type name. Each entry carries
+// everything needed to
 // create the item: template path, raw data bytes, a launch command, and
-// a 16x16 PNG icon for the file type.
+// a PNG icon for the file type.
 //
 // Returned buffer layout:
 //   [count: int32]

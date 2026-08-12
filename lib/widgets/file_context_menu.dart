@@ -219,7 +219,8 @@ List<CommandMenuItem> buildFolderContextMenuItems({
   required ValueChanged<bool> onGroupAscending,
   required VoidCallback onRefresh,
   required VoidCallback onCreateFolder,
-  required VoidCallback onCreateTextFile,
+  required VoidCallback onCreateFile,
+  required VoidCallback onCreateShortcut,
   required VoidCallback onPaste,
   required VoidCallback onSelectAll,
   VoidCallback? onOpenInTerminal,
@@ -241,29 +242,13 @@ List<CommandMenuItem> buildFolderContextMenuItems({
       CommandMenuItem(
         icon: Icons.add,
         label: '新建',
-        children: [
-          CommandMenuItem(
-            icon: Icons.create_new_folder_outlined,
-            label: '文件夹',
-            onAction: onCreateFolder,
-          ),
-          CommandMenuItem(
-            icon: Icons.note_add_outlined,
-            label: '文本文档',
-            onAction: onCreateTextFile,
-          ),
-          for (final entry in shellNewEntries) ...[
-            const CommandMenuItem.divider(),
-            CommandMenuItem(
-              image: entry.hasIcon
-                  ? MemoryImage(entry.iconPng)
-                  : null,
-              icon: entry.hasIcon ? null : Icons.insert_drive_file_outlined,
-              label: entry.name,
-              onAction: () => onCreateFromTemplate(entry),
-            ),
-          ],
-        ],
+        children: buildNewItemMenuItems(
+          onCreateFolder: onCreateFolder,
+          onCreateFile: onCreateFile,
+          onCreateShortcut: onCreateShortcut,
+          shellNewEntries: shellNewEntries,
+          onCreateFromTemplate: onCreateFromTemplate,
+        ),
       ),
       CommandMenuItem(
         icon: Icons.content_paste,

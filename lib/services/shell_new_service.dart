@@ -106,7 +106,7 @@ class ShellNewService {
       items.add(
         ShellNewEntry(
           extension: ext,
-          name: name.isEmpty ? '文件$ext' : name,
+          name: name.isEmpty ? '$ext 文件' : name,
           templatePath: template,
           command: command,
           data: data,

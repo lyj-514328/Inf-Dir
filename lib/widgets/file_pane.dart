@@ -215,7 +215,7 @@ class _PaneContent extends StatelessWidget {
     }
   }
 
-  Future<void> _createTextFile(BuildContext context) async {
+  Future<void> _createFile(BuildContext context) async {
     final controller = context.read<PaneController>();
     if (controller.isHome ||
         FileService.isSpecialPath(controller.currentPath)) {
@@ -223,29 +223,56 @@ class _PaneContent extends StatelessWidget {
     }
     final name = await _showInputDialog(
       context,
-      title: '新建文本文档',
-      initialValue: '新建文本文档.txt',
+      title: '新建文件',
+      initialValue: '新建文件',
       confirmText: '创建',
     );
     if (name == null || name.trim().isEmpty) return;
     try {
-      await FileService.createTextFile(controller.currentPath, name.trim());
+      await FileService.createFile(controller.currentPath, name.trim());
       controller.refresh();
     } catch (e) {
       if (context.mounted) _showOperationError(context, '创建文件失败', e);
     }
   }
 
-  /// Registry-driven "New" items (ShellNew), minus .txt which is already
-  /// offered as a built-in item.
-  List<ShellNewEntry> get _shellNewEntries {
-    return ShellNewService.getEntries()
-        .where(
-          (entry) =>
-              entry.extension.toLowerCase() != '.txt' &&
-              entry.extension.toLowerCase() != '.rtf',
-        )
-        .toList(growable: false);
+  List<ShellNewEntry> get _shellNewEntries => ShellNewService.getEntries();
+
+  Future<void> _createShortcutFromDialog(BuildContext context) async {
+    final controller = context.read<PaneController>();
+    if (controller.isHome ||
+        FileService.isSpecialPath(controller.currentPath)) {
+      return;
+    }
+
+    final target = await _showInputDialog(
+      context,
+      title: '创建快捷方式',
+      initialValue: '',
+      confirmText: '下一步',
+    );
+    if (target == null || target.trim().isEmpty || !context.mounted) return;
+
+    final normalizedTarget = target.trim().replaceAll('"', '');
+    final targetName = p.basename(normalizedTarget);
+    final name = await _showInputDialog(
+      context,
+      title: '快捷方式名称',
+      initialValue: targetName.isEmpty ? '新建快捷方式' : targetName,
+      confirmText: '创建',
+    );
+    if (name == null || name.trim().isEmpty) return;
+
+    try {
+      await FileService.createShortcutIn(
+        normalizedTarget,
+        controller.currentPath,
+        name: name,
+      );
+      controller.refresh();
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '创建快捷方式失败', e);
+    }
   }
 
   Future<void> _createFromTemplate(
@@ -255,6 +282,15 @@ class _PaneContent extends StatelessWidget {
     final controller = context.read<PaneController>();
     if (controller.isHome ||
         FileService.isSpecialPath(controller.currentPath)) {
+      return;
+    }
+    if (entry.isCommandBased) {
+      try {
+        await ShellNewService.create(controller.currentPath, entry, '');
+        controller.refresh();
+      } catch (e) {
+        if (context.mounted) _showOperationError(context, '创建文件失败', e);
+      }
       return;
     }
     final name = await _showInputDialog(
@@ -322,7 +358,8 @@ class _PaneContent extends StatelessWidget {
         viewMode: controller.viewMode,
         entryFilter: controller.entryFilter,
         onCreateFolder: () => _createFolder(context),
-        onCreateTextFile: () => _createTextFile(context),
+        onCreateFile: () => _createFile(context),
+        onCreateShortcut: () => _createShortcutFromDialog(context),
         shellNewEntries: _shellNewEntries,
         onCreateFromTemplate: (entry) => _createFromTemplate(context, entry),
         onCut: () => _cutSelected(context),
@@ -451,7 +488,8 @@ class _PaneContent extends StatelessWidget {
         onGroupAscending: controller.setGroupAscending,
         onRefresh: controller.refresh,
         onCreateFolder: () => _createFolder(context),
-        onCreateTextFile: () => _createTextFile(context),
+        onCreateFile: () => _createFile(context),
+        onCreateShortcut: () => _createShortcutFromDialog(context),
         shellNewEntries: _shellNewEntries,
         onCreateFromTemplate: (entry) => _createFromTemplate(context, entry),
         onPaste: () => _paste(context),

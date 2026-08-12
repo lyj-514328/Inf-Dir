@@ -59,7 +59,8 @@ class CommandMenuConfig {
   final PaneViewMode viewMode;
   final EntryFilter entryFilter;
   final VoidCallback? onCreateFolder;
-  final VoidCallback? onCreateTextFile;
+  final VoidCallback? onCreateFile;
+  final VoidCallback? onCreateShortcut;
   final List<ShellNewEntry> shellNewEntries;
   final ValueChanged<ShellNewEntry>? onCreateFromTemplate;
   final VoidCallback? onCut;
@@ -97,7 +98,8 @@ class CommandMenuConfig {
     this.viewMode = PaneViewMode.details,
     this.entryFilter = EntryFilter.all,
     this.onCreateFolder,
-    this.onCreateTextFile,
+    this.onCreateFile,
+    this.onCreateShortcut,
     this.shellNewEntries = const [],
     this.onCreateFromTemplate,
     this.onCut,
@@ -133,6 +135,42 @@ CommandMenuItem _checked({
     enabled: enabled,
     onAction: onAction,
   );
+}
+
+List<CommandMenuItem> buildNewItemMenuItems({
+  VoidCallback? onCreateFolder,
+  VoidCallback? onCreateFile,
+  VoidCallback? onCreateShortcut,
+  List<ShellNewEntry> shellNewEntries = const [],
+  ValueChanged<ShellNewEntry>? onCreateFromTemplate,
+}) {
+  return [
+    CommandMenuItem(
+      icon: Icons.create_new_folder_outlined,
+      label: '文件夹',
+      onAction: onCreateFolder,
+    ),
+    CommandMenuItem(
+      icon: Icons.insert_drive_file_outlined,
+      label: '文件',
+      onAction: onCreateFile,
+    ),
+    CommandMenuItem(
+      icon: Icons.add_link,
+      label: '快捷方式',
+      onAction: onCreateShortcut,
+    ),
+    if (shellNewEntries.isNotEmpty) ...[
+      const CommandMenuItem.divider(),
+      for (final entry in shellNewEntries)
+        CommandMenuItem(
+          image: entry.hasIcon ? MemoryImage(entry.iconPng) : null,
+          icon: entry.hasIcon ? null : Icons.insert_drive_file_outlined,
+          label: entry.name,
+          onAction: () => onCreateFromTemplate?.call(entry),
+        ),
+    ],
+  ];
 }
 
 CommandMenuItem buildSortCommandMenuItem(
@@ -254,28 +292,13 @@ List<CommandMenuItem> buildCommandMenuItems(CommandMenuConfig m) {
       icon: Icons.add,
       label: '新建',
       enabled: m.canCreate,
-      children: [
-        CommandMenuItem(
-          icon: Icons.create_new_folder_outlined,
-          label: '文件夹',
-          onAction: m.onCreateFolder,
-        ),
-        CommandMenuItem(
-          icon: Icons.note_add_outlined,
-          label: '文本文档',
-          onAction: m.onCreateTextFile,
-        ),
-        if (m.shellNewEntries.isNotEmpty) ...[
-          const CommandMenuItem.divider(),
-          for (final entry in m.shellNewEntries)
-            CommandMenuItem(
-              image: entry.hasIcon ? MemoryImage(entry.iconPng) : null,
-              icon: entry.hasIcon ? null : Icons.insert_drive_file_outlined,
-              label: entry.name,
-              onAction: () => m.onCreateFromTemplate?.call(entry),
-            ),
-        ],
-      ],
+      children: buildNewItemMenuItems(
+        onCreateFolder: m.onCreateFolder,
+        onCreateFile: m.onCreateFile,
+        onCreateShortcut: m.onCreateShortcut,
+        shellNewEntries: m.shellNewEntries,
+        onCreateFromTemplate: m.onCreateFromTemplate,
+      ),
     ),
     CommandMenuItem(
       icon: Icons.content_cut,
