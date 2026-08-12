@@ -113,12 +113,11 @@ class _HomeViewState extends State<HomeView> {
       controller: _scrollController,
       child: SingleChildScrollView(
         controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
+        padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildSection(context, _HomeSection.quickAccess, quickAccess),
-            const SizedBox(height: 18),
             _buildActivitySection(context, recent, favorites),
           ],
         ),
@@ -152,17 +151,21 @@ class _HomeViewState extends State<HomeView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _HomeSectionHeader(
-          label: label,
-          count: items.length,
-          expanded: section != _HomeSection.quickAccess || _quickAccessExpanded,
-          onToggle: section == _HomeSection.quickAccess
-              ? () =>
-                    setState(() => _quickAccessExpanded = !_quickAccessExpanded)
-              : null,
+        SizedBox(
+          height: 32,
+          child: _HomeSectionHeader(
+            label: label,
+            count: items.length,
+            expanded:
+                section != _HomeSection.quickAccess || _quickAccessExpanded,
+            onToggle: section == _HomeSection.quickAccess
+                ? () => setState(
+                    () => _quickAccessExpanded = !_quickAccessExpanded,
+                  )
+                : null,
+          ),
         ),
         if (section != _HomeSection.quickAccess || _quickAccessExpanded) ...[
-          const SizedBox(height: 7),
           if (items.isEmpty)
             _emptyLine(context, switch (section) {
               _HomeSection.quickAccess => '暂无快速访问项目',
@@ -223,7 +226,6 @@ class _HomeViewState extends State<HomeView> {
           ],
         ),
         if (_activityExpanded) ...[
-          const SizedBox(height: 7),
           if (items.isEmpty)
             _emptyLine(
               context,
@@ -308,20 +310,23 @@ class _HomeViewState extends State<HomeView> {
     List<_HomeItem> items, {
     required bool content,
   }) {
-    return _HomeSurface(
-      child: Column(
-        children: [
-          for (final item in items)
-            _HomeContentRow(
-              item: item,
-              section: section,
-              content: content,
-              showFileExtensions: widget.showFileExtensions,
-              isSelected: item.path == _selectedPath,
-              onSingleTap: () => _selectItem(item),
-              onDoubleTap: () => _openItem(section, item),
-            ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 0, 6, 4),
+      child: _HomeSurface(
+        child: Column(
+          children: [
+            for (final item in items)
+              _HomeContentRow(
+                item: item,
+                section: section,
+                content: content,
+                showFileExtensions: widget.showFileExtensions,
+                isSelected: item.path == _selectedPath,
+                onSingleTap: () => _selectItem(item),
+                onDoubleTap: () => _openItem(section, item),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -338,29 +343,32 @@ class _HomeViewState extends State<HomeView> {
       PaneViewMode.mediumIcons => (icon: 44.0, width: 112.0, height: 84.0),
       _ => (icon: 20.0, width: 190.0, height: 38.0),
     };
-    return _HomeSurface(
-      child: LayoutBuilder(
-        builder: (context, constraints) => Wrap(
-          spacing: 4,
-          runSpacing: 4,
-          children: [
-            for (final item in items)
-              SizedBox(
-                width: spec.width,
-                height: spec.height,
-                child: _HomeIconTile(
-                  item: item,
-                  iconSize: spec.icon,
-                  horizontal:
-                      mode == PaneViewMode.smallIcons ||
-                      mode == PaneViewMode.compact,
-                  showFileExtensions: widget.showFileExtensions,
-                  isSelected: item.path == _selectedPath,
-                  onSingleTap: () => _selectItem(item),
-                  onDoubleTap: () => _openItem(section, item),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+      child: _HomeSurface(
+        child: LayoutBuilder(
+          builder: (context, constraints) => Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              for (final item in items)
+                SizedBox(
+                  width: spec.width,
+                  height: spec.height,
+                  child: _HomeIconTile(
+                    item: item,
+                    iconSize: spec.icon,
+                    horizontal:
+                        mode == PaneViewMode.smallIcons ||
+                        mode == PaneViewMode.compact,
+                    showFileExtensions: widget.showFileExtensions,
+                    isSelected: item.path == _selectedPath,
+                    onSingleTap: () => _selectItem(item),
+                    onDoubleTap: () => _openItem(section, item),
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -537,7 +545,7 @@ class _HomeDetailsHeader extends StatelessWidget {
         color: c.surfaceSubtle,
         border: Border(bottom: BorderSide(color: c.border)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children:
             [
@@ -613,7 +621,7 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
                 children: [
                   Expanded(
@@ -626,9 +634,9 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
                           fallback: widget.item.isDirectory
                               ? Icons.folder_outlined
                               : Icons.insert_drive_file_outlined,
-                          size: 22,
+                          size: AppMetrics.iconMd,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             _displayHomeName(
@@ -729,7 +737,7 @@ class _HomeListRowState extends State<_HomeListRow> {
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
                 children: [
                   _HomeIcon(
@@ -740,7 +748,7 @@ class _HomeListRowState extends State<_HomeListRow> {
                         : Icons.insert_drive_file_outlined,
                     size: 20,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       _displayHomeName(
@@ -803,8 +811,8 @@ class _HomeContentRowState extends State<_HomeContentRow> {
         : widget.item.isDirectory
         ? '文件夹'
         : '文件';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+    return SizedBox(
+      height: widget.content ? 68 : 64,
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovering = true),
         onExit: (_) => setState(() => _hovering = false),
@@ -816,8 +824,8 @@ class _HomeContentRowState extends State<_HomeContentRow> {
           child: GestureDetector(
             onDoubleTap: widget.onDoubleTap,
             child: Container(
-              constraints: BoxConstraints(minHeight: widget.content ? 68 : 58),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              margin: const EdgeInsets.symmetric(vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
               decoration: BoxDecoration(
                 color: widget.isSelected
                     ? c.accent
@@ -1053,7 +1061,8 @@ class _HomeIcon extends StatelessWidget {
 
     Uint8List? png;
     try {
-      png = IconService.getFileIconPng(path, isDirectory, (size * 1.5).round());
+      final sourceSize = (size * View.of(context).devicePixelRatio).ceil();
+      png = IconService.getFileIconPng(path, isDirectory, sourceSize);
     } on Object {
       png = null;
     }

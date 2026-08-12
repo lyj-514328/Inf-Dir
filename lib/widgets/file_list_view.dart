@@ -1081,6 +1081,7 @@ class _FileRowState extends State<_FileRow> {
           child: SizedBox(
             height: AppMetrics.rowHeight,
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // 浮动选中条：圆角 + 左右内缩（Win11 资源管理器风格）
                 Expanded(
@@ -1197,12 +1198,15 @@ class _FileIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     final iconSize = size;
+    final devicePixelRatio = View.of(context).devicePixelRatio;
+    final sourceSize = (iconSize * devicePixelRatio).ceil();
     // Shell overlay HICON contains transparent padding; keep enough canvas for
     // the shortcut arrow to stay close to Explorer's large-icon proportion.
     final badgeSize = (size * 0.42).clamp(8.0, 36.0);
+    final badgeSourceSize = (badgeSize * devicePixelRatio).ceil();
 
-    final png = IconService.getFileIconPng(path, isDirectory, iconSize.round());
-    final overlayPng = IconService.getFileOverlayPng(path, badgeSize.round());
+    final png = IconService.getFileIconPng(path, isDirectory, sourceSize);
+    final overlayPng = IconService.getFileOverlayPng(path, badgeSourceSize);
 
     final Widget base = png != null
         ? Image.memory(
