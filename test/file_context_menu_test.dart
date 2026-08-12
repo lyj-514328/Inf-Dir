@@ -5,6 +5,7 @@ import 'package:inf_dir/models/file_group.dart';
 import 'package:inf_dir/services/shell_new_service.dart';
 import 'package:inf_dir/state/pane_controller.dart';
 import 'package:inf_dir/widgets/file_context_menu.dart';
+import 'package:inf_dir/widgets/command_menu.dart';
 
 void main() {
   test('item context menu follows Files structure', () {
@@ -12,6 +13,7 @@ void main() {
     final items = buildFileItemContextMenuItems(
       onOpen: () {},
       onOpenWith: () {},
+      openWithChildren: [CommandMenuItem(label: 'Notepad', onAction: () {})],
       onQuickView: () {},
       onOpenInNewTab: () {},
       onOpenInNewWindow: () {},
@@ -61,6 +63,9 @@ void main() {
     // 7z / 压缩包暂为占位项。
     expect(compress.children![1].onAction, isNull);
     expect(compress.children![2].onAction, isNull);
+
+    final openWith = items.firstWhere((item) => item.label == '打开方式');
+    expect(openWith.children!.single.label, 'Notepad');
 
     expect(items.last.label, '显示更多选项');
     items.last.onAction!();

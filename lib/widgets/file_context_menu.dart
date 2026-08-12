@@ -19,6 +19,7 @@ List<CommandMenuItem> _joinSections(List<List<CommandMenuItem>> sections) {
 List<CommandMenuItem> buildFileItemContextMenuItems({
   VoidCallback? onOpen,
   VoidCallback? onOpenWith,
+  List<CommandMenuItem>? openWithChildren,
   VoidCallback? onQuickView,
   VoidCallback? onOpenInNewTab,
   VoidCallback? onOpenInNewWindow,
@@ -51,6 +52,7 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
       CommandMenuItem(
         icon: Icons.open_with,
         label: '打开方式',
+        children: openWithChildren,
         onAction: onOpenWith,
       ),
     if (onOpenInNewTab != null)

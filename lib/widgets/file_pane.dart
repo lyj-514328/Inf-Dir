@@ -16,6 +16,7 @@ import '../services/file_search_service.dart';
 import '../services/text_search_service.dart';
 import '../services/shell_context_menu.dart';
 import '../services/shell_new_service.dart';
+import '../services/open_with_menu_service.dart';
 import 'app_theme.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
@@ -305,11 +306,7 @@ class _PaneContent extends StatelessWidget {
     );
     if (name == null || name.trim().isEmpty) return;
     try {
-      await ShellNewService.create(
-        controller.currentPath,
-        entry,
-        name.trim(),
-      );
+      await ShellNewService.create(controller.currentPath, entry, name.trim());
       controller.refresh();
     } catch (e) {
       if (context.mounted) _showOperationError(context, '创建文件失败', e);
@@ -414,6 +411,9 @@ class _PaneContent extends StatelessWidget {
     final isDir = singleEntry?.isDirectory ?? false;
     final canOpenDir = singleEntry != null && isDir && !isRecycleBin;
     final canOpenFile = singleEntry != null && !isDir && !isRecycleBin;
+    final openWithChildren = canOpenFile
+        ? _buildOpenWithMenuItems(singlePath!)
+        : null;
 
     String? compressName;
     if (canModify) {
@@ -430,6 +430,7 @@ class _PaneContent extends StatelessWidget {
             ? () => _handleDoubleTap(context, controller, singlePath!)
             : null,
         onOpenWith: canOpenFile ? () => _openWith(context, singlePath!) : null,
+        openWithChildren: openWithChildren,
         onQuickView: canOpenFile
             ? () => _openQuickView(context, singlePath!)
             : null,
@@ -461,7 +462,9 @@ class _PaneContent extends StatelessWidget {
             ? () => _openTerminal(context, singlePath!)
             : null,
         onPinToSidebar: canOpenDir ? () {} : null,
-        onProperties: canModify ? () => _showPropertiesVerb(context, paths) : null,
+        onProperties: canModify
+            ? () => _showPropertiesVerb(context, paths)
+            : null,
         onShowMoreOptions: () => _showNativeMenu(context, paths, position),
       ),
     );
@@ -525,14 +528,42 @@ class _PaneContent extends StatelessWidget {
     }
   }
 
+  List<CommandMenuItem>? _buildOpenWithMenuItems(String path) {
+    try {
+      final entries = OpenWithMenuService.getEntries(path);
+      if (entries.isEmpty) return null;
+      return [
+        for (final entry in entries)
+          if (entry.isDivider)
+            const CommandMenuItem.divider()
+          else
+            CommandMenuItem(
+              image: entry.iconPng == null ? null : MemoryImage(entry.iconPng!),
+              label: entry.label,
+              enabled: entry.enabled,
+              onAction: () => OpenWithMenuService.invoke(entry.commandId),
+            ),
+        const CommandMenuItem.divider(),
+        CommandMenuItem(
+          icon: Icons.add_circle_outline,
+          label: '选择其他应用',
+          onAction: () => FileService.openWithDialog(path),
+        ),
+      ];
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _openInNewPane(
     BuildContext context,
     SplitDirection direction,
     String path,
   ) async {
-    final newController = context
-        .read<LayoutState>()
-        .splitPane(paneNode, direction);
+    final newController = context.read<LayoutState>().splitPane(
+      paneNode,
+      direction,
+    );
     if (newController != null) await newController.navigateTo(path);
   }
 
@@ -554,7 +585,10 @@ class _PaneContent extends StatelessWidget {
     final paths = controller.selectedPaths.toList();
     if (paths.isEmpty) return;
     try {
-      await FileService.createFolderWithSelection(paths, controller.currentPath);
+      await FileService.createFolderWithSelection(
+        paths,
+        controller.currentPath,
+      );
       controller.refresh();
     } catch (e) {
       if (context.mounted) _showOperationError(context, '创建文件夹失败', e);

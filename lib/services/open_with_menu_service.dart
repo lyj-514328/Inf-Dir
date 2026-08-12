@@ -1,0 +1,163 @@
+import 'dart:ffi';
+import 'dart:typed_data';
+
+import 'package:ffi/ffi.dart';
+
+class OpenWithMenuEntry {
+  final String label;
+  final int commandId;
+  final bool enabled;
+  final bool isDivider;
+  final Uint8List? iconPng;
+
+  const OpenWithMenuEntry._({
+    this.label = '',
+    this.commandId = 0,
+    this.enabled = false,
+    this.isDivider = false,
+    this.iconPng,
+  });
+
+  OpenWithMenuEntry.command({
+    required String label,
+    required int commandId,
+    required bool enabled,
+    required Uint8List? iconPng,
+  }) : this._(
+         label: label,
+         commandId: commandId,
+         enabled: enabled,
+         iconPng: iconPng,
+       );
+
+  const OpenWithMenuEntry.divider() : this._(isDivider: true);
+}
+
+typedef _GetEntriesNative =
+    Pointer<Uint8> Function(Pointer<Utf16> filePath, Pointer<Int32> outSize);
+typedef _GetEntriesDart =
+    Pointer<Uint8> Function(Pointer<Utf16> filePath, Pointer<Int32> outSize);
+
+typedef _FreeEntriesNative = Void Function(Pointer<Uint8> ptr);
+typedef _FreeEntriesDart = void Function(Pointer<Uint8> ptr);
+
+typedef _InvokeEntryNative = Int32 Function(Int32 commandId, IntPtr hwnd);
+typedef _InvokeEntryDart = int Function(int commandId, int hwnd);
+
+typedef _GetActiveWindowNative = IntPtr Function();
+typedef _GetActiveWindowDart = int Function();
+
+/// Hosts Windows' own Open With handler and exposes its submenu entries to the
+/// Flutter command menu. The native handler owns the selected file's menu
+/// until [invoke] is called or another file is queried.
+class OpenWithMenuService {
+  OpenWithMenuService._();
+
+  static final _getEntries = DynamicLibrary.process()
+      .lookupFunction<_GetEntriesNative, _GetEntriesDart>(
+        'GetOpenWithMenuEntriesW',
+      );
+  static final _freeEntries = DynamicLibrary.process()
+      .lookupFunction<_FreeEntriesNative, _FreeEntriesDart>(
+        'FreeOpenWithMenuEntries',
+      );
+  static final _invokeEntry = DynamicLibrary.process()
+      .lookupFunction<_InvokeEntryNative, _InvokeEntryDart>(
+        'InvokeOpenWithMenuEntry',
+      );
+  static final _getActiveWindow = DynamicLibrary.open('user32.dll')
+      .lookupFunction<_GetActiveWindowNative, _GetActiveWindowDart>(
+        'GetActiveWindow',
+      );
+
+  static List<OpenWithMenuEntry> getEntries(String filePath) {
+    final path = filePath.toNativeUtf16();
+    final outSize = calloc<Int32>();
+    try {
+      final ptr = _getEntries(path, outSize);
+      if (ptr == nullptr || outSize.value < 4) return const [];
+      try {
+        return _parse(ptr, outSize.value);
+      } finally {
+        _freeEntries(ptr);
+      }
+    } finally {
+      calloc.free(path);
+      calloc.free(outSize);
+    }
+  }
+
+  static void invoke(int commandId) {
+    _invokeEntry(commandId, _getActiveWindow());
+  }
+
+  static List<OpenWithMenuEntry> _parse(Pointer<Uint8> buffer, int byteSize) {
+    var offset = 0;
+    final count = _readInt32(buffer, offset, byteSize);
+    offset += 4;
+    if (count == null || count < 0 || count > 256) return const [];
+
+    final entries = <OpenWithMenuEntry>[];
+    for (var index = 0; index < count; index++) {
+      final kind = _readInt32(buffer, offset, byteSize);
+      offset += 4;
+      final commandId = _readInt32(buffer, offset, byteSize);
+      offset += 4;
+      final enabled = _readInt32(buffer, offset, byteSize);
+      offset += 4;
+      final labelLength = _readInt32(buffer, offset, byteSize);
+      offset += 4;
+      if (kind == null ||
+          commandId == null ||
+          enabled == null ||
+          labelLength == null ||
+          labelLength < 0 ||
+          offset + labelLength * 2 > byteSize) {
+        return const [];
+      }
+
+      final label = _readUtf16(buffer, offset, labelLength);
+      offset += labelLength * 2;
+      final iconLength = _readInt32(buffer, offset, byteSize);
+      offset += 4;
+      if (iconLength == null ||
+          iconLength < 0 ||
+          offset + iconLength > byteSize) {
+        return const [];
+      }
+      final iconPng = iconLength == 0
+          ? null
+          : Uint8List.fromList((buffer + offset).asTypedList(iconLength));
+      offset += iconLength;
+      if (kind == 1) {
+        entries.add(const OpenWithMenuEntry.divider());
+      } else if (kind == 0 && commandId > 0 && label.isNotEmpty) {
+        entries.add(
+          OpenWithMenuEntry.command(
+            label: label,
+            commandId: commandId,
+            enabled: enabled != 0,
+            iconPng: iconPng,
+          ),
+        );
+      }
+    }
+    return entries;
+  }
+
+  static int? _readInt32(Pointer<Uint8> buffer, int offset, int byteSize) {
+    if (offset < 0 || offset + 4 > byteSize) return null;
+    return (buffer + offset).cast<Int32>().value;
+  }
+
+  static String _readUtf16(Pointer<Uint8> buffer, int offset, int length) {
+    if (length == 0) return '';
+    final units = <int>[];
+    for (var index = 0; index < length; index++) {
+      final low = (buffer + offset + index * 2).value;
+      final high = (buffer + offset + index * 2 + 1).value;
+      units.add((high << 8) | low);
+    }
+    return String.fromCharCodes(units);
+  }
+}
