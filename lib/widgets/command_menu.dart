@@ -771,13 +771,13 @@ class _MenuItemRow extends StatelessWidget {
                       child: item.checked
                           ? Icon(
                               Icons.check,
-                              size: AppMetrics.iconSm,
+                              size: AppMetrics.iconMd,
                               color: c.accent,
                             )
                           : item.image != null
                           ? SizedBox(
-                              width: AppMetrics.iconSm,
-                              height: AppMetrics.iconSm,
+                              width: AppMetrics.iconMd,
+                              height: AppMetrics.iconMd,
                               child: Image(
                                 image: item.image!,
                                 fit: BoxFit.contain,
@@ -787,7 +787,7 @@ class _MenuItemRow extends StatelessWidget {
                           : item.icon != null
                           ? Icon(
                               item.icon,
-                              size: AppMetrics.iconSm,
+                              size: AppMetrics.iconMd,
                               color: iconColor,
                             )
                           : null,

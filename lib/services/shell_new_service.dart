@@ -31,8 +31,9 @@ class ShellNewEntry {
 }
 
 typedef _GetShellNewEntriesNative =
-    Pointer<Uint8> Function(Pointer<Int32> outSize);
-typedef _GetShellNewEntriesDart = Pointer<Uint8> Function(Pointer<Int32> outSize);
+    Pointer<Uint8> Function(Int32 iconSize, Pointer<Int32> outSize);
+typedef _GetShellNewEntriesDart =
+    Pointer<Uint8> Function(int iconSize, Pointer<Int32> outSize);
 
 typedef _FreeShellNewEntriesNative = Void Function(Pointer<Uint8> ptr);
 typedef _FreeShellNewEntriesDart = void Function(Pointer<Uint8> ptr);
@@ -53,22 +54,27 @@ class ShellNewService {
         'FreeShellNewEntries',
       );
 
-  static List<ShellNewEntry>? _cache;
+  static final Map<int, List<ShellNewEntry>> _cache = {};
 
-  static List<ShellNewEntry> getEntries() {
-    final cached = _cache;
+  static List<ShellNewEntry> getEntries(int iconSize) {
+    final normalizedSize = iconSize <= 16
+        ? 16
+        : iconSize <= 32
+        ? 32
+        : iconSize <= 48
+        ? 48
+        : 256;
+    final cached = _cache[normalizedSize];
     if (cached != null) return cached;
 
     final outSize = calloc<Int32>();
-    final ptr = _getEntries(outSize);
+    final ptr = _getEntries(normalizedSize, outSize);
     if (ptr == nullptr || outSize.value < 4) {
       calloc.free(outSize);
-      _cache = const [];
-      return _cache!;
+      return _cache[normalizedSize] = const [];
     }
     try {
-      _cache = _parseBuffer(ptr);
-      return _cache!;
+      return _cache[normalizedSize] = _parseBuffer(ptr);
     } finally {
       _freeEntries(ptr);
       calloc.free(outSize);
@@ -76,7 +82,7 @@ class ShellNewService {
   }
 
   static void invalidateCache() {
-    _cache = null;
+    _cache.clear();
   }
 
   /// Layout: [count: int32], then per item

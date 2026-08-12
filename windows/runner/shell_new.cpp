@@ -1,6 +1,7 @@
 #include "shell_new.h"
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <commoncontrols.h>
 #include <gdiplus.h>
 #include <vector>
 #include <string>
@@ -209,14 +210,35 @@ std::vector<unsigned char> IconToPng(HICON hIcon) {
     return result;
 }
 
-// File-type icon as PNG bytes, or empty on failure. Request the large
-// (32x32) image so it stays crisp when the UI scales it.
-std::vector<unsigned char> TypeIconPng(const std::wstring& extension) {
+// File-type icon as PNG bytes, or empty on failure. Pick the smallest system
+// image list that covers the physical-pixel request from Flutter.
+std::vector<unsigned char> TypeIconPng(const std::wstring& extension, int iconSize) {
     // Leaf must carry the extension ("x.txt"); ".txt\x" parses as a file
     // named "x" with no extension and falls back to the generic blank icon.
     std::wstring pseudo = L"x" + extension;
 
     SHFILEINFOW sfi = {};
+    if (SHGetFileInfoW(pseudo.c_str(), FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi),
+            SHGFI_SYSICONINDEX | SHGFI_USEFILEATTRIBUTES)) {
+        const int imageListSize = iconSize <= 16 ? SHIL_SMALL
+            : iconSize <= 32 ? SHIL_LARGE
+            : iconSize <= 48 ? SHIL_EXTRALARGE
+                             : SHIL_JUMBO;
+        IImageList* imageList = nullptr;
+        if (SUCCEEDED(SHGetImageList(imageListSize, IID_PPV_ARGS(&imageList))) && imageList) {
+            HICON icon = nullptr;
+            if (SUCCEEDED(imageList->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &icon)) && icon) {
+                std::vector<unsigned char> png = IconToPng(icon);
+                DestroyIcon(icon);
+                imageList->Release();
+                if (!png.empty()) return png;
+            } else {
+                imageList->Release();
+            }
+        }
+    }
+
+    sfi = {};
     if (SHGetFileInfoW(pseudo.c_str(), FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi),
             SHGFI_ICON | SHGFI_USEFILEATTRIBUTES | SHGFI_LARGEICON) &&
         sfi.hIcon) {
@@ -246,7 +268,7 @@ struct ShellNewEntry {
 };
 
 bool CollectEntry(HKEY root, const std::wstring& extension,
-    const std::wstring& currentPath, std::vector<ShellNewEntry>& out) {
+    const std::wstring& currentPath, int iconSize, std::vector<ShellNewEntry>& out) {
     HKEY key = nullptr;
     if (RegOpenKeyExW(root, currentPath.c_str(), 0, KEY_READ, &key) != ERROR_SUCCESS)
         return false;
@@ -319,7 +341,7 @@ bool CollectEntry(HKEY root, const std::wstring& extension,
                     entry.name = ResolveDisplayName(entry.extension);
                     if (entry.name.empty())
                         entry.name = L"x" + entry.extension;
-                    entry.iconPng = TypeIconPng(entry.extension);
+                    entry.iconPng = TypeIconPng(entry.extension, iconSize);
                     out.push_back(std::move(entry));
                 }
                 RegCloseKey(shellNew);
@@ -329,7 +351,7 @@ bool CollectEntry(HKEY root, const std::wstring& extension,
                 }
             }
         } else {
-            if (CollectEntry(root, extension, fullPath, out)) {
+            if (CollectEntry(root, extension, fullPath, iconSize, out)) {
                 RegCloseKey(key);
                 return true;
             }
@@ -342,8 +364,8 @@ bool CollectEntry(HKEY root, const std::wstring& extension,
 } // namespace
 
 extern "C" __declspec(dllexport)
-unsigned char* GetShellNewEntries(int* outSize) {
-    if (!outSize) return nullptr;
+unsigned char* GetShellNewEntries(int iconSize, int* outSize) {
+    if (!outSize || iconSize <= 0) return nullptr;
     *outSize = 0;
 
     std::vector<ShellNewEntry> entries;
@@ -367,7 +389,7 @@ unsigned char* GetShellNewEntries(int* outSize) {
                 _wcsicmp(extension.c_str(), L".url") == 0 ||
                 _wcsicmp(extension.c_str(), L".lnk") == 0)
                 continue;
-            CollectEntry(root, extension, extension, entries);
+            CollectEntry(root, extension, extension, iconSize, entries);
         }
     }
 
@@ -377,7 +399,7 @@ unsigned char* GetShellNewEntries(int* outSize) {
         ShellNewEntry textEntry;
         textEntry.extension = L".txt";
         textEntry.name = ResolveDisplayName(textEntry.extension);
-        textEntry.iconPng = TypeIconPng(textEntry.extension);
+        textEntry.iconPng = TypeIconPng(textEntry.extension, iconSize);
         entries.push_back(std::move(textEntry));
     }
 

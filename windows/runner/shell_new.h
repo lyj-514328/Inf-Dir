@@ -10,7 +10,8 @@ extern "C" {
 // name comes from the Windows registered file type name. Each entry carries
 // everything needed to
 // create the item: template path, raw data bytes, a launch command, and
-// a PNG icon for the file type.
+// a PNG icon for the file type. iconSize is the requested physical-pixel
+// size; the smallest system image list that can cover it is used.
 //
 // Returned buffer layout:
 //   [count: int32]
@@ -24,7 +25,7 @@ extern "C" {
 //
 // Free the buffer with FreeShellNewEntries().
 __declspec(dllexport)
-unsigned char* GetShellNewEntries(int* outSize);
+unsigned char* GetShellNewEntries(int iconSize, int* outSize);
 
 __declspec(dllexport)
 void FreeShellNewEntries(unsigned char* ptr);

@@ -236,7 +236,11 @@ class _PaneContent extends StatelessWidget {
     }
   }
 
-  List<ShellNewEntry> get _shellNewEntries => ShellNewService.getEntries();
+  List<ShellNewEntry> _shellNewEntries(BuildContext context) {
+    final iconSize = (AppMetrics.iconMd * View.of(context).devicePixelRatio)
+        .ceil();
+    return ShellNewService.getEntries(iconSize);
+  }
 
   Future<void> _createShortcutFromDialog(BuildContext context) async {
     final controller = context.read<PaneController>();
@@ -360,7 +364,7 @@ class _PaneContent extends StatelessWidget {
         onCreateFolder: () => _createFolder(context),
         onCreateFile: () => _createFile(context),
         onCreateShortcut: () => _createShortcutFromDialog(context),
-        shellNewEntries: _shellNewEntries,
+        shellNewEntries: _shellNewEntries(context),
         onCreateFromTemplate: (entry) => _createFromTemplate(context, entry),
         onCut: () => _cutSelected(context),
         onCopy: () => _copySelected(context),
@@ -490,7 +494,7 @@ class _PaneContent extends StatelessWidget {
         onCreateFolder: () => _createFolder(context),
         onCreateFile: () => _createFile(context),
         onCreateShortcut: () => _createShortcutFromDialog(context),
-        shellNewEntries: _shellNewEntries,
+        shellNewEntries: _shellNewEntries(context),
         onCreateFromTemplate: (entry) => _createFromTemplate(context, entry),
         onPaste: () => _paste(context),
         onSelectAll: controller.selectAll,
