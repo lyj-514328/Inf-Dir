@@ -744,8 +744,8 @@ class _MenuItemRow extends StatelessWidget {
     // Win11 菜单项：hover 是四周留边的 4px 圆角高亮块。
     return MouseRegion(
       onEnter: (_) => onHover(item, context),
-      child: SizedBox(
-        height: 32,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 32),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           child: InkWell(
@@ -760,8 +760,8 @@ class _MenuItemRow extends StatelessWidget {
                   },
             hoverColor: c.surfaceHover,
             borderRadius: BorderRadius.circular(AppMetrics.menuItemRadius),
-            child: SizedBox(
-              height: 26,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 26),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Row(
@@ -796,6 +796,8 @@ class _MenuItemRow extends StatelessWidget {
                     Expanded(
                       child: Text(
                         item.label ?? '',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: AppMetrics.fontBody,
                           color: labelColor,
