@@ -4,6 +4,7 @@ A new Flutter project.
 
 ## Development documents
 
+- [Files feature parity roadmap](docs/files-parity-roadmap.md)
 - [Viewer plugin system](docs/plugin-system.md)
 - [Sidebar synchronization](docs/sidebar-sync-refactor.md)
 - [Windows plugin junction workaround](docs/windows-plugin-junction-workaround.md)
