@@ -252,51 +252,110 @@ void main() {
       pc.dispose();
     });
 
-    test('home is a virtual page and participates in navigation history', () async {
-      final pc = makePane(FileService.homeViewPath);
-
-      expect(pc.isHome, isTrue);
-      expect(pc.displayPath, '主文件夹');
-      expect(pc.entries, isEmpty);
-      expect(pc.isLoading, isFalse);
-      expect(pc.canGoUp, isFalse);
-      expect(source.created, isEmpty);
-
-      pc.navigateTo('C:\\A');
-      expect(pc.isHome, isFalse);
-      await settle();
-      expect(source.created, hasLength(1));
-
-      pc.goBack();
-      expect(pc.isHome, isTrue);
-      expect(pc.entries, isEmpty);
-      expect(source.created, hasLength(1));
-      pc.dispose();
-    });
-
     test(
-      'default workspace starts with four panes and remains splittable',
-      () {
-        final layout = LayoutState(repository: repo);
+      'home is a virtual page and participates in navigation history',
+      () async {
+        final pc = makePane(FileService.homeViewPath);
 
-        expect(layout.allPaneNodes, hasLength(4));
-        expect(
-          layout.allPaneNodes.map(
-            (node) => layout.controllerFor(node)?.currentPath,
-          ),
-          [
-            FileService.desktopPath,
-            FileService.homeDirectory,
-            FileService.documentsPath,
-            FileService.downloadsPath,
-          ],
-        );
+        expect(pc.isHome, isTrue);
+        expect(pc.displayPath, '主文件夹');
+        expect(pc.entries, isEmpty);
+        expect(pc.isLoading, isFalse);
+        expect(pc.canGoUp, isFalse);
+        expect(source.created, isEmpty);
 
-        layout.splitPane(layout.allPaneNodes.first, SplitDirection.horizontal);
-        expect(layout.allPaneNodes, hasLength(5));
-        layout.dispose();
+        pc.navigateTo('C:\\A');
+        expect(pc.isHome, isFalse);
+        await settle();
+        expect(source.created, hasLength(1));
+
+        pc.goBack();
+        expect(pc.isHome, isTrue);
+        expect(pc.entries, isEmpty);
+        expect(source.created, hasLength(1));
+        pc.dispose();
       },
     );
+
+    test('default workspace starts with four panes and remains splittable', () {
+      final layout = LayoutState(repository: repo);
+
+      expect(layout.allPaneNodes, hasLength(4));
+      expect(
+        layout.allPaneNodes.map(
+          (node) => layout.controllerFor(node)?.currentPath,
+        ),
+        [
+          FileService.desktopPath,
+          FileService.homeDirectory,
+          FileService.documentsPath,
+          FileService.downloadsPath,
+        ],
+      );
+
+      layout.splitPane(layout.allPaneNodes.first, SplitDirection.horizontal);
+      expect(layout.allPaneNodes, hasLength(5));
+      layout.dispose();
+    });
+
+    testWidgets('refreshPanesWhere reloads only matching panes', (
+      tester,
+    ) async {
+      final layout = LayoutState(repository: repo);
+      final panes = layout.allPaneNodes
+          .map(layout.controllerFor)
+          .whereType<PaneController>()
+          .toList();
+      panes[0].navigateTo('C:\\A');
+      panes[1].navigateTo('C:\\B');
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      source.created.clear();
+
+      layout.refreshPanesWhere((path) => path == 'C:\\A');
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+
+      expect(source.created, hasLength(1));
+      expect(panes[0].entries, isNotEmpty);
+      layout.dispose();
+    });
+
+    testWidgets('applyLocalRemovals updates panes without reloading', (
+      tester,
+    ) async {
+      final layout = LayoutState(repository: repo);
+      final panes = layout.allPaneNodes
+          .map(layout.controllerFor)
+          .whereType<PaneController>()
+          .toList();
+      panes[0].navigateTo('C:\\A');
+      panes[1].navigateTo('C:\\A');
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      const removedPath = 'C:\\A\\f1.txt';
+      panes[0].selectSingle(removedPath);
+      panes[1].selectSingle(removedPath);
+      source.created.clear();
+
+      layout.applyLocalRemovals(const [removedPath]);
+
+      expect(
+        panes[0].entries.map((entry) => entry.path),
+        isNot(contains(removedPath)),
+      );
+      expect(
+        panes[1].entries.map((entry) => entry.path),
+        isNot(contains(removedPath)),
+      );
+      expect(panes[0].selectedPaths, isNot(contains(removedPath)));
+      expect(panes[1].selectedPaths, isNot(contains(removedPath)));
+      expect(source.created, isEmpty);
+      layout.dispose();
+    });
 
     test('uses a sort change for pages that arrive while loading', () async {
       source = FakeCursorSource({

@@ -278,6 +278,12 @@ class LayoutState extends ChangeNotifier {
     }
   }
 
+  void refreshPanesWhere(bool Function(String path) predicate) {
+    for (final controller in _controllers.values) {
+      if (predicate(controller.currentPath)) controller.refresh();
+    }
+  }
+
   /// Removes entries moved away by a cut-and-paste from every pane that
   /// currently shows their source directory. Idempotent: panes not showing
   /// the affected directory simply match nothing.

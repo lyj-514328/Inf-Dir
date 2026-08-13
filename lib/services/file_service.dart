@@ -75,8 +75,12 @@ class FileService {
   static Future<void> deleteEntry(String path, {bool permanent = false}) async {
     if (ShellFileOperation.isAvailable) {
       ShellFileOperation.delete([path], permanent: permanent);
-    } else {
+    } else if (permanent) {
       await _deleteEntryIo(path);
+    } else {
+      throw const FileSystemException(
+        'Recycle Bin is unavailable; the file was not deleted',
+      );
     }
   }
 
@@ -87,10 +91,14 @@ class FileService {
     if (paths.isEmpty) return;
     if (ShellFileOperation.isAvailable) {
       ShellFileOperation.delete(paths, permanent: permanent);
-    } else {
+    } else if (permanent) {
       for (final path in paths) {
         await _deleteEntryIo(path);
       }
+    } else {
+      throw const FileSystemException(
+        'Recycle Bin is unavailable; no files were deleted',
+      );
     }
   }
 
@@ -225,6 +233,51 @@ class FileService {
   static Future<void> openTerminal(String dirPath) async {
     await Process.run('wt.exe', ['-d', dirPath]);
   }
+
+  static void restoreRecycleBinEntries(
+    List<String> parsingNames, {
+    List<String?>? destinations,
+  }) {
+    if (parsingNames.isEmpty) return;
+    ShellFileOperation.restoreRecycleBin(parsingNames, destinations: destinations);
+  }
+
+  /// Plans restore targets for Recycle Bin [entries]: entries whose original
+  /// directory still exists keep a null target (the Shell restores them via
+  /// `System.Recycle.DeletedFrom`); entries whose original directory is
+  /// missing get [fallback] as their target.
+  ///
+  /// Returns the missing entries (for UI prompting) and the per-entry
+  /// targets, aligned with [entries].
+  static ({List<FileEntry> missing, List<String?> destinations})
+      planRestoreDestinations(List<FileEntry> entries, {String? fallback}) {
+    final missing = <FileEntry>[];
+    final destinations = <String?>[];
+    for (final entry in entries) {
+      final original = entry.originalPath?.trim();
+      final originalExists = original != null &&
+          original.isNotEmpty &&
+          _directoryExists(original);
+      if (!originalExists) missing.add(entry);
+      destinations.add(originalExists ? null : fallback);
+    }
+    return (missing: missing, destinations: destinations);
+  }
+
+  static bool _directoryExists(String path) {
+    try {
+      return Directory(path).existsSync();
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  /// Shows the native folder-picker dialog; returns the chosen directory or
+  /// null when cancelled.
+  static String? pickFolder({String? initialPath}) =>
+      ShellFileOperation.pickFolder(initialPath: initialPath);
+
+  static void emptyRecycleBin() => ShellFileOperation.emptyRecycleBin();
 
   static Future<String> createShortcutIn(
     String targetPath,

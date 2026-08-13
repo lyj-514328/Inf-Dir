@@ -13,7 +13,7 @@ class FileEntry {
 
   // --- Recycle Bin specific fields (optional) ---
 
-  /// Original file path before deletion (e.g. "C:\Users\...\report.pdf")
+  /// Directory the item was deleted from (`System.Recycle.DeletedFrom`).
   final String? originalPath;
 
   /// Deletion date string from shell (e.g. "2026/07/24 15:30:00")

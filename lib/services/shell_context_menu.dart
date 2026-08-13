@@ -154,7 +154,7 @@ class ShellOperations {
   }
 
   /// Invokes a shell verb (e.g. "properties") on [selectedPaths].
-  static void invokeVerb({
+  static int invokeVerb({
     required String folderPath,
     required List<String> selectedPaths,
     required String verb,
@@ -173,7 +173,7 @@ class ShellOperations {
           pathsArray[i] = pathPtrs[i];
         }
       }
-      _invokeShellVerb(
+      return _invokeShellVerb(
         hwnd,
         folderPtr,
         pathsArray,

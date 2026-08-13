@@ -59,6 +59,36 @@ static const wchar_t* FileNameFromPath(const wchar_t* fullPath) {
     return p ? p + 1 : fullPath;
 }
 
+static HRESULT GetRelativeItemPidl(
+    PCIDLIST_ABSOLUTE folderPidl,
+    LPCWSTR itemParsingName,
+    PIDLIST_RELATIVE* relativePidl)
+{
+    if (!folderPidl || !itemParsingName || !relativePidl) return E_INVALIDARG;
+    *relativePidl = nullptr;
+
+    IShellItem* item = nullptr;
+    HRESULT hr = SHCreateItemFromParsingName(itemParsingName, nullptr,
+        IID_PPV_ARGS(&item));
+    if (FAILED(hr) || !item) return FAILED(hr) ? hr : E_FAIL;
+
+    PIDLIST_ABSOLUTE itemPidl = nullptr;
+    hr = SHGetIDListFromObject(item, &itemPidl);
+    item->Release();
+    if (FAILED(hr) || !itemPidl) return FAILED(hr) ? hr : E_FAIL;
+
+    PCUIDLIST_RELATIVE childPidl = ILFindChild(
+        const_cast<PIDLIST_ABSOLUTE>(folderPidl), itemPidl);
+    if (!childPidl || ILIsEmpty(childPidl)) {
+        hr = E_INVALIDARG;
+    } else {
+        *relativePidl = ILClone(childPidl);
+        hr = *relativePidl ? S_OK : E_OUTOFMEMORY;
+    }
+    CoTaskMemFree(itemPidl);
+    return hr;
+}
+
 static bool IsVerbIntercepted(const wchar_t* verb,
     const wchar_t** interceptVerbs, int interceptCount) {
     for (int i = 0; i < interceptCount; i++) {
@@ -123,42 +153,15 @@ HRESULT ShowShellContextMenuW(
         bool ok = true;
 
         if (isVirtual) {
-            // For virtual shell folders (Recycle Bin, etc.), we need
-            // relative PIDLs for GetUIObjectOf. Get the item's absolute
-            // PIDL via IShellItem2::GetIDList, then strip the folder
-            // prefix to obtain the relative portion.
             PIDLIST_ABSOLUTE folderPidl = nullptr;
-            SHParseDisplayName(folderPath, nullptr, &folderPidl, 0, nullptr);
+            hr = SHParseDisplayName(folderPath, nullptr, &folderPidl, 0,
+                nullptr);
+            if (FAILED(hr) || !folderPidl) ok = false;
 
             for (int i = 0; i < selectedCount && ok; i++) {
-                IShellItem* item = nullptr;
-                hr = SHCreateItemFromParsingName(selectedPaths[i], nullptr,
-                    IID_PPV_ARGS(&item));
-                if (SUCCEEDED(hr) && item) {
-                    PIDLIST_ABSOLUTE absPidl = nullptr;
-                    hr = SHGetIDListFromObject(item, &absPidl);
-                    if (SUCCEEDED(hr) && absPidl) {
-                        // Walk through folderPidl's ITEMIDLISTs and skip
-                        // the same prefix from absPidl to get the relative PIDL.
-                        PCUIDLIST_RELATIVE folderWalk =
-                            (PCUIDLIST_RELATIVE)folderPidl;
-                        PCUIDLIST_RELATIVE itemWalk =
-                            (PCUIDLIST_RELATIVE)absPidl;
-                        while (folderWalk->mkid.cb > 0 &&
-                               itemWalk->mkid.cb > 0) {
-                            folderWalk = ILGetNext(folderWalk);
-                            itemWalk = ILGetNext(itemWalk);
-                        }
-                        // itemWalk now points to the relative PIDL
-                        pidls[i] = ILClone(itemWalk);
-                        CoTaskMemFree(absPidl);
-                    } else {
-                        ok = false;
-                    }
-                    item->Release();
-                } else {
-                    ok = false;
-                }
+                hr = GetRelativeItemPidl(folderPidl, selectedPaths[i],
+                    &pidls[i]);
+                if (FAILED(hr)) ok = false;
             }
 
             if (folderPidl) CoTaskMemFree(folderPidl);
@@ -346,12 +349,24 @@ HRESULT InvokeShellVerbW(
 
     PIDLIST_RELATIVE* pidls = new PIDLIST_RELATIVE[selectedCount]();
     bool ok = true;
-    for (int i = 0; i < selectedCount && ok; i++) {
-        const wchar_t* name = FileNameFromPath(selectedPaths[i]);
-        ULONG eaten = 0;
-        hr = folder->ParseDisplayName(nullptr, nullptr,
-            const_cast<LPWSTR>(name), &eaten, &pidls[i], nullptr);
-        if (FAILED(hr)) ok = false;
+    if (IsVirtualShellPath(folderPath)) {
+        PIDLIST_ABSOLUTE folderPidl = nullptr;
+        hr = SHParseDisplayName(folderPath, nullptr, &folderPidl, 0, nullptr);
+        if (FAILED(hr) || !folderPidl) ok = false;
+
+        for (int i = 0; i < selectedCount && ok; i++) {
+            hr = GetRelativeItemPidl(folderPidl, selectedPaths[i], &pidls[i]);
+            if (FAILED(hr)) ok = false;
+        }
+        if (folderPidl) CoTaskMemFree(folderPidl);
+    } else {
+        for (int i = 0; i < selectedCount && ok; i++) {
+            const wchar_t* name = FileNameFromPath(selectedPaths[i]);
+            ULONG eaten = 0;
+            hr = folder->ParseDisplayName(nullptr, nullptr,
+                const_cast<LPWSTR>(name), &eaten, &pidls[i], nullptr);
+            if (FAILED(hr)) ok = false;
+        }
     }
 
     IContextMenu* pcm = nullptr;

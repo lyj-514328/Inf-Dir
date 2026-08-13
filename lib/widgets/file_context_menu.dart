@@ -207,6 +207,107 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
   ]);
 }
 
+List<CommandMenuItem> buildRecycleBinItemContextMenuItems({
+  required VoidCallback onRestore,
+  required VoidCallback onDeletePermanently,
+  required VoidCallback onProperties,
+  required VoidCallback onShowMoreOptions,
+}) {
+  return _joinSections([
+    [CommandMenuItem(icon: Icons.restore, label: '还原', onAction: onRestore)],
+    [
+      CommandMenuItem(
+        icon: Icons.delete_forever_outlined,
+        label: '永久删除',
+        shortcut: 'Delete',
+        onAction: onDeletePermanently,
+      ),
+    ],
+    [
+      CommandMenuItem(
+        icon: Icons.info_outline,
+        label: '属性',
+        onAction: onProperties,
+      ),
+      CommandMenuItem(
+        icon: Icons.more_horiz,
+        label: '显示更多选项',
+        shortcut: 'Shift+F10',
+        onAction: onShowMoreOptions,
+      ),
+    ],
+  ]);
+}
+
+List<CommandMenuItem> buildRecycleBinFolderContextMenuItems({
+  required SortColumn sortColumn,
+  required bool sortAscending,
+  required PaneViewMode viewMode,
+  required FileGroupBy groupBy,
+  required bool groupAscending,
+  required bool canSelectAll,
+  required bool canEmpty,
+  required ValueChanged<SortColumn> onSortColumn,
+  required ValueChanged<bool> onSortAscending,
+  required ValueChanged<PaneViewMode> onViewMode,
+  required ValueChanged<FileGroupBy> onGroupBy,
+  required ValueChanged<bool> onGroupAscending,
+  required VoidCallback onRefresh,
+  required VoidCallback onEmptyRecycleBin,
+  required VoidCallback onSelectAll,
+  required VoidCallback onShowMoreOptions,
+}) {
+  final sharedConfig = ViewSortMenuConfig(
+    sortColumn: sortColumn,
+    sortAscending: sortAscending,
+    viewMode: viewMode,
+    onSortColumn: onSortColumn,
+    onSortAscending: onSortAscending,
+    onViewMode: onViewMode,
+  );
+  return _joinSections([
+    [
+      buildViewCommandMenuItem(sharedConfig),
+      buildSortCommandMenuItem(sharedConfig, label: '排序方式'),
+      _buildGroupByMenuItem(
+        groupBy: groupBy,
+        groupAscending: groupAscending,
+        onGroupBy: onGroupBy,
+        onGroupAscending: onGroupAscending,
+      ),
+      CommandMenuItem(
+        icon: Icons.refresh,
+        label: '刷新',
+        shortcut: 'F5',
+        onAction: onRefresh,
+      ),
+    ],
+    [
+      CommandMenuItem(
+        icon: Icons.delete_sweep_outlined,
+        label: '清空回收站',
+        enabled: canEmpty,
+        onAction: onEmptyRecycleBin,
+      ),
+      CommandMenuItem(
+        icon: Icons.select_all,
+        label: '全选',
+        shortcut: 'Ctrl+A',
+        enabled: canSelectAll,
+        onAction: onSelectAll,
+      ),
+    ],
+    [
+      CommandMenuItem(
+        icon: Icons.more_horiz,
+        label: '显示更多选项',
+        shortcut: 'Shift+F10',
+        onAction: onShowMoreOptions,
+      ),
+    ],
+  ]);
+}
+
 List<CommandMenuItem> buildFolderContextMenuItems({
   required SortColumn sortColumn,
   required bool sortAscending,

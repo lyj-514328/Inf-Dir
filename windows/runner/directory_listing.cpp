@@ -188,18 +188,10 @@ static bool EnumerateShellFolder(const wchar_t* path,
 
             // Display name
             std::wstring name;
-            if (isRecycleBinItem && !filePath.empty()) {
-                // Recycle bin: derive name from parsing name (avoid COM call)
-                size_t lastSlash = filePath.find_last_of(L'\\');
-                name = (lastSlash != std::wstring::npos)
-                    ? filePath.substr(lastSlash + 1)
-                    : filePath;
-            } else {
-                if (SUCCEEDED(child->GetDisplayName(SIGDN_NORMALDISPLAY, &psz)) && psz) {
-                    name = psz;
-                    CoTaskMemFree(psz);
-                    psz = nullptr;
-                }
+            if (SUCCEEDED(child->GetDisplayName(SIGDN_NORMALDISPLAY, &psz)) && psz) {
+                name = psz;
+                CoTaskMemFree(psz);
+                psz = nullptr;
             }
             if (filePath.empty()) filePath = name;
 
@@ -520,16 +512,10 @@ static void WriteShellItemToBuffer(
     }
 
     std::wstring name;
-    if (session.isRecycleBinItem && !filePath.empty()) {
-        size_t lastSlash = filePath.find_last_of(L'\\');
-        name = (lastSlash != std::wstring::npos)
-            ? filePath.substr(lastSlash + 1) : filePath;
-    } else {
-        if (SUCCEEDED(child->GetDisplayName(SIGDN_NORMALDISPLAY, &psz)) && psz) {
-            name = psz;
-            CoTaskMemFree(psz);
-            psz = nullptr;
-        }
+    if (SUCCEEDED(child->GetDisplayName(SIGDN_NORMALDISPLAY, &psz)) && psz) {
+        name = psz;
+        CoTaskMemFree(psz);
+        psz = nullptr;
     }
     if (filePath.empty()) filePath = name;
 

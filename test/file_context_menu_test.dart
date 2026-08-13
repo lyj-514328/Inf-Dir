@@ -9,7 +9,7 @@ import 'package:inf_dir/widgets/file_context_menu.dart';
 import 'package:inf_dir/widgets/command_menu.dart';
 
 void main() {
-  test('item context menu follows Files structure', () {
+  test('item context menu follows implemented Files structure', () {
     var showMoreInvoked = false;
     final openImage = MemoryImage(Uint8List.fromList([1, 2, 3]));
     final items = buildFileItemContextMenuItems(
@@ -19,7 +19,6 @@ void main() {
       openWithChildren: [CommandMenuItem(label: 'Notepad', onAction: () {})],
       onQuickView: () {},
       onOpenInNewTab: () {},
-      onOpenInNewWindow: () {},
       onOpenInNewPane: (_) {},
       onCut: () {},
       onCopy: () {},
@@ -31,9 +30,7 @@ void main() {
       onCreateShortcut: () {},
       compressName: 'report',
       onCompressZip: () {},
-      onSendTo: () {},
       onOpenInTerminal: () {},
-      onPinToSidebar: () {},
       onProperties: () {},
       onShowMoreOptions: () => showMoreInvoked = true,
     );
@@ -42,7 +39,6 @@ void main() {
       '打开',
       '打开方式',
       '在新标签页中打开',
-      '在新窗口中打开',
       '在新窗格中打开',
       '快速查看',
       '剪切',
@@ -54,9 +50,7 @@ void main() {
       '使用所选内容创建文件夹',
       '创建快捷方式',
       '压缩到',
-      '发送到',
       '在 Windows 终端中打开',
-      '固定到侧边栏',
       '属性',
       '显示更多选项',
     ]);
@@ -89,6 +83,62 @@ void main() {
       '复制路径',
       '显示更多选项',
     ]);
+  });
+
+  test('recycle bin item menu exposes only supported operations', () {
+    var restored = false;
+    var deleted = false;
+    final items = buildRecycleBinItemContextMenuItems(
+      onRestore: () => restored = true,
+      onDeletePermanently: () => deleted = true,
+      onProperties: () {},
+      onShowMoreOptions: () {},
+    );
+
+    expect(items.where((item) => !item.isDivider).map((item) => item.label), [
+      '还原',
+      '永久删除',
+      '属性',
+      '显示更多选项',
+    ]);
+
+    items.firstWhere((item) => item.label == '还原').onAction!();
+    items.firstWhere((item) => item.label == '永久删除').onAction!();
+    expect(restored, isTrue);
+    expect(deleted, isTrue);
+  });
+
+  test('recycle bin folder menu disables empty action when empty', () {
+    final items = buildRecycleBinFolderContextMenuItems(
+      sortColumn: SortColumn.name,
+      sortAscending: true,
+      viewMode: PaneViewMode.details,
+      groupBy: FileGroupBy.none,
+      groupAscending: true,
+      canSelectAll: false,
+      canEmpty: false,
+      onSortColumn: (_) {},
+      onSortAscending: (_) {},
+      onViewMode: (_) {},
+      onGroupBy: (_) {},
+      onGroupAscending: (_) {},
+      onRefresh: () {},
+      onEmptyRecycleBin: () {},
+      onSelectAll: () {},
+      onShowMoreOptions: () {},
+    );
+
+    expect(items.where((item) => !item.isDivider).map((item) => item.label), [
+      '查看',
+      '排序方式',
+      '分组依据',
+      '刷新',
+      '清空回收站',
+      '全选',
+      '显示更多选项',
+    ]);
+    expect(items.firstWhere((item) => item.label == '清空回收站').enabled, isFalse);
+    expect(items.firstWhere((item) => item.label == '全选').enabled, isFalse);
   });
 
   test('folder context menu reuses view and sort menus', () {

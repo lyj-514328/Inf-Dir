@@ -129,7 +129,9 @@ class _PaneContent extends StatelessWidget {
                       }
                       if (matchesSearchShortcut(event, keyboard)) {
                         if (!controller.isHome &&
-                            !FileService.isSpecialPath(controller.currentPath)) {
+                            !FileService.isSpecialPath(
+                              controller.currentPath,
+                            )) {
                           _openSearch(context, controller);
                         }
                         return KeyEventResult.handled;
@@ -139,9 +141,11 @@ class _PaneContent extends StatelessWidget {
                         return KeyEventResult.handled;
                       }
                       if (event.logicalKey == LogicalKeyboardKey.delete) {
-                        if (!FileService.isRecycleBinPath(
+                        if (FileService.isRecycleBinPath(
                           controller.currentPath,
                         )) {
+                          _deleteRecycleBinSelection(context);
+                        } else {
                           _deleteSelected(
                             context,
                             permanent: keyboard.isShiftPressed,
@@ -377,6 +381,20 @@ class _PaneContent extends StatelessWidget {
           : p.basename(paths.first);
     }
 
+    if (isRecycleBin) {
+      showCommandMenu(
+        context,
+        position: position,
+        items: buildRecycleBinItemContextMenuItems(
+          onRestore: () => _restoreRecycleBinSelection(context),
+          onDeletePermanently: () => _deleteRecycleBinSelection(context),
+          onProperties: () => _showPropertiesVerb(context, paths),
+          onShowMoreOptions: () => _showNativeMenu(context, paths, position),
+        ),
+      );
+      return;
+    }
+
     showCommandMenu(
       context,
       position: position,
@@ -393,7 +411,6 @@ class _PaneContent extends StatelessWidget {
         onOpenInNewTab: canOpenDir
             ? () => controller.addTab(singlePath!)
             : null,
-        onOpenInNewWindow: canOpenDir ? () {} : null,
         onOpenInNewPane: canOpenDir
             ? (direction) => _openInNewPane(context, direction, singlePath!)
             : null,
@@ -413,11 +430,9 @@ class _PaneContent extends StatelessWidget {
         onCreateShortcut: canModify ? () => _createShortcuts(context) : null,
         compressName: compressName,
         onCompressZip: canModify ? () => _compressZip(context) : null,
-        onSendTo: canModify ? () {} : null,
         onOpenInTerminal: canOpenDir
             ? () => _openTerminal(context, singlePath!)
             : null,
-        onPinToSidebar: canOpenDir ? () {} : null,
         onProperties: canModify
             ? () => _showPropertiesVerb(context, paths)
             : null,
@@ -430,6 +445,32 @@ class _PaneContent extends StatelessWidget {
     final controller = context.read<PaneController>();
     final appState = context.read<AppState>();
     controller.clearSelection();
+
+    if (FileService.isRecycleBinPath(controller.currentPath)) {
+      showCommandMenu(
+        context,
+        position: position,
+        items: buildRecycleBinFolderContextMenuItems(
+          sortColumn: controller.sortColumn,
+          sortAscending: controller.sortAscending,
+          viewMode: controller.viewMode,
+          groupBy: controller.groupBy,
+          groupAscending: controller.groupAscending,
+          canSelectAll: controller.visibleEntries.isNotEmpty,
+          canEmpty: controller.entries.isNotEmpty,
+          onSortColumn: controller.setSortColumn,
+          onSortAscending: controller.setSortAscending,
+          onViewMode: controller.setViewMode,
+          onGroupBy: controller.setGroupBy,
+          onGroupAscending: controller.setGroupAscending,
+          onRefresh: controller.refresh,
+          onEmptyRecycleBin: () => _emptyRecycleBin(context),
+          onSelectAll: controller.selectAll,
+          onShowMoreOptions: () => _showNativeMenu(context, const [], position),
+        ),
+      );
+      return;
+    }
 
     final canWrite = !FileService.isSpecialPath(controller.currentPath);
     showCommandMenu(
@@ -713,8 +754,12 @@ class _PaneContent extends StatelessWidget {
         title: Text(permanent ? '永久删除' : '确认删除'),
         content: Text(
           selected.length == 1
-              ? '确定要删除 "${_basename(selected.first)}" 吗？'
-              : '确定要删除 ${selected.length} 个项目吗？',
+              ? permanent
+                    ? '确定要永久删除 "${_basename(selected.first)}" 吗？此操作无法撤销。'
+                    : '确定要将 "${_basename(selected.first)}" 移到回收站吗？'
+              : permanent
+              ? '确定要永久删除 ${selected.length} 个项目吗？此操作无法撤销。'
+              : '确定要将 ${selected.length} 个项目移到回收站吗？',
         ),
         actions: [
           TextButton(
@@ -742,8 +787,222 @@ class _PaneContent extends StatelessWidget {
     if (confirm != true) return;
     try {
       await FileService.deleteEntries(selected, permanent: permanent);
-    } catch (_) {}
-    controller.refresh();
+    } catch (error) {
+      if (context.mounted) {
+        _showOperationError(context, permanent ? '永久删除失败' : '移到回收站失败', error);
+      }
+      return;
+    }
+    if (!context.mounted) return;
+    context.read<LayoutState>().applyLocalRemovals(selected);
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(
+          permanent
+              ? '已永久删除 ${selected.length} 个项目'
+              : '已将 ${selected.length} 个项目移到回收站',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _restoreRecycleBinSelection(BuildContext context) async {
+    final controller = context.read<PaneController>();
+    final selected = controller.selectedPaths.toList();
+    if (selected.isEmpty) return;
+
+    final entries = selected
+        .map((path) => _findEntry(controller, path))
+        .whereType<FileEntry>()
+        .toList(growable: false);
+    final parsingNames = entries
+        .map((entry) => entry.parsingName)
+        .whereType<String>()
+        .toList(growable: false);
+    if (parsingNames.length != selected.length) {
+      _showOperationError(context, '还原失败', '无法解析所选回收站项目');
+      return;
+    }
+
+    final plan = FileService.planRestoreDestinations(entries);
+    String? fallback;
+    if (plan.missing.isEmpty) {
+      final confirm = await _showConfirmationDialog(
+        context,
+        title: '还原项目',
+        message: selected.length == 1
+            ? '要将“${entries.single.name}”还原到原始位置吗？'
+            : '要将选中的 ${selected.length} 个项目还原到原始位置吗？',
+        confirmText: '还原',
+      );
+      if (confirm != true || !context.mounted) return;
+    } else {
+      fallback = await _showRestoreLocationDialog(
+        context,
+        missingCount: plan.missing.length,
+        sampleName: plan.missing.length == 1 ? plan.missing.single.name : null,
+      );
+      if (fallback == null || !context.mounted) return;
+    }
+
+    final destinations = fallback == null
+        ? null
+        : FileService.planRestoreDestinations(
+            entries,
+            fallback: fallback,
+          ).destinations;
+
+    try {
+      FileService.restoreRecycleBinEntries(
+        parsingNames,
+        destinations: destinations,
+      );
+      if (!context.mounted) return;
+      final layoutState = context.read<LayoutState>();
+      layoutState.applyLocalRemovals(parsingNames);
+      final originalDirectories = entries
+          .map((entry) => entry.originalPath)
+          .whereType<String>()
+          .toSet();
+      if (fallback != null) originalDirectories.add(fallback);
+      layoutState.refreshPanesWhere(
+        (path) =>
+            originalDirectories.any((directory) => p.equals(directory, path)),
+      );
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text('已还原 ${entries.length} 个项目'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      if (context.mounted) _showOperationError(context, '还原失败', error);
+    }
+  }
+
+  /// Asks where to restore items whose original directory is gone. Returns
+  /// the chosen directory, or null when the user cancels.
+  Future<String?> _showRestoreLocationDialog(
+    BuildContext context, {
+    required int missingCount,
+    String? sampleName,
+  }) {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('无法还原到原始位置'),
+        content: Text(
+          sampleName != null
+              ? '“$sampleName”的原始文件夹已不存在。请选择新的还原位置。'
+              : '有 $missingCount 个项目的原始文件夹已不存在。请选择新的还原位置。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final picked = FileService.pickFolder(
+                initialPath: FileService.desktopPath,
+              );
+              if (picked != null && ctx.mounted) Navigator.pop(ctx, picked);
+            },
+            child: const Text('选择其他位置…'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, FileService.desktopPath),
+            child: const Text('还原到桌面'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteRecycleBinSelection(BuildContext context) async {
+    final controller = context.read<PaneController>();
+    final selected = controller.selectedPaths.toList();
+    if (selected.isEmpty) return;
+    final displayName = selected.length == 1
+        ? _findEntry(controller, selected.single)?.name
+        : null;
+
+    final confirm = await _showConfirmationDialog(
+      context,
+      title: '永久删除',
+      message: selected.length == 1
+          ? '要永久删除“${displayName ?? _basename(selected.single)}”吗？此操作无法撤销。'
+          : '要永久删除选中的 ${selected.length} 个项目吗？此操作无法撤销。',
+      confirmText: '永久删除',
+      destructive: true,
+    );
+    if (confirm != true || !context.mounted) return;
+
+    try {
+      await FileService.deleteEntries(selected, permanent: true);
+      if (context.mounted) {
+        context.read<LayoutState>().refreshPanesWhere(
+          FileService.isRecycleBinPath,
+        );
+      }
+    } catch (error) {
+      if (context.mounted) _showOperationError(context, '永久删除失败', error);
+    }
+  }
+
+  Future<void> _emptyRecycleBin(BuildContext context) async {
+    final confirm = await _showConfirmationDialog(
+      context,
+      title: '清空回收站',
+      message: '要永久删除回收站中的所有项目吗？此操作无法撤销。',
+      confirmText: '清空',
+      destructive: true,
+    );
+    if (confirm != true || !context.mounted) return;
+
+    try {
+      FileService.emptyRecycleBin();
+      if (context.mounted) {
+        context.read<LayoutState>().refreshPanesWhere(
+          FileService.isRecycleBinPath,
+        );
+      }
+    } catch (error) {
+      if (context.mounted) _showOperationError(context, '清空回收站失败', error);
+    }
+  }
+
+  Future<bool?> _showConfirmationDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required String confirmText,
+    bool destructive = false,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: destructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: context.colors.danger,
+                    foregroundColor: context.colors.onAccent,
+                  )
+                : null,
+            child: Text(confirmText),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showOperationError(
