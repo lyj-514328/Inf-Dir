@@ -27,7 +27,8 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
+class _AppShellState extends State<AppShell>
+    with WidgetsBindingObserver, WindowListener {
   bool _sidebarHovering = false;
   bool _sidebarDragging = false;
 
@@ -40,6 +41,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     ServicesBinding.instance.keyboard.addHandler(_onKey);
+    windowManager.addListener(this);
+    unawaited(windowManager.setPreventClose(true));
     // 焦点 pane 路径 → 侧栏同步（§12）：监听稳定 notifier，
     // 不再靠 didUpdateWidget 比较字符串驱动业务。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -62,10 +65,21 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    debugPrint('[LayoutCache] AppShell.dispose');
+    windowManager.removeListener(this);
     context.read<LayoutState>().activePanePath.removeListener(_syncSidebar);
     ServicesBinding.instance.keyboard.removeHandler(_onKey);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void onWindowClose() {
+    debugPrint('[LayoutCache] onWindowClose -> flushing layout cache');
+    if (mounted) {
+      context.read<LayoutState>().flushLayoutCache();
+    }
+    windowManager.destroy();
   }
 
   @override
@@ -79,6 +93,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   Future<AppExitResponse> didRequestAppExit() async {
+    debugPrint('[LayoutCache] didRequestAppExit triggered');
     context.read<LayoutState>().flushLayoutCache();
     return AppExitResponse.exit;
   }

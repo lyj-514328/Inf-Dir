@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/window_layout_snapshot.dart';
@@ -25,14 +26,20 @@ class WindowLayoutStore {
   WindowLayoutSnapshot? load() {
     for (final path in [filePath, _backupPath]) {
       final file = File(path);
-      if (!file.existsSync()) continue;
+      if (!file.existsSync()) {
+        debugPrint('[LayoutCache] load: $path not found');
+        continue;
+      }
       try {
         final decoded = jsonDecode(file.readAsStringSync());
         if (decoded is! Map) continue;
-        return WindowLayoutSnapshot.fromJson(
+        final snapshot = WindowLayoutSnapshot.fromJson(
           decoded.map((key, value) => MapEntry(key.toString(), value)),
         );
-      } on Object {
+        debugPrint('[LayoutCache] load OK from $path');
+        return snapshot;
+      } on Object catch (error) {
+        debugPrint('[LayoutCache] load failed from $path: $error');
         // A cache must never prevent the application from starting. Try the
         // previous snapshot, then let LayoutState create its default layout.
       }
@@ -45,8 +52,12 @@ class WindowLayoutStore {
     final contents = '${encoder.convert(snapshot.toJson())}\n';
     final target = File(filePath);
 
-    if (target.existsSync() && target.readAsStringSync() == contents) return;
+    if (target.existsSync() && target.readAsStringSync() == contents) {
+      debugPrint('[LayoutCache] save skipped (unchanged)');
+      return;
+    }
 
+    debugPrint('[LayoutCache] save -> $filePath');
     target.parent.createSync(recursive: true);
     final temporary = File(_temporaryPath);
     temporary.writeAsStringSync(contents, flush: true);
@@ -59,6 +70,7 @@ class WindowLayoutStore {
         target.deleteSync();
       }
       temporary.renameSync(target.path);
+      debugPrint('[LayoutCache] save written (${contents.length} bytes)');
     } finally {
       if (temporary.existsSync()) temporary.deleteSync();
     }

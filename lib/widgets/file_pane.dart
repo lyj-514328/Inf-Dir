@@ -660,6 +660,7 @@ class _PaneContent extends StatelessWidget {
   Future<void> _paste(BuildContext context) async {
     final appState = context.read<AppState>();
     final controller = context.read<PaneController>();
+    final layoutState = context.read<LayoutState>();
 
     // Cannot paste into the Recycle Bin
     if (FileService.isSpecialPath(controller.currentPath)) return;
@@ -668,10 +669,12 @@ class _PaneContent extends StatelessWidget {
 
     final destDir = controller.currentPath;
     final pastedPaths = <String>[];
+    final movedPaths = <String>[];
     for (final srcPath in appState.clipboardPaths) {
       try {
         if (appState.clipboardIsCut) {
           await FileService.moveEntry(srcPath, destDir);
+          movedPaths.add(srcPath);
         } else {
           await FileService.copyEntry(srcPath, destDir);
         }
@@ -680,6 +683,9 @@ class _PaneContent extends StatelessWidget {
     }
     if (appState.clipboardIsCut) appState.clearClipboard();
     controller.applyLocalChanges(addedPaths: pastedPaths);
+    if (movedPaths.isNotEmpty) {
+      layoutState.applyLocalRemovals(movedPaths);
+    }
   }
 
   Future<void> _deleteSelected(BuildContext context) async {

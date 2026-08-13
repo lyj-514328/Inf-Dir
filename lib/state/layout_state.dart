@@ -25,13 +25,18 @@ class LayoutState extends ChangeNotifier {
     : _repository = repository ?? DirectoryRepository(),
       _layoutStore = layoutStore {
     final cached = _layoutStore?.load();
+    debugPrint(
+      '[LayoutCache] load -> ${cached == null ? 'null' : '${cached.panes.length} panes, ${cached.workspaces.length} workspaces'}',
+    );
     if (cached != null &&
         !_isLegacySinglePaneDefault(cached) &&
         _restoreSnapshot(cached)) {
+      debugPrint('[LayoutCache] restored snapshot');
       _updateActivePanePath();
       return;
     }
 
+    debugPrint('[LayoutCache] using default layout');
     _initializeDefault();
     _updateActivePanePath();
   }
@@ -175,8 +180,12 @@ class LayoutState extends ChangeNotifier {
 
   void _saveLayoutNow() {
     if (_layoutStore == null || _disposed) return;
+    debugPrint(
+      '[LayoutCache] _saveLayoutNow (disposed=$_disposed, panes=${_controllers.length})',
+    );
     try {
       _layoutStore.save(toLayoutSnapshot());
+      debugPrint('[LayoutCache] save OK');
     } on Object catch (error) {
       debugPrint('[LayoutCache] save failed: $error');
     }
@@ -184,6 +193,9 @@ class LayoutState extends ChangeNotifier {
 
   /// Immediately writes the latest layout. Used by the desktop exit hook.
   void flushLayoutCache() {
+    debugPrint(
+      '[LayoutCache] flushLayoutCache (disposed=$_disposed, store=$_layoutStore)',
+    );
     _saveLayoutNow();
   }
 
@@ -197,6 +209,7 @@ class LayoutState extends ChangeNotifier {
 
   @override
   void dispose() {
+    debugPrint('[LayoutCache] LayoutState.dispose (disposed=$_disposed)');
     if (_disposed) return;
     flushLayoutCache();
     _disposed = true;
@@ -263,6 +276,17 @@ class LayoutState extends ChangeNotifier {
   void refreshAllPanes() {
     for (final controller in _controllers.values) {
       controller.refresh();
+    }
+  }
+
+  /// Removes entries moved away by a cut-and-paste from every pane that
+  /// currently shows their source directory. Idempotent: panes not showing
+  /// the affected directory simply match nothing.
+  void applyLocalRemovals(Iterable<String> removedPaths) {
+    final removed = removedPaths.toSet();
+    if (removed.isEmpty) return;
+    for (final controller in _controllers.values) {
+      controller.applyLocalChanges(removedPaths: removed);
     }
   }
 
