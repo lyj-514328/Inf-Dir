@@ -9,10 +9,8 @@ import 'package:window_manager/window_manager.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../features/quick_view/viewer_associations_dialog.dart';
 import '../models/layout_node.dart';
-import '../services/file_service.dart';
 import '../state/app_state.dart';
 import '../state/layout_state.dart';
-import '../state/pane_controller.dart';
 import '../state/sidebar_controller.dart';
 import '../state/theme_controller.dart';
 import 'app_theme.dart';
@@ -20,16 +18,7 @@ import 'command_menu.dart';
 import 'sidebar_tree.dart';
 import 'layout_view.dart';
 import 'file_pane.dart';
-import 'search_dialog.dart';
 import 'window_controls.dart';
-
-bool matchesSearchShortcut(KeyEvent event, HardwareKeyboard keyboard) {
-  return event is KeyDownEvent &&
-      event.logicalKey == LogicalKeyboardKey.keyF &&
-      keyboard.isControlPressed &&
-      !keyboard.isAltPressed &&
-      !keyboard.isShiftPressed;
-}
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -108,17 +97,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       if (isAltUp) layoutState.hideAltOverlay();
     }
     final keyboard = HardwareKeyboard.instance;
-    if (matchesSearchShortcut(event, keyboard)) {
-      final route = ModalRoute.of(context);
-      if (route != null && !route.isCurrent) return false;
-      final controller = layoutState.controllerFor(layoutState.focusedNode);
-      if (controller != null &&
-          !controller.isHome &&
-          !FileService.isSpecialPath(controller.currentPath)) {
-        unawaited(_openSearch(controller));
-      }
-      return true;
-    }
     // F3 — Quick View
     if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.f3 &&
@@ -141,20 +119,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       return true;
     }
     return false;
-  }
-
-  Future<void> _openSearch(PaneController controller) async {
-    final result = await showDialog<SearchDialogResult>(
-      context: context,
-      builder: (_) => SearchDialog(rootPath: controller.currentPath),
-    );
-    if (!mounted || result == null) return;
-
-    if (result.isDirectory) {
-      await controller.navigateTo(result.path);
-    } else {
-      await FileService.openFile(result.path);
-    }
   }
 
   Future<void> _openQuickView(String path) async {

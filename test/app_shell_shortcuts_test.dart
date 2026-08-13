@@ -1,9 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inf_dir/widgets/app_shell.dart';
+import 'package:inf_dir/widgets/file_pane.dart';
 
 void main() {
-  testWidgets('global keyboard events recognize Ctrl+F as search', (
+  testWidgets('pane keyboard matcher recognizes Ctrl+F as search', (
     tester,
   ) async {
     var matched = false;

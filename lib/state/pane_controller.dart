@@ -627,6 +627,41 @@ class PaneController extends ChangeNotifier {
     _startListing(_currentPath);
   }
 
+  /// Applies known filesystem changes to the visible list without restarting
+  /// directory enumeration. Used after a successful local paste operation.
+  void applyLocalChanges({
+    Iterable<String> addedPaths = const [],
+    Iterable<String> removedPaths = const [],
+  }) {
+    final removed = removedPaths.toSet();
+    final added = <FileEntry>[];
+
+    for (final path in addedPaths) {
+      if (p.dirname(path) != _currentPath ||
+          _entries.any((entry) => entry.path == path)) {
+        continue;
+      }
+      final entry = FileService.inspectEntry(path);
+      if (entry != null) added.add(entry);
+    }
+
+    final next = _entries
+        .where((entry) => !removed.contains(entry.path))
+        .toList();
+    final existing = next.map((entry) => entry.path).toSet();
+    next.addAll(added.where((entry) => existing.add(entry.path)));
+    _entries = _sortedEntries(next);
+
+    _selectedPaths.removeAll(removed);
+    if (_focusedPath != null && removed.contains(_focusedPath)) {
+      _focusedPath = null;
+    }
+    if (_anchorPath != null && removed.contains(_anchorPath)) {
+      _anchorPath = null;
+    }
+    notifyListeners();
+  }
+
   void addTab([String? path]) {
     final tabPath = path ?? _currentPath;
     _tabs.add(TabInfo(path: tabPath, label: _pathLabel(tabPath)));

@@ -23,6 +23,15 @@ import 'file_context_menu.dart';
 import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
 import 'home_view.dart';
+import 'search_dialog.dart';
+
+bool matchesSearchShortcut(KeyEvent event, HardwareKeyboard keyboard) {
+  return event is KeyDownEvent &&
+      event.logicalKey == LogicalKeyboardKey.keyF &&
+      keyboard.isControlPressed &&
+      !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed;
+}
 
 class FilePane extends StatelessWidget {
   final String paneId;
@@ -92,19 +101,20 @@ class _PaneContent extends StatelessWidget {
                   autofocus: false,
                   onKeyEvent: (node, event) {
                     if (event is KeyDownEvent) {
+                      final keyboard = HardwareKeyboard.instance;
                       if (event.logicalKey == LogicalKeyboardKey.backspace ||
                           (event.logicalKey == LogicalKeyboardKey.arrowUp &&
-                              HardwareKeyboard.instance.isAltPressed)) {
+                              keyboard.isAltPressed)) {
                         controller.goUp();
                         return KeyEventResult.handled;
                       }
                       if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
-                          HardwareKeyboard.instance.isAltPressed) {
+                          keyboard.isAltPressed) {
                         controller.goBack();
                         return KeyEventResult.handled;
                       }
                       if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
-                          HardwareKeyboard.instance.isAltPressed) {
+                          keyboard.isAltPressed) {
                         controller.goForward();
                         return KeyEventResult.handled;
                       }
@@ -113,8 +123,15 @@ class _PaneContent extends StatelessWidget {
                         return KeyEventResult.handled;
                       }
                       if (event.logicalKey == LogicalKeyboardKey.keyA &&
-                          HardwareKeyboard.instance.isControlPressed) {
+                          keyboard.isControlPressed) {
                         controller.selectAll();
+                        return KeyEventResult.handled;
+                      }
+                      if (matchesSearchShortcut(event, keyboard)) {
+                        if (!controller.isHome &&
+                            !FileService.isSpecialPath(controller.currentPath)) {
+                          _openSearch(context, controller);
+                        }
                         return KeyEventResult.handled;
                       }
                       if (event.logicalKey == LogicalKeyboardKey.enter) {
@@ -138,12 +155,19 @@ class _PaneContent extends StatelessWidget {
                         return KeyEventResult.handled;
                       }
                       if (event.logicalKey == LogicalKeyboardKey.keyC &&
-                          HardwareKeyboard.instance.isControlPressed) {
+                          keyboard.isControlPressed &&
+                          keyboard.isShiftPressed) {
+                        _copySelectedPaths(context);
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.keyC &&
+                          keyboard.isControlPressed &&
+                          !keyboard.isShiftPressed) {
                         _copySelected(context);
                         return KeyEventResult.handled;
                       }
                       if (event.logicalKey == LogicalKeyboardKey.keyX &&
-                          HardwareKeyboard.instance.isControlPressed) {
+                          keyboard.isControlPressed) {
                         if (FileService.isRecycleBinPath(
                           controller.currentPath,
                         )) {
@@ -153,7 +177,7 @@ class _PaneContent extends StatelessWidget {
                         return KeyEventResult.handled;
                       }
                       if (event.logicalKey == LogicalKeyboardKey.keyV &&
-                          HardwareKeyboard.instance.isControlPressed) {
+                          keyboard.isControlPressed) {
                         if (FileService.isRecycleBinPath(
                           controller.currentPath,
                         )) {
@@ -165,12 +189,19 @@ class _PaneContent extends StatelessWidget {
                     }
                     return KeyEventResult.ignored;
                   },
-                  child: _FileListSection(
-                    isActive: isActive,
-                    onItemContextMenu: (path, position) =>
-                        _openItemContextMenu(context, path, position),
-                    onFolderContextMenu: (position) =>
-                        _openFolderContextMenu(context, position),
+                  child: Builder(
+                    builder: (focusContext) => Listener(
+                      onPointerDown: (_) {
+                        Focus.of(focusContext).requestFocus();
+                      },
+                      child: _FileListSection(
+                        isActive: isActive,
+                        onItemContextMenu: (path, position) =>
+                            _openItemContextMenu(context, path, position),
+                        onFolderContextMenu: (position) =>
+                            _openFolderContextMenu(context, position),
+                      ),
+                    ),
                   ),
                 ),
         ),
@@ -442,6 +473,23 @@ class _PaneContent extends StatelessWidget {
     );
   }
 
+  Future<void> _openSearch(
+    BuildContext context,
+    PaneController controller,
+  ) async {
+    final result = await showDialog<SearchDialogResult>(
+      context: context,
+      builder: (_) => SearchDialog(rootPath: controller.currentPath),
+    );
+    if (!context.mounted || result == null) return;
+
+    if (result.isDirectory) {
+      await controller.navigateTo(result.path);
+    } else {
+      await FileService.openFile(result.path);
+    }
+  }
+
   Future<void> _openWith(BuildContext context, String path) async {
     try {
       await FileService.openWithDialog(path);
@@ -587,10 +635,9 @@ class _PaneContent extends StatelessWidget {
     final appState = context.read<AppState>();
     final controller = context.read<PaneController>();
     if (controller.selectedPaths.isNotEmpty) {
-      appState.copyPaths(controller.selectedPaths.toList());
-      Clipboard.setData(
-        ClipboardData(text: controller.selectedPaths.join('\n')),
-      );
+      final paths = controller.selectedPaths.toList();
+      appState.copyPaths(paths);
+      Clipboard.setData(ClipboardData(text: paths.join('\n')));
     }
   }
 
@@ -620,6 +667,7 @@ class _PaneContent extends StatelessWidget {
     if (!appState.hasClipboard) return;
 
     final destDir = controller.currentPath;
+    final pastedPaths = <String>[];
     for (final srcPath in appState.clipboardPaths) {
       try {
         if (appState.clipboardIsCut) {
@@ -627,10 +675,11 @@ class _PaneContent extends StatelessWidget {
         } else {
           await FileService.copyEntry(srcPath, destDir);
         }
+        pastedPaths.add(p.join(destDir, p.basename(srcPath)));
       } catch (_) {}
     }
     if (appState.clipboardIsCut) appState.clearClipboard();
-    controller.refresh();
+    controller.applyLocalChanges(addedPaths: pastedPaths);
   }
 
   Future<void> _deleteSelected(BuildContext context) async {

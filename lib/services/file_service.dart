@@ -136,11 +136,29 @@ class FileService {
     }
   }
 
+  /// Reads the metadata needed to add a newly-created filesystem item to an
+  /// already-visible pane without re-enumerating the whole directory.
+  static FileEntry? inspectEntry(String path) {
+    try {
+      final type = FileSystemEntity.typeSync(path, followLinks: false);
+      if (type == FileSystemEntityType.notFound) return null;
+
+      final stat = FileStat.statSync(path);
+      final isDirectory = type == FileSystemEntityType.directory;
+      return FileEntry(
+        name: p.basename(path),
+        path: path,
+        isDirectory: isDirectory,
+        size: isDirectory ? 0 : stat.size,
+        modified: stat.modified,
+      );
+    } on FileSystemException {
+      return null;
+    }
+  }
+
   static Future<void> openWithDialog(String filePath) async {
-    await Process.run('rundll32.exe', [
-      'shell32.dll,OpenAs_RunDLL',
-      filePath,
-    ]);
+    await Process.run('rundll32.exe', ['shell32.dll,OpenAs_RunDLL', filePath]);
   }
 
   static Future<void> openTerminal(String dirPath) async {
