@@ -36,6 +36,9 @@ class _AppShellState extends State<AppShell>
   /// navigateTo 同步触发 activePanePath → _syncSidebar，故在此消费。
   bool _suppressSidebarScroll = false;
 
+  /// 关闭流程已开始：防止重入的 onWindowClose 重复 flush / 重复投递关闭。
+  bool _closing = false;
+
   @override
   void initState() {
     super.initState();
@@ -76,10 +79,18 @@ class _AppShellState extends State<AppShell>
   @override
   void onWindowClose() {
     debugPrint('[LayoutCache] onWindowClose -> flushing layout cache');
+    if (_closing) return;
+    _closing = true;
     if (mounted) {
       context.read<LayoutState>().flushLayoutCache();
     }
-    windowManager.destroy();
+    // Re-enable the native close so the window tears down through the normal
+    // WM_CLOSE → WM_DESTROY path, which cleanly shuts down the engine. Calling
+    // destroy() here only posts WM_QUIT and leaves the window/engine alive,
+    // freezing the process.
+    unawaited(
+      windowManager.setPreventClose(false).then((_) => windowManager.close()),
+    );
   }
 
   @override
