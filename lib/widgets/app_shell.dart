@@ -36,8 +36,9 @@ class _AppShellState extends State<AppShell>
   /// navigateTo 同步触发 activePanePath → _syncSidebar，故在此消费。
   bool _suppressSidebarScroll = false;
 
-  /// 关闭流程已开始：防止重入的 onWindowClose 重复 flush / 重复投递关闭。
-  bool _closing = false;
+  /// 原生关闭回调共享同一个 Future；所有退出入口只保存一次会话。
+  Future<void>? _closeFuture;
+  bool _sessionSaved = false;
 
   @override
   void initState() {
@@ -45,7 +46,6 @@ class _AppShellState extends State<AppShell>
     WidgetsBinding.instance.addObserver(this);
     ServicesBinding.instance.keyboard.addHandler(_onKey);
     windowManager.addListener(this);
-    unawaited(windowManager.setPreventClose(true));
     // 焦点 pane 路径 → 侧栏同步（§12）：监听稳定 notifier，
     // 不再靠 didUpdateWidget 比较字符串驱动业务。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -78,19 +78,29 @@ class _AppShellState extends State<AppShell>
 
   @override
   void onWindowClose() {
-    debugPrint('[LayoutCache] onWindowClose -> flushing layout cache');
-    if (_closing) return;
-    _closing = true;
-    if (mounted) {
-      context.read<LayoutState>().flushLayoutCache();
-    }
-    // Re-enable the native close so the window tears down through the normal
-    // WM_CLOSE → WM_DESTROY path, which cleanly shuts down the engine. Calling
-    // destroy() here only posts WM_QUIT and leaves the window/engine alive,
-    // freezing the process.
-    unawaited(
-      windowManager.setPreventClose(false).then((_) => windowManager.close()),
-    );
+    unawaited(_closeApplication());
+  }
+
+  void _saveSessionOnce() {
+    if (_sessionSaved || !mounted) return;
+    _sessionSaved = true;
+    debugPrint('[LayoutCache] saving session before exit');
+    context.read<LayoutState>().saveSession();
+  }
+
+  Future<void> _closeApplication() {
+    final existing = _closeFuture;
+    if (existing != null) return existing;
+
+    final closeFuture = () async {
+      _saveSessionOnce();
+      // Release the native close so Windows can follow the normal
+      // WM_CLOSE -> WM_DESTROY path and shut the Flutter engine down cleanly.
+      await windowManager.setPreventClose(false);
+      await windowManager.close();
+    }();
+    _closeFuture = closeFuture;
+    return closeFuture;
   }
 
   @override
@@ -105,7 +115,7 @@ class _AppShellState extends State<AppShell>
   @override
   Future<AppExitResponse> didRequestAppExit() async {
     debugPrint('[LayoutCache] didRequestAppExit triggered');
-    context.read<LayoutState>().flushLayoutCache();
+    _saveSessionOnce();
     return AppExitResponse.exit;
   }
 

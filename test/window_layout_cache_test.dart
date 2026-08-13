@@ -56,7 +56,7 @@ void main() {
       layout.splitPane(layout.allPaneNodes.single, SplitDirection.vertical);
       layout.focusNode(layout.allPaneNodes.last);
       layout.setSidebarWidth(312);
-      layout.flushLayoutCache();
+      layout.saveSession();
       layout.dispose();
 
       final restored = LayoutState(
@@ -122,6 +122,39 @@ void main() {
         FileService.downloadsPath,
       ],
     );
+  });
+
+  test('dispose does not implicitly write a session snapshot', () {
+    final temp = Directory.systemTemp.createTempSync('inf-dir-layout-');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    final store = WindowLayoutStore(
+      filePath: p.join(temp.path, 'window_layout.json'),
+    );
+
+    final layout = LayoutState(
+      repository: _emptyRepository(),
+      layoutStore: store,
+    );
+    layout.dispose();
+
+    expect(File(store.filePath).existsSync(), isFalse);
+  });
+
+  test('saveSession explicitly writes the current snapshot', () {
+    final temp = Directory.systemTemp.createTempSync('inf-dir-layout-');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    final store = WindowLayoutStore(
+      filePath: p.join(temp.path, 'window_layout.json'),
+    );
+
+    final layout = LayoutState(
+      repository: _emptyRepository(),
+      layoutStore: store,
+    );
+    layout.saveSession();
+    addTearDown(layout.dispose);
+
+    expect(File(store.filePath).existsSync(), isTrue);
   });
 
   test(

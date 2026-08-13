@@ -191,10 +191,10 @@ class LayoutState extends ChangeNotifier {
     }
   }
 
-  /// Immediately writes the latest layout. Used by the desktop exit hook.
-  void flushLayoutCache() {
+  /// Writes the latest session snapshot during coordinated application exit.
+  void saveSession() {
     debugPrint(
-      '[LayoutCache] flushLayoutCache (disposed=$_disposed, store=$_layoutStore)',
+      '[LayoutCache] saveSession (disposed=$_disposed, store=$_layoutStore)',
     );
     _saveLayoutNow();
   }
@@ -211,7 +211,6 @@ class LayoutState extends ChangeNotifier {
   void dispose() {
     debugPrint('[LayoutCache] LayoutState.dispose (disposed=$_disposed)');
     if (_disposed) return;
-    flushLayoutCache();
     _disposed = true;
     for (final controller in _controllers.values) {
       controller.removeListener(_onPaneChanged);

@@ -17,6 +17,8 @@ import 'widgets/app_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
+  // AppShell releases the native close after persisting the session.
+  await windowManager.setPreventClose(true);
 
   // 无边框窗口：隐藏系统标题栏，保留 DWM 原生缩放边框（不用 setAsFrameless）。
   const windowOptions = WindowOptions(
