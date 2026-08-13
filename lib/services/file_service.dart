@@ -3,6 +3,7 @@ import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
 import 'directory_service.dart';
 import 'shell_context_menu.dart';
+import 'shell_file_operation.dart';
 
 class FileService {
   /// Virtual path used by the Files home page. It is not a filesystem path.
@@ -71,7 +72,29 @@ class FileService {
     await Process.run('explorer.exe', ['/select,"$filePath"']);
   }
 
-  static Future<void> deleteEntry(String path) async {
+  static Future<void> deleteEntry(String path, {bool permanent = false}) async {
+    if (ShellFileOperation.isAvailable) {
+      ShellFileOperation.delete([path], permanent: permanent);
+    } else {
+      await _deleteEntryIo(path);
+    }
+  }
+
+  static Future<void> deleteEntries(
+    List<String> paths, {
+    bool permanent = false,
+  }) async {
+    if (paths.isEmpty) return;
+    if (ShellFileOperation.isAvailable) {
+      ShellFileOperation.delete(paths, permanent: permanent);
+    } else {
+      for (final path in paths) {
+        await _deleteEntryIo(path);
+      }
+    }
+  }
+
+  static Future<void> _deleteEntryIo(String path) async {
     final type = FileSystemEntity.typeSync(path);
     if (type == FileSystemEntityType.directory) {
       await Directory(path).delete(recursive: true);
@@ -103,6 +126,25 @@ class FileService {
   }
 
   static Future<void> copyEntry(String srcPath, String destDir) async {
+    if (ShellFileOperation.isAvailable) {
+      ShellFileOperation.copy([srcPath], destDir);
+    } else {
+      await _copyEntryIo(srcPath, destDir);
+    }
+  }
+
+  static Future<void> copyEntries(List<String> srcPaths, String destDir) async {
+    if (srcPaths.isEmpty) return;
+    if (ShellFileOperation.isAvailable) {
+      ShellFileOperation.copy(srcPaths, destDir);
+    } else {
+      for (final srcPath in srcPaths) {
+        await _copyEntryIo(srcPath, destDir);
+      }
+    }
+  }
+
+  static Future<void> _copyEntryIo(String srcPath, String destDir) async {
     final name = p.basename(srcPath);
     final destPath = p.join(destDir, name);
     final type = FileSystemEntity.typeSync(srcPath);
@@ -126,6 +168,25 @@ class FileService {
   }
 
   static Future<void> moveEntry(String srcPath, String destDir) async {
+    if (ShellFileOperation.isAvailable) {
+      ShellFileOperation.move([srcPath], destDir);
+    } else {
+      await _moveEntryIo(srcPath, destDir);
+    }
+  }
+
+  static Future<void> moveEntries(List<String> srcPaths, String destDir) async {
+    if (srcPaths.isEmpty) return;
+    if (ShellFileOperation.isAvailable) {
+      ShellFileOperation.move(srcPaths, destDir);
+    } else {
+      for (final srcPath in srcPaths) {
+        await _moveEntryIo(srcPath, destDir);
+      }
+    }
+  }
+
+  static Future<void> _moveEntryIo(String srcPath, String destDir) async {
     final name = p.basename(srcPath);
     final destPath = p.join(destDir, name);
     final type = FileSystemEntity.typeSync(srcPath);
@@ -201,9 +262,7 @@ class FileService {
       n++;
     }
     await Directory(dirPath).create();
-    for (final path in paths) {
-      await moveEntry(path, dirPath);
-    }
+    await moveEntries(paths, dirPath);
     return dirPath;
   }
 

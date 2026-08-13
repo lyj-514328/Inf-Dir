@@ -9,6 +9,7 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME} WIN32
   "directory_listing.cpp"
   "file_icon.cpp"
+  "file_operations.cpp"
   "flutter_window.cpp"
   "main.cpp"
   "open_with_menu.cpp"

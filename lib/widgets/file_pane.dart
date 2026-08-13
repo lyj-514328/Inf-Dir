@@ -142,7 +142,10 @@ class _PaneContent extends StatelessWidget {
                         if (!FileService.isRecycleBinPath(
                           controller.currentPath,
                         )) {
-                          _deleteSelected(context);
+                          _deleteSelected(
+                            context,
+                            permanent: keyboard.isShiftPressed,
+                          );
                         }
                         return KeyEventResult.handled;
                       }
@@ -668,27 +671,34 @@ class _PaneContent extends StatelessWidget {
     if (!appState.hasClipboard) return;
 
     final destDir = controller.currentPath;
+    final sources = appState.clipboardPaths;
+    final isCut = appState.clipboardIsCut;
     final pastedPaths = <String>[];
     final movedPaths = <String>[];
-    for (final srcPath in appState.clipboardPaths) {
-      try {
-        if (appState.clipboardIsCut) {
-          await FileService.moveEntry(srcPath, destDir);
-          movedPaths.add(srcPath);
-        } else {
-          await FileService.copyEntry(srcPath, destDir);
-        }
-        pastedPaths.add(p.join(destDir, p.basename(srcPath)));
-      } catch (_) {}
+
+    try {
+      if (isCut) {
+        await FileService.moveEntries(sources, destDir);
+        movedPaths.addAll(sources);
+      } else {
+        await FileService.copyEntries(sources, destDir);
+      }
+      pastedPaths.addAll(sources.map((s) => p.join(destDir, p.basename(s))));
+    } catch (_) {
+      controller.refresh();
+      return;
     }
-    if (appState.clipboardIsCut) appState.clearClipboard();
+    if (isCut) appState.clearClipboard();
     controller.applyLocalChanges(addedPaths: pastedPaths);
     if (movedPaths.isNotEmpty) {
       layoutState.applyLocalRemovals(movedPaths);
     }
   }
 
-  Future<void> _deleteSelected(BuildContext context) async {
+  Future<void> _deleteSelected(
+    BuildContext context, {
+    bool permanent = false,
+  }) async {
     final controller = context.read<PaneController>();
 
     // In Recycle Bin, deletion is handled by the shell context menu
@@ -700,7 +710,7 @@ class _PaneContent extends StatelessWidget {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('确认删除'),
+        title: Text(permanent ? '永久删除' : '确认删除'),
         content: Text(
           selected.length == 1
               ? '确定要删除 "${_basename(selected.first)}" 吗？'
@@ -730,11 +740,9 @@ class _PaneContent extends StatelessWidget {
     );
 
     if (confirm != true) return;
-    for (final path in selected) {
-      try {
-        await FileService.deleteEntry(path);
-      } catch (_) {}
-    }
+    try {
+      await FileService.deleteEntries(selected, permanent: permanent);
+    } catch (_) {}
     controller.refresh();
   }
 
