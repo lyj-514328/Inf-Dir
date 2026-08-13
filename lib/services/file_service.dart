@@ -237,9 +237,14 @@ class FileService {
   static void restoreRecycleBinEntries(
     List<String> parsingNames, {
     List<String?>? destinations,
+    bool keepBothOnCollision = false,
   }) {
     if (parsingNames.isEmpty) return;
-    ShellFileOperation.restoreRecycleBin(parsingNames, destinations: destinations);
+    ShellFileOperation.restoreRecycleBin(
+      parsingNames,
+      destinations: destinations,
+      keepBothOnCollision: keepBothOnCollision,
+    );
   }
 
   /// Plans restore targets for Recycle Bin [entries]: entries whose original
@@ -270,6 +275,33 @@ class FileService {
     } on FileSystemException {
       return false;
     }
+  }
+
+  static bool _exists(String path) {
+    try {
+      return FileSystemEntity.typeSync(path) != FileSystemEntityType.notFound;
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  /// Detects restore collisions: entries whose target directory exists and
+  /// already holds a same-named item. [destinations] (when provided, aligned
+  /// with [entries]) overrides the original directory per entry, matching
+  /// [planRestoreDestinations].
+  static List<FileEntry> planRestoreCollisions(
+    List<FileEntry> entries, {
+    List<String?>? destinations,
+  }) {
+    final collisions = <FileEntry>[];
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      final targetDir = (destinations?[i] ?? entry.originalPath)?.trim();
+      if (targetDir == null || targetDir.isEmpty) continue;
+      if (!_directoryExists(targetDir)) continue;
+      if (_exists(p.join(targetDir, entry.name))) collisions.add(entry);
+    }
+    return collisions;
   }
 
   /// Shows the native folder-picker dialog; returns the chosen directory or

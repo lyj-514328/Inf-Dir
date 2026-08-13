@@ -36,14 +36,15 @@ HRESULT EmptyRecycleBinW(HWND owner);
 // destinationOverrides may be NULL, or an array with one entry per source
 // path (entries may be NULL): a non-empty override replaces the original
 // directory, which is how the app restores items whose original folder no
-// longer exists. When any override is present, name collisions are resolved
-// by the Shell renaming the restored item.
+// longer exists. collisionMode selects the name-collision policy:
+// 0 = replace the existing item (silent), 1 = keep both (rename the restore).
 __declspec(dllexport)
 HRESULT RestoreRecycleBinItemsW(
     HWND owner,
     const wchar_t** sourcePaths,
     int sourceCount,
-    const wchar_t** destinationOverrides);
+    const wchar_t** destinationOverrides,
+    int collisionMode);
 
 // Shows the native folder-picker dialog, modal to the foreground window.
 // On success *outPath is a CoTaskMem-allocated filesystem path (UTF-16) that

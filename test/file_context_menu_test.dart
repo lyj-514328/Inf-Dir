@@ -117,12 +117,14 @@ void main() {
       groupAscending: true,
       canSelectAll: false,
       canEmpty: false,
+      canRestoreAll: false,
       onSortColumn: (_) {},
       onSortAscending: (_) {},
       onViewMode: (_) {},
       onGroupBy: (_) {},
       onGroupAscending: (_) {},
       onRefresh: () {},
+      onRestoreAll: () {},
       onEmptyRecycleBin: () {},
       onSelectAll: () {},
       onShowMoreOptions: () {},
@@ -133,12 +135,14 @@ void main() {
       '排序方式',
       '分组依据',
       '刷新',
-      '清空回收站',
+      '全部还原',
       '全选',
+      '清空回收站',
       '显示更多选项',
     ]);
     expect(items.firstWhere((item) => item.label == '清空回收站').enabled, isFalse);
     expect(items.firstWhere((item) => item.label == '全选').enabled, isFalse);
+    expect(items.firstWhere((item) => item.label == '全部还原').enabled, isFalse);
   });
 
   test('folder context menu reuses view and sort menus', () {

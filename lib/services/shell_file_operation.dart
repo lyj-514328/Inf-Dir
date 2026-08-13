@@ -31,6 +31,7 @@ typedef _RestoreRecycleBinNative =
       Pointer<Pointer<Utf16>> sourcePaths,
       Int32 sourceCount,
       Pointer<Pointer<Utf16>> destinationOverrides,
+      Int32 collisionMode,
     );
 typedef _RestoreRecycleBinDart =
     int Function(
@@ -38,6 +39,7 @@ typedef _RestoreRecycleBinDart =
       Pointer<Pointer<Utf16>> sourcePaths,
       int sourceCount,
       Pointer<Pointer<Utf16>> destinationOverrides,
+      int collisionMode,
     );
 typedef _PickFolderNative =
     Int32 Function(
@@ -169,10 +171,13 @@ class ShellFileOperation {
   /// Restores Recycle Bin items to their original directories. When
   /// [destinations] is provided it must match [sourcePaths] in length: a
   /// non-null entry replaces the item's original directory (used when the
-  /// original folder no longer exists).
+  /// original folder no longer exists). [keepBothOnCollision] asks the Shell
+  /// to rename the restored item when a same-named item already exists;
+  /// otherwise the Shell silently replaces it.
   static void restoreRecycleBin(
     List<String> sourcePaths, {
     List<String?>? destinations,
+    bool keepBothOnCollision = false,
   }) {
     if (sourcePaths.isEmpty) return;
     if (destinations != null && destinations.length != sourcePaths.length) {
@@ -223,6 +228,7 @@ class ShellFileOperation {
         sourceArray,
         sourcePaths.length,
         overrideArray,
+        keepBothOnCollision ? 1 : 0,
       );
       if (hr != 0) {
         throw FileSystemException(

@@ -247,12 +247,14 @@ List<CommandMenuItem> buildRecycleBinFolderContextMenuItems({
   required bool groupAscending,
   required bool canSelectAll,
   required bool canEmpty,
+  required bool canRestoreAll,
   required ValueChanged<SortColumn> onSortColumn,
   required ValueChanged<bool> onSortAscending,
   required ValueChanged<PaneViewMode> onViewMode,
   required ValueChanged<FileGroupBy> onGroupBy,
   required ValueChanged<bool> onGroupAscending,
   required VoidCallback onRefresh,
+  required VoidCallback onRestoreAll,
   required VoidCallback onEmptyRecycleBin,
   required VoidCallback onSelectAll,
   required VoidCallback onShowMoreOptions,
@@ -284,10 +286,10 @@ List<CommandMenuItem> buildRecycleBinFolderContextMenuItems({
     ],
     [
       CommandMenuItem(
-        icon: Icons.delete_sweep_outlined,
-        label: '清空回收站',
-        enabled: canEmpty,
-        onAction: onEmptyRecycleBin,
+        icon: Icons.restore,
+        label: '全部还原',
+        enabled: canRestoreAll,
+        onAction: onRestoreAll,
       ),
       CommandMenuItem(
         icon: Icons.select_all,
@@ -295,6 +297,12 @@ List<CommandMenuItem> buildRecycleBinFolderContextMenuItems({
         shortcut: 'Ctrl+A',
         enabled: canSelectAll,
         onAction: onSelectAll,
+      ),
+      CommandMenuItem(
+        icon: Icons.delete_sweep_outlined,
+        label: '清空回收站',
+        enabled: canEmpty,
+        onAction: onEmptyRecycleBin,
       ),
     ],
     [

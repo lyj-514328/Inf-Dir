@@ -95,7 +95,8 @@ HRESULT RestoreRecycleBinItemsW(
     HWND owner,
     const wchar_t** sourcePaths,
     int sourceCount,
-    const wchar_t** destinationOverrides)
+    const wchar_t** destinationOverrides,
+    int collisionMode)
 {
     if (!sourcePaths || sourceCount <= 0) return E_INVALIDARG;
 
@@ -118,8 +119,12 @@ HRESULT RestoreRecycleBinItemsW(
         return hr;
     }
 
+    // FOF_NOCONFIRMATION answers "yes to all" to Shell conflict prompts,
+    // which silently replaces colliding items; FOF_RENAMEONCOLLISION keeps
+    // both by renaming the restored item. The app pre-detects collisions and
+    // picks the mode before calling in.
     DWORD flags = FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI;
-    if (destinationOverrides) flags |= FOF_RENAMEONCOLLISION;
+    if (collisionMode == 1) flags |= FOF_RENAMEONCOLLISION;
     hr = pfo->SetOperationFlags(flags);
     if (SUCCEEDED(hr) && owner) hr = pfo->SetOwnerWindow(owner);
     if (FAILED(hr)) {

@@ -87,4 +87,101 @@ void main() {
       expect(plan.destinations, [null]);
     });
   });
+
+  group('planRestoreCollisions', () {
+    late Directory temp;
+
+    setUp(() {
+      temp = Directory.systemTemp.createTempSync('inf-dir-restore-plan-');
+    });
+
+    tearDown(() {
+      try {
+        temp.deleteSync(recursive: true);
+      } on FileSystemException {
+        // Best-effort cleanup.
+      }
+    });
+
+    FileEntry entry(
+      String name, {
+      bool isDirectory = false,
+      String? originalPath,
+    }) => FileEntry(
+      name: name,
+      path: name,
+      isDirectory: isDirectory,
+      size: 0,
+      modified: DateTime(2026),
+      originalPath: originalPath,
+      parsingName: '\$R$name',
+    );
+
+    test('flags a same-named file in the target directory', () {
+      final target = Directory('${temp.path}\\target')..createSync();
+      File('${target.path}\\a.pdf').writeAsStringSync('existing');
+
+      final collisions = FileService.planRestoreCollisions([
+        entry('a.pdf', originalPath: target.path),
+      ]);
+
+      expect(collisions, hasLength(1));
+      expect(collisions.single.name, 'a.pdf');
+    });
+
+    test('keeps entries whose target directory has no match', () {
+      final target = Directory('${temp.path}\\target')..createSync();
+      File('${target.path}\\b.txt').writeAsStringSync('existing');
+
+      final collisions = FileService.planRestoreCollisions([
+        entry('a.pdf', originalPath: target.path),
+      ]);
+
+      expect(collisions, isEmpty);
+    });
+
+    test('ignores entries whose target directory is missing', () {
+      final collisions = FileService.planRestoreCollisions([
+        entry('a.pdf', originalPath: '${temp.path}\\gone'),
+      ]);
+
+      expect(collisions, isEmpty);
+    });
+
+    test('flags any same-named item regardless of entry type', () {
+      final target = Directory('${temp.path}\\target')..createSync();
+      Directory('${target.path}\\folder').createSync();
+      File('${target.path}\\doc.txt').writeAsStringSync('x');
+
+      // Windows namespaces cannot hold a file and a directory with the same
+      // name, so a same-named directory collides with a file entry too.
+      expect(
+        FileService.planRestoreCollisions([
+          entry('folder', isDirectory: false, originalPath: target.path),
+        ]),
+        hasLength(1),
+      );
+      expect(
+        FileService.planRestoreCollisions([
+          entry('doc.txt', isDirectory: true, originalPath: target.path),
+        ]),
+        hasLength(1),
+      );
+    });
+
+    test('uses destination overrides when provided', () {
+      final targetA = Directory('${temp.path}\\targetA')..createSync();
+      final targetB = Directory('${temp.path}\\targetB')..createSync();
+      File('${targetB.path}\\a.pdf').writeAsStringSync('existing');
+
+      final collisions = FileService.planRestoreCollisions(
+        [
+          entry('a.pdf', originalPath: targetA.path),
+        ],
+        destinations: [targetB.path],
+      );
+
+      expect(collisions, hasLength(1));
+    });
+  });
 }

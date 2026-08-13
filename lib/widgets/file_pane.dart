@@ -11,6 +11,7 @@ import '../state/app_state.dart';
 import '../state/layout_state.dart';
 import '../state/pane_controller.dart';
 import '../services/cloud_drive_service.dart';
+import '../services/directory_service.dart';
 import '../services/file_service.dart';
 import '../services/shell_context_menu.dart';
 import '../services/shell_new_service.dart';
@@ -32,6 +33,9 @@ bool matchesSearchShortcut(KeyEvent event, HardwareKeyboard keyboard) {
       !keyboard.isAltPressed &&
       !keyboard.isShiftPressed;
 }
+
+/// How to resolve a name collision when restoring Recycle Bin items.
+enum _CollisionChoice { skip, keepBoth, replace }
 
 class FilePane extends StatelessWidget {
   final String paneId;
@@ -458,12 +462,14 @@ class _PaneContent extends StatelessWidget {
           groupAscending: controller.groupAscending,
           canSelectAll: controller.visibleEntries.isNotEmpty,
           canEmpty: controller.entries.isNotEmpty,
+          canRestoreAll: controller.entries.isNotEmpty,
           onSortColumn: controller.setSortColumn,
           onSortAscending: controller.setSortAscending,
           onViewMode: controller.setViewMode,
           onGroupBy: controller.setGroupBy,
           onGroupAscending: controller.setGroupAscending,
           onRefresh: controller.refresh,
+          onRestoreAll: () => _restoreAllRecycleBin(context),
           onEmptyRecycleBin: () => _emptyRecycleBin(context),
           onSelectAll: controller.selectAll,
           onShowMoreOptions: () => _showNativeMenu(context, const [], position),
@@ -816,11 +822,31 @@ class _PaneContent extends StatelessWidget {
         .map((path) => _findEntry(controller, path))
         .whereType<FileEntry>()
         .toList(growable: false);
+    await _restoreRecycleBinEntries(context, entries, dialogTitle: '还原项目');
+  }
+
+  Future<void> _restoreAllRecycleBin(BuildContext context) async {
+    // Re-enumerate the whole bin: the pane may only hold a paged subset.
+    final entries = DirectoryService.listDirectory(
+      FileService.recycleBinShellPath,
+    ).where((entry) => entry.parsingName != null).toList(growable: false);
+    if (entries.isEmpty) return;
+    await _restoreRecycleBinEntries(context, entries, dialogTitle: '全部还原');
+  }
+
+  /// Shared restore pipeline: confirmation (or location fallback when the
+  /// original folder is gone), collision handling, then the shell restore.
+  Future<void> _restoreRecycleBinEntries(
+    BuildContext context,
+    List<FileEntry> entries, {
+    required String dialogTitle,
+  }) async {
+    if (entries.isEmpty) return;
     final parsingNames = entries
         .map((entry) => entry.parsingName)
         .whereType<String>()
         .toList(growable: false);
-    if (parsingNames.length != selected.length) {
+    if (parsingNames.length != entries.length) {
       _showOperationError(context, '还原失败', '无法解析所选回收站项目');
       return;
     }
@@ -830,10 +856,12 @@ class _PaneContent extends StatelessWidget {
     if (plan.missing.isEmpty) {
       final confirm = await _showConfirmationDialog(
         context,
-        title: '还原项目',
-        message: selected.length == 1
+        title: dialogTitle,
+        message: dialogTitle == '全部还原'
+            ? '要将回收站中的所有项目还原到原始位置吗？'
+            : entries.length == 1
             ? '要将“${entries.single.name}”还原到原始位置吗？'
-            : '要将选中的 ${selected.length} 个项目还原到原始位置吗？',
+            : '要将选中的 ${entries.length} 个项目还原到原始位置吗？',
         confirmText: '还原',
       );
       if (confirm != true || !context.mounted) return;
@@ -846,17 +874,58 @@ class _PaneContent extends StatelessWidget {
       if (fallback == null || !context.mounted) return;
     }
 
-    final destinations = fallback == null
+    var destinations = fallback == null
         ? null
         : FileService.planRestoreDestinations(
             entries,
             fallback: fallback,
           ).destinations;
 
+    // Collision handling: the shell silently replaces by default, so surface
+    // the choice instead of overwriting the user's files unnoticed.
+    var keepBothOnCollision = false;
+    final collisions = FileService.planRestoreCollisions(
+      entries,
+      destinations: destinations,
+    );
+    if (collisions.isNotEmpty) {
+      final choice = await _showCollisionDialog(
+        context,
+        collisionCount: collisions.length,
+      );
+      if (choice == null || !context.mounted) return;
+      switch (choice) {
+        case _CollisionChoice.skip:
+          final skipped = collisions.toSet();
+          final keptEntries = <FileEntry>[];
+          final keptDestinations = <String?>[];
+          for (var i = 0; i < entries.length; i++) {
+            if (skipped.contains(entries[i])) continue;
+            keptEntries.add(entries[i]);
+            keptDestinations.add(destinations?[i]);
+          }
+          if (keptEntries.isEmpty) return;
+          entries..clear()..addAll(keptEntries);
+          parsingNames..clear()..addAll(
+            keptEntries
+                .map((entry) => entry.parsingName)
+                .whereType<String>(),
+          );
+          destinations = keptDestinations;
+          break;
+        case _CollisionChoice.keepBoth:
+          keepBothOnCollision = true;
+          break;
+        case _CollisionChoice.replace:
+          break;
+      }
+    }
+
     try {
       FileService.restoreRecycleBinEntries(
         parsingNames,
         destinations: destinations,
+        keepBothOnCollision: keepBothOnCollision,
       );
       if (!context.mounted) return;
       final layoutState = context.read<LayoutState>();
@@ -914,6 +983,41 @@ class _PaneContent extends StatelessWidget {
           FilledButton(
             onPressed: () => Navigator.pop(ctx, FileService.desktopPath),
             child: const Text('还原到桌面'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Asks how to resolve restore collisions. Returns the chosen policy, or
+  /// null when the user cancels the whole restore.
+  Future<_CollisionChoice?> _showCollisionDialog(
+    BuildContext context, {
+    required int collisionCount,
+  }) {
+    return showDialog<_CollisionChoice>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('还原冲突'),
+        content: Text(
+          '有 $collisionCount 个项目与目标位置中的现有项目同名。如何处理？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _CollisionChoice.skip),
+            child: const Text('跳过'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _CollisionChoice.replace),
+            child: const Text('替换'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, _CollisionChoice.keepBoth),
+            child: const Text('保留两者'),
           ),
         ],
       ),
