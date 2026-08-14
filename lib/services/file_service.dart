@@ -87,10 +87,17 @@ class FileService {
   static Future<void> deleteEntries(
     List<String> paths, {
     bool permanent = false,
+    bool Function()? cancelRequested,
+    void Function(double progress)? onProgress,
   }) async {
     if (paths.isEmpty) return;
     if (ShellFileOperation.isAvailable) {
-      ShellFileOperation.delete(paths, permanent: permanent);
+      await ShellFileOperation.deleteAsync(
+        paths,
+        permanent: permanent,
+        cancelRequested: cancelRequested,
+        onProgress: onProgress,
+      );
     } else if (permanent) {
       for (final path in paths) {
         await _deleteEntryIo(path);
@@ -141,10 +148,20 @@ class FileService {
     }
   }
 
-  static Future<void> copyEntries(List<String> srcPaths, String destDir) async {
+  static Future<void> copyEntries(
+    List<String> srcPaths,
+    String destDir, {
+    bool Function()? cancelRequested,
+    void Function(double progress)? onProgress,
+  }) async {
     if (srcPaths.isEmpty) return;
     if (ShellFileOperation.isAvailable) {
-      ShellFileOperation.copy(srcPaths, destDir);
+      await ShellFileOperation.copyAsync(
+        srcPaths,
+        destDir,
+        cancelRequested: cancelRequested,
+        onProgress: onProgress,
+      );
     } else {
       for (final srcPath in srcPaths) {
         await _copyEntryIo(srcPath, destDir);
@@ -183,10 +200,20 @@ class FileService {
     }
   }
 
-  static Future<void> moveEntries(List<String> srcPaths, String destDir) async {
+  static Future<void> moveEntries(
+    List<String> srcPaths,
+    String destDir, {
+    bool Function()? cancelRequested,
+    void Function(double progress)? onProgress,
+  }) async {
     if (srcPaths.isEmpty) return;
     if (ShellFileOperation.isAvailable) {
-      ShellFileOperation.move(srcPaths, destDir);
+      await ShellFileOperation.moveAsync(
+        srcPaths,
+        destDir,
+        cancelRequested: cancelRequested,
+        onProgress: onProgress,
+      );
     } else {
       for (final srcPath in srcPaths) {
         await _moveEntryIo(srcPath, destDir);

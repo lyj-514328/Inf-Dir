@@ -3,16 +3,21 @@ import 'pane_controller.dart';
 import '../services/directory_repository.dart';
 import '../services/directory_service.dart';
 import '../services/file_service.dart';
+import '../services/file_operation_center.dart';
 
 class AppState extends ChangeNotifier {
   late final List<PaneController> panes;
   final DirectoryRepository repository;
+  final FileOperationCenter fileOperations;
   int _activePaneIndex = 0;
   bool _showHiddenFiles = false;
   bool _showFileExtensions = true;
 
-  AppState({DirectoryRepository? repository})
-    : repository = repository ?? DirectoryRepository() {
+  AppState({
+    DirectoryRepository? repository,
+    FileOperationCenter? fileOperations,
+  }) : repository = repository ?? DirectoryRepository(),
+       fileOperations = fileOperations ?? FileOperationCenter() {
     final repo = this.repository;
     panes = [
       PaneController(FileService.desktopPath, repository: repo),

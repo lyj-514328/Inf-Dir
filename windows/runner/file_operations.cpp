@@ -6,14 +6,66 @@
 #include <knownfolders.h>
 #include <propkey.h>
 
-HRESULT RunFileOperationW(
+#include <atomic>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
+
+namespace {
+
+enum AsyncOperationStatus {
+    kQueued = 0,
+    kRunning = 1,
+    kSucceeded = 2,
+    kFailed = 3,
+    kCancelled = 4,
+};
+
+struct AsyncOperationState {
+    std::mutex mutex;
+    int status = kQueued;
+    int progress = 0;
+    HRESULT result = S_OK;
+    std::atomic<bool> cancelRequested{false};
+};
+
+std::mutex g_asyncOperationsMutex;
+std::map<int64_t, std::shared_ptr<AsyncOperationState>> g_asyncOperations;
+std::atomic<int64_t> g_nextOperationId{1};
+
+void SetAsyncState(
+    const std::shared_ptr<AsyncOperationState>& state,
+    int status,
+    int progress,
+    HRESULT result) {
+    std::lock_guard<std::mutex> lock(state->mutex);
+    state->status = status;
+    state->progress = progress;
+    state->result = result;
+}
+
+bool IsCancelled(const std::shared_ptr<AsyncOperationState>& state) {
+    return state && state->cancelRequested.load();
+}
+
+}  // namespace
+
+static HRESULT RunFileOperationCore(
     int operation,
     const wchar_t** sourcePaths,
     int sourceCount,
     const wchar_t* destinationFolder,
-    int permanentDelete)
+    int permanentDelete,
+    const std::shared_ptr<AsyncOperationState>& asyncState)
 {
     if (!sourcePaths || sourceCount <= 0) return E_INVALIDARG;
+    if (IsCancelled(asyncState)) {
+        return HRESULT_FROM_WIN32(ERROR_CANCELLED);
+    }
 
     IFileOperation* pfo = nullptr;
     HRESULT hr = CoCreateInstance(CLSID_FileOperation, nullptr, CLSCTX_ALL,
@@ -49,6 +101,11 @@ HRESULT RunFileOperationW(
     }
 
     for (int i = 0; i < sourceCount; i++) {
+        if (IsCancelled(asyncState)) {
+            if (dest) dest->Release();
+            pfo->Release();
+            return HRESULT_FROM_WIN32(ERROR_CANCELLED);
+        }
         if (!sourcePaths[i]) continue;
         IShellItem* src = nullptr;
         hr = SHCreateItemFromParsingName(sourcePaths[i], nullptr,
@@ -72,6 +129,8 @@ HRESULT RunFileOperationW(
         }
     }
 
+    if (asyncState) SetAsyncState(asyncState, kRunning, 50, S_OK);
+
     hr = pfo->PerformOperations();
     BOOL aborted = FALSE;
     if (SUCCEEDED(hr)) {
@@ -81,6 +140,128 @@ HRESULT RunFileOperationW(
     pfo->Release();
     if (dest) dest->Release();
     return hr;
+}
+
+extern "C" __declspec(dllexport)
+HRESULT RunFileOperationW(
+    int operation,
+    const wchar_t** sourcePaths,
+    int sourceCount,
+    const wchar_t* destinationFolder,
+    int permanentDelete)
+{
+    return RunFileOperationCore(
+        operation,
+        sourcePaths,
+        sourceCount,
+        destinationFolder,
+        permanentDelete,
+        nullptr);
+}
+
+extern "C" __declspec(dllexport)
+HRESULT InfDirStartFileOperationW(
+    int operation,
+    const wchar_t** sourcePaths,
+    int sourceCount,
+    const wchar_t* destinationFolder,
+    int permanentDelete,
+    int64_t* operationId)
+{
+    if (!sourcePaths || sourceCount <= 0 || !operationId) return E_INVALIDARG;
+    if (operation < 0 || operation > 2) return E_INVALIDARG;
+
+    std::vector<std::wstring> sources;
+    sources.reserve(sourceCount);
+    for (int i = 0; i < sourceCount; i++) {
+        if (!sourcePaths[i]) return E_INVALIDARG;
+        sources.emplace_back(sourcePaths[i]);
+    }
+    const std::wstring destination = destinationFolder
+        ? std::wstring(destinationFolder) : std::wstring();
+
+    const int64_t id = g_nextOperationId.fetch_add(1);
+    const auto state = std::make_shared<AsyncOperationState>();
+    {
+        std::lock_guard<std::mutex> lock(g_asyncOperationsMutex);
+        g_asyncOperations.emplace(id, state);
+    }
+    *operationId = id;
+
+    std::thread([
+        state,
+        operation,
+        sources = std::move(sources),
+        destination,
+        permanentDelete]() mutable {
+        SetAsyncState(state, kRunning, 1, S_OK);
+        HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+        bool initialized = SUCCEEDED(hr);
+        if (hr == RPC_E_CHANGED_MODE) {
+            hr = S_OK;
+            initialized = false;
+        }
+        if (SUCCEEDED(hr)) {
+            std::vector<const wchar_t*> sourcePointers;
+            sourcePointers.reserve(sources.size());
+            for (const auto& source : sources) {
+                sourcePointers.push_back(source.c_str());
+            }
+            hr = RunFileOperationCore(
+                operation,
+                sourcePointers.data(),
+                static_cast<int>(sourcePointers.size()),
+                destination.empty() ? nullptr : destination.c_str(),
+                permanentDelete,
+                state);
+        }
+        if (initialized) CoUninitialize();
+
+        const bool cancelled = state->cancelRequested.load() ||
+            hr == HRESULT_FROM_WIN32(ERROR_CANCELLED);
+        SetAsyncState(
+            state,
+            cancelled ? kCancelled : SUCCEEDED(hr) ? kSucceeded : kFailed,
+            cancelled || FAILED(hr) ? 0 : 100,
+            hr);
+    }).detach();
+    return S_OK;
+}
+
+extern "C" __declspec(dllexport)
+HRESULT InfDirPollFileOperationW(
+    int64_t operationId,
+    int* status,
+    int* progress,
+    int* result)
+{
+    if (!status || !progress || !result) return E_INVALIDARG;
+    std::shared_ptr<AsyncOperationState> state;
+    {
+        std::lock_guard<std::mutex> lock(g_asyncOperationsMutex);
+        const auto found = g_asyncOperations.find(operationId);
+        if (found == g_asyncOperations.end()) {
+            return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+        }
+        state = found->second;
+    }
+    std::lock_guard<std::mutex> lock(state->mutex);
+    *status = state->status;
+    *progress = state->progress;
+    *result = static_cast<int>(state->result);
+    return S_OK;
+}
+
+extern "C" __declspec(dllexport)
+HRESULT InfDirCancelFileOperationW(int64_t operationId)
+{
+    std::lock_guard<std::mutex> lock(g_asyncOperationsMutex);
+    const auto found = g_asyncOperations.find(operationId);
+    if (found == g_asyncOperations.end()) {
+        return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+    }
+    found->second->cancelRequested.store(true);
+    return S_OK;
 }
 
 extern "C" __declspec(dllexport)

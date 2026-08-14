@@ -21,6 +21,41 @@ typedef _RunDart =
       int permanentDelete,
     );
 
+typedef _StartAsyncNative =
+    Int32 Function(
+      Int32 operation,
+      Pointer<Pointer<Utf16>> sourcePaths,
+      Int32 sourceCount,
+      Pointer<Utf16> destinationFolder,
+      Int32 permanentDelete,
+      Pointer<Int64> operationId,
+    );
+typedef _StartAsyncDart =
+    int Function(
+      int operation,
+      Pointer<Pointer<Utf16>> sourcePaths,
+      int sourceCount,
+      Pointer<Utf16> destinationFolder,
+      int permanentDelete,
+      Pointer<Int64> operationId,
+    );
+typedef _PollAsyncNative =
+    Int32 Function(
+      Int64 operationId,
+      Pointer<Int32> status,
+      Pointer<Int32> progress,
+      Pointer<Int32> result,
+    );
+typedef _PollAsyncDart =
+    int Function(
+      int operationId,
+      Pointer<Int32> status,
+      Pointer<Int32> progress,
+      Pointer<Int32> result,
+    );
+typedef _CancelAsyncNative = Int32 Function(Int64 operationId);
+typedef _CancelAsyncDart = int Function(int operationId);
+
 typedef _EmptyRecycleBinNative = Int32 Function(IntPtr owner);
 typedef _EmptyRecycleBinDart = int Function(int owner);
 typedef _GetActiveWindowNative = IntPtr Function();
@@ -65,12 +100,16 @@ class ShellFileOperation {
   static const int opDelete = 2;
 
   static _RunDart? _run;
+  static _StartAsyncDart? _startAsync;
+  static _PollAsyncDart? _pollAsync;
+  static _CancelAsyncDart? _cancelAsync;
   static _EmptyRecycleBinDart? _emptyRecycleBin;
   static _GetActiveWindowDart? _getActiveWindow;
   static _RestoreRecycleBinDart? _restoreRecycleBin;
   static _PickFolderDart? _pickFolder;
   static _FreeCoTaskMemDart? _freeCoTaskMem;
   static bool _tried = false;
+  static bool _asyncTried = false;
 
   /// Whether the native `RunFileOperationW` symbol is available. False when
   /// running under the Dart VM (tests) or on non-Windows, so callers fall back
@@ -144,6 +183,160 @@ class ShellFileOperation {
 
   static void delete(List<String> sources, {bool permanent = false}) =>
       _runOperation(opDelete, sources, null, permanent);
+
+  static Future<void> copyAsync(
+    List<String> sources,
+    String destination, {
+    bool Function()? cancelRequested,
+    void Function(double progress)? onProgress,
+  }) => _runAsync(
+    opCopy,
+    sources,
+    destination,
+    false,
+    cancelRequested: cancelRequested,
+    onProgress: onProgress,
+  );
+
+  static Future<void> moveAsync(
+    List<String> sources,
+    String destination, {
+    bool Function()? cancelRequested,
+    void Function(double progress)? onProgress,
+  }) => _runAsync(
+    opMove,
+    sources,
+    destination,
+    false,
+    cancelRequested: cancelRequested,
+    onProgress: onProgress,
+  );
+
+  static Future<void> deleteAsync(
+    List<String> sources, {
+    bool permanent = false,
+    bool Function()? cancelRequested,
+    void Function(double progress)? onProgress,
+  }) => _runAsync(
+    opDelete,
+    sources,
+    null,
+    permanent,
+    cancelRequested: cancelRequested,
+    onProgress: onProgress,
+  );
+
+  static Future<void> _runAsync(
+    int operation,
+    List<String> sources,
+    String? destination,
+    bool permanent, {
+    bool Function()? cancelRequested,
+    void Function(double progress)? onProgress,
+  }) async {
+    if (sources.isEmpty) return;
+    _loadAsyncSymbols();
+    final start = _startAsync;
+    final poll = _pollAsync;
+    final cancel = _cancelAsync;
+    if (start == null || poll == null || cancel == null) {
+      _runOperation(operation, sources, destination, permanent);
+      onProgress?.call(1);
+      return;
+    }
+
+    final sourcePtrs = <Pointer<Utf16>>[];
+    Pointer<Pointer<Utf16>> sourceArray = nullptr;
+    final destinationPtr = destination == null
+        ? nullptr
+        : destination.toNativeUtf16();
+    final operationId = calloc<Int64>();
+    final status = calloc<Int32>();
+    final progress = calloc<Int32>();
+    final result = calloc<Int32>();
+    var cancelSent = false;
+    try {
+      sourceArray = calloc<Pointer<Utf16>>(sources.length);
+      for (var i = 0; i < sources.length; i++) {
+        final ptr = sources[i].toNativeUtf16();
+        sourcePtrs.add(ptr);
+        sourceArray[i] = ptr;
+      }
+      final startHr = start(
+        operation,
+        sourceArray,
+        sources.length,
+        destinationPtr,
+        permanent ? 1 : 0,
+        operationId,
+      );
+      if (startHr != 0) {
+        throw FileSystemException(
+          'Failed to start shell file operation '
+          '(hr=0x${startHr.toUnsigned(32).toRadixString(16)})',
+        );
+      }
+
+      while (true) {
+        final pollHr = poll(operationId.value, status, progress, result);
+        if (pollHr != 0) {
+          throw FileSystemException(
+            'Failed to poll shell file operation '
+            '(hr=0x${pollHr.toUnsigned(32).toRadixString(16)})',
+          );
+        }
+        onProgress?.call((progress.value / 100).clamp(0, 1).toDouble());
+        if (cancelRequested?.call() == true && !cancelSent) {
+          cancel(operationId.value);
+          cancelSent = true;
+        }
+
+        if (status.value == 2) return;
+        if (status.value == 4) {
+          throw const FileOperationCancelledException();
+        }
+        if (status.value == 3) {
+          throw FileSystemException(
+            'Shell file operation failed '
+            '(hr=0x${result.value.toUnsigned(32).toRadixString(16)})',
+          );
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+      }
+    } finally {
+      for (final ptr in sourcePtrs) {
+        calloc.free(ptr);
+      }
+      if (sourceArray != nullptr) calloc.free(sourceArray);
+      if (destinationPtr != nullptr) calloc.free(destinationPtr);
+      calloc.free(operationId);
+      calloc.free(status);
+      calloc.free(progress);
+      calloc.free(result);
+    }
+  }
+
+  static void _loadAsyncSymbols() {
+    if (_asyncTried) return;
+    _asyncTried = true;
+    try {
+      final library = DynamicLibrary.process();
+      _startAsync = library.lookupFunction<_StartAsyncNative, _StartAsyncDart>(
+        'InfDirStartFileOperationW',
+      );
+      _pollAsync = library.lookupFunction<_PollAsyncNative, _PollAsyncDart>(
+        'InfDirPollFileOperationW',
+      );
+      _cancelAsync = library
+          .lookupFunction<_CancelAsyncNative, _CancelAsyncDart>(
+            'InfDirCancelFileOperationW',
+          );
+    } on Object {
+      _startAsync = null;
+      _pollAsync = null;
+      _cancelAsync = null;
+    }
+  }
 
   static void emptyRecycleBin() {
     if (!Platform.isWindows) {
@@ -293,4 +486,8 @@ class ShellFileOperation {
       calloc.free(outPath);
     }
   }
+}
+
+class FileOperationCancelledException implements Exception {
+  const FileOperationCancelledException();
 }

@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../models/file_entry.dart';
+import '../models/file_operation_task.dart';
 import '../models/layout_node.dart';
 import '../state/app_state.dart';
 import '../state/layout_state.dart';
@@ -93,10 +94,30 @@ Future<void> pasteIntoPane(
 
   try {
     if (isCut) {
-      await FileService.moveEntries(sources, destDir);
+      await appState.fileOperations.enqueue(
+        type: FileOperationType.move,
+        sources: sources,
+        destination: destDir,
+        action: (task) => FileService.moveEntries(
+          sources,
+          destDir,
+          cancelRequested: () => task.cancelRequested,
+          onProgress: task.updateProgress,
+        ),
+      );
       movedPaths.addAll(sources);
     } else {
-      await FileService.copyEntries(sources, destDir);
+      await appState.fileOperations.enqueue(
+        type: FileOperationType.copy,
+        sources: sources,
+        destination: destDir,
+        action: (task) => FileService.copyEntries(
+          sources,
+          destDir,
+          cancelRequested: () => task.cancelRequested,
+          onProgress: task.updateProgress,
+        ),
+      );
     }
     pastedPaths.addAll(sources.map((s) => p.join(destDir, p.basename(s))));
   } catch (_) {
@@ -780,6 +801,7 @@ class _PaneContent extends StatelessWidget {
 
     final selected = controller.selectedPaths.toList();
     if (selected.isEmpty) return;
+    final operationCenter = context.read<AppState>().fileOperations;
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -819,7 +841,18 @@ class _PaneContent extends StatelessWidget {
 
     if (confirm != true) return;
     try {
-      await FileService.deleteEntries(selected, permanent: permanent);
+      await operationCenter.enqueue(
+        type: permanent
+            ? FileOperationType.permanentDelete
+            : FileOperationType.delete,
+        sources: selected,
+        action: (task) => FileService.deleteEntries(
+          selected,
+          permanent: permanent,
+          cancelRequested: () => task.cancelRequested,
+          onProgress: task.updateProgress,
+        ),
+      );
     } catch (error) {
       if (context.mounted) {
         _showOperationError(context, permanent ? '永久删除失败' : '移到回收站失败', error);
@@ -1053,6 +1086,7 @@ class _PaneContent extends StatelessWidget {
 
   Future<void> _deleteRecycleBinSelection(BuildContext context) async {
     final controller = context.read<PaneController>();
+    final operationCenter = context.read<AppState>().fileOperations;
     final selected = controller.selectedPaths.toList();
     if (selected.isEmpty) return;
     final displayName = selected.length == 1
@@ -1071,7 +1105,16 @@ class _PaneContent extends StatelessWidget {
     if (confirm != true || !context.mounted) return;
 
     try {
-      await FileService.deleteEntries(selected, permanent: true);
+      await operationCenter.enqueue(
+        type: FileOperationType.permanentDelete,
+        sources: selected,
+        action: (task) => FileService.deleteEntries(
+          selected,
+          permanent: true,
+          cancelRequested: () => task.cancelRequested,
+          onProgress: task.updateProgress,
+        ),
+      );
       if (context.mounted) {
         context.read<LayoutState>().refreshPanesWhere(
           FileService.isRecycleBinPath,
