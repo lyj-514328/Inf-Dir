@@ -42,22 +42,17 @@ void main() {
 
     test('flags missing originals and applies the fallback', () {
       final gone = '${temp.path}\\gone';
-      final plan = FileService.planRestoreDestinations(
-        [
-          entry('a.pdf', originalPath: gone),
-          entry('b.txt', originalPath: gone),
-        ],
-        fallback: 'C:\\Target',
-      );
+      final plan = FileService.planRestoreDestinations([
+        entry('a.pdf', originalPath: gone),
+        entry('b.txt', originalPath: gone),
+      ], fallback: 'C:\\Target');
 
       expect(plan.missing, hasLength(2));
       expect(plan.destinations, ['C:\\Target', 'C:\\Target']);
     });
 
     test('treats a null originalPath as missing', () {
-      final plan = FileService.planRestoreDestinations([
-        entry('a.pdf'),
-      ]);
+      final plan = FileService.planRestoreDestinations([entry('a.pdf')]);
 
       expect(plan.missing, hasLength(1));
       expect(plan.destinations, [null]);
@@ -65,13 +60,10 @@ void main() {
 
     test('mixes existing and missing originals', () {
       final existing = Directory('${temp.path}\\existing')..createSync();
-      final plan = FileService.planRestoreDestinations(
-        [
-          entry('a.pdf', originalPath: existing.path),
-          entry('b.txt', originalPath: '${temp.path}\\gone'),
-        ],
-        fallback: 'C:\\Target',
-      );
+      final plan = FileService.planRestoreDestinations([
+        entry('a.pdf', originalPath: existing.path),
+        entry('b.txt', originalPath: '${temp.path}\\gone'),
+      ], fallback: 'C:\\Target');
 
       expect(plan.missing, hasLength(1));
       expect(plan.missing.single.name, 'b.txt');
@@ -85,6 +77,13 @@ void main() {
 
       expect(plan.missing, hasLength(1));
       expect(plan.destinations, [null]);
+    });
+
+    test('empty restore selections produce an empty plan', () {
+      final plan = FileService.planRestoreDestinations(const []);
+
+      expect(plan.missing, isEmpty);
+      expect(plan.destinations, isEmpty);
     });
   });
 
@@ -175,13 +174,36 @@ void main() {
       File('${targetB.path}\\a.pdf').writeAsStringSync('existing');
 
       final collisions = FileService.planRestoreCollisions(
-        [
-          entry('a.pdf', originalPath: targetA.path),
-        ],
+        [entry('a.pdf', originalPath: targetA.path)],
         destinations: [targetB.path],
       );
 
       expect(collisions, hasLength(1));
     });
+
+    test('detects collisions across a multi-selection', () {
+      final target = Directory('${temp.path}\\target')..createSync();
+      File('${target.path}\\a.pdf').writeAsStringSync('existing');
+      Directory('${target.path}\\folder').createSync();
+
+      final collisions = FileService.planRestoreCollisions([
+        entry('a.pdf', originalPath: target.path),
+        entry('folder', isDirectory: true, originalPath: target.path),
+        entry('new.txt', originalPath: target.path),
+      ]);
+
+      expect(collisions.map((item) => item.name), ['a.pdf', 'folder']);
+    });
+
+    test('empty collision selections are a no-op', () {
+      expect(FileService.planRestoreCollisions(const []), isEmpty);
+    });
+  });
+
+  test('empty restore operation does not enter the native layer', () {
+    expect(
+      () => FileService.restoreRecycleBinEntries(const []),
+      returnsNormally,
+    );
   });
 }

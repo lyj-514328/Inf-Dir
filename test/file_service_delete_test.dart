@@ -4,6 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/services/file_service.dart';
 
 void main() {
+  test('empty delete operation does not enter the native layer', () async {
+    await FileService.deleteEntries(const []);
+  });
+
   test(
     'recycle delete never falls back to permanent dart:io deletion',
     () async {
