@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../models/file_operation_task.dart';
+import 'shell_file_operation.dart';
 
 typedef FileOperationAction = Future<void> Function(FileOperationTask task);
 
@@ -131,6 +132,9 @@ class FileOperationCenter extends ChangeNotifier {
             task.markCancelled();
             item.completer.complete(task);
           } else {
+            if (error is ShellFileOperationException) {
+              task.recordItemResults(error.items);
+            }
             task.markFailed(error);
             item.completer.completeError(error, stackTrace);
           }

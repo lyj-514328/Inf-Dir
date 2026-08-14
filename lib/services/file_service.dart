@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../models/file_entry.dart';
+import '../models/file_operation_task.dart';
 import 'directory_service.dart';
 import 'shell_context_menu.dart';
 import 'shell_file_operation.dart';
@@ -84,29 +85,36 @@ class FileService {
     }
   }
 
-  static Future<void> deleteEntries(
+  static Future<List<FileOperationItemResult>> deleteEntries(
     List<String> paths, {
     bool permanent = false,
     bool Function()? cancelRequested,
     void Function(double progress)? onProgress,
   }) async {
-    if (paths.isEmpty) return;
+    if (paths.isEmpty) return const [];
     if (ShellFileOperation.isAvailable) {
-      await ShellFileOperation.deleteAsync(
+      return ShellFileOperation.deleteAsync(
         paths,
         permanent: permanent,
         cancelRequested: cancelRequested,
         onProgress: onProgress,
       );
-    } else if (permanent) {
-      for (final path in paths) {
-        await _deleteEntryIo(path);
-      }
-    } else {
-      throw const FileSystemException(
-        'Recycle Bin is unavailable; no files were deleted',
-      );
     }
+    if (permanent) {
+      final results = <FileOperationItemResult>[];
+      for (final path in paths) {
+        try {
+          await _deleteEntryIo(path);
+          results.add(FileOperationItemResult(path, 0));
+        } catch (error) {
+          results.add(FileOperationItemResult(path, _errorHr(error)));
+        }
+      }
+      return results;
+    }
+    throw const FileSystemException(
+      'Recycle Bin is unavailable; no files were deleted',
+    );
   }
 
   static Future<void> _deleteEntryIo(String path) async {
@@ -148,27 +156,33 @@ class FileService {
     }
   }
 
-  static Future<void> copyEntries(
+  static Future<List<FileOperationItemResult>> copyEntries(
     List<String> srcPaths,
     String destDir, {
     bool keepBothOnCollision = false,
     bool Function()? cancelRequested,
     void Function(double progress)? onProgress,
   }) async {
-    if (srcPaths.isEmpty) return;
+    if (srcPaths.isEmpty) return const [];
     if (ShellFileOperation.isAvailable) {
-      await ShellFileOperation.copyAsync(
+      return ShellFileOperation.copyAsync(
         srcPaths,
         destDir,
         keepBothOnCollision: keepBothOnCollision,
         cancelRequested: cancelRequested,
         onProgress: onProgress,
       );
-    } else {
-      for (final srcPath in srcPaths) {
+    }
+    final results = <FileOperationItemResult>[];
+    for (final srcPath in srcPaths) {
+      try {
         await _copyEntryIo(srcPath, destDir);
+        results.add(FileOperationItemResult(srcPath, 0));
+      } catch (error) {
+        results.add(FileOperationItemResult(srcPath, _errorHr(error)));
       }
     }
+    return results;
   }
 
   static Future<void> _copyEntryIo(String srcPath, String destDir) async {
@@ -202,27 +216,47 @@ class FileService {
     }
   }
 
-  static Future<void> moveEntries(
+  static Future<List<FileOperationItemResult>> moveEntries(
     List<String> srcPaths,
     String destDir, {
     bool keepBothOnCollision = false,
     bool Function()? cancelRequested,
     void Function(double progress)? onProgress,
   }) async {
-    if (srcPaths.isEmpty) return;
+    if (srcPaths.isEmpty) return const [];
     if (ShellFileOperation.isAvailable) {
-      await ShellFileOperation.moveAsync(
+      return ShellFileOperation.moveAsync(
         srcPaths,
         destDir,
         keepBothOnCollision: keepBothOnCollision,
         cancelRequested: cancelRequested,
         onProgress: onProgress,
       );
-    } else {
-      for (final srcPath in srcPaths) {
+    }
+    final results = <FileOperationItemResult>[];
+    for (final srcPath in srcPaths) {
+      try {
         await _moveEntryIo(srcPath, destDir);
+        results.add(FileOperationItemResult(srcPath, 0));
+      } catch (error) {
+        results.add(FileOperationItemResult(srcPath, _errorHr(error)));
       }
     }
+    return results;
+  }
+
+  /// Converts a dart:io failure into an HRESULT-shaped code so the rest of
+  /// the app can treat success as exactly zero.
+  static int _errorHr(Object error) {
+    if (error is FileSystemException) {
+      final osError = error.osError;
+      if (osError != null && osError.errorCode != 0) {
+        final code = osError.errorCode;
+        // HRESULT_FROM_WIN32: positive Win32 codes become 0x8007xxxx.
+        return code < 0 ? code : (code & 0xFFFF) | 0x80070000;
+      }
+    }
+    return -1;
   }
 
   static Future<void> _moveEntryIo(String srcPath, String destDir) async {

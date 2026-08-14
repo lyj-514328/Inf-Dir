@@ -91,24 +91,28 @@
 - [x] 提供任务中心：排队、进行中、成功、失败和已取消。
 - [x] 支持取消尚未完成的任务。
 - [x] 支持同名冲突：替换、跳过、保留两者，并可应用到全部。
-- [ ] 展示可定位到具体路径的失败原因。
+- [x] 展示可定位到具体路径的失败原因。
 - [ ] 操作完成后只增量刷新受影响的面板和目录 cache。
 - [ ] 应用关闭时处理进行中任务，禁止静默中断。
 
 实施说明：
 
-- 原生层以 worker thread 执行 `IFileOperation` 并通过轮询报告进度
-  （当前粒度为 1→50→100）；Flutter 侧经 `FileOperationCenter` 串行
-  排队并消费任务事件，粘贴 / 删除等入口已接入。
+- 原生层以 worker thread 执行 `IFileOperation`，并通过 `Advise` 的
+  `IFileOperationProgressSink` 上报真实百分比进度（`UpdateProgress`）与
+  逐文件结果（`PostCopyItem/PostMoveItem/PostDeleteItem` 的路径 + HRESULT）；
+  终态后经 `InfDirGetFileOperationResultsW`（UTF-8 JSON）取回并
+  `InfDirCloseFileOperationW` 释放状态，Flutter 侧经 `FileOperationCenter`
+  串行排队并消费任务事件，粘贴 / 删除等入口已接入。
 - 任务中心 UI 位于顶栏常驻入口（活动任务数角标，空闲时为 0）与主区右下角
-  flyout：展示状态、进度、目标、失败信息，支持取消、单条移除与清除已完成。
+  flyout：展示状态、进度、目标、失败信息，支持取消、单条移除与清除已完成；
+  失败任务列出具体失败路径及 HRESULT（最多 2 条 + 汇总），部分失败的任务
+  显示“已完成，N 项失败”。
 - 运行中取消是尽力而为：`FOF_SILENT` 的 `PerformOperations` 无法中途
   打断，取消标志在当前批返回后生效并标记任务为已取消。
 - 复制 / 移动在目标存在同名项时先弹出冲突对话框：替换（默认覆盖）、跳过
   （源列表剔除）、保留两者（`FOF_RENAMEONCOLLISION`，Shell 自动改名），
   并支持“应用到全部”；策略按组执行，进度按组加权聚合到同一任务。保留
   两者时目标面板整目录刷新（新名称由 Shell 决定）。
-- 失败原因目前为 HRESULT 级别的错误信息，逐路径明细仍待实现。
 
 验收标准：大文件、跨盘和批量操作期间 UI 保持响应，用户可以看到结果并
 处理冲突。

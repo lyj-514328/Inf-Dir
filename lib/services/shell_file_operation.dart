@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 
 import 'package:ffi/ffi.dart';
+
+import '../models/file_operation_task.dart';
 
 typedef _RunNative =
     Int32 Function(
@@ -57,6 +60,14 @@ typedef _PollAsyncDart =
     );
 typedef _CancelAsyncNative = Int32 Function(Int64 operationId);
 typedef _CancelAsyncDart = int Function(int operationId);
+typedef _GetResultsNative =
+    Int32 Function(Int64 operationId, Pointer<Pointer<Utf8>> outJson);
+typedef _GetResultsDart =
+    int Function(int operationId, Pointer<Pointer<Utf8>> outJson);
+typedef _CloseAsyncNative = Int32 Function(Int64 operationId);
+typedef _CloseAsyncDart = int Function(int operationId);
+typedef _FreeUtf8Native = Void Function(Pointer<Utf8> ptr);
+typedef _FreeUtf8Dart = void Function(Pointer<Utf8> ptr);
 
 typedef _EmptyRecycleBinNative = Int32 Function(IntPtr owner);
 typedef _EmptyRecycleBinDart = int Function(int owner);
@@ -105,6 +116,9 @@ class ShellFileOperation {
   static _StartAsyncDart? _startAsync;
   static _PollAsyncDart? _pollAsync;
   static _CancelAsyncDart? _cancelAsync;
+  static _GetResultsDart? _getResults;
+  static _CloseAsyncDart? _closeAsync;
+  static _FreeUtf8Dart? _freeUtf8;
   static _EmptyRecycleBinDart? _emptyRecycleBin;
   static _GetActiveWindowDart? _getActiveWindow;
   static _RestoreRecycleBinDart? _restoreRecycleBin;
@@ -186,7 +200,9 @@ class ShellFileOperation {
   static void delete(List<String> sources, {bool permanent = false}) =>
       _runOperation(opDelete, sources, null, permanent);
 
-  static Future<void> copyAsync(
+  /// Runs a copy via the shell worker and returns the per-item results
+  /// reported by the native progress sink.
+  static Future<List<FileOperationItemResult>> copyAsync(
     List<String> sources,
     String destination, {
     bool keepBothOnCollision = false,
@@ -202,7 +218,7 @@ class ShellFileOperation {
     onProgress: onProgress,
   );
 
-  static Future<void> moveAsync(
+  static Future<List<FileOperationItemResult>> moveAsync(
     List<String> sources,
     String destination, {
     bool keepBothOnCollision = false,
@@ -218,7 +234,7 @@ class ShellFileOperation {
     onProgress: onProgress,
   );
 
-  static Future<void> deleteAsync(
+  static Future<List<FileOperationItemResult>> deleteAsync(
     List<String> sources, {
     bool permanent = false,
     bool Function()? cancelRequested,
@@ -232,7 +248,7 @@ class ShellFileOperation {
     onProgress: onProgress,
   );
 
-  static Future<void> _runAsync(
+  static Future<List<FileOperationItemResult>> _runAsync(
     int operation,
     List<String> sources,
     String? destination,
@@ -241,15 +257,19 @@ class ShellFileOperation {
     bool Function()? cancelRequested,
     void Function(double progress)? onProgress,
   }) async {
-    if (sources.isEmpty) return;
+    if (sources.isEmpty) return const [];
     _loadAsyncSymbols();
     final start = _startAsync;
     final poll = _pollAsync;
     final cancel = _cancelAsync;
     if (start == null || poll == null || cancel == null) {
-      _runOperation(operation, sources, destination, permanent);
-      onProgress?.call(1);
-      return;
+      try {
+        _runOperation(operation, sources, destination, permanent);
+        onProgress?.call(1);
+        return const [];
+      } on FileSystemException catch (error) {
+        throw ShellFileOperationException(_hrFromMessage(error.message), const []);
+      }
     }
 
     final sourcePtrs = <Pointer<Utf16>>[];
@@ -279,18 +299,18 @@ class ShellFileOperation {
         operationId,
       );
       if (startHr != 0) {
-        throw FileSystemException(
-          'Failed to start shell file operation '
-          '(hr=0x${startHr.toUnsigned(32).toRadixString(16)})',
+        throw ShellFileOperationException(
+          startHr,
+          const [],
         );
       }
 
       while (true) {
         final pollHr = poll(operationId.value, status, progress, result);
         if (pollHr != 0) {
-          throw FileSystemException(
-            'Failed to poll shell file operation '
-            '(hr=0x${pollHr.toUnsigned(32).toRadixString(16)})',
+          throw ShellFileOperationException(
+            pollHr,
+            _takeResults(operationId.value),
           );
         }
         onProgress?.call((progress.value / 100).clamp(0, 1).toDouble());
@@ -299,14 +319,14 @@ class ShellFileOperation {
           cancelSent = true;
         }
 
-        if (status.value == 2) return;
+        if (status.value == 2) return _takeResults(operationId.value);
         if (status.value == 4) {
           throw const FileOperationCancelledException();
         }
         if (status.value == 3) {
-          throw FileSystemException(
-            'Shell file operation failed '
-            '(hr=0x${result.value.toUnsigned(32).toRadixString(16)})',
+          throw ShellFileOperationException(
+            result.value,
+            _takeResults(operationId.value),
           );
         }
         await Future<void>.delayed(const Duration(milliseconds: 40));
@@ -317,11 +337,49 @@ class ShellFileOperation {
       }
       if (sourceArray != nullptr) calloc.free(sourceArray);
       if (destinationPtr != nullptr) calloc.free(destinationPtr);
+      _closeOperation(operationId.value);
       calloc.free(operationId);
       calloc.free(status);
       calloc.free(progress);
       calloc.free(result);
     }
+  }
+
+  /// Fetches and decodes the per-item results of a finished operation.
+  /// Consumes the native buffer once; later calls return an empty list.
+  static List<FileOperationItemResult> _takeResults(int operationId) {
+    final getResults = _getResults;
+    final free = _freeUtf8;
+    if (getResults == null || free == null) return const [];
+    final out = calloc<Pointer<Utf8>>();
+    try {
+      final hr = getResults(operationId, out);
+      if (hr != 0 || out.value == nullptr) return const [];
+      final text = out.value.toDartString();
+      free(out.value);
+      final decoded = jsonDecode(text);
+      if (decoded is! List) return const [];
+      return [
+        for (final item in decoded)
+          if (item is Map<String, dynamic> &&
+              item['path'] is String &&
+              item['hr'] is int)
+            FileOperationItemResult(item['path'] as String, item['hr'] as int),
+      ];
+    } on FormatException {
+      return const [];
+    } finally {
+      calloc.free(out);
+    }
+  }
+
+  static void _closeOperation(int operationId) {
+    _closeAsync?.call(operationId);
+  }
+
+  static int _hrFromMessage(String message) {
+    final match = RegExp(r'hr=0x([0-9a-fA-F]+)').firstMatch(message);
+    return match == null ? -1 : int.parse(match.group(1)!, radix: 16);
   }
 
   static void _loadAsyncSymbols() {
@@ -339,10 +397,24 @@ class ShellFileOperation {
           .lookupFunction<_CancelAsyncNative, _CancelAsyncDart>(
             'InfDirCancelFileOperationW',
           );
+      _getResults = library
+          .lookupFunction<_GetResultsNative, _GetResultsDart>(
+            'InfDirGetFileOperationResultsW',
+          );
+      _closeAsync = library
+          .lookupFunction<_CloseAsyncNative, _CloseAsyncDart>(
+            'InfDirCloseFileOperationW',
+          );
+      _freeUtf8 = library.lookupFunction<_FreeUtf8Native, _FreeUtf8Dart>(
+        'FreeCoTaskMemW',
+      );
     } on Object {
       _startAsync = null;
       _pollAsync = null;
       _cancelAsync = null;
+      _getResults = null;
+      _closeAsync = null;
+      _freeUtf8 = null;
     }
   }
 
@@ -498,4 +570,21 @@ class ShellFileOperation {
 
 class FileOperationCancelledException implements Exception {
   const FileOperationCancelledException();
+}
+
+/// Failure of a whole shell file operation. Carries the overall HRESULT and
+/// the per-item results reported by the native progress sink, so callers can
+/// show exactly which paths failed.
+class ShellFileOperationException implements Exception {
+  const ShellFileOperationException(this.hr, this.items);
+
+  final int hr;
+  final List<FileOperationItemResult> items;
+
+  String get message =>
+      'Shell 文件操作失败 (hr=0x'
+      '${hr.toUnsigned(32).toRadixString(16).toUpperCase()})';
+
+  @override
+  String toString() => message;
 }

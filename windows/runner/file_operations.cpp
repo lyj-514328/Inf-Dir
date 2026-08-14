@@ -25,12 +25,21 @@ enum AsyncOperationStatus {
     kCancelled = 4,
 };
 
+struct OperationItemResult {
+    std::wstring path;
+    HRESULT hr = S_OK;
+};
+
 struct AsyncOperationState {
     std::mutex mutex;
     int status = kQueued;
     int progress = 0;
     HRESULT result = S_OK;
     std::atomic<bool> cancelRequested{false};
+    std::vector<OperationItemResult> itemResults;
+    // UTF-8 JSON of itemResults, built once the operation reaches a terminal
+    // state and consumed by InfDirGetFileOperationResultsW.
+    std::string resultsJson;
 };
 
 std::mutex g_asyncOperationsMutex;
@@ -51,6 +60,146 @@ void SetAsyncState(
 bool IsCancelled(const std::shared_ptr<AsyncOperationState>& state) {
     return state && state->cancelRequested.load();
 }
+
+std::string EscapeJsonString(const std::wstring& value) {
+    std::string out;
+    out.reserve(value.size() + 8);
+    for (const wchar_t ch : value) {
+        switch (ch) {
+        case L'\\': out += "\\\\"; break;
+        case L'"': out += "\\\""; break;
+        case L'\r': out += "\\r"; break;
+        case L'\n': out += "\\n"; break;
+        case L'\t': out += "\\t"; break;
+        default:
+            if (ch < 0x20) {
+                char buffer[8];
+                snprintf(buffer, sizeof(buffer), "\\u%04x", (unsigned)ch);
+                out += buffer;
+            } else {
+                out += static_cast<char>(ch);
+            }
+            break;
+        }
+    }
+    return out;
+}
+
+std::string BuildResultsJson(
+    const std::vector<OperationItemResult>& results) {
+    std::string out = "[";
+    for (size_t i = 0; i < results.size(); ++i) {
+        if (i > 0) out += ",";
+        out += "{\"path\":\"";
+        out += EscapeJsonString(results[i].path);
+        out += "\",\"hr\":";
+        out += std::to_string(static_cast<long>(results[i].hr));
+        out += "}";
+    }
+    out += "]";
+    return out;
+}
+
+// Collects per-item outcomes and real progress from IFileOperation without
+// showing Shell UI. FOF_SILENT only suppresses the built-in dialogs; the
+// advised sink still receives every callback.
+class FileOperationSink final : public IFileOperationProgressSink {
+public:
+    explicit FileOperationSink(
+        const std::shared_ptr<AsyncOperationState>& state)
+        : ref_(1), state_(state) {}
+    virtual ~FileOperationSink() = default;
+
+    // IUnknown
+    STDMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
+        if (riid == IID_IUnknown ||
+            riid == IID_IFileOperationProgressSink) {
+            *ppv = static_cast<IFileOperationProgressSink*>(this);
+            AddRef();
+            return S_OK;
+        }
+        *ppv = nullptr;
+        return E_NOINTERFACE;
+    }
+    STDMETHODIMP_(ULONG) AddRef() override {
+        return ++ref_;
+    }
+    STDMETHODIMP_(ULONG) Release() override {
+        const ULONG remaining = --ref_;
+        if (remaining == 0) delete this;
+        return remaining;
+    }
+
+    STDMETHODIMP StartOperations() override { return S_OK; }
+    STDMETHODIMP FinishOperations(HRESULT) override { return S_OK; }
+    STDMETHODIMP PreRenameItem(DWORD, IShellItem*, LPCWSTR) override {
+        return S_OK;
+    }
+    STDMETHODIMP PostRenameItem(DWORD, IShellItem*, LPCWSTR, HRESULT,
+        IShellItem*) override {
+        return S_OK;
+    }
+    STDMETHODIMP PreMoveItem(DWORD, IShellItem*, IShellItem*, LPCWSTR)
+        override {
+        return S_OK;
+    }
+    STDMETHODIMP PostMoveItem(DWORD, IShellItem* item, IShellItem*, LPCWSTR,
+        HRESULT hrMove, IShellItem*) override {
+        RecordItem(item, hrMove);
+        return S_OK;
+    }
+    STDMETHODIMP PreCopyItem(DWORD, IShellItem*, IShellItem*, LPCWSTR)
+        override {
+        return S_OK;
+    }
+    STDMETHODIMP PostCopyItem(DWORD, IShellItem* item, IShellItem*, LPCWSTR,
+        HRESULT hrCopy, IShellItem*) override {
+        RecordItem(item, hrCopy);
+        return S_OK;
+    }
+    STDMETHODIMP PreDeleteItem(DWORD, IShellItem*) override { return S_OK; }
+    STDMETHODIMP PostDeleteItem(DWORD, IShellItem* item, HRESULT hrDelete,
+        IShellItem*) override {
+        RecordItem(item, hrDelete);
+        return S_OK;
+    }
+    STDMETHODIMP PreNewItem(DWORD, IShellItem*, LPCWSTR) override {
+        return S_OK;
+    }
+    STDMETHODIMP PostNewItem(DWORD, IShellItem*, LPCWSTR, LPCWSTR, DWORD,
+        HRESULT, IShellItem*) override {
+        return S_OK;
+    }
+    STDMETHODIMP UpdateProgress(UINT iWorkTotal, UINT iWorkSoFar) override {
+        std::lock_guard<std::mutex> lock(state_->mutex);
+        if (iWorkTotal > 0) {
+            state_->progress = static_cast<int>(
+                (static_cast<unsigned long long>(iWorkSoFar) * 100) /
+                iWorkTotal);
+            // 100 is reserved for the terminal state, set by the worker.
+            if (state_->progress > 99) state_->progress = 99;
+        }
+        return S_OK;
+    }
+    STDMETHODIMP ResetTimer() override { return S_OK; }
+    STDMETHODIMP PauseTimer() override { return S_OK; }
+    STDMETHODIMP ResumeTimer() override { return S_OK; }
+
+private:
+    void RecordItem(IShellItem* item, HRESULT hr) {
+        if (!item) return;
+        PWSTR path = nullptr;
+        if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)) &&
+            path) {
+            std::lock_guard<std::mutex> lock(state_->mutex);
+            state_->itemResults.push_back({std::wstring(path), hr});
+            CoTaskMemFree(path);
+        }
+    }
+
+    std::atomic<ULONG> ref_;
+    std::shared_ptr<AsyncOperationState> state_;
+};
 
 }  // namespace
 
@@ -135,13 +284,29 @@ static HRESULT RunFileOperationCore(
         }
     }
 
-    if (asyncState) SetAsyncState(asyncState, kRunning, 50, S_OK);
+    FileOperationSink* sink = nullptr;
+    DWORD adviseCookie = 0;
+    if (asyncState) {
+        sink = new FileOperationSink(asyncState);
+        hr = pfo->Advise(sink, &adviseCookie);
+        if (FAILED(hr)) {
+            sink->Release();
+            sink = nullptr;
+            pfo->Release();
+            if (dest) dest->Release();
+            return hr;
+        }
+    }
 
     hr = pfo->PerformOperations();
     BOOL aborted = FALSE;
     if (SUCCEEDED(hr)) {
         pfo->GetAnyOperationsAborted(&aborted);
         if (aborted) hr = HRESULT_FROM_WIN32(ERROR_CANCELLED);
+    }
+    if (sink) {
+        pfo->Unadvise(adviseCookie);
+        sink->Release();
     }
     pfo->Release();
     if (dest) dest->Release();
@@ -230,11 +395,16 @@ HRESULT InfDirStartFileOperationW(
 
         const bool cancelled = state->cancelRequested.load() ||
             hr == HRESULT_FROM_WIN32(ERROR_CANCELLED);
-        SetAsyncState(
-            state,
-            cancelled ? kCancelled : SUCCEEDED(hr) ? kSucceeded : kFailed,
-            cancelled || FAILED(hr) ? 0 : 100,
-            hr);
+        const int status = cancelled
+            ? kCancelled : SUCCEEDED(hr) ? kSucceeded : kFailed;
+        const int progress = cancelled || FAILED(hr) ? 0 : 100;
+        {
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->status = status;
+            state->progress = progress;
+            state->result = hr;
+            state->resultsJson = BuildResultsJson(state->itemResults);
+        }
     }).detach();
     return S_OK;
 }
@@ -272,6 +442,39 @@ HRESULT InfDirCancelFileOperationW(int64_t operationId)
         return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
     }
     found->second->cancelRequested.store(true);
+    return S_OK;
+}
+
+extern "C" __declspec(dllexport)
+HRESULT InfDirGetFileOperationResultsW(int64_t operationId, char** outJson)
+{
+    if (!outJson) return E_INVALIDARG;
+    *outJson = nullptr;
+    std::shared_ptr<AsyncOperationState> state;
+    {
+        std::lock_guard<std::mutex> lock(g_asyncOperationsMutex);
+        const auto found = g_asyncOperations.find(operationId);
+        if (found == g_asyncOperations.end()) {
+            return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+        }
+        state = found->second;
+    }
+    std::lock_guard<std::mutex> lock(state->mutex);
+    if (state->resultsJson.empty()) return S_OK;
+    const size_t length = state->resultsJson.size() + 1;
+    char* buffer = static_cast<char*>(CoTaskMemAlloc(length));
+    if (!buffer) return E_OUTOFMEMORY;
+    memcpy(buffer, state->resultsJson.c_str(), length);
+    *outJson = buffer;
+    state->resultsJson.clear();
+    return S_OK;
+}
+
+extern "C" __declspec(dllexport)
+HRESULT InfDirCloseFileOperationW(int64_t operationId)
+{
+    std::lock_guard<std::mutex> lock(g_asyncOperationsMutex);
+    g_asyncOperations.erase(operationId);
     return S_OK;
 }
 

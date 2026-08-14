@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/models/file_operation_task.dart';
 import 'package:inf_dir/services/file_operation_center.dart';
+import 'package:inf_dir/services/shell_file_operation.dart';
 import 'package:inf_dir/widgets/app_theme.dart';
 import 'package:inf_dir/widgets/file_task_center.dart';
 
@@ -226,5 +227,55 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('0'), findsOneWidget);
+  });
+
+  testWidgets('failed task shows per-path failure details', (tester) async {
+    final center = FileOperationCenter();
+    final future = center.enqueue(
+      type: FileOperationType.copy,
+      sources: const ['C:\\src\\report.txt'],
+      destination: 'D:\\backup',
+      action: (_) async => throw const ShellFileOperationException(
+        0x80070005,
+        [FileOperationItemResult(r'C:\src\report.txt', 0x80070005)],
+      ),
+    );
+    final failedExpectation = expectLater(
+      future,
+      throwsA(isA<ShellFileOperationException>()),
+    );
+
+    await pumpPanel(tester, center);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('失败'), findsOneWidget);
+    expect(find.text('C:\\src\\report.txt（0x80070005）'), findsOneWidget);
+
+    await failedExpectation;
+  });
+
+  testWidgets('succeeded task with item failures shows a partial-failure status', (
+    tester,
+  ) async {
+    final center = FileOperationCenter();
+    final future = center.enqueue(
+      type: FileOperationType.move,
+      sources: const ['C:\\src\\a.txt'],
+      action: (task) async {
+        task.recordItemResults(const [
+          FileOperationItemResult(r'C:\src\a.txt', 0x80070003),
+        ]);
+      },
+    );
+
+    await pumpPanel(tester, center);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('已完成，1 项失败'), findsOneWidget);
+    expect(find.text('C:\\src\\a.txt（0x80070003）'), findsOneWidget);
+
+    await future;
   });
 }

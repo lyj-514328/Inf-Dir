@@ -140,30 +140,36 @@ Future<void> pasteIntoPane(
       action: (task) async {
         final total = movedPaths.length;
         var done = 0;
+        final results = <FileOperationItemResult>[];
         final run = isCut ? FileService.moveEntries : FileService.copyEntries;
         if (replaceSources.isNotEmpty) {
-          await run(
-            replaceSources,
-            destDir,
-            cancelRequested: () => task.cancelRequested,
-            onProgress: (value) => task.updateProgress(
-              (done + replaceSources.length * value) / total,
+          results.addAll(
+            await run(
+              replaceSources,
+              destDir,
+              cancelRequested: () => task.cancelRequested,
+              onProgress: (value) => task.updateProgress(
+                (done + replaceSources.length * value) / total,
+              ),
             ),
           );
           done += replaceSources.length;
         }
         if (keepBothSources.isNotEmpty) {
-          await run(
-            keepBothSources,
-            destDir,
-            keepBothOnCollision: true,
-            cancelRequested: () => task.cancelRequested,
-            onProgress: (value) => task.updateProgress(
-              (done + keepBothSources.length * value) / total,
+          results.addAll(
+            await run(
+              keepBothSources,
+              destDir,
+              keepBothOnCollision: true,
+              cancelRequested: () => task.cancelRequested,
+              onProgress: (value) => task.updateProgress(
+                (done + keepBothSources.length * value) / total,
+              ),
             ),
           );
           done += keepBothSources.length;
         }
+        task.recordItemResults(results);
         task.updateProgress(1);
       },
     );
@@ -903,12 +909,15 @@ class _PaneContent extends StatelessWidget {
             ? FileOperationType.permanentDelete
             : FileOperationType.delete,
         sources: selected,
-        action: (task) => FileService.deleteEntries(
-          selected,
-          permanent: permanent,
-          cancelRequested: () => task.cancelRequested,
-          onProgress: task.updateProgress,
-        ),
+        action: (task) async {
+          final results = await FileService.deleteEntries(
+            selected,
+            permanent: permanent,
+            cancelRequested: () => task.cancelRequested,
+            onProgress: task.updateProgress,
+          );
+          task.recordItemResults(results);
+        },
       );
     } catch (error) {
       if (context.mounted) {
@@ -1165,12 +1174,15 @@ class _PaneContent extends StatelessWidget {
       await operationCenter.enqueue(
         type: FileOperationType.permanentDelete,
         sources: selected,
-        action: (task) => FileService.deleteEntries(
-          selected,
-          permanent: true,
-          cancelRequested: () => task.cancelRequested,
-          onProgress: task.updateProgress,
-        ),
+        action: (task) async {
+          final results = await FileService.deleteEntries(
+            selected,
+            permanent: true,
+            cancelRequested: () => task.cancelRequested,
+            onProgress: task.updateProgress,
+          );
+          task.recordItemResults(results);
+        },
       );
       if (context.mounted) {
         context.read<LayoutState>().refreshPanesWhere(

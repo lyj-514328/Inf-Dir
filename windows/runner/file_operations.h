@@ -57,6 +57,18 @@ HRESULT InfDirPollFileOperationW(
 __declspec(dllexport)
 HRESULT InfDirCancelFileOperationW(int64_t operationId);
 
+// Takes the per-item results of a finished operation as a UTF-8 JSON array
+// of {"path": ..., "hr": ...} objects, allocated with CoTaskMemAlloc (free
+// with FreeCoTaskMemW). Returns S_OK with *outJson = nullptr when the
+// operation recorded no items. The stored results are consumed on first call.
+__declspec(dllexport)
+HRESULT InfDirGetFileOperationResultsW(int64_t operationId, char** outJson);
+
+// Removes the operation state from the registry after its results have been
+// consumed, preventing unbounded growth across many operations.
+__declspec(dllexport)
+HRESULT InfDirCloseFileOperationW(int64_t operationId);
+
 // Empties the shared Windows Recycle Bin without showing Shell UI. The app
 // owns confirmation and error reporting.
 __declspec(dllexport)

@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/file_operation_task.dart';
 import '../services/file_operation_center.dart';
+import '../services/shell_file_operation.dart';
 import 'app_theme.dart';
 
 /// 顶栏任务中心入口：常驻显示，角标始终展示活动任务数（空闲时为 0），
@@ -275,7 +276,7 @@ class _TaskRow extends StatelessWidget {
           Icon(
             task.type.icon,
             size: AppMetrics.iconMd,
-            color: _statusColor(c, status),
+            color: _statusColor(c, task),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -312,10 +313,35 @@ class _TaskRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: AppMetrics.fontSmall,
-                    color: _statusColor(c, status),
+                    color: _statusColor(c, task),
                   ),
                 ),
+                for (final failure in task.failures.take(2)) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '${failure.path}（${failure.hrLabel}）',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppMetrics.fontCaption,
+                      color: c.danger,
+                    ),
+                  ),
+                ],
+                if (task.failures.length > 2) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '另有 ${task.failures.length - 2} 项失败',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppMetrics.fontCaption,
+                      color: c.danger,
+                    ),
+                  ),
+                ],
                 if (status == FileOperationStatus.failed &&
+                    task.failures.isEmpty &&
                     task.error != null) ...[
                   const SizedBox(height: 2),
                   Text(
@@ -378,7 +404,7 @@ class _TaskRow extends StatelessWidget {
       case FileOperationStatus.running:
         return '进行中 ${(task.progress * 100).round()}%';
       case FileOperationStatus.succeeded:
-        return '已完成';
+        return task.hasFailures ? '已完成，${task.failures.length} 项失败' : '已完成';
       case FileOperationStatus.failed:
         return '失败';
       case FileOperationStatus.cancelled:
@@ -387,17 +413,18 @@ class _TaskRow extends StatelessWidget {
   }
 
   String _errorText(Object? error) {
+    if (error is ShellFileOperationException) return error.message;
     if (error is FileSystemException) return error.message;
     return error.toString();
   }
 
-  Color _statusColor(AppColors c, FileOperationStatus status) {
-    switch (status) {
+  Color _statusColor(AppColors c, FileOperationTask task) {
+    switch (task.status) {
       case FileOperationStatus.queued:
       case FileOperationStatus.running:
         return c.accent;
       case FileOperationStatus.succeeded:
-        return c.success;
+        return task.hasFailures ? c.danger : c.success;
       case FileOperationStatus.failed:
         return c.danger;
       case FileOperationStatus.cancelled:

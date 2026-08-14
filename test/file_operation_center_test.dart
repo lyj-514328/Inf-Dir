@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/models/file_operation_task.dart';
 import 'package:inf_dir/services/file_operation_center.dart';
+import 'package:inf_dir/services/shell_file_operation.dart';
 
 void main() {
   test('runs operations serially and records success', () async {
@@ -166,5 +167,44 @@ void main() {
     center.clearFinished();
     expect(center.tasks, isEmpty);
     expect(center.hasFinishedTasks, isFalse);
+  });
+
+  test('records per-item failures carried by a shell operation exception', () async {
+    final center = FileOperationCenter();
+    const items = [
+      FileOperationItemResult(r'C:\a.txt', 0),
+      FileOperationItemResult(r'C:\b.txt', 0x80070005),
+    ];
+    final future = center.enqueue(
+      type: FileOperationType.copy,
+      sources: const ['a', 'b'],
+      action: (_) async =>
+          throw const ShellFileOperationException(0x80070005, items),
+    );
+
+    await expectLater(future, throwsA(isA<ShellFileOperationException>()));
+    final task = center.tasks.single;
+    expect(task.status, FileOperationStatus.failed);
+    expect(task.hasFailures, isTrue);
+    expect(task.failures.map((result) => result.path), [r'C:\b.txt']);
+    expect(task.failures.single.hrLabel, '0x80070005');
+  });
+
+  test('records item results reported by a successful action', () async {
+    final center = FileOperationCenter();
+    final future = center.enqueue(
+      type: FileOperationType.delete,
+      sources: const ['a'],
+      action: (task) async {
+        task.recordItemResults(const [
+          FileOperationItemResult(r'C:\a.txt', 0x80070003),
+        ]);
+      },
+    );
+
+    final task = await future;
+    expect(task.status, FileOperationStatus.succeeded);
+    expect(task.hasFailures, isTrue);
+    expect(task.failures.map((result) => result.path), [r'C:\a.txt']);
   });
 }
