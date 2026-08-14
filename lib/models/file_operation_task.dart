@@ -1,13 +1,26 @@
 import 'package:flutter/foundation.dart';
 
-enum FileOperationType { copy, move, delete, permanentDelete, restore }
+enum FileOperationType {
+  copy,
+  move,
+  delete,
+  permanentDelete,
+  restore,
+  create,
+  rename,
+}
 
 enum FileOperationStatus { queued, running, succeeded, failed, cancelled }
 
 /// Outcome of a single item inside a shell file operation, as reported by
 /// the native progress sink (or the dart:io fallback).
 class FileOperationItemResult {
-  const FileOperationItemResult(this.path, this.hr);
+  const FileOperationItemResult(
+    this.path,
+    this.hr, {
+    this.createdPath,
+    this.recycledPath,
+  });
 
   final String path;
 
@@ -15,6 +28,14 @@ class FileOperationItemResult {
   /// HRESULTs are negative ints; raw Win32 error codes (dart:io fallback) are
   /// positive — either way success is exactly zero.
   final int hr;
+
+  /// The newly created item's filesystem path (copy/move), reported by the
+  /// native sink via psiNewlyCreated. Null in the dart:io fallback.
+  final String? createdPath;
+
+  /// The Recycle Bin parsing name of a recycled item (delete), reported by
+  /// the native sink via psiNewlyCreated. Null in the dart:io fallback.
+  final String? recycledPath;
 
   bool get isSuccess => hr == 0;
 

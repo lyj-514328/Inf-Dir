@@ -20,6 +20,10 @@ void main() {
       appState: appState,
       activePane: layoutState.controllerFor(layoutState.focusedNode),
       isFavorite: false,
+      canUndo: false,
+      canRedo: false,
+      onUndo: () {},
+      onRedo: () {},
       onExit: () {},
       onViewerAssociations: () {},
       onAddFavorite: () {},
@@ -46,6 +50,8 @@ void main() {
       '退出',
     ]);
     expect(groups[1].items.map((item) => item.label), [
+      '撤销',
+      '重做',
       '剪切',
       '复制',
       '粘贴',
@@ -55,7 +61,9 @@ void main() {
     expect(groups[0].items[0].enabled, isTrue);
     expect(groups[0].items[1].enabled, isFalse);
     expect(groups[1].items[0].enabled, isFalse);
+    expect(groups[1].items[1].enabled, isFalse);
     expect(groups[1].items[2].enabled, isFalse);
+    expect(groups[1].items[4].enabled, isFalse);
     expect(groups[2].items[0].enabled, isTrue);
     expect(groups[4].items[0].enabled, isTrue);
   });

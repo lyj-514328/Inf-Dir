@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../models/file_entry.dart';
+import '../models/file_operation_history.dart';
 import '../models/file_operation_task.dart';
 import '../models/layout_node.dart';
 import '../state/app_state.dart';
@@ -15,6 +16,7 @@ import '../services/archive_service.dart';
 import '../services/cloud_drive_service.dart';
 import '../services/directory_service.dart';
 import '../services/file_service.dart';
+import '../services/incremental_refresh.dart';
 import '../services/shell_context_menu.dart';
 import '../services/shell_new_service.dart';
 import '../services/open_with_menu_service.dart';
@@ -131,8 +133,9 @@ Future<void> pasteIntoPane(
 
   // 一个任务内按策略分组执行：替换组默认覆盖，保留两者组让 Shell 自动
   // 改名；进度按组加权聚合到总任务进度。
+  late FileOperationTask completedTask;
   try {
-    await appState.fileOperations.enqueue(
+    completedTask = await appState.fileOperations.enqueue(
       type: isCut ? FileOperationType.move : FileOperationType.copy,
       sources: sources,
       destination: destDir,
@@ -180,6 +183,27 @@ Future<void> pasteIntoPane(
   if (isCut) {
     appState.clearClipboard();
   }
+  // 录制历史：逐项实际新路径（createdPath 覆盖"保留两者"的自动改名）。
+  final itemResults = completedTask.itemResults;
+  final historySources = <String>[];
+  final historyDestinations = <String>[];
+  for (var i = 0; i < movedPaths.length; i++) {
+    final result = i < itemResults.length ? itemResults[i] : null;
+    if (result != null && !result.isSuccess) continue;
+    historySources.add(movedPaths[i]);
+    historyDestinations.add(
+      result?.createdPath ?? p.join(destDir, p.basename(movedPaths[i])),
+    );
+  }
+  if (historySources.isNotEmpty) {
+    appState.history.record(
+      FileOperationHistory(
+        type: isCut ? HistoryOperationType.move : HistoryOperationType.copy,
+        source: historySources,
+        destination: historyDestinations,
+      ),
+    );
+  }
   final addedPaths = [
     for (final source in replaceSources) p.join(destDir, p.basename(source)),
   ];
@@ -202,46 +226,20 @@ Future<void> pasteIntoPane(
   }
 }
 
-/// 操作完成后的增量刷新：扇形更新所有正显示受影响目录的面板（不重新
-/// 枚举），并就地补丁 repository 的目录缓存（新增条目经 inspectEntry
-/// 构造、带排序键）；[invalidateDirs] 中的目录（目标名未知或目录本身
-/// 被删除）改为定点失效。侧栏经 repository 回调自动重读。
+/// 操作完成后的增量刷新（context 便捷版）：读取 provider 后委托共享助手。
 void _applyIncrementalRefresh(
   BuildContext context, {
   Iterable<String> addedPaths = const [],
   Iterable<String> removedPaths = const [],
   Iterable<String> invalidateDirs = const [],
 }) {
-  final appState = context.read<AppState>();
-  final layoutState = context.read<LayoutState>();
-
-  // 面板扇形增量更新（每个面板按 currentPath 自行守卫）。
-  layoutState.applyLocalChanges(
+  applyIncrementalRefresh(
+    appState: context.read<AppState>(),
+    layoutState: context.read<LayoutState>(),
     addedPaths: addedPaths,
     removedPaths: removedPaths,
+    invalidateDirs: invalidateDirs,
   );
-
-  // 目录缓存：新增按目标目录聚合，删除按所在目录聚合，就地打补丁。
-  final additionsByDir = <String, List<FileEntry>>{};
-  for (final path in addedPaths) {
-    final entry = FileService.inspectEntry(path);
-    if (entry == null) continue;
-    additionsByDir.putIfAbsent(p.dirname(path), () => []).add(entry);
-  }
-  final removalsByDir = <String, List<String>>{};
-  for (final path in removedPaths) {
-    removalsByDir.putIfAbsent(p.dirname(path), () => []).add(path);
-  }
-  for (final dir in {...additionsByDir.keys, ...removalsByDir.keys}) {
-    appState.repository.patchCompleteCache(
-      dir,
-      added: additionsByDir[dir] ?? const [],
-      removedPaths: removalsByDir[dir] ?? const [],
-    );
-  }
-  for (final dir in invalidateDirs) {
-    appState.repository.invalidate(dir);
-  }
 }
 
 class _PaneContent extends StatelessWidget {
@@ -431,8 +429,19 @@ class _PaneContent extends StatelessWidget {
     );
     if (name == null || name.trim().isEmpty) return;
     try {
-      await FileService.createFolder(controller.currentPath, name.trim());
-      controller.refresh();
+      final newPath = await FileService.createFolder(
+        controller.currentPath,
+        name.trim(),
+      );
+      if (!context.mounted) return;
+      _applyIncrementalRefresh(context, addedPaths: [newPath]);
+      context.read<AppState>().history.record(
+        FileOperationHistory(
+          type: HistoryOperationType.createNew,
+          source: [newPath],
+          directories: [true],
+        ),
+      );
     } catch (e) {
       if (context.mounted) _showOperationError(context, '创建文件夹失败', e);
     }
@@ -452,8 +461,19 @@ class _PaneContent extends StatelessWidget {
     );
     if (name == null || name.trim().isEmpty) return;
     try {
-      await FileService.createFile(controller.currentPath, name.trim());
-      controller.refresh();
+      final newPath = await FileService.createFile(
+        controller.currentPath,
+        name.trim(),
+      );
+      if (!context.mounted) return;
+      _applyIncrementalRefresh(context, addedPaths: [newPath]);
+      context.read<AppState>().history.record(
+        FileOperationHistory(
+          type: HistoryOperationType.createNew,
+          source: [newPath],
+          directories: [false],
+        ),
+      );
     } catch (e) {
       if (context.mounted) _showOperationError(context, '创建文件失败', e);
     }
@@ -958,8 +978,9 @@ class _PaneContent extends StatelessWidget {
     );
 
     if (confirm != true) return;
+    late FileOperationTask completedTask;
     try {
-      await operationCenter.enqueue(
+      completedTask = await operationCenter.enqueue(
         type: permanent
             ? FileOperationType.permanentDelete
             : FileOperationType.delete,
@@ -981,6 +1002,28 @@ class _PaneContent extends StatelessWidget {
       return;
     }
     if (!context.mounted) return;
+    // 移入回收站：录制可撤销历史（recycledPath 来自原生回调）。
+    if (!permanent) {
+      final itemResults = completedTask.itemResults;
+      final historySources = <String>[];
+      final historyDestinations = <String>[];
+      for (var i = 0; i < selected.length; i++) {
+        final result = i < itemResults.length ? itemResults[i] : null;
+        final recycled = result?.recycledPath;
+        if (recycled == null || recycled.isEmpty) continue;
+        historySources.add(selected[i]);
+        historyDestinations.add(recycled);
+      }
+      if (historySources.isNotEmpty) {
+        context.read<AppState>().history.record(
+          FileOperationHistory(
+            type: HistoryOperationType.recycle,
+            source: historySources,
+            destination: historyDestinations,
+          ),
+        );
+      }
+    }
     // 被删除的文件夹：自身缓存整体作废；父目录缓存就地摘除条目。
     // 移入回收站时新条目名称未知，回收站缓存定点失效。
     _applyIncrementalRefresh(
@@ -1112,21 +1155,47 @@ class _PaneContent extends StatelessWidget {
     }
 
     try {
-      await context.read<AppState>().fileOperations.enqueue(
-        type: FileOperationType.restore,
-        sources: parsingNames,
-        action: (task) async {
-          final results = await FileService.restoreRecycleBinEntriesAsync(
-            parsingNames,
-            destinations: destinations,
-            keepBothOnCollision: keepBothOnCollision,
-            cancelRequested: () => task.cancelRequested,
-            onProgress: task.updateProgress,
+      final completedTask = await context
+          .read<AppState>()
+          .fileOperations
+          .enqueue(
+            type: FileOperationType.restore,
+            sources: parsingNames,
+            action: (task) async {
+              final results = await FileService.restoreRecycleBinEntriesAsync(
+                parsingNames,
+                destinations: destinations,
+                keepBothOnCollision: keepBothOnCollision,
+                cancelRequested: () => task.cancelRequested,
+                onProgress: task.updateProgress,
+              );
+              task.recordItemResults(results);
+            },
           );
-          task.recordItemResults(results);
-        },
-      );
       if (!context.mounted) return;
+      // 录制可撤销历史：实际还原路径来自原生回调 createdPath。
+      final itemResults = completedTask.itemResults;
+      final historySources = <String>[];
+      final historyDestinations = <String>[];
+      for (var i = 0; i < parsingNames.length; i++) {
+        final result = i < itemResults.length ? itemResults[i] : null;
+        if (result != null && !result.isSuccess) continue;
+        final directory = destinations?[i] ?? entries[i].originalPath;
+        if (directory == null || directory.isEmpty) continue;
+        historySources.add(parsingNames[i]);
+        historyDestinations.add(
+          result?.createdPath ?? p.join(directory, entries[i].name),
+        );
+      }
+      if (historySources.isNotEmpty) {
+        context.read<AppState>().history.record(
+          FileOperationHistory(
+            type: HistoryOperationType.restore,
+            source: historySources,
+            destination: historyDestinations,
+          ),
+        );
+      }
       final layoutState = context.read<LayoutState>();
       final repository = context.read<AppState>().repository;
       // 回收站面板就地摘除已还原条目 + 回收站目录缓存同步摘除。
@@ -1716,7 +1785,20 @@ Future<void> _renameSelected(BuildContext context) async {
 
   try {
     await FileService.renameEntry(oldPath, newName);
-    controller.refresh();
+    if (!context.mounted) return;
+    final newPath = p.join(p.dirname(oldPath), newName);
+    _applyIncrementalRefresh(
+      context,
+      addedPaths: [newPath],
+      removedPaths: [oldPath],
+    );
+    context.read<AppState>().history.record(
+      FileOperationHistory(
+        type: HistoryOperationType.rename,
+        source: [oldPath],
+        destination: [newPath],
+      ),
+    );
   } catch (e) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

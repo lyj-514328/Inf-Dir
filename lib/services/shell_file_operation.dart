@@ -500,7 +500,12 @@ class ShellFileOperation {
           if (item is Map<String, dynamic> &&
               item['path'] is String &&
               item['hr'] is int)
-            FileOperationItemResult(item['path'] as String, item['hr'] as int),
+            FileOperationItemResult(
+              item['path'] as String,
+              item['hr'] as int,
+              createdPath: item['createdPath'] as String?,
+              recycledPath: item['recycledPath'] as String?,
+            ),
       ];
     } on FormatException {
       return const [];

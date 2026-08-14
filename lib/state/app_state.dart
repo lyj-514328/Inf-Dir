@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'pane_controller.dart';
+import '../models/file_operation_history.dart';
 import '../services/directory_repository.dart';
 import '../services/directory_service.dart';
 import '../services/file_service.dart';
@@ -9,6 +10,7 @@ class AppState extends ChangeNotifier {
   late final List<PaneController> panes;
   final DirectoryRepository repository;
   final FileOperationCenter fileOperations;
+  final FileOperationHistoryStack history;
   int _activePaneIndex = 0;
   bool _showHiddenFiles = false;
   bool _showFileExtensions = true;
@@ -16,8 +18,10 @@ class AppState extends ChangeNotifier {
   AppState({
     DirectoryRepository? repository,
     FileOperationCenter? fileOperations,
+    FileOperationHistoryStack? history,
   }) : repository = repository ?? DirectoryRepository(),
-       fileOperations = fileOperations ?? FileOperationCenter() {
+       fileOperations = fileOperations ?? FileOperationCenter(),
+       history = history ?? FileOperationHistoryStack() {
     final repo = this.repository;
     panes = [
       PaneController(FileService.desktopPath, repository: repo),

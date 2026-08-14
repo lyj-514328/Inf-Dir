@@ -6,6 +6,7 @@ import 'package:toastification/toastification.dart';
 import 'package:window_manager/window_manager.dart';
 import 'features/quick_view/quick_view_service.dart';
 import 'services/directory_repository.dart';
+import 'services/undo_redo_service.dart';
 import 'services/window_layout_store.dart';
 import 'state/app_state.dart';
 import 'state/layout_state.dart';
@@ -57,6 +58,13 @@ void main() async {
                 repository: ctx.read<DirectoryRepository>(),
                 layoutStore: WindowLayoutStore(),
               ),
+        ),
+        Provider<UndoRedoService>(
+          create: (ctx) => UndoRedoService(
+            appState: ctx.read<AppState>(),
+            layoutState: ctx.read<LayoutState>(),
+            history: ctx.read<AppState>().history,
+          ),
         ),
         ChangeNotifierProvider(
           create: (ctx) => SidebarSyncController(

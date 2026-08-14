@@ -25,6 +25,10 @@ List<AppMenuGroup> buildAppMenuGroups({
   required VoidCallback onRemoveFavorite,
   required VoidCallback onManageFavorites,
   required VoidCallback onAbout,
+  required bool canUndo,
+  required bool canRedo,
+  VoidCallback? onUndo,
+  VoidCallback? onRedo,
   VoidCallback? onCopy,
   VoidCallback? onCut,
   VoidCallback? onPaste,
@@ -67,6 +71,18 @@ List<AppMenuGroup> buildAppMenuGroups({
       CommandMenuItem(label: '退出', onAction: onExit),
     ]),
     AppMenuGroup('编辑(E)', [
+      CommandMenuItem(
+        label: '撤销',
+        shortcut: 'Ctrl+Z',
+        enabled: canUndo && onUndo != null,
+        onAction: canUndo ? onUndo : null,
+      ),
+      CommandMenuItem(
+        label: '重做',
+        shortcut: 'Ctrl+Y',
+        enabled: canRedo && onRedo != null,
+        onAction: canRedo ? onRedo : null,
+      ),
       CommandMenuItem(
         label: '剪切',
         shortcut: 'Ctrl+X',

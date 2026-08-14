@@ -443,6 +443,8 @@ extension on FileOperationType {
     FileOperationType.delete => '移到回收站',
     FileOperationType.permanentDelete => '永久删除',
     FileOperationType.restore => '还原',
+    FileOperationType.create => '新建',
+    FileOperationType.rename => '重命名',
   };
 
   IconData get icon => switch (this) {
@@ -451,5 +453,7 @@ extension on FileOperationType {
     FileOperationType.delete => Icons.delete_outline,
     FileOperationType.permanentDelete => Icons.delete_forever_outlined,
     FileOperationType.restore => Icons.restore_from_trash,
+    FileOperationType.create => Icons.create_new_folder_outlined,
+    FileOperationType.rename => Icons.drive_file_rename_outline,
   };
 }

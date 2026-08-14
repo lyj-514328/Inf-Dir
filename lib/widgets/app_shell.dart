@@ -16,10 +16,12 @@ import '../state/app_state.dart';
 import '../state/layout_state.dart';
 import '../state/sidebar_controller.dart';
 import '../state/theme_controller.dart';
+import '../services/undo_redo_service.dart';
 import 'app_theme.dart';
 import 'app_menu.dart';
 import 'close_confirmation.dart';
 import 'command_menu.dart';
+import 'confirm_dialog.dart';
 import 'favorites_dialog.dart';
 import 'file_task_center.dart';
 import 'sidebar_tree.dart';
@@ -32,6 +34,22 @@ class AppShell extends StatefulWidget {
 
   @override
   State<AppShell> createState() => _AppShellState();
+}
+
+bool matchesUndoShortcut(KeyEvent event, HardwareKeyboard keyboard) {
+  return event is KeyDownEvent &&
+      event.logicalKey == LogicalKeyboardKey.keyZ &&
+      keyboard.isControlPressed &&
+      !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed;
+}
+
+bool matchesRedoShortcut(KeyEvent event, HardwareKeyboard keyboard) {
+  return event is KeyDownEvent &&
+      event.logicalKey == LogicalKeyboardKey.keyY &&
+      keyboard.isControlPressed &&
+      !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed;
 }
 
 class _AppShellState extends State<AppShell>
@@ -194,6 +212,27 @@ class _AppShellState extends State<AppShell>
               : null);
       if (path != null) {
         unawaited(_openQuickView(path));
+      }
+      return true;
+    }
+    // Ctrl+Z / Ctrl+Y — 撤销 / 重做
+    if (matchesUndoShortcut(event, keyboard) ||
+        matchesRedoShortcut(event, keyboard)) {
+      final route = ModalRoute.of(context);
+      if (route != null && !route.isCurrent) return false;
+      final undoRedo = context.read<UndoRedoService>();
+      if (matchesUndoShortcut(event, keyboard)) {
+        unawaited(
+          undoRedo.undo(
+            confirm: (title, message) => showConfirmDialog(
+              context,
+              title: title,
+              message: message,
+            ),
+          ),
+        );
+      } else {
+        unawaited(undoRedo.redo());
       }
       return true;
     }
@@ -590,11 +629,23 @@ class _AppMenusState extends State<_AppMenus> {
         currentPath != null &&
         !FileService.isSpecialPath(currentPath);
     final isFavorite = canFavorite && HomeService.isFavorite(currentPath);
-    final groups = buildAppMenuGroups(
+    final undoRedo = context.read<UndoRedoService>();
+
+    // 历史栈变化时更新撤销/重做的可用状态。
+    List<AppMenuGroup> groupsBuilder() => buildAppMenuGroups(
       layoutState: layoutState,
       appState: appState,
       activePane: activePane,
       isFavorite: isFavorite,
+      canUndo: appState.history.canUndo,
+      canRedo: appState.history.canRedo,
+      onUndo: () => unawaited(
+        undoRedo.undo(
+          confirm: (title, message) =>
+              showConfirmDialog(context, title: title, message: message),
+        ),
+      ),
+      onRedo: () => unawaited(undoRedo.redo()),
       onExit: onExit,
       onViewerAssociations: onViewerAssociations,
       onAddFavorite: () {
@@ -627,12 +678,22 @@ class _AppMenusState extends State<_AppMenus> {
           : () => unawaited(pasteIntoPane(context, activePane)),
     );
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final group in groups)
-          _MenuDropdown(label: group.label, buildEntries: () => group.items),
-      ],
+    // 历史栈变化时更新撤销/重做的可用状态。
+    return ListenableBuilder(
+      listenable: appState.history,
+      builder: (context, _) {
+        final groups = groupsBuilder();
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final group in groups)
+              _MenuDropdown(
+                label: group.label,
+                buildEntries: () => group.items,
+              ),
+          ],
+        );
+      },
     );
   }
 }

@@ -28,6 +28,10 @@ enum AsyncOperationStatus {
 struct OperationItemResult {
     std::wstring path;
     HRESULT hr = S_OK;
+    // Newly created item's filesystem path (copy/move/rename callbacks).
+    std::wstring createdPath;
+    // Recycle Bin parsing name when the item was recycled (delete callback).
+    std::wstring recycledPath;
 };
 
 struct AsyncOperationState {
@@ -131,6 +135,16 @@ std::string BuildResultsJson(
         out += EscapeJsonString(results[i].path);
         out += "\",\"hr\":";
         out += std::to_string(static_cast<long>(results[i].hr));
+        if (!results[i].createdPath.empty()) {
+            out += ",\"createdPath\":\"";
+            out += EscapeJsonString(results[i].createdPath);
+            out += "\"";
+        }
+        if (!results[i].recycledPath.empty()) {
+            out += ",\"recycledPath\":\"";
+            out += EscapeJsonString(results[i].recycledPath);
+            out += "\"";
+        }
         out += "}";
     }
     out += "]";
@@ -181,8 +195,8 @@ public:
         return S_OK;
     }
     STDMETHODIMP PostMoveItem(DWORD, IShellItem* item, IShellItem*, LPCWSTR,
-        HRESULT hrMove, IShellItem*) override {
-        RecordItem(item, hrMove);
+        HRESULT hrMove, IShellItem* newlyCreated) override {
+        RecordItem(item, hrMove, newlyCreated, false);
         return S_OK;
     }
     STDMETHODIMP PreCopyItem(DWORD, IShellItem*, IShellItem*, LPCWSTR)
@@ -190,14 +204,14 @@ public:
         return S_OK;
     }
     STDMETHODIMP PostCopyItem(DWORD, IShellItem* item, IShellItem*, LPCWSTR,
-        HRESULT hrCopy, IShellItem*) override {
-        RecordItem(item, hrCopy);
+        HRESULT hrCopy, IShellItem* newlyCreated) override {
+        RecordItem(item, hrCopy, newlyCreated, false);
         return S_OK;
     }
     STDMETHODIMP PreDeleteItem(DWORD, IShellItem*) override { return S_OK; }
     STDMETHODIMP PostDeleteItem(DWORD, IShellItem* item, HRESULT hrDelete,
-        IShellItem*) override {
-        RecordItem(item, hrDelete);
+        IShellItem* newlyCreated) override {
+        RecordItem(item, hrDelete, newlyCreated, true);
         return S_OK;
     }
     STDMETHODIMP PreNewItem(DWORD, IShellItem*, LPCWSTR) override {
@@ -223,14 +237,40 @@ public:
     STDMETHODIMP ResumeTimer() override { return S_OK; }
 
 private:
-    void RecordItem(IShellItem* item, HRESULT hr) {
+    // [newlyCreated] carries the item in its new location (copy/move) or in
+    // the Recycle Bin (delete), enabling undo history without enumeration.
+    void RecordItem(
+        IShellItem* item,
+        HRESULT hr,
+        IShellItem* newlyCreated,
+        bool recycled) {
         if (!item) return;
         PWSTR path = nullptr;
         if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)) &&
             path) {
-            std::lock_guard<std::mutex> lock(state_->mutex);
-            state_->itemResults.push_back({std::wstring(path), hr});
+            OperationItemResult result;
+            result.path = path;
+            result.hr = hr;
             CoTaskMemFree(path);
+
+            if (newlyCreated) {
+                PWSTR newPath = nullptr;
+                const HRESULT nameHr = recycled
+                    ? newlyCreated->GetDisplayName(
+                        SIGDN_DESKTOPABSOLUTEPARSING, &newPath)
+                    : newlyCreated->GetDisplayName(SIGDN_FILESYSPATH, &newPath);
+                if (SUCCEEDED(nameHr) && newPath) {
+                    if (recycled) {
+                        result.recycledPath = newPath;
+                    } else {
+                        result.createdPath = newPath;
+                    }
+                    CoTaskMemFree(newPath);
+                }
+            }
+
+            std::lock_guard<std::mutex> lock(state_->mutex);
+            state_->itemResults.push_back(std::move(result));
         }
     }
 
