@@ -8,6 +8,7 @@ import 'package:toastification/toastification.dart';
 import 'package:window_manager/window_manager.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../features/quick_view/viewer_associations_dialog.dart';
+import '../services/file_operation_center.dart';
 import '../services/file_service.dart';
 import '../services/home_service.dart';
 import '../state/app_state.dart';
@@ -18,6 +19,7 @@ import 'app_theme.dart';
 import 'app_menu.dart';
 import 'command_menu.dart';
 import 'favorites_dialog.dart';
+import 'file_task_center.dart';
 import 'sidebar_tree.dart';
 import 'layout_view.dart';
 import 'file_pane.dart';
@@ -43,12 +45,16 @@ class _AppShellState extends State<AppShell>
   Future<void>? _closeFuture;
   bool _sessionSaved = false;
 
+  /// 文件任务中心面板是否展开；任务列表清空后自动收起。
+  bool _taskCenterOpen = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     ServicesBinding.instance.keyboard.addHandler(_onKey);
     windowManager.addListener(this);
+    context.read<AppState>().fileOperations.addListener(_onFileOperationsChanged);
     // 焦点 pane 路径 → 侧栏同步（§12）：监听稳定 notifier，
     // 不再靠 didUpdateWidget 比较字符串驱动业务。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -57,6 +63,13 @@ class _AppShellState extends State<AppShell>
       layout.activePanePath.addListener(_syncSidebar);
       _syncSidebar();
     });
+  }
+
+  void _onFileOperationsChanged() {
+    if (!_taskCenterOpen || !mounted) return;
+    if (context.read<AppState>().fileOperations.tasks.isEmpty) {
+      setState(() => _taskCenterOpen = false);
+    }
   }
 
   void _syncSidebar() {
@@ -73,6 +86,9 @@ class _AppShellState extends State<AppShell>
   void dispose() {
     debugPrint('[LayoutCache] AppShell.dispose');
     windowManager.removeListener(this);
+    context.read<AppState>().fileOperations.removeListener(
+      _onFileOperationsChanged,
+    );
     context.read<LayoutState>().activePanePath.removeListener(_syncSidebar);
     ServicesBinding.instance.keyboard.removeHandler(_onKey);
     WidgetsBinding.instance.removeObserver(this);
@@ -178,6 +194,7 @@ class _AppShellState extends State<AppShell>
   Widget build(BuildContext context) {
     final c = context.colors;
     final layoutState = context.watch<LayoutState>();
+    final appState = context.watch<AppState>();
     final activePane = layoutState.allPaneNodes.isNotEmpty
         ? layoutState.controllerFor(layoutState.focusedNode)
         : null;
@@ -187,8 +204,12 @@ class _AppShellState extends State<AppShell>
         children: [
           _TopBar(
             layoutState: layoutState,
-            showHiddenFiles: context.watch<AppState>().showHiddenFiles,
-            showFileExtensions: context.watch<AppState>().showFileExtensions,
+            showHiddenFiles: appState.showHiddenFiles,
+            showFileExtensions: appState.showFileExtensions,
+            taskCenter: appState.fileOperations,
+            taskCenterOpen: _taskCenterOpen,
+            onToggleTaskCenter: () =>
+                setState(() => _taskCenterOpen = !_taskCenterOpen),
             onToggleHiddenFiles: () {
               final app = context.read<AppState>();
               app.setShowHiddenFiles(!app.showHiddenFiles);
@@ -287,6 +308,16 @@ class _AppShellState extends State<AppShell>
                               ),
                             ),
                           ),
+                        if (_taskCenterOpen)
+                          Positioned(
+                            right: AppMetrics.paneGap,
+                            bottom: AppMetrics.paneGap,
+                            child: FileTaskCenterPanel(
+                              center: appState.fileOperations,
+                              onClose: () =>
+                                  setState(() => _taskCenterOpen = false),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -306,6 +337,9 @@ class _TopBar extends StatelessWidget {
   final LayoutState layoutState;
   final bool showHiddenFiles;
   final bool showFileExtensions;
+  final FileOperationCenter taskCenter;
+  final bool taskCenterOpen;
+  final VoidCallback onToggleTaskCenter;
   final VoidCallback onToggleHiddenFiles;
   final VoidCallback onToggleFileExtensions;
   final VoidCallback onViewerAssociations;
@@ -315,6 +349,9 @@ class _TopBar extends StatelessWidget {
     required this.layoutState,
     required this.showHiddenFiles,
     required this.showFileExtensions,
+    required this.taskCenter,
+    required this.taskCenterOpen,
+    required this.onToggleTaskCenter,
     required this.onToggleHiddenFiles,
     required this.onToggleFileExtensions,
     required this.onViewerAssociations,
@@ -390,6 +427,11 @@ class _TopBar extends StatelessWidget {
                     icon: theme.icon,
                     tooltip: '主题：${theme.label}',
                     onTap: theme.cycle,
+                  ),
+                  FileTaskCenterButton(
+                    center: taskCenter,
+                    open: taskCenterOpen,
+                    onTap: onToggleTaskCenter,
                   ),
                   const SizedBox(width: 8),
                   const WindowControls(),

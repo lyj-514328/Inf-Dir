@@ -23,6 +23,12 @@ class FileOperationCenter extends ChangeNotifier {
         task.status == FileOperationStatus.queued ||
         task.status == FileOperationStatus.running,
   );
+  bool get hasFinishedTasks => _tasks.any(
+    (task) =>
+        task.status == FileOperationStatus.succeeded ||
+        task.status == FileOperationStatus.failed ||
+        task.status == FileOperationStatus.cancelled,
+  );
 
   Future<FileOperationTask> enqueue({
     required FileOperationType type,
@@ -73,6 +79,33 @@ class FileOperationCenter extends ChangeNotifier {
       if (task.id == id) return task;
     }
     return null;
+  }
+
+  /// Removes a finished task from the list. Active tasks (queued/running)
+  /// cannot be dismissed; cancel them first.
+  bool dismiss(String taskId) {
+    final index = _tasks.indexWhere((task) => task.id == taskId);
+    if (index < 0) return false;
+    final task = _tasks[index];
+    if (task.status == FileOperationStatus.queued ||
+        task.status == FileOperationStatus.running) {
+      return false;
+    }
+    _tasks.removeAt(index);
+    notifyListeners();
+    return true;
+  }
+
+  /// Removes every finished task, keeping queued and running work.
+  void clearFinished() {
+    final before = _tasks.length;
+    _tasks.removeWhere(
+      (task) =>
+          task.status == FileOperationStatus.succeeded ||
+          task.status == FileOperationStatus.failed ||
+          task.status == FileOperationStatus.cancelled,
+    );
+    if (_tasks.length != before) notifyListeners();
   }
 
   Future<void> _drain() async {

@@ -79,4 +79,92 @@ void main() {
     expect(center.tasks.single.status, FileOperationStatus.failed);
     expect(center.tasks.single.error, same(error));
   });
+
+  test('dismiss removes finished tasks but refuses active ones', () async {
+    final center = FileOperationCenter();
+    var notified = 0;
+    center.addListener(() => notified++);
+    final gate = Completer<void>();
+
+    final running = center.enqueue(
+      type: FileOperationType.copy,
+      sources: const ['a'],
+      action: (_) => gate.future,
+    );
+    final done = center.enqueue(
+      type: FileOperationType.copy,
+      sources: const ['b'],
+      action: (_) async {},
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final runningTask = center.tasks[0];
+    final doneTask = center.tasks[1];
+    expect(center.tasks.map((task) => task.status), [
+      FileOperationStatus.running,
+      FileOperationStatus.queued,
+    ]);
+
+    // Active tasks (running or queued) cannot be dismissed.
+    expect(center.dismiss(runningTask.id), isFalse);
+    expect(center.dismiss(doneTask.id), isFalse);
+    expect(center.tasks.length, 2);
+
+    gate.complete();
+    await running;
+    await done;
+    expect(doneTask.status, FileOperationStatus.succeeded);
+
+    expect(center.dismiss(doneTask.id), isTrue);
+    expect(center.tasks.map((task) => task.id), [runningTask.id]);
+    expect(notified, greaterThan(0));
+
+    expect(center.dismiss('missing'), isFalse);
+  });
+
+  test('clearFinished keeps active work and drops it once finished', () async {
+    final center = FileOperationCenter();
+    final gate = Completer<void>();
+
+    final running = center.enqueue(
+      type: FileOperationType.copy,
+      sources: const ['a'],
+      action: (_) => gate.future,
+    );
+    final failed = center.enqueue(
+      type: FileOperationType.delete,
+      sources: const ['b'],
+      action: (_) async => throw StateError('boom'),
+    );
+    final done = center.enqueue(
+      type: FileOperationType.copy,
+      sources: const ['c'],
+      action: (_) async {},
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(center.tasks.map((task) => task.status), [
+      FileOperationStatus.running,
+      FileOperationStatus.queued,
+      FileOperationStatus.queued,
+    ]);
+
+    // Nothing finished yet: clearing is a no-op.
+    center.clearFinished();
+    expect(center.tasks.length, 3);
+    expect(center.hasFinishedTasks, isFalse);
+
+    final failedExpectation = expectLater(failed, throwsStateError);
+    gate.complete();
+    await running;
+    await failedExpectation;
+    await done;
+
+    expect(center.tasks.length, 3);
+    expect(center.hasFinishedTasks, isTrue);
+
+    center.clearFinished();
+    expect(center.tasks, isEmpty);
+    expect(center.hasFinishedTasks, isFalse);
+  });
 }
