@@ -485,15 +485,18 @@ HRESULT EmptyRecycleBinW(HWND owner)
         SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND);
 }
 
-extern "C" __declspec(dllexport)
-HRESULT RestoreRecycleBinItemsW(
+static HRESULT RestoreRecycleBinCore(
     HWND owner,
     const wchar_t** sourcePaths,
     int sourceCount,
     const wchar_t** destinationOverrides,
-    int collisionMode)
+    int collisionMode,
+    const std::shared_ptr<AsyncOperationState>& asyncState)
 {
     if (!sourcePaths || sourceCount <= 0) return E_INVALIDARG;
+    if (IsCancelled(asyncState)) {
+        return HRESULT_FROM_WIN32(ERROR_CANCELLED);
+    }
 
     IShellItem* recycleBin = nullptr;
     HRESULT hr = SHGetKnownFolderItem(FOLDERID_RecycleBinFolder,
@@ -542,6 +545,12 @@ HRESULT RestoreRecycleBinItemsW(
     IShellItem* source = nullptr;
     while (matchedCount < sourceCount &&
            items->Next(1, &source, nullptr) == S_OK) {
+        if (IsCancelled(asyncState)) {
+            source->Release();
+            source = nullptr;
+            hr = HRESULT_FROM_WIN32(ERROR_CANCELLED);
+            break;
+        }
         PWSTR parsingName = nullptr;
         hr = source->GetDisplayName(SIGDN_DESKTOPABSOLUTEPARSING,
             &parsingName);
@@ -611,6 +620,16 @@ HRESULT RestoreRecycleBinItemsW(
     }
     delete[] isMatched;
 
+    FileOperationSink* sink = nullptr;
+    DWORD adviseCookie = 0;
+    if (SUCCEEDED(hr) && asyncState) {
+        sink = new FileOperationSink(asyncState);
+        hr = pfo->Advise(sink, &adviseCookie);
+        if (FAILED(hr)) {
+            sink->Release();
+            sink = nullptr;
+        }
+    }
     if (SUCCEEDED(hr)) {
         hr = pfo->PerformOperations();
         BOOL aborted = FALSE;
@@ -619,8 +638,111 @@ HRESULT RestoreRecycleBinItemsW(
             if (aborted) hr = HRESULT_FROM_WIN32(ERROR_CANCELLED);
         }
     }
+    if (sink) {
+        pfo->Unadvise(adviseCookie);
+        sink->Release();
+    }
     pfo->Release();
     return hr;
+}
+
+extern "C" __declspec(dllexport)
+HRESULT RestoreRecycleBinItemsW(
+    HWND owner,
+    const wchar_t** sourcePaths,
+    int sourceCount,
+    const wchar_t** destinationOverrides,
+    int collisionMode)
+{
+    return RestoreRecycleBinCore(
+        owner, sourcePaths, sourceCount, destinationOverrides,
+        collisionMode, nullptr);
+}
+
+extern "C" __declspec(dllexport)
+HRESULT InfDirStartRestoreOperationW(
+    const wchar_t** sourcePaths,
+    int sourceCount,
+    const wchar_t** destinationOverrides,
+    int collisionMode,
+    int64_t* operationId)
+{
+    if (!sourcePaths || sourceCount <= 0 || !operationId) return E_INVALIDARG;
+    if (collisionMode < 0 || collisionMode > 1) return E_INVALIDARG;
+
+    std::vector<std::wstring> sources;
+    sources.reserve(sourceCount);
+    for (int i = 0; i < sourceCount; i++) {
+        if (!sourcePaths[i]) return E_INVALIDARG;
+        sources.emplace_back(sourcePaths[i]);
+    }
+    std::vector<std::wstring> overrides;
+    if (destinationOverrides) {
+        overrides.reserve(sourceCount);
+        for (int i = 0; i < sourceCount; i++) {
+            overrides.emplace_back(destinationOverrides[i]
+                ? std::wstring(destinationOverrides[i]) : std::wstring());
+        }
+    }
+
+    const int64_t id = g_nextOperationId.fetch_add(1);
+    const auto state = std::make_shared<AsyncOperationState>();
+    {
+        std::lock_guard<std::mutex> lock(g_asyncOperationsMutex);
+        g_asyncOperations.emplace(id, state);
+    }
+    *operationId = id;
+
+    std::thread([
+        state,
+        sources = std::move(sources),
+        overrides = std::move(overrides),
+        collisionMode]() mutable {
+        SetAsyncState(state, kRunning, 1, S_OK);
+        HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+        bool initialized = SUCCEEDED(hr);
+        if (hr == RPC_E_CHANGED_MODE) {
+            hr = S_OK;
+            initialized = false;
+        }
+        if (SUCCEEDED(hr)) {
+            std::vector<const wchar_t*> sourcePointers;
+            sourcePointers.reserve(sources.size());
+            for (const auto& source : sources) {
+                sourcePointers.push_back(source.c_str());
+            }
+            std::vector<const wchar_t*> overridePointers;
+            if (!overrides.empty()) {
+                overridePointers.reserve(overrides.size());
+                for (const auto& override : overrides) {
+                    overridePointers.push_back(
+                        override.empty() ? nullptr : override.c_str());
+                }
+            }
+            hr = RestoreRecycleBinCore(
+                nullptr,
+                sourcePointers.data(),
+                static_cast<int>(sourcePointers.size()),
+                overridePointers.empty() ? nullptr : overridePointers.data(),
+                collisionMode,
+                state);
+        }
+        if (initialized) CoUninitialize();
+
+        const bool cancelled = state->cancelRequested.load() ||
+            hr == HRESULT_FROM_WIN32(ERROR_CANCELLED);
+        const int status = cancelled
+            ? kCancelled : SUCCEEDED(hr) ? kSucceeded : kFailed;
+        const int progress = cancelled || FAILED(hr) ? 0 : 100;
+        {
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->status = status;
+            state->progress = progress;
+            state->result = hr;
+            state->resultsJson = BuildResultsJson(state->itemResults);
+        }
+    }).detach();
+    return S_OK;
 }
 
 extern "C" __declspec(dllexport)

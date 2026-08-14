@@ -385,9 +385,12 @@ class _TaskRow extends StatelessWidget {
   }
 
   String _title(FileOperationTask task) {
-    final name = task.sources.length == 1 ? _basename(task.sources.first) : null;
-    if (name != null && name.isNotEmpty) {
-      return '${task.type.actionLabel} "$name"';
+    // Restore sources are Recycle Bin parsing names ($R…); show a count.
+    if (task.type != FileOperationType.restore && task.sources.length == 1) {
+      final name = _basename(task.sources.first);
+      if (name.isNotEmpty) {
+        return '${task.type.actionLabel} "$name"';
+      }
     }
     return '${task.type.actionLabel} ${task.sources.length} 个项目';
   }
@@ -439,6 +442,7 @@ extension on FileOperationType {
     FileOperationType.move => '移动',
     FileOperationType.delete => '移到回收站',
     FileOperationType.permanentDelete => '永久删除',
+    FileOperationType.restore => '还原',
   };
 
   IconData get icon => switch (this) {
@@ -446,5 +450,6 @@ extension on FileOperationType {
     FileOperationType.move => Icons.drive_file_move_outline,
     FileOperationType.delete => Icons.delete_outline,
     FileOperationType.permanentDelete => Icons.delete_forever_outlined,
+    FileOperationType.restore => Icons.restore_from_trash,
   };
 }

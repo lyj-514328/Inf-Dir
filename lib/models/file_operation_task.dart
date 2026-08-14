@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum FileOperationType { copy, move, delete, permanentDelete }
+enum FileOperationType { copy, move, delete, permanentDelete, restore }
 
 enum FileOperationStatus { queued, running, succeeded, failed, cancelled }
 

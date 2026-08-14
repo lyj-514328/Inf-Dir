@@ -312,6 +312,25 @@ class FileService {
     );
   }
 
+  /// Restores Recycle Bin items on the native worker thread, reporting
+  /// progress and per-item outcomes through the task center protocol.
+  static Future<List<FileOperationItemResult>> restoreRecycleBinEntriesAsync(
+    List<String> parsingNames, {
+    List<String?>? destinations,
+    bool keepBothOnCollision = false,
+    bool Function()? cancelRequested,
+    void Function(double progress)? onProgress,
+  }) {
+    if (parsingNames.isEmpty) return Future.value(const []);
+    return ShellFileOperation.restoreRecycleBinAsync(
+      parsingNames,
+      destinations: destinations,
+      keepBothOnCollision: keepBothOnCollision,
+      cancelRequested: cancelRequested,
+      onProgress: onProgress,
+    );
+  }
+
   /// Plans restore targets for Recycle Bin [entries]: entries whose original
   /// directory still exists keep a null target (the Shell restores them via
   /// `System.Recycle.DeletedFrom`); entries whose original directory is

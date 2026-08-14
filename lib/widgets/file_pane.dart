@@ -1048,10 +1048,19 @@ class _PaneContent extends StatelessWidget {
     }
 
     try {
-      FileService.restoreRecycleBinEntries(
-        parsingNames,
-        destinations: destinations,
-        keepBothOnCollision: keepBothOnCollision,
+      await context.read<AppState>().fileOperations.enqueue(
+        type: FileOperationType.restore,
+        sources: parsingNames,
+        action: (task) async {
+          final results = await FileService.restoreRecycleBinEntriesAsync(
+            parsingNames,
+            destinations: destinations,
+            keepBothOnCollision: keepBothOnCollision,
+            cancelRequested: () => task.cancelRequested,
+            onProgress: task.updateProgress,
+          );
+          task.recordItemResults(results);
+        },
       );
       if (!context.mounted) return;
       final layoutState = context.read<LayoutState>();

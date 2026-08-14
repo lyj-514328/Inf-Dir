@@ -44,6 +44,22 @@ typedef _StartAsyncDart =
       int collisionMode,
       Pointer<Int64> operationId,
     );
+typedef _StartRestoreNative =
+    Int32 Function(
+      Pointer<Pointer<Utf16>> sourcePaths,
+      Int32 sourceCount,
+      Pointer<Pointer<Utf16>> destinationOverrides,
+      Int32 collisionMode,
+      Pointer<Int64> operationId,
+    );
+typedef _StartRestoreDart =
+    int Function(
+      Pointer<Pointer<Utf16>> sourcePaths,
+      int sourceCount,
+      Pointer<Pointer<Utf16>> destinationOverrides,
+      int collisionMode,
+      Pointer<Int64> operationId,
+    );
 typedef _PollAsyncNative =
     Int32 Function(
       Int64 operationId,
@@ -114,6 +130,7 @@ class ShellFileOperation {
 
   static _RunDart? _run;
   static _StartAsyncDart? _startAsync;
+  static _StartRestoreDart? _startRestore;
   static _PollAsyncDart? _pollAsync;
   static _CancelAsyncDart? _cancelAsync;
   static _GetResultsDart? _getResults;
@@ -278,10 +295,6 @@ class ShellFileOperation {
         ? nullptr
         : destination.toNativeUtf16();
     final operationId = calloc<Int64>();
-    final status = calloc<Int32>();
-    final progress = calloc<Int32>();
-    final result = calloc<Int32>();
-    var cancelSent = false;
     try {
       sourceArray = calloc<Pointer<Utf16>>(sources.length);
       for (var i = 0; i < sources.length; i++) {
@@ -304,33 +317,11 @@ class ShellFileOperation {
           const [],
         );
       }
-
-      while (true) {
-        final pollHr = poll(operationId.value, status, progress, result);
-        if (pollHr != 0) {
-          throw ShellFileOperationException(
-            pollHr,
-            _takeResults(operationId.value),
-          );
-        }
-        onProgress?.call((progress.value / 100).clamp(0, 1).toDouble());
-        if (cancelRequested?.call() == true && !cancelSent) {
-          cancel(operationId.value);
-          cancelSent = true;
-        }
-
-        if (status.value == 2) return _takeResults(operationId.value);
-        if (status.value == 4) {
-          throw const FileOperationCancelledException();
-        }
-        if (status.value == 3) {
-          throw ShellFileOperationException(
-            result.value,
-            _takeResults(operationId.value),
-          );
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 40));
-      }
+      return _awaitOperation(
+        operationId.value,
+        cancelRequested: cancelRequested,
+        onProgress: onProgress,
+      );
     } finally {
       for (final ptr in sourcePtrs) {
         calloc.free(ptr);
@@ -339,6 +330,134 @@ class ShellFileOperation {
       if (destinationPtr != nullptr) calloc.free(destinationPtr);
       _closeOperation(operationId.value);
       calloc.free(operationId);
+    }
+  }
+
+  /// Runs a Recycle Bin restore on the native worker thread and returns the
+  /// per-item results reported by the progress sink. Falls back to the
+  /// synchronous path when the async native symbols are unavailable.
+  static Future<List<FileOperationItemResult>> restoreRecycleBinAsync(
+    List<String> sourcePaths, {
+    List<String?>? destinations,
+    bool keepBothOnCollision = false,
+    bool Function()? cancelRequested,
+    void Function(double progress)? onProgress,
+  }) async {
+    if (sourcePaths.isEmpty) return const [];
+    _loadAsyncSymbols();
+    final start = _startRestore;
+    final poll = _pollAsync;
+    final cancel = _cancelAsync;
+    if (start == null || poll == null || cancel == null) {
+      try {
+        restoreRecycleBin(
+          sourcePaths,
+          destinations: destinations,
+          keepBothOnCollision: keepBothOnCollision,
+        );
+        onProgress?.call(1);
+        return const [];
+      } on FileSystemException catch (error) {
+        throw ShellFileOperationException(_hrFromMessage(error.message), const []);
+      }
+    }
+
+    final sourcePtrs = <Pointer<Utf16>>[];
+    Pointer<Pointer<Utf16>> sourceArray = nullptr;
+    final overridePtrs = <Pointer<Utf16>>[];
+    Pointer<Pointer<Utf16>> overrideArray = nullptr;
+    final hasOverrides =
+        destinations != null && destinations.any((dest) => dest != null);
+    final operationId = calloc<Int64>();
+    try {
+      sourceArray = calloc<Pointer<Utf16>>(sourcePaths.length);
+      for (var i = 0; i < sourcePaths.length; i++) {
+        final ptr = sourcePaths[i].toNativeUtf16();
+        sourcePtrs.add(ptr);
+        sourceArray[i] = ptr;
+      }
+      if (hasOverrides) {
+        overrideArray = calloc<Pointer<Utf16>>(sourcePaths.length);
+        for (var i = 0; i < sourcePaths.length; i++) {
+          final dest = destinations[i];
+          if (dest != null) {
+            final ptr = dest.toNativeUtf16();
+            overridePtrs.add(ptr);
+            overrideArray[i] = ptr;
+          }
+        }
+      }
+      final startHr = start(
+        sourceArray,
+        sourcePaths.length,
+        overrideArray,
+        keepBothOnCollision ? 1 : 0,
+        operationId,
+      );
+      if (startHr != 0) {
+        throw ShellFileOperationException(startHr, const []);
+      }
+      return _awaitOperation(
+        operationId.value,
+        cancelRequested: cancelRequested,
+        onProgress: onProgress,
+      );
+    } finally {
+      for (final ptr in sourcePtrs) {
+        calloc.free(ptr);
+      }
+      calloc.free(sourceArray);
+      for (final ptr in overridePtrs) {
+        calloc.free(ptr);
+      }
+      if (overrideArray != nullptr) calloc.free(overrideArray);
+      _closeOperation(operationId.value);
+      calloc.free(operationId);
+    }
+  }
+
+  /// Polls a running native operation to its terminal state, forwarding
+  /// progress and translating failures. Consumes and returns the per-item
+  /// results when the operation finishes.
+  static Future<List<FileOperationItemResult>> _awaitOperation(
+    int operationId, {
+    bool Function()? cancelRequested,
+    void Function(double progress)? onProgress,
+  }) async {
+    final poll = _pollAsync!;
+    final cancel = _cancelAsync!;
+    final status = calloc<Int32>();
+    final progress = calloc<Int32>();
+    final result = calloc<Int32>();
+    var cancelSent = false;
+    try {
+      while (true) {
+        final pollHr = poll(operationId, status, progress, result);
+        if (pollHr != 0) {
+          throw ShellFileOperationException(
+            pollHr,
+            _takeResults(operationId),
+          );
+        }
+        onProgress?.call((progress.value / 100).clamp(0, 1).toDouble());
+        if (cancelRequested?.call() == true && !cancelSent) {
+          cancel(operationId);
+          cancelSent = true;
+        }
+
+        if (status.value == 2) return _takeResults(operationId);
+        if (status.value == 4) {
+          throw const FileOperationCancelledException();
+        }
+        if (status.value == 3) {
+          throw ShellFileOperationException(
+            result.value,
+            _takeResults(operationId),
+          );
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 40));
+      }
+    } finally {
       calloc.free(status);
       calloc.free(progress);
       calloc.free(result);
@@ -390,6 +509,10 @@ class ShellFileOperation {
       _startAsync = library.lookupFunction<_StartAsyncNative, _StartAsyncDart>(
         'InfDirStartFileOperationW',
       );
+      _startRestore = library
+          .lookupFunction<_StartRestoreNative, _StartRestoreDart>(
+            'InfDirStartRestoreOperationW',
+          );
       _pollAsync = library.lookupFunction<_PollAsyncNative, _PollAsyncDart>(
         'InfDirPollFileOperationW',
       );
@@ -410,6 +533,7 @@ class ShellFileOperation {
       );
     } on Object {
       _startAsync = null;
+      _startRestore = null;
       _pollAsync = null;
       _cancelAsync = null;
       _getResults = null;

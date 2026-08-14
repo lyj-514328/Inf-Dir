@@ -76,6 +76,8 @@
 - [x] 永久删除选中项目。
 - [x] 清空回收站，并显示不可撤销确认。
 - [x] 操作完成后刷新回收站面板和已打开的原始目录。
+- [x] 还原已接入文件任务中心：worker thread 执行枚举与还原，任务中心显示
+  “还原 N 个项目”任务（进度、取消、逐项失败明细与 HRESULT）。
 - [ ] 覆盖取消、失败、空回收站和多选测试（已补还原目标规划、冲突、空操作和多选单测，对话框与原生交互待覆盖）。
 
 验收标准：用户不需要打开 Explorer 即可完成常见回收站操作。
@@ -102,7 +104,8 @@
   逐文件结果（`PostCopyItem/PostMoveItem/PostDeleteItem` 的路径 + HRESULT）；
   终态后经 `InfDirGetFileOperationResultsW`（UTF-8 JSON）取回并
   `InfDirCloseFileOperationW` 释放状态，Flutter 侧经 `FileOperationCenter`
-  串行排队并消费任务事件，粘贴 / 删除等入口已接入。
+  串行排队并消费任务事件，粘贴 / 删除 / 回收站还原等入口已接入。
+  （还原另有独立的 `InfDirStartRestoreOperationW`，枚举与移动同 worker。）
 - 任务中心 UI 位于顶栏常驻入口（活动任务数角标，空闲时为 0）与主区右下角
   flyout：展示状态、进度、目标、失败信息，支持取消、单条移除与清除已完成；
   失败任务列出具体失败路径及 HRESULT（最多 2 条 + 汇总），部分失败的任务

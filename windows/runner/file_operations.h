@@ -90,6 +90,18 @@ HRESULT RestoreRecycleBinItemsW(
     const wchar_t** destinationOverrides,
     int collisionMode);
 
+// Starts a Recycle Bin restore on a native worker thread: enumerates the bin,
+// queues the matched items and performs the move without blocking the Flutter
+// UI isolate. Progress and per-item results are reported through the same
+// poll / results protocol as InfDirStartFileOperationW.
+__declspec(dllexport)
+HRESULT InfDirStartRestoreOperationW(
+    const wchar_t** sourcePaths,
+    int sourceCount,
+    const wchar_t** destinationOverrides,
+    int collisionMode,
+    int64_t* operationId);
+
 // Shows the native folder-picker dialog, modal to the foreground window.
 // On success *outPath is a CoTaskMem-allocated filesystem path (UTF-16) that
 // the caller must free with FreeCoTaskMemW. Returns

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/models/file_entry.dart';
 import 'package:inf_dir/services/file_service.dart';
+import 'package:inf_dir/services/shell_file_operation.dart';
 
 void main() {
   group('planRestoreDestinations', () {
@@ -204,6 +205,14 @@ void main() {
     expect(
       () => FileService.restoreRecycleBinEntries(const []),
       returnsNormally,
+    );
+  });
+
+  test('empty async restore returns no results without the native layer', () async {
+    expect(await FileService.restoreRecycleBinEntriesAsync(const []), isEmpty);
+    expect(
+      await ShellFileOperation.restoreRecycleBinAsync(const []),
+      isEmpty,
     );
   });
 }

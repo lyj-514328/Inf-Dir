@@ -278,4 +278,27 @@ void main() {
 
     await future;
   });
+
+  testWidgets('restore tasks show an item count instead of parsing names', (
+    tester,
+  ) async {
+    final center = FileOperationCenter();
+    final gate = Completer<void>();
+    final future = center.enqueue(
+      type: FileOperationType.restore,
+      sources: const [r'C:\$Recycle.Bin\$R1.txt', r'C:\$Recycle.Bin\$R2.txt'],
+      action: (_) => gate.future,
+    );
+
+    await pumpPanel(tester, center);
+    await tester.pump();
+
+    expect(find.text('还原 2 个项目'), findsOneWidget);
+    expect(find.textContaining(r'$R'), findsNothing);
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+    await future;
+  });
 }
