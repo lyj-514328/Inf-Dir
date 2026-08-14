@@ -19,6 +19,7 @@ import '../services/shell_context_menu.dart';
 import '../services/shell_new_service.dart';
 import '../services/open_with_menu_service.dart';
 import 'app_theme.dart';
+import 'conflict_dialog.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
 import 'command_menu.dart';
@@ -89,45 +90,101 @@ Future<void> pasteIntoPane(
   final destDir = controller.currentPath;
   final sources = appState.clipboardPaths;
   final isCut = appState.clipboardIsCut;
-  final pastedPaths = <String>[];
-  final movedPaths = <String>[];
 
-  try {
-    if (isCut) {
-      await appState.fileOperations.enqueue(
-        type: FileOperationType.move,
-        sources: sources,
-        destination: destDir,
-        action: (task) => FileService.moveEntries(
-          sources,
-          destDir,
-          cancelRequested: () => task.cancelRequested,
-          onProgress: task.updateProgress,
-        ),
-      );
-      movedPaths.addAll(sources);
-    } else {
-      await appState.fileOperations.enqueue(
-        type: FileOperationType.copy,
-        sources: sources,
-        destination: destDir,
-        action: (task) => FileService.copyEntries(
-          sources,
-          destDir,
-          cancelRequested: () => task.cancelRequested,
-          onProgress: task.updateProgress,
-        ),
-      );
+  // 目标位置存在同名项目时，先让用户决定冲突策略。
+  final conflictNames = FileService.detectConflicts(sources, destDir)
+      .map((path) => p.basename(path))
+      .toList(growable: false);
+  Map<String, ConflictResolution>? resolutions;
+  if (conflictNames.isNotEmpty) {
+    resolutions = await resolveFileConflicts(
+      context,
+      conflictNames: conflictNames,
+      destination: destDir,
+    );
+    if (resolutions == null || !context.mounted) return; // 用户取消
+  }
+
+  final replaceSources = <String>[];
+  final keepBothSources = <String>[];
+  final skipped = <String>[];
+  for (final source in sources) {
+    final resolution =
+        resolutions?[p.basename(source).toLowerCase()] ??
+        ConflictResolution.replace;
+    switch (resolution) {
+      case ConflictResolution.replace:
+        replaceSources.add(source);
+      case ConflictResolution.keepBoth:
+        keepBothSources.add(source);
+      case ConflictResolution.skip:
+        skipped.add(source);
     }
-    pastedPaths.addAll(sources.map((s) => p.join(destDir, p.basename(s))));
+  }
+
+  final movedPaths = <String>[...replaceSources, ...keepBothSources];
+  if (movedPaths.isEmpty) {
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text('已跳过 ${skipped.length} 个冲突项')),
+    );
+    return;
+  }
+
+  // 一个任务内按策略分组执行：替换组默认覆盖，保留两者组让 Shell 自动
+  // 改名；进度按组加权聚合到总任务进度。
+  try {
+    await appState.fileOperations.enqueue(
+      type: isCut ? FileOperationType.move : FileOperationType.copy,
+      sources: sources,
+      destination: destDir,
+      action: (task) async {
+        final total = movedPaths.length;
+        var done = 0;
+        final run = isCut ? FileService.moveEntries : FileService.copyEntries;
+        if (replaceSources.isNotEmpty) {
+          await run(
+            replaceSources,
+            destDir,
+            cancelRequested: () => task.cancelRequested,
+            onProgress: (value) => task.updateProgress(
+              (done + replaceSources.length * value) / total,
+            ),
+          );
+          done += replaceSources.length;
+        }
+        if (keepBothSources.isNotEmpty) {
+          await run(
+            keepBothSources,
+            destDir,
+            keepBothOnCollision: true,
+            cancelRequested: () => task.cancelRequested,
+            onProgress: (value) => task.updateProgress(
+              (done + keepBothSources.length * value) / total,
+            ),
+          );
+          done += keepBothSources.length;
+        }
+        task.updateProgress(1);
+      },
+    );
   } catch (_) {
     controller.refresh();
     return;
   }
-  if (isCut) appState.clearClipboard();
-  controller.applyLocalChanges(addedPaths: pastedPaths);
-  if (movedPaths.isNotEmpty) {
+  if (isCut) {
+    appState.clearClipboard();
     layoutState.applyLocalRemovals(movedPaths);
+  }
+  // 保留两者时 Shell 生成的新名称无法预测，整目录刷新；否则增量添加。
+  if (keepBothSources.isNotEmpty) {
+    controller.refresh();
+  } else {
+    controller.applyLocalChanges(
+      addedPaths: [
+        for (final source in replaceSources)
+          p.join(destDir, p.basename(source)),
+      ],
+    );
   }
 }
 

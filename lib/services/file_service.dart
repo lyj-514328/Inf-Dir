@@ -151,6 +151,7 @@ class FileService {
   static Future<void> copyEntries(
     List<String> srcPaths,
     String destDir, {
+    bool keepBothOnCollision = false,
     bool Function()? cancelRequested,
     void Function(double progress)? onProgress,
   }) async {
@@ -159,6 +160,7 @@ class FileService {
       await ShellFileOperation.copyAsync(
         srcPaths,
         destDir,
+        keepBothOnCollision: keepBothOnCollision,
         cancelRequested: cancelRequested,
         onProgress: onProgress,
       );
@@ -203,6 +205,7 @@ class FileService {
   static Future<void> moveEntries(
     List<String> srcPaths,
     String destDir, {
+    bool keepBothOnCollision = false,
     bool Function()? cancelRequested,
     void Function(double progress)? onProgress,
   }) async {
@@ -211,6 +214,7 @@ class FileService {
       await ShellFileOperation.moveAsync(
         srcPaths,
         destDir,
+        keepBothOnCollision: keepBothOnCollision,
         cancelRequested: cancelRequested,
         onProgress: onProgress,
       );
@@ -329,6 +333,28 @@ class FileService {
       if (_exists(p.join(targetDir, entry.name))) collisions.add(entry);
     }
     return collisions;
+  }
+
+  /// Detects same-name conflicts for copying/moving [sources] into [destDir]:
+  /// returns the source paths whose basename already exists in [destDir]
+  /// (case-insensitive on Windows). A source that IS the existing item
+  /// (same absolute path, e.g. moving within the same folder) is not a
+  /// conflict.
+  static List<String> detectConflicts(List<String> sources, String destDir) {
+    final conflicts = <String>[];
+    for (final source in sources) {
+      final name = p.basename(source);
+      if (name.isEmpty) continue;
+      final existing = p.join(destDir, name);
+      if (p.equals(
+        p.normalize(p.absolute(source)),
+        p.normalize(p.absolute(existing)),
+      )) {
+        continue; // The source itself; not a collision.
+      }
+      if (_exists(existing)) conflicts.add(source);
+    }
+    return conflicts;
   }
 
   /// Shows the native folder-picker dialog; returns the chosen directory or

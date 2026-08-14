@@ -28,6 +28,7 @@ typedef _StartAsyncNative =
       Int32 sourceCount,
       Pointer<Utf16> destinationFolder,
       Int32 permanentDelete,
+      Int32 collisionMode,
       Pointer<Int64> operationId,
     );
 typedef _StartAsyncDart =
@@ -37,6 +38,7 @@ typedef _StartAsyncDart =
       int sourceCount,
       Pointer<Utf16> destinationFolder,
       int permanentDelete,
+      int collisionMode,
       Pointer<Int64> operationId,
     );
 typedef _PollAsyncNative =
@@ -187,6 +189,7 @@ class ShellFileOperation {
   static Future<void> copyAsync(
     List<String> sources,
     String destination, {
+    bool keepBothOnCollision = false,
     bool Function()? cancelRequested,
     void Function(double progress)? onProgress,
   }) => _runAsync(
@@ -194,6 +197,7 @@ class ShellFileOperation {
     sources,
     destination,
     false,
+    keepBothOnCollision: keepBothOnCollision,
     cancelRequested: cancelRequested,
     onProgress: onProgress,
   );
@@ -201,6 +205,7 @@ class ShellFileOperation {
   static Future<void> moveAsync(
     List<String> sources,
     String destination, {
+    bool keepBothOnCollision = false,
     bool Function()? cancelRequested,
     void Function(double progress)? onProgress,
   }) => _runAsync(
@@ -208,6 +213,7 @@ class ShellFileOperation {
     sources,
     destination,
     false,
+    keepBothOnCollision: keepBothOnCollision,
     cancelRequested: cancelRequested,
     onProgress: onProgress,
   );
@@ -231,6 +237,7 @@ class ShellFileOperation {
     List<String> sources,
     String? destination,
     bool permanent, {
+    bool keepBothOnCollision = false,
     bool Function()? cancelRequested,
     void Function(double progress)? onProgress,
   }) async {
@@ -268,6 +275,7 @@ class ShellFileOperation {
         sources.length,
         destinationPtr,
         permanent ? 1 : 0,
+        keepBothOnCollision ? 1 : 0,
         operationId,
       );
       if (startHr != 0) {

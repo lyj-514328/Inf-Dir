@@ -60,6 +60,7 @@ static HRESULT RunFileOperationCore(
     int sourceCount,
     const wchar_t* destinationFolder,
     int permanentDelete,
+    int collisionMode,
     const std::shared_ptr<AsyncOperationState>& asyncState)
 {
     if (!sourcePaths || sourceCount <= 0) return E_INVALIDARG;
@@ -82,7 +83,12 @@ static HRESULT RunFileOperationCore(
             flags |= FOF_ALLOWUNDO | FOFX_RECYCLEONDELETE;
         }
     } else {
+        // FOF_NOCONFIRMATION answers "yes to all" to Shell conflict prompts,
+        // which silently replaces colliding items; FOF_RENAMEONCOLLISION
+        // keeps both by renaming the incoming item. The app pre-detects
+        // collisions and picks the mode before calling in.
         flags = FOF_ALLOWUNDO | FOF_NOCONFIRMMKDIR | FOF_SILENT | FOF_NOERRORUI;
+        if (collisionMode == 1) flags |= FOF_RENAMEONCOLLISION;
     }
     hr = pfo->SetOperationFlags(flags);
     if (FAILED(hr)) {
@@ -156,6 +162,7 @@ HRESULT RunFileOperationW(
         sourceCount,
         destinationFolder,
         permanentDelete,
+        0,
         nullptr);
 }
 
@@ -166,10 +173,12 @@ HRESULT InfDirStartFileOperationW(
     int sourceCount,
     const wchar_t* destinationFolder,
     int permanentDelete,
+    int collisionMode,
     int64_t* operationId)
 {
     if (!sourcePaths || sourceCount <= 0 || !operationId) return E_INVALIDARG;
     if (operation < 0 || operation > 2) return E_INVALIDARG;
+    if (collisionMode < 0 || collisionMode > 1) return E_INVALIDARG;
 
     std::vector<std::wstring> sources;
     sources.reserve(sourceCount);
@@ -193,7 +202,8 @@ HRESULT InfDirStartFileOperationW(
         operation,
         sources = std::move(sources),
         destination,
-        permanentDelete]() mutable {
+        permanentDelete,
+        collisionMode]() mutable {
         SetAsyncState(state, kRunning, 1, S_OK);
         HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
         bool initialized = SUCCEEDED(hr);
@@ -213,6 +223,7 @@ HRESULT InfDirStartFileOperationW(
                 static_cast<int>(sourcePointers.size()),
                 destination.empty() ? nullptr : destination.c_str(),
                 permanentDelete,
+                collisionMode,
                 state);
         }
         if (initialized) CoUninitialize();

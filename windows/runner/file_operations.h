@@ -26,6 +26,37 @@ HRESULT RunFileOperationW(
     const wchar_t* destinationFolder,
     int permanentDelete);
 
+// Starts a copy/move/delete on a native worker thread so the Flutter UI
+// isolate never blocks on the Shell operation. Returns immediately with
+// *operationId identifying the operation for InfDirPollFileOperationW /
+// InfDirCancelFileOperationW. collisionMode selects the copy/move collision
+// policy: 0 = silently replace, 1 = keep both (FOF_RENAMEONCOLLISION).
+__declspec(dllexport)
+HRESULT InfDirStartFileOperationW(
+    int operation,
+    const wchar_t** sourcePaths,
+    int sourceCount,
+    const wchar_t* destinationFolder,
+    int permanentDelete,
+    int collisionMode,
+    int64_t* operationId);
+
+// Polls the worker-thread operation. *status: 0 queued, 1 running,
+// 2 succeeded, 3 failed, 4 cancelled. *progress is 0-100. Returns
+// HRESULT_FROM_WIN32(ERROR_NOT_FOUND) for an unknown operation id.
+__declspec(dllexport)
+HRESULT InfDirPollFileOperationW(
+    int64_t operationId,
+    int* status,
+    int* progress,
+    int* result);
+
+// Requests cancellation of a running worker-thread operation. The flag stops
+// further items from being queued; an in-flight FOF_SILENT PerformOperations
+// cannot be interrupted and reports its outcome when it returns.
+__declspec(dllexport)
+HRESULT InfDirCancelFileOperationW(int64_t operationId);
+
 // Empties the shared Windows Recycle Bin without showing Shell UI. The app
 // owns confirmation and error reporting.
 __declspec(dllexport)
