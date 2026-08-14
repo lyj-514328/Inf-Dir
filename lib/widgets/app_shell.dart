@@ -18,6 +18,7 @@ import '../state/sidebar_controller.dart';
 import '../state/theme_controller.dart';
 import 'app_theme.dart';
 import 'app_menu.dart';
+import 'close_confirmation.dart';
 import 'command_menu.dart';
 import 'favorites_dialog.dart';
 import 'file_task_center.dart';
@@ -121,6 +122,18 @@ class _AppShellState extends State<AppShell>
     if (existing != null) return existing;
 
     final closeFuture = () async {
+      // 有进行中/排队中的文件操作时先确认，禁止静默中断（4.4）。
+      final activeCount =
+          context.read<AppState>().fileOperations.activeTasks.length;
+      final confirmed = await confirmCloseWithActiveTasks(
+        context,
+        activeCount,
+      );
+      if (!confirmed) {
+        // 用户取消：窗口保持打开，允许稍后重试关闭。
+        _closeFuture = null;
+        return;
+      }
       _saveSessionOnce();
       // Release the native close so Windows can follow the normal
       // WM_CLOSE -> WM_DESTROY path and shut the Flutter engine down cleanly.
