@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../models/file_operation_task.dart';
 
@@ -506,7 +507,8 @@ class ShellFileOperation {
               recycledPath: item['recycledPath'] as String?,
             ),
       ];
-    } on FormatException {
+    } on FormatException catch (error) {
+      debugPrint('[ShellOp] takeResults JSON error: ${error.message}');
       return const [];
     } finally {
       calloc.free(out);

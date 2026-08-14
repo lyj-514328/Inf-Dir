@@ -102,16 +102,33 @@ std::vector<unsigned char> BuildSortKeyForName(const std::wstring& name) {
     return key;
 }
 
+std::string WideToUtf8(const std::wstring& value) {
+    if (value.empty()) return std::string();
+    const int size = WideCharToMultiByte(
+        CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()),
+        nullptr, 0, nullptr, nullptr);
+    if (size <= 0) return std::string();
+    std::string out(size, '\0');
+    WideCharToMultiByte(
+        CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()),
+        &out[0], size, nullptr, nullptr);
+    return out;
+}
+
 std::string EscapeJsonString(const std::wstring& value) {
+    // Convert wide chars to UTF-8 first, then JSON-escape only the ASCII
+    // specials; multi-byte UTF-8 sequences pass through untouched so
+    // jsonDecode on the Dart side can parse the payload as UTF-8.
+    const std::string utf8 = WideToUtf8(value);
     std::string out;
-    out.reserve(value.size() + 8);
-    for (const wchar_t ch : value) {
+    out.reserve(utf8.size() + 8);
+    for (const unsigned char ch : utf8) {
         switch (ch) {
-        case L'\\': out += "\\\\"; break;
-        case L'"': out += "\\\""; break;
-        case L'\r': out += "\\r"; break;
-        case L'\n': out += "\\n"; break;
-        case L'\t': out += "\\t"; break;
+        case '\\': out += "\\\\"; break;
+        case '"': out += "\\\""; break;
+        case '\r': out += "\\r"; break;
+        case '\n': out += "\\n"; break;
+        case '\t': out += "\\t"; break;
         default:
             if (ch < 0x20) {
                 char buffer[8];

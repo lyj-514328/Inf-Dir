@@ -383,13 +383,13 @@ class FileService {
     String sourcePath,
   ) {
     final name = p.basename(sourcePath);
-    final dir = p.dirname(sourcePath);
+    final dir = p.normalize(p.dirname(sourcePath));
     for (final entry in entries) {
       final parsing = entry.parsingName;
       final original = entry.originalPath;
       if (parsing == null || parsing.isEmpty) continue;
       if (entry.name != name) continue;
-      if (original == null || !p.equals(original, dir)) continue;
+      if (original == null || !p.equals(p.normalize(original), dir)) continue;
       return parsing;
     }
     return null;
