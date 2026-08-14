@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.7z-archive",
+  "name": "7-Zip archive operations",
+  "version": "26.02",
+  "entrypoint": "7za.exe",
+  "capabilities": {
+    "archive": {
+      "type": "7zip",
+      "protocol": "7zip-cli-v1",
+      "operations": ["create"],
+      "formats": ["7z", "zip"]
+    }
+  },
+  "source": {
+    "repository": "https://github.com/ip7z/7zip",
+    "release": "26.02",
+    "license": ["LGPL-2.1-or-later", "BSD-3-Clause"]
+  }
+}

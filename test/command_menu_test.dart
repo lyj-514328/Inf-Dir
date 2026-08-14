@@ -21,8 +21,8 @@ void main() {
               context,
               position: const Offset(10, 10),
               items: const [
-                CommandMenuItem(label: longLabel),
-                CommandMenuItem(label: nextLabel),
+                CommandMenuItem(label: longLabel, enabled: false),
+                CommandMenuItem(label: nextLabel, enabled: false),
               ],
             ),
             child: const Text('Open menu'),
@@ -43,6 +43,14 @@ void main() {
       lessThan(tester.getRect(find.text(nextLabel)).top),
     );
     expect(tester.takeException(), isNull);
+  });
+
+  test('enabled leaf menu items require an action', () {
+    expect(() => CommandMenuItem(label: 'No-op'), throwsAssertionError);
+    expect(
+      () => const CommandMenuItem(label: 'Unavailable', enabled: false),
+      returnsNormally,
+    );
   });
 
   test('entry filter menu selects a type', () {

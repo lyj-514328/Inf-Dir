@@ -70,7 +70,7 @@ Inf-Dir/
 | `name` | 配置界面显示名称 |
 | `version` | 插件版本 |
 | `entrypoint` | 插件目录内的 EXE 相对路径 |
-| `capabilities` | 至少声明一个受支持能力：`quickView` 或 `search` |
+| `capabilities` | 至少声明一个受支持能力：`quickView`、`search` 或 `archive` |
 
 Viewer 插件的 `quickView` 至少要包含一个非空匹配组。绝大多数 Viewer 插件只需要 `extensions`。
 
@@ -130,6 +130,35 @@ Viewer 插件的 `quickView` 至少要包含一个非空匹配组。绝大多数
 版本、下载 URL 和 SHA-256 均固定在脚本内。脚本会验证下载、解压 EXE，并把上游许可证与
 `THIRD_PARTY_NOTICES.txt` 一起安装到 `plugins/dist/<plugin-id>/`。主
 `plugins/build.bat` 会自动调用该脚本；也可以单独运行 `plugins/search/build.bat` 只构建搜索插件。
+
+### 3.5 压缩操作插件
+
+压缩操作插件通过 `capabilities.archive` 声明，不参与 Quick View 的文件关联。当前内置
+`inf-dir.7z-archive` 使用官方 7-Zip Extra 包中的 `7za.exe`，协议为 `7zip-cli-v1`：
+
+```json
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.7z-archive",
+  "name": "7-Zip archive operations",
+  "version": "26.02",
+  "entrypoint": "7za.exe",
+  "capabilities": {
+    "archive": {
+      "type": "7zip",
+      "protocol": "7zip-cli-v1",
+      "operations": ["create"],
+      "formats": ["7z", "zip"]
+    }
+  }
+}
+```
+
+主程序使用参数数组启动插件，不经过 shell 拼接命令行。创建操作遵循 7-Zip CLI 的
+`a -t<format> -y <archive-path> <input-path>...` 形式；`INF_DIR_7Z_PATH` 可用于开发或
+测试时显式覆盖入口。插件包由 `plugins/archive/build.bat` 构建并安装到
+`plugins/dist/inf-dir.7z-archive/`，主 `plugins/build.bat` 会自动调用该脚本。
+未找到插件时不回退到 PowerShell 或其他压缩实现，主程序会提示用户构建插件或配置入口。
 
 ## 4. 用户关联配置
 

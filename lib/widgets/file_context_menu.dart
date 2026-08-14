@@ -35,6 +35,7 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
   VoidCallback? onCreateShortcut,
   String? compressName,
   VoidCallback? onCompressZip,
+  VoidCallback? onCompress7z,
   VoidCallback? onSendTo,
   VoidCallback? onOpenInTerminal,
   VoidCallback? onPinToSidebar,
@@ -149,17 +150,21 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
         label: '创建快捷方式',
         onAction: onCreateShortcut,
       ),
-    if (compressName != null)
+    if (compressName != null && (onCompressZip != null || onCompress7z != null))
       CommandMenuItem(
         icon: Icons.folder_zip_outlined,
         label: '压缩到',
         children: [
-          CommandMenuItem(
-            label: '创建 $compressName.zip',
-            onAction: onCompressZip,
-          ),
-          CommandMenuItem(label: '创建 $compressName.7z'),
-          CommandMenuItem(label: '创建压缩包'),
+          if (onCompressZip != null)
+            CommandMenuItem(
+              label: '创建 $compressName.zip',
+              onAction: onCompressZip,
+            ),
+          if (onCompress7z != null)
+            CommandMenuItem(
+              label: '创建 $compressName.7z',
+              onAction: onCompress7z,
+            ),
         ],
       ),
     if (onSendTo != null)

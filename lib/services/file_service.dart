@@ -350,16 +350,4 @@ class FileService {
     await moveEntries(paths, dirPath);
     return dirPath;
   }
-
-  static Future<void> compressToZip(List<String> paths, String zipPath) async {
-    final literal = paths.map((path) => '"$path"').join(',');
-    final result = await Process.run('powershell.exe', [
-      '-NoProfile',
-      '-Command',
-      'Compress-Archive -LiteralPath $literal -DestinationPath "$zipPath"',
-    ]);
-    if (result.exitCode != 0) {
-      throw FileSystemException('Compress-Archive failed', zipPath);
-    }
-  }
 }

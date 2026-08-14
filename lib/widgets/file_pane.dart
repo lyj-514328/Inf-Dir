@@ -10,6 +10,7 @@ import '../models/layout_node.dart';
 import '../state/app_state.dart';
 import '../state/layout_state.dart';
 import '../state/pane_controller.dart';
+import '../services/archive_service.dart';
 import '../services/cloud_drive_service.dart';
 import '../services/directory_service.dart';
 import '../services/file_service.dart';
@@ -39,8 +40,9 @@ enum _CollisionChoice { skip, keepBoth, replace }
 
 class FilePane extends StatelessWidget {
   final String paneId;
+  final bool Function(String path)? cloudZoneResolver;
 
-  const FilePane({super.key, required this.paneId});
+  const FilePane({super.key, required this.paneId, this.cloudZoneResolver});
 
   @override
   Widget build(BuildContext context) {
@@ -55,15 +57,16 @@ class FilePane extends StatelessWidget {
 
     return ChangeNotifierProvider<PaneController>.value(
       value: controller,
-      child: _PaneContent(paneNode: node),
+      child: _PaneContent(paneNode: node, cloudZoneResolver: cloudZoneResolver),
     );
   }
 }
 
 class _PaneContent extends StatelessWidget {
   final LayoutNode paneNode;
+  final bool Function(String path)? cloudZoneResolver;
 
-  const _PaneContent({required this.paneNode});
+  const _PaneContent({required this.paneNode, required this.cloudZoneResolver});
 
   @override
   Widget build(BuildContext context) {
@@ -207,6 +210,7 @@ class _PaneContent extends StatelessWidget {
                       },
                       child: _FileListSection(
                         isActive: isActive,
+                        cloudZoneResolver: cloudZoneResolver,
                         onItemContextMenu: (path, position) =>
                             _openItemContextMenu(context, path, position),
                         onFolderContextMenu: (position) =>
@@ -276,7 +280,11 @@ class _PaneContent extends StatelessWidget {
   List<ShellNewEntry> _shellNewEntries(BuildContext context) {
     final iconSize = (AppMetrics.iconMd * View.of(context).devicePixelRatio)
         .ceil();
-    return ShellNewService.getEntries(iconSize);
+    try {
+      return ShellNewService.getEntries(iconSize);
+    } on Object {
+      return const [];
+    }
   }
 
   Future<void> _createShortcutFromDialog(BuildContext context) async {
@@ -434,6 +442,7 @@ class _PaneContent extends StatelessWidget {
         onCreateShortcut: canModify ? () => _createShortcuts(context) : null,
         compressName: compressName,
         onCompressZip: canModify ? () => _compressZip(context) : null,
+        onCompress7z: canModify ? () => _compress7z(context) : null,
         onOpenInTerminal: canOpenDir
             ? () => _openTerminal(context, singlePath!)
             : null,
@@ -639,6 +648,14 @@ class _PaneContent extends StatelessWidget {
   }
 
   Future<void> _compressZip(BuildContext context) async {
+    await _compress(context, ArchiveFormat.zip);
+  }
+
+  Future<void> _compress7z(BuildContext context) async {
+    await _compress(context, ArchiveFormat.sevenZip);
+  }
+
+  Future<void> _compress(BuildContext context, ArchiveFormat format) async {
     final controller = context.read<PaneController>();
     final paths = controller.selectedPaths.toList();
     if (paths.isEmpty) return;
@@ -646,9 +663,12 @@ class _PaneContent extends StatelessWidget {
     final base = (first != null && !first.isDirectory)
         ? p.basenameWithoutExtension(paths.first)
         : p.basename(paths.first);
-    final zipPath = p.join(controller.currentPath, '$base.zip');
+    final archivePath = p.join(
+      controller.currentPath,
+      '$base.${format.extension}',
+    );
     try {
-      await FileService.compressToZip(paths, zipPath);
+      await ArchiveService().createArchive(paths, archivePath, format: format);
       controller.refresh();
     } catch (e) {
       if (context.mounted) _showOperationError(context, '压缩失败', e);
@@ -1243,11 +1263,13 @@ class _AddressBarSection extends StatelessWidget {
 
 class _FileListSection extends StatelessWidget {
   final bool isActive;
+  final bool Function(String path)? cloudZoneResolver;
   final void Function(String path, Offset position) onItemContextMenu;
   final ValueChanged<Offset> onFolderContextMenu;
 
   const _FileListSection({
     required this.isActive,
+    required this.cloudZoneResolver,
     required this.onItemContextMenu,
     required this.onFolderContextMenu,
   });
@@ -1276,9 +1298,9 @@ class _FileListSection extends StatelessWidget {
             onResizeColumn: controller.resizeColumn,
             onInitWidths: controller.initColumnWidths,
             // 当前目录位于云同步区（OneDrive 等）时显示"状态"列，同资源管理器。
-            showStatusColumn: CloudDriveService.isCloudZone(
-              controller.currentPath,
-            ),
+            showStatusColumn:
+                cloudZoneResolver?.call(controller.currentPath) ??
+                CloudDriveService.isCloudZone(controller.currentPath),
             onSingleTap: (path) {
               final ctrl = HardwareKeyboard.instance.isControlPressed;
               final shift = HardwareKeyboard.instance.isShiftPressed;

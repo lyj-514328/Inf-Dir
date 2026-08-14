@@ -27,7 +27,17 @@ class CommandMenuItem {
     this.checked = false,
     this.children,
     this.onAction,
-  }) : isDivider = false;
+  }) : assert(
+         !enabled ||
+             onAction != null ||
+             (children != null && children.length > 0),
+         'Enabled command menu items must have an action or children.',
+       ),
+       assert(
+         children == null || children.length > 0,
+         'Command menu children must not be empty.',
+       ),
+       isDivider = false;
 
   const CommandMenuItem.divider()
     : icon = null,
@@ -45,17 +55,17 @@ class ViewSortMenuConfig {
   final SortColumn sortColumn;
   final bool sortAscending;
   final PaneViewMode viewMode;
-  final ValueChanged<SortColumn>? onSortColumn;
-  final ValueChanged<bool>? onSortAscending;
-  final ValueChanged<PaneViewMode>? onViewMode;
+  final ValueChanged<SortColumn> onSortColumn;
+  final ValueChanged<bool> onSortAscending;
+  final ValueChanged<PaneViewMode> onViewMode;
 
   const ViewSortMenuConfig({
     this.sortColumn = SortColumn.name,
     this.sortAscending = true,
     this.viewMode = PaneViewMode.details,
-    this.onSortColumn,
-    this.onSortAscending,
-    this.onViewMode,
+    required this.onSortColumn,
+    required this.onSortAscending,
+    required this.onViewMode,
   });
 }
 
@@ -64,7 +74,7 @@ CommandMenuItem _checked({
   required bool checked,
   IconData? icon,
   bool enabled = true,
-  VoidCallback? onAction,
+  required VoidCallback onAction,
 }) {
   return CommandMenuItem(
     label: label,
@@ -76,11 +86,11 @@ CommandMenuItem _checked({
 }
 
 List<CommandMenuItem> buildNewItemMenuItems({
-  VoidCallback? onCreateFolder,
-  VoidCallback? onCreateFile,
-  VoidCallback? onCreateShortcut,
+  required VoidCallback onCreateFolder,
+  required VoidCallback onCreateFile,
+  required VoidCallback onCreateShortcut,
   List<ShellNewEntry> shellNewEntries = const [],
-  ValueChanged<ShellNewEntry>? onCreateFromTemplate,
+  required ValueChanged<ShellNewEntry> onCreateFromTemplate,
 }) {
   return [
     CommandMenuItem(
@@ -105,7 +115,7 @@ List<CommandMenuItem> buildNewItemMenuItems({
           image: entry.hasIcon ? MemoryImage(entry.iconPng) : null,
           icon: entry.hasIcon ? null : Icons.insert_drive_file_outlined,
           label: entry.name,
-          onAction: () => onCreateFromTemplate?.call(entry),
+          onAction: () => onCreateFromTemplate(entry),
         ),
     ],
   ];
@@ -147,33 +157,33 @@ CommandMenuItem buildSortCommandMenuItem(
       _checked(
         label: '名称',
         checked: m.sortColumn == SortColumn.name,
-        onAction: () => m.onSortColumn?.call(SortColumn.name),
+        onAction: () => m.onSortColumn(SortColumn.name),
       ),
       _checked(
         label: '修改日期',
         checked: m.sortColumn == SortColumn.dateModified,
-        onAction: () => m.onSortColumn?.call(SortColumn.dateModified),
+        onAction: () => m.onSortColumn(SortColumn.dateModified),
       ),
       _checked(
         label: '类型',
         checked: m.sortColumn == SortColumn.type,
-        onAction: () => m.onSortColumn?.call(SortColumn.type),
+        onAction: () => m.onSortColumn(SortColumn.type),
       ),
       _checked(
         label: '大小',
         checked: m.sortColumn == SortColumn.size,
-        onAction: () => m.onSortColumn?.call(SortColumn.size),
+        onAction: () => m.onSortColumn(SortColumn.size),
       ),
       const CommandMenuItem.divider(),
       _checked(
         label: '升序',
         checked: m.sortAscending,
-        onAction: () => m.onSortAscending?.call(true),
+        onAction: () => m.onSortAscending(true),
       ),
       _checked(
         label: '降序',
         checked: !m.sortAscending,
-        onAction: () => m.onSortAscending?.call(false),
+        onAction: () => m.onSortAscending(false),
       ),
     ],
   );
@@ -188,50 +198,50 @@ CommandMenuItem buildViewCommandMenuItem(ViewSortMenuConfig m) {
         label: '超大图标',
         checked: m.viewMode == PaneViewMode.extraLargeIcons,
         icon: Icons.grid_on,
-        onAction: () => m.onViewMode?.call(PaneViewMode.extraLargeIcons),
+        onAction: () => m.onViewMode(PaneViewMode.extraLargeIcons),
       ),
       _checked(
         label: '大图标',
         checked: m.viewMode == PaneViewMode.largeIcons,
         icon: Icons.view_module,
-        onAction: () => m.onViewMode?.call(PaneViewMode.largeIcons),
+        onAction: () => m.onViewMode(PaneViewMode.largeIcons),
       ),
       _checked(
         label: '中图标',
         checked: m.viewMode == PaneViewMode.mediumIcons,
         icon: Icons.grid_view,
-        onAction: () => m.onViewMode?.call(PaneViewMode.mediumIcons),
+        onAction: () => m.onViewMode(PaneViewMode.mediumIcons),
       ),
       _checked(
         label: '小图标',
         checked: m.viewMode == PaneViewMode.smallIcons,
         icon: Icons.grid_view,
-        onAction: () => m.onViewMode?.call(PaneViewMode.smallIcons),
+        onAction: () => m.onViewMode(PaneViewMode.smallIcons),
       ),
       const CommandMenuItem.divider(),
       _checked(
         label: '详细信息',
         checked: m.viewMode == PaneViewMode.details,
         icon: Icons.view_headline,
-        onAction: () => m.onViewMode?.call(PaneViewMode.details),
+        onAction: () => m.onViewMode(PaneViewMode.details),
       ),
       _checked(
         label: '列表',
         checked: m.viewMode == PaneViewMode.list,
         icon: Icons.view_list,
-        onAction: () => m.onViewMode?.call(PaneViewMode.list),
+        onAction: () => m.onViewMode(PaneViewMode.list),
       ),
       _checked(
         label: '平铺',
         checked: m.viewMode == PaneViewMode.tiles,
         icon: Icons.view_quilt,
-        onAction: () => m.onViewMode?.call(PaneViewMode.tiles),
+        onAction: () => m.onViewMode(PaneViewMode.tiles),
       ),
       _checked(
         label: '内容',
         checked: m.viewMode == PaneViewMode.content,
         icon: Icons.view_agenda,
-        onAction: () => m.onViewMode?.call(PaneViewMode.content),
+        onAction: () => m.onViewMode(PaneViewMode.content),
       ),
     ],
   );
@@ -565,17 +575,20 @@ class _MenuItemRow extends StatelessWidget {
         ),
       );
     }
-    final iconColor = item.enabled ? c.textSecondary : c.textTertiary;
-    final labelColor = item.enabled ? c.textPrimary : c.textTertiary;
+    final actionable =
+        item.onAction != null || (item.children?.isNotEmpty ?? false);
+    final effectiveEnabled = item.enabled && actionable;
+    final iconColor = effectiveEnabled ? c.textSecondary : c.textTertiary;
+    final labelColor = effectiveEnabled ? c.textPrimary : c.textTertiary;
     // Win11 菜单项：hover 是四周留边的 4px 圆角高亮块。
     return MouseRegion(
-      onEnter: (_) => onHover(item, context),
+      onEnter: effectiveEnabled ? (_) => onHover(item, context) : null,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 32),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           child: InkWell(
-            onTap: !item.enabled
+            onTap: !effectiveEnabled
                 ? null
                 : () {
                     if (item.children != null) {
@@ -607,7 +620,7 @@ class _MenuItemRow extends StatelessWidget {
                               child: Image(
                                 image: item.image!,
                                 fit: BoxFit.contain,
-                                color: item.enabled ? null : c.textTertiary,
+                                color: effectiveEnabled ? null : c.textTertiary,
                               ),
                             )
                           : item.icon != null

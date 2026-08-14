@@ -33,6 +33,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM --- Download and package the bundled 7-Zip archive-operation plugin ---
+call "%SCRIPT_DIR%archive\build.bat" "%DIST_DIR%"
+if errorlevel 1 (
+    echo [ERROR] Archive plugin build failed.
+    exit /b 1
+)
+
 REM --- Add MinGW-w64 (ucrt64) to PATH for GNU target ---
 if exist "C:\msys64\ucrt64\bin" (
     set "PATH=C:\msys64\ucrt64\bin;%PATH%"

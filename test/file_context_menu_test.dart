@@ -30,6 +30,7 @@ void main() {
       onCreateShortcut: () {},
       compressName: 'report',
       onCompressZip: () {},
+      onCompress7z: () {},
       onOpenInTerminal: () {},
       onProperties: () {},
       onShowMoreOptions: () => showMoreInvoked = true,
@@ -56,10 +57,14 @@ void main() {
     ]);
 
     final compress = items.firstWhere((item) => item.label == '压缩到');
-    expect(compress.children!.first.label, '创建 report.zip');
-    // 7z / 压缩包暂为占位项。
-    expect(compress.children![1].onAction, isNull);
-    expect(compress.children![2].onAction, isNull);
+    expect(compress.children!.map((item) => item.label), [
+      '创建 report.zip',
+      '创建 report.7z',
+    ]);
+    expect(
+      _enabledLeaves(items).every((item) => item.onAction != null),
+      isTrue,
+    );
 
     final openWith = items.firstWhere((item) => item.label == '打开方式');
     expect(openWith.children!.single.label, 'Notepad');
@@ -83,6 +88,16 @@ void main() {
       '复制路径',
       '显示更多选项',
     ]);
+  });
+
+  test('item context menu hides compression without an implementation', () {
+    final items = buildFileItemContextMenuItems(
+      onCopyPath: () {},
+      compressName: 'report',
+      onShowMoreOptions: () {},
+    );
+
+    expect(items.map((item) => item.label), isNot(contains('压缩到')));
   });
 
   test('recycle bin item menu exposes only supported operations', () {
@@ -285,4 +300,16 @@ void main() {
     ]);
     newItem.children!.last.onAction!();
   });
+}
+
+Iterable<CommandMenuItem> _enabledLeaves(List<CommandMenuItem> items) sync* {
+  for (final item in items) {
+    if (item.isDivider || !item.enabled) continue;
+    final children = item.children;
+    if (children == null) {
+      yield item;
+    } else {
+      yield* _enabledLeaves(children);
+    }
+  }
 }

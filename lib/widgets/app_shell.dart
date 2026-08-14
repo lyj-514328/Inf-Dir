@@ -121,10 +121,12 @@ class _AppShellState extends State<AppShell>
 
   bool _onKey(KeyEvent event) {
     final layoutState = context.read<LayoutState>();
-    final isAltDown = event is KeyDownEvent &&
+    final isAltDown =
+        event is KeyDownEvent &&
         (event.logicalKey == LogicalKeyboardKey.altLeft ||
             event.logicalKey == LogicalKeyboardKey.altRight);
-    final isAltUp = event is KeyUpEvent &&
+    final isAltUp =
+        event is KeyUpEvent &&
         (event.logicalKey == LogicalKeyboardKey.altLeft ||
             event.logicalKey == LogicalKeyboardKey.altRight);
     // 最大化面板时 Alt 面板命令失效
@@ -345,9 +347,7 @@ class _TopBar extends StatelessWidget {
                     onViewerAssociations: onViewerAssociations,
                   ),
                   const SizedBox(width: 8),
-                  for (int i = 0;
-                      i < layoutState.workspaces.length;
-                      i++) ...[
+                  for (int i = 0; i < layoutState.workspaces.length; i++) ...[
                     if (i > 0) const SizedBox(width: 2),
                     _WorkspaceTab(
                       label: layoutState.workspaces[i].label ?? 'WS$i',
@@ -369,17 +369,13 @@ class _TopBar extends StatelessWidget {
                     icon: showHiddenFiles
                         ? Icons.visibility
                         : Icons.visibility_off,
-                    tooltip: showHiddenFiles
-                        ? '隐藏文件：显示中'
-                        : '隐藏文件：已隐藏',
+                    tooltip: showHiddenFiles ? '隐藏文件：显示中' : '隐藏文件：已隐藏',
                     active: showHiddenFiles,
                     onTap: onToggleHiddenFiles,
                   ),
                   _GhostIconButton(
                     icon: Icons.text_fields,
-                    tooltip: showFileExtensions
-                        ? '文件后缀名：显示中'
-                        : '文件后缀名：已隐藏',
+                    tooltip: showFileExtensions ? '文件后缀名：显示中' : '文件后缀名：已隐藏',
                     active: showFileExtensions,
                     onTap: onToggleFileExtensions,
                   ),
@@ -505,8 +501,6 @@ class _AppMenus extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const _MenuLabel('文件(F)'),
-        const _MenuLabel('编辑(E)'),
         _MenuDropdown(
           label: '视图(V)',
           buildEntries: () => [
@@ -531,53 +525,13 @@ class _AppMenus extends StatelessWidget {
             ),
           ],
         ),
-        const _MenuLabel('收藏夹(A)'),
         _MenuDropdown(
           label: '选项(O)',
           buildEntries: () => [
             _MenuEntry('查看器管理', onTap: onViewerAssociations),
           ],
         ),
-        const _MenuLabel('信息(H)'),
       ],
-    );
-  }
-}
-
-/// 无下拉的纯文本菜单项（占位，保留 hover 反馈）
-class _MenuLabel extends StatefulWidget {
-  final String label;
-
-  const _MenuLabel(this.label);
-
-  @override
-  State<_MenuLabel> createState() => _MenuLabelState();
-}
-
-class _MenuLabelState extends State<_MenuLabel> {
-  bool _hovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: _hovering ? c.surfaceHover : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-        ),
-        child: Text(
-          widget.label,
-          style: TextStyle(
-            fontSize: AppMetrics.fontBody,
-            color: c.textSecondary,
-          ),
-        ),
-      ),
     );
   }
 }
@@ -619,7 +573,11 @@ class _MenuDropdownState extends State<_MenuDropdown> {
       position: origin + Offset(0, box.size.height + 2),
       items: [
         for (final e in entries)
-          CommandMenuItem(label: e.label, enabled: e.enabled, onAction: e.onTap),
+          CommandMenuItem(
+            label: e.label,
+            enabled: e.enabled,
+            onAction: e.onTap,
+          ),
       ],
       onClosed: () {
         if (mounted) setState(() => _open = false);
@@ -640,9 +598,7 @@ class _MenuDropdownState extends State<_MenuDropdown> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: _open || _hovering
-                ? c.surfaceHover
-                : Colors.transparent,
+            color: _open || _hovering ? c.surfaceHover : Colors.transparent,
             borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
           ),
           child: Text(

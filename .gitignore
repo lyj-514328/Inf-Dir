@@ -36,6 +36,8 @@ plugins/office-view.exe.WebView2/
 plugins/*.log
 plugins/search/_cache/
 plugins/search/_tmp/
+plugins/archive/_cache/
+plugins/archive/_tmp/
 
 # Local release packages
 /Inf-Dir-*-windows-x64.zip
