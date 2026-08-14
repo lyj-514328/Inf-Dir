@@ -378,13 +378,16 @@ class UndoRedoService {
       return false;
     }
     // 回收站 ID 已变化：刷新历史记录的 destination，保证下轮 undo 可还原。
+    // 原生回调未返回时按原目录 + 名称枚举回收站兜底。
     _history.replaceCurrent(
       FileOperationHistory(
         type: HistoryOperationType.recycle,
         source: entry.source,
         destination: [
           for (var i = 0; i < entry.source.length; i++)
-            results.length > i ? results[i].recycledPath ?? '' : '',
+            (results.length > i ? results[i].recycledPath : null) ??
+                FileService.findRecycledParsingName(entry.source[i]) ??
+                '',
         ].where((path) => path.isNotEmpty).toList(),
       ),
     );
@@ -438,7 +441,9 @@ class UndoRedoService {
         type: HistoryOperationType.restore,
         source: [
           for (var i = 0; i < entry.destination.length; i++)
-            results.length > i ? results[i].recycledPath ?? '' : '',
+            (results.length > i ? results[i].recycledPath : null) ??
+                FileService.findRecycledParsingName(entry.destination[i]) ??
+                '',
         ].where((path) => path.isNotEmpty).toList(),
         destination: entry.destination,
       ),

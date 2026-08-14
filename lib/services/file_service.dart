@@ -376,6 +376,32 @@ class FileService {
   /// already holds a same-named item. [destinations] (when provided, aligned
   /// with [entries]) overrides the original directory per entry, matching
   /// [planRestoreDestinations].
+  /// 从回收站条目中按原始目录 + 名称匹配解析名。原生删除回调未返回
+  /// recycledPath 时的兜底（FOF_ALLOWUNDO 已移除，正常路径应已带路径）。
+  static String? matchRecycledParsingName(
+    List<FileEntry> entries,
+    String sourcePath,
+  ) {
+    final name = p.basename(sourcePath);
+    final dir = p.dirname(sourcePath);
+    for (final entry in entries) {
+      final parsing = entry.parsingName;
+      final original = entry.originalPath;
+      if (parsing == null || parsing.isEmpty) continue;
+      if (entry.name != name) continue;
+      if (original == null || !p.equals(original, dir)) continue;
+      return parsing;
+    }
+    return null;
+  }
+
+  /// 枚举回收站查找 [sourcePath] 删除后的新解析名。
+  static String? findRecycledParsingName(String sourcePath) =>
+      matchRecycledParsingName(
+        DirectoryService.listDirectory(recycleBinShellPath),
+        sourcePath,
+      );
+
   static List<FileEntry> planRestoreCollisions(
     List<FileEntry> entries, {
     List<String?>? destinations,

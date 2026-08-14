@@ -303,10 +303,14 @@ static HRESULT RunFileOperationCore(
     // shell undo stack instead of the shell's progress/collision UI.
     DWORD flags;
     if (operation == 2) {
-        // Delete: recycle to the Recycle Bin (undoable) unless permanent.
+        // Delete: recycle to the Recycle Bin (undoable via the app's own
+        // history stack) unless permanent. FOF_ALLOWUNDO is deliberately
+        // omitted: combined with FOFX_RECYCLEONDELETE it makes PostDeleteItem
+        // report COPYENGINE_E_USER_CANCELLED with a null psiNewlyCreated,
+        // which loses the recycled parsing name needed for undo.
         flags = FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI;
         if (!permanentDelete) {
-            flags |= FOF_ALLOWUNDO | FOFX_RECYCLEONDELETE;
+            flags |= FOFX_RECYCLEONDELETE;
         }
     } else {
         // FOF_NOCONFIRMATION answers "yes to all" to Shell conflict prompts,

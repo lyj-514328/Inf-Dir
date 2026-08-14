@@ -215,4 +215,59 @@ void main() {
       isEmpty,
     );
   });
+
+  group('matchRecycledParsingName', () {
+    FileEntry binEntry({
+      required String name,
+      String? originalPath,
+      String? parsingName,
+    }) => FileEntry(
+      name: name,
+      path: parsingName ?? '',
+      isDirectory: false,
+      size: 1,
+      modified: DateTime(2025),
+      originalPath: originalPath,
+      parsingName: parsingName,
+    );
+
+    test('matches by original directory and name', () {
+      final entries = [
+        binEntry(
+          name: 'a.txt',
+          originalPath: r'C:\Docs',
+          parsingName: r'C:\$Recycle.Bin\$R1.txt',
+        ),
+        binEntry(
+          name: 'a.txt',
+          originalPath: r'C:\Other',
+          parsingName: r'C:\$Recycle.Bin\$R2.txt',
+        ),
+      ];
+      expect(
+        FileService.matchRecycledParsingName(entries, r'C:\Docs\a.txt'),
+        r'C:\$Recycle.Bin\$R1.txt',
+      );
+    });
+
+    test('returns null when no entry matches name or origin', () {
+      final entries = [
+        binEntry(
+          name: 'b.txt',
+          originalPath: r'C:\Docs',
+          parsingName: r'C:\$Recycle.Bin\$R1.txt',
+        ),
+        binEntry(
+          name: 'a.txt',
+          originalPath: r'C:\Other',
+          parsingName: r'C:\$Recycle.Bin\$R2.txt',
+        ),
+        binEntry(name: 'a.txt', originalPath: r'C:\Docs'), // 无 parsingName
+      ];
+      expect(
+        FileService.matchRecycledParsingName(entries, r'C:\Docs\a.txt'),
+        isNull,
+      );
+    });
+  });
 }

@@ -1014,6 +1014,14 @@ class _PaneContent extends StatelessWidget {
         historySources.add(selected[i]);
         historyDestinations.add(recycled);
       }
+      // 原生回调未返回解析名时，枚举回收站按原目录 + 名称匹配兜底。
+      for (var i = 0; i < selected.length; i++) {
+        if (historySources.contains(selected[i])) continue;
+        final parsed = FileService.findRecycledParsingName(selected[i]);
+        if (parsed == null) continue;
+        historySources.add(selected[i]);
+        historyDestinations.add(parsed);
+      }
       if (historySources.isNotEmpty) {
         context.read<AppState>().history.record(
           FileOperationHistory(
