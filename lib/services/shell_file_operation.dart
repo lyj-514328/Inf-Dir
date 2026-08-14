@@ -334,7 +334,7 @@ class ShellFileOperation {
           const [],
         );
       }
-      return _awaitOperation(
+      return await _awaitOperation(
         operationId.value,
         cancelRequested: cancelRequested,
         onProgress: onProgress,
@@ -345,7 +345,6 @@ class ShellFileOperation {
       }
       if (sourceArray != nullptr) calloc.free(sourceArray);
       if (destinationPtr != nullptr) calloc.free(destinationPtr);
-      _closeOperation(operationId.value);
       calloc.free(operationId);
     }
   }
@@ -414,7 +413,7 @@ class ShellFileOperation {
       if (startHr != 0) {
         throw ShellFileOperationException(startHr, const []);
       }
-      return _awaitOperation(
+      return await _awaitOperation(
         operationId.value,
         cancelRequested: cancelRequested,
         onProgress: onProgress,
@@ -428,7 +427,6 @@ class ShellFileOperation {
         calloc.free(ptr);
       }
       if (overrideArray != nullptr) calloc.free(overrideArray);
-      _closeOperation(operationId.value);
       calloc.free(operationId);
     }
   }
@@ -475,6 +473,7 @@ class ShellFileOperation {
         await Future<void>.delayed(const Duration(milliseconds: 40));
       }
     } finally {
+      _closeOperation(operationId);
       calloc.free(status);
       calloc.free(progress);
       calloc.free(result);

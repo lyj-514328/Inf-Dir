@@ -37,7 +37,12 @@ class FileOperationItemResult {
   /// the native sink via psiNewlyCreated. Null in the dart:io fallback.
   final String? recycledPath;
 
-  bool get isSuccess => hr == 0;
+  /// Silent shell operations report COPYENGINE_E_USER_CANCELLED per item for
+  /// recycle-bin deletes/restores even though the item succeeded (Windows
+  /// quirk); treat it as success alongside S_OK.
+  static const int _copyEngineUserCancelled = 0x00270008;
+
+  bool get isSuccess => hr == 0 || hr == _copyEngineUserCancelled;
 
   /// Short human-readable error label, e.g. `0x80070005`.
   String get hrLabel {
