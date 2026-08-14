@@ -1,10 +1,7 @@
-import 'dart:ui' show FrameTiming;
-
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/text_search_service.dart';
-import '../utils/perf_log.dart';
 import 'app_theme.dart';
 
 enum _TextSearchRowKind { fileName, relativePath, match }
@@ -47,21 +44,15 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
   int _searchRevision = 0;
   bool _resultUpdateScheduled = false;
   final Set<String> _collapsedPaths = <String>{};
-  final Stopwatch _searchSw = Stopwatch();
-  int _lastPerfResultCount = 0;
-  int _lastSlowFrameLogAtMs = 0;
-
   @override
   void initState() {
     super.initState();
     _queryController = TextEditingController();
     _queryFocusNode = FocusNode();
-    WidgetsBinding.instance.addTimingsCallback(_onFrameTimings);
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeTimingsCallback(_onFrameTimings);
     _queryController.dispose();
     _queryFocusNode.dispose();
     super.dispose();
@@ -91,10 +82,6 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
 
   Future<void> _runSearch() async {
     final revision = ++_searchRevision;
-    _searchSw
-      ..reset()
-      ..start();
-    _lastPerfResultCount = 0;
     _resultUpdateScheduled = false;
     setState(() {
       _searching = true;
@@ -117,13 +104,6 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
           _groupedResultsByPath
               .putIfAbsent(match.path, () => <TextSearchMatch>[])
               .add(match);
-          if (_results.length - _lastPerfResultCount >= 500) {
-            _lastPerfResultCount = _results.length;
-            PerfLog.write(
-              '[TextSearchDialog] streaming results=${_results.length} '
-              'files=${_groupedResultsByPath.length} elapsedMs=${_searchSw.elapsedMilliseconds}',
-            );
-          }
           _scheduleResultUpdate(revision);
         },
       );
@@ -134,35 +114,12 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
         _rebuildGroupedResults();
         _hasSearched = true;
       });
-      _searchSw.stop();
-      PerfLog.write(
-        '[TextSearchDialog] completed results=${_results.length} '
-        'files=${_groupedResultsByPath.length} totalMs=${_searchSw.elapsedMilliseconds}',
-      );
     } catch (error) {
       if (!mounted || revision != _searchRevision) return;
       setState(() {
         _searching = false;
         _error = error is TextSearchException ? error.message : '搜索失败：$error';
       });
-    }
-  }
-
-  void _onFrameTimings(List<FrameTiming> timings) {
-    if (!mounted || (!_searching && _results.isEmpty)) return;
-    for (final timing in timings) {
-      final totalMicros = timing.totalSpan.inMicroseconds;
-      final nowMs = DateTime.now().millisecondsSinceEpoch;
-      if (totalMicros < 16000 || nowMs - _lastSlowFrameLogAtMs < 1000) {
-        continue;
-      }
-      _lastSlowFrameLogAtMs = nowMs;
-      PerfLog.write(
-        '[TextSearchDialog] slowFrame totalMs=${(totalMicros / 1000).toStringAsFixed(1)} '
-        'buildMs=${(timing.buildDuration.inMicroseconds / 1000).toStringAsFixed(1)} '
-        'rasterMs=${(timing.rasterDuration.inMicroseconds / 1000).toStringAsFixed(1)} '
-        'results=${_results.length} files=${_groupedResultsByPath.length} searching=$_searching',
-      );
     }
   }
 

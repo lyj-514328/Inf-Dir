@@ -8,13 +8,16 @@ import 'package:toastification/toastification.dart';
 import 'package:window_manager/window_manager.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../features/quick_view/viewer_associations_dialog.dart';
-import '../models/layout_node.dart';
+import '../services/file_service.dart';
+import '../services/home_service.dart';
 import '../state/app_state.dart';
 import '../state/layout_state.dart';
 import '../state/sidebar_controller.dart';
 import '../state/theme_controller.dart';
 import 'app_theme.dart';
+import 'app_menu.dart';
 import 'command_menu.dart';
+import 'favorites_dialog.dart';
 import 'sidebar_tree.dart';
 import 'layout_view.dart';
 import 'file_pane.dart';
@@ -198,6 +201,7 @@ class _AppShellState extends State<AppShell>
               app.setShowFileExtensions(!app.showFileExtensions);
             },
             onViewerAssociations: () => showViewerAssociationsDialog(context),
+            onExit: () => unawaited(_closeApplication()),
           ),
           Expanded(
             child: Padding(
@@ -305,6 +309,7 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onToggleHiddenFiles;
   final VoidCallback onToggleFileExtensions;
   final VoidCallback onViewerAssociations;
+  final VoidCallback onExit;
 
   const _TopBar({
     required this.layoutState,
@@ -313,6 +318,7 @@ class _TopBar extends StatelessWidget {
     required this.onToggleHiddenFiles,
     required this.onToggleFileExtensions,
     required this.onViewerAssociations,
+    required this.onExit,
   });
 
   @override
@@ -345,6 +351,7 @@ class _TopBar extends StatelessWidget {
                   _AppMenus(
                     layoutState: layoutState,
                     onViewerAssociations: onViewerAssociations,
+                    onExit: onExit,
                   ),
                   const SizedBox(width: 8),
                   for (int i = 0; i < layoutState.workspaces.length; i++) ...[
@@ -487,67 +494,89 @@ class _WorkspaceTab extends StatelessWidget {
   }
 }
 
-class _AppMenus extends StatelessWidget {
+class _AppMenus extends StatefulWidget {
   const _AppMenus({
     required this.layoutState,
     required this.onViewerAssociations,
+    required this.onExit,
   });
 
   final LayoutState layoutState;
   final VoidCallback onViewerAssociations;
+  final VoidCallback onExit;
+
+  @override
+  State<_AppMenus> createState() => _AppMenusState();
+}
+
+class _AppMenusState extends State<_AppMenus> {
+  LayoutState get layoutState => widget.layoutState;
+  VoidCallback get onViewerAssociations => widget.onViewerAssociations;
+  VoidCallback get onExit => widget.onExit;
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final activePane = layoutState.allPaneNodes.isEmpty
+        ? null
+        : layoutState.controllerFor(layoutState.focusedNode);
+    final currentPath = activePane?.currentPath;
+    final canFavorite =
+        activePane != null &&
+        currentPath != null &&
+        !FileService.isSpecialPath(currentPath);
+    final isFavorite = canFavorite && HomeService.isFavorite(currentPath);
+    final groups = buildAppMenuGroups(
+      layoutState: layoutState,
+      appState: appState,
+      activePane: activePane,
+      isFavorite: isFavorite,
+      onExit: onExit,
+      onViewerAssociations: onViewerAssociations,
+      onAddFavorite: () {
+        if (currentPath == null) return;
+        HomeService.addFavorite(currentPath);
+        layoutState.refreshPanesWhere(FileService.isHomePath);
+        if (mounted) setState(() {});
+      },
+      onRemoveFavorite: () {
+        if (currentPath == null) return;
+        HomeService.removeFavorite(currentPath);
+        layoutState.refreshPanesWhere(FileService.isHomePath);
+        if (mounted) setState(() {});
+      },
+      onManageFavorites: () => showFavoritesDialog(context),
+      onAbout: () => showAboutDialog(
+        context: context,
+        applicationName: 'Inf-Dir',
+        applicationVersion: '1.0.0 (1)',
+        applicationLegalese: '多面板文件管理器',
+      ),
+      onCopy: activePane == null
+          ? null
+          : () => copyPaneSelection(context, activePane),
+      onCut: activePane == null
+          ? null
+          : () => cutPaneSelection(context, activePane),
+      onPaste: activePane == null
+          ? null
+          : () => unawaited(pasteIntoPane(context, activePane)),
+    );
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _MenuDropdown(
-          label: '视图(V)',
-          buildEntries: () => [
-            _MenuEntry(
-              '关闭面板',
-              enabled: layoutState.allPaneNodes.length > 1,
-              onTap: () => layoutState.closePane(layoutState.focusedNode),
-            ),
-            _MenuEntry(
-              '水平切分',
-              onTap: () => layoutState.splitPane(
-                layoutState.focusedNode,
-                SplitDirection.vertical,
-              ),
-            ),
-            _MenuEntry(
-              '垂直切分',
-              onTap: () => layoutState.splitPane(
-                layoutState.focusedNode,
-                SplitDirection.horizontal,
-              ),
-            ),
-          ],
-        ),
-        _MenuDropdown(
-          label: '选项(O)',
-          buildEntries: () => [
-            _MenuEntry('查看器管理', onTap: onViewerAssociations),
-          ],
-        ),
+        for (final group in groups)
+          _MenuDropdown(label: group.label, buildEntries: () => group.items),
       ],
     );
   }
 }
 
-class _MenuEntry {
-  final String label;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _MenuEntry(this.label, {required this.onTap, this.enabled = true});
-}
-
 /// 带下拉菜单的菜单栏按钮，菜单展开于按钮正下方
 class _MenuDropdown extends StatefulWidget {
   final String label;
-  final List<_MenuEntry> Function() buildEntries;
+  final List<CommandMenuItem> Function() buildEntries;
 
   const _MenuDropdown({required this.label, required this.buildEntries});
 
@@ -571,14 +600,7 @@ class _MenuDropdownState extends State<_MenuDropdown> {
     showCommandMenu(
       context,
       position: origin + Offset(0, box.size.height + 2),
-      items: [
-        for (final e in entries)
-          CommandMenuItem(
-            label: e.label,
-            enabled: e.enabled,
-            onAction: e.onTap,
-          ),
-      ],
+      items: entries,
       onClosed: () {
         if (mounted) setState(() => _open = false);
       },

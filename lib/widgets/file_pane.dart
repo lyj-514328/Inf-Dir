@@ -62,6 +62,54 @@ class FilePane extends StatelessWidget {
   }
 }
 
+void copyPaneSelection(BuildContext context, PaneController controller) {
+  if (controller.selectedPaths.isEmpty) return;
+  final paths = controller.selectedPaths.toList();
+  context.read<AppState>().copyPaths(paths);
+  Clipboard.setData(ClipboardData(text: paths.join('\n')));
+}
+
+void cutPaneSelection(BuildContext context, PaneController controller) {
+  if (controller.selectedPaths.isEmpty) return;
+  context.read<AppState>().cutPaths(controller.selectedPaths.toList());
+}
+
+Future<void> pasteIntoPane(
+  BuildContext context,
+  PaneController controller,
+) async {
+  final appState = context.read<AppState>();
+  final layoutState = context.read<LayoutState>();
+
+  // Cannot paste into the Recycle Bin or another virtual shell location.
+  if (FileService.isSpecialPath(controller.currentPath)) return;
+  if (!appState.hasClipboard) return;
+
+  final destDir = controller.currentPath;
+  final sources = appState.clipboardPaths;
+  final isCut = appState.clipboardIsCut;
+  final pastedPaths = <String>[];
+  final movedPaths = <String>[];
+
+  try {
+    if (isCut) {
+      await FileService.moveEntries(sources, destDir);
+      movedPaths.addAll(sources);
+    } else {
+      await FileService.copyEntries(sources, destDir);
+    }
+    pastedPaths.addAll(sources.map((s) => p.join(destDir, p.basename(s))));
+  } catch (_) {
+    controller.refresh();
+    return;
+  }
+  if (isCut) appState.clearClipboard();
+  controller.applyLocalChanges(addedPaths: pastedPaths);
+  if (movedPaths.isNotEmpty) {
+    layoutState.applyLocalRemovals(movedPaths);
+  }
+}
+
 class _PaneContent extends StatelessWidget {
   final LayoutNode paneNode;
   final bool Function(String path)? cloudZoneResolver;
@@ -702,13 +750,7 @@ class _PaneContent extends StatelessWidget {
   // ── Keyboard-triggered operations ──────────────────────────────────
 
   void _copySelected(BuildContext context) {
-    final appState = context.read<AppState>();
-    final controller = context.read<PaneController>();
-    if (controller.selectedPaths.isNotEmpty) {
-      final paths = controller.selectedPaths.toList();
-      appState.copyPaths(paths);
-      Clipboard.setData(ClipboardData(text: paths.join('\n')));
-    }
+    copyPaneSelection(context, context.read<PaneController>());
   }
 
   void _copySelectedPaths(BuildContext context) {
@@ -720,46 +762,11 @@ class _PaneContent extends StatelessWidget {
   }
 
   void _cutSelected(BuildContext context) {
-    final appState = context.read<AppState>();
-    final controller = context.read<PaneController>();
-    if (controller.selectedPaths.isNotEmpty) {
-      appState.cutPaths(controller.selectedPaths.toList());
-    }
+    cutPaneSelection(context, context.read<PaneController>());
   }
 
   Future<void> _paste(BuildContext context) async {
-    final appState = context.read<AppState>();
-    final controller = context.read<PaneController>();
-    final layoutState = context.read<LayoutState>();
-
-    // Cannot paste into the Recycle Bin
-    if (FileService.isSpecialPath(controller.currentPath)) return;
-
-    if (!appState.hasClipboard) return;
-
-    final destDir = controller.currentPath;
-    final sources = appState.clipboardPaths;
-    final isCut = appState.clipboardIsCut;
-    final pastedPaths = <String>[];
-    final movedPaths = <String>[];
-
-    try {
-      if (isCut) {
-        await FileService.moveEntries(sources, destDir);
-        movedPaths.addAll(sources);
-      } else {
-        await FileService.copyEntries(sources, destDir);
-      }
-      pastedPaths.addAll(sources.map((s) => p.join(destDir, p.basename(s))));
-    } catch (_) {
-      controller.refresh();
-      return;
-    }
-    if (isCut) appState.clearClipboard();
-    controller.applyLocalChanges(addedPaths: pastedPaths);
-    if (movedPaths.isNotEmpty) {
-      layoutState.applyLocalRemovals(movedPaths);
-    }
+    await pasteIntoPane(context, context.read<PaneController>());
   }
 
   Future<void> _deleteSelected(

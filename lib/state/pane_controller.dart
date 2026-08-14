@@ -759,6 +759,17 @@ class PaneController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void invertSelection() {
+    final visible = visibleEntries;
+    for (final entry in visible) {
+      if (!_selectedPaths.remove(entry.path)) {
+        _selectedPaths.add(entry.path);
+      }
+    }
+    _focusedPath ??= visible.isEmpty ? null : visible.first.path;
+    notifyListeners();
+  }
+
   void setSortColumn(SortColumn column) {
     if (_sortColumn == column) return;
     _sortColumn = column;

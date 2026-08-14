@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'search_plugin_resolver.dart';
-import '../utils/perf_log.dart';
 
 enum TextSearchPatternMode { keyword, regex }
 
@@ -192,7 +191,6 @@ class TextSearchService {
     TextSearchOptions options, {
     TextSearchMatchCallback? onMatch,
   }) async {
-    final searchSw = Stopwatch()..start();
     late final ProcessResult result;
     try {
       result = await _runner!(
@@ -213,10 +211,6 @@ class TextSearchService {
       options.maxFiles,
       onMatch: onMatch,
     );
-    searchSw.stop();
-    PerfLog.write(
-      '[TextSearchService] buffered matches=${results.length} totalMs=${searchSw.elapsedMilliseconds}',
-    );
     return results;
   }
 
@@ -226,9 +220,6 @@ class TextSearchService {
     TextSearchOptions options, {
     TextSearchMatchCallback? onMatch,
   }) async {
-    final searchSw = Stopwatch()..start();
-    final parseSw = Stopwatch();
-    var callbackMicros = 0;
     late final Process process;
     try {
       process = await _processStarter(
@@ -260,10 +251,7 @@ class TextSearchService {
         }
         matches.add(match);
         if (onMatch != null) {
-          final callbackSw = Stopwatch()..start();
           onMatch(match);
-          callbackSw.stop();
-          callbackMicros += callbackSw.elapsedMicroseconds;
         }
       }
 
@@ -284,12 +272,10 @@ class TextSearchService {
       while (true) {
         final end = text.indexOf('\n', start);
         if (end < 0) break;
-        parseSw.start();
         final event = _parseLine(
           text.substring(start, end).replaceFirst(RegExp(r'\r$'), ''),
           rootPath,
         );
-        parseSw.stop();
         if (accept(event)) {
           stoppedByFileLimit = true;
           process.kill();
@@ -300,20 +286,12 @@ class TextSearchService {
       pending = StringBuffer(text.substring(start));
     }
     if (!stoppedByFileLimit) {
-      parseSw.start();
       accept(_parseLine(pending.toString(), rootPath));
-      parseSw.stop();
     }
 
     final exitCode = await process.exitCode;
     final stderr = (await stderrFuture).trim();
     if (!stoppedByFileLimit) _throwOnExit(exitCode, stderr);
-    searchSw.stop();
-    PerfLog.write(
-      '[TextSearchService] streaming matches=${matches.length} files=${seenFiles.length} '
-      'parseMs=${parseSw.elapsedMilliseconds} callbackMs=${(callbackMicros / 1000).toStringAsFixed(1)} '
-      'totalMs=${searchSw.elapsedMilliseconds} stoppedByLimit=$stoppedByFileLimit',
-    );
     return matches;
   }
 

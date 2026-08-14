@@ -55,6 +55,17 @@ void main() {
       pc.dispose();
     });
 
+    test('inverts only visible entries', () async {
+      final pc = makePane('C:\\A');
+      await runToIdle(pump);
+
+      pc.selectSingle('C:\\A\\a1');
+      pc.invertSelection();
+
+      expect(pc.selectedPaths, {'C:\\A\\f1.txt', 'C:\\A\\a2'});
+      pc.dispose();
+    });
+
     test(
       'search, quick filters and view mode stay local to the pane',
       () async {
