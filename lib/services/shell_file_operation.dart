@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
@@ -84,6 +85,20 @@ typedef _CloseAsyncNative = Int32 Function(Int64 operationId);
 typedef _CloseAsyncDart = int Function(int operationId);
 typedef _FreeUtf8Native = Void Function(Pointer<Utf8> ptr);
 typedef _FreeUtf8Dart = void Function(Pointer<Utf8> ptr);
+typedef _BuildSortKeyNative =
+    Int32 Function(
+      Pointer<Utf16> name,
+      Pointer<Pointer<Uint8>> outKey,
+      Pointer<Int32> outKeyLen,
+    );
+typedef _BuildSortKeyDart =
+    int Function(
+      Pointer<Utf16> name,
+      Pointer<Pointer<Uint8>> outKey,
+      Pointer<Int32> outKeyLen,
+    );
+typedef _FreeBytesNative = Void Function(Pointer<Uint8> ptr);
+typedef _FreeBytesDart = void Function(Pointer<Uint8> ptr);
 
 typedef _EmptyRecycleBinNative = Int32 Function(IntPtr owner);
 typedef _EmptyRecycleBinDart = int Function(int owner);
@@ -136,6 +151,8 @@ class ShellFileOperation {
   static _GetResultsDart? _getResults;
   static _CloseAsyncDart? _closeAsync;
   static _FreeUtf8Dart? _freeUtf8;
+  static _BuildSortKeyDart? _buildSortKey;
+  static _FreeBytesDart? _freeCoTaskMemBytes;
   static _EmptyRecycleBinDart? _emptyRecycleBin;
   static _GetActiveWindowDart? _getActiveWindow;
   static _RestoreRecycleBinDart? _restoreRecycleBin;
@@ -499,6 +516,48 @@ class ShellFileOperation {
   static int _hrFromMessage(String message) {
     final match = RegExp(r'hr=0x([0-9a-fA-F]+)').firstMatch(message);
     return match == null ? -1 : int.parse(match.group(1)!, radix: 16);
+  }
+
+  static bool _sortKeyTried = false;
+
+  /// Builds the Windows natural-sort key for a file name, identical to the
+  /// one the directory enumerator produces. Returns null when the native
+  /// symbol is unavailable (tests) or the name produces no key.
+  static Uint8List? buildNameSortKey(String name) {
+    if (!_sortKeyTried) {
+      _sortKeyTried = true;
+      try {
+        _buildSortKey = DynamicLibrary.process()
+            .lookupFunction<_BuildSortKeyNative, _BuildSortKeyDart>(
+              'InfDirBuildNameSortKeyW',
+            );
+        _freeCoTaskMemBytes = DynamicLibrary.process()
+            .lookupFunction<_FreeBytesNative, _FreeBytesDart>('FreeCoTaskMemW');
+      } on Object {
+        _buildSortKey = null;
+        _freeCoTaskMemBytes = null;
+      }
+    }
+    final fn = _buildSortKey;
+    final free = _freeCoTaskMemBytes;
+    if (fn == null || free == null || name.isEmpty) return null;
+
+    final namePtr = name.toNativeUtf16();
+    final outKey = calloc<Pointer<Uint8>>();
+    final outLen = calloc<Int32>();
+    try {
+      final hr = fn(namePtr, outKey, outLen);
+      if (hr != 0 || outKey.value == nullptr || outLen.value <= 0) {
+        return null;
+      }
+      final result = Uint8List.fromList(outKey.value.asTypedList(outLen.value));
+      free(outKey.value);
+      return result;
+    } finally {
+      calloc.free(namePtr);
+      calloc.free(outKey);
+      calloc.free(outLen);
+    }
   }
 
   static void _loadAsyncSymbols() {

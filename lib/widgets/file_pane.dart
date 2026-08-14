@@ -81,7 +81,6 @@ Future<void> pasteIntoPane(
   PaneController controller,
 ) async {
   final appState = context.read<AppState>();
-  final layoutState = context.read<LayoutState>();
 
   // Cannot paste into the Recycle Bin or another virtual shell location.
   if (FileService.isSpecialPath(controller.currentPath)) return;
@@ -177,20 +176,71 @@ Future<void> pasteIntoPane(
     controller.refresh();
     return;
   }
+  if (!context.mounted) return;
   if (isCut) {
     appState.clearClipboard();
-    layoutState.applyLocalRemovals(movedPaths);
   }
-  // 保留两者时 Shell 生成的新名称无法预测，整目录刷新；否则增量添加。
+  final addedPaths = [
+    for (final source in replaceSources) p.join(destDir, p.basename(source)),
+  ];
   if (keepBothSources.isNotEmpty) {
+    // 保留两者时 Shell 生成的新名称无法预测：目标面板整目录刷新，
+    // 目标目录缓存定点失效（无法打补丁）。
     controller.refresh();
-  } else {
-    controller.applyLocalChanges(
-      addedPaths: [
-        for (final source in replaceSources)
-          p.join(destDir, p.basename(source)),
-      ],
+    _applyIncrementalRefresh(
+      context,
+      addedPaths: addedPaths,
+      removedPaths: isCut ? movedPaths : const [],
+      invalidateDirs: [destDir],
     );
+  } else {
+    _applyIncrementalRefresh(
+      context,
+      addedPaths: addedPaths,
+      removedPaths: isCut ? movedPaths : const [],
+    );
+  }
+}
+
+/// 操作完成后的增量刷新：扇形更新所有正显示受影响目录的面板（不重新
+/// 枚举），并就地补丁 repository 的目录缓存（新增条目经 inspectEntry
+/// 构造、带排序键）；[invalidateDirs] 中的目录（目标名未知或目录本身
+/// 被删除）改为定点失效。侧栏经 repository 回调自动重读。
+void _applyIncrementalRefresh(
+  BuildContext context, {
+  Iterable<String> addedPaths = const [],
+  Iterable<String> removedPaths = const [],
+  Iterable<String> invalidateDirs = const [],
+}) {
+  final appState = context.read<AppState>();
+  final layoutState = context.read<LayoutState>();
+
+  // 面板扇形增量更新（每个面板按 currentPath 自行守卫）。
+  layoutState.applyLocalChanges(
+    addedPaths: addedPaths,
+    removedPaths: removedPaths,
+  );
+
+  // 目录缓存：新增按目标目录聚合，删除按所在目录聚合，就地打补丁。
+  final additionsByDir = <String, List<FileEntry>>{};
+  for (final path in addedPaths) {
+    final entry = FileService.inspectEntry(path);
+    if (entry == null) continue;
+    additionsByDir.putIfAbsent(p.dirname(path), () => []).add(entry);
+  }
+  final removalsByDir = <String, List<String>>{};
+  for (final path in removedPaths) {
+    removalsByDir.putIfAbsent(p.dirname(path), () => []).add(path);
+  }
+  for (final dir in {...additionsByDir.keys, ...removalsByDir.keys}) {
+    appState.repository.patchCompleteCache(
+      dir,
+      added: additionsByDir[dir] ?? const [],
+      removedPaths: removalsByDir[dir] ?? const [],
+    );
+  }
+  for (final dir in invalidateDirs) {
+    appState.repository.invalidate(dir);
   }
 }
 
@@ -865,6 +915,11 @@ class _PaneContent extends StatelessWidget {
     final selected = controller.selectedPaths.toList();
     if (selected.isEmpty) return;
     final operationCenter = context.read<AppState>().fileOperations;
+    // 在删除前记录哪些是文件夹：删除后 stat 会失败。
+    final deletedDirs = [
+      for (final path in selected)
+        if (_findEntry(controller, path)?.isDirectory ?? false) path,
+    ];
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -926,7 +981,16 @@ class _PaneContent extends StatelessWidget {
       return;
     }
     if (!context.mounted) return;
-    context.read<LayoutState>().applyLocalRemovals(selected);
+    // 被删除的文件夹：自身缓存整体作废；父目录缓存就地摘除条目。
+    // 移入回收站时新条目名称未知，回收站缓存定点失效。
+    _applyIncrementalRefresh(
+      context,
+      removedPaths: selected,
+      invalidateDirs: [
+        ...deletedDirs,
+        if (!permanent) FileService.recycleBinShellPath,
+      ],
+    );
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
         content: Text(
@@ -1064,16 +1128,36 @@ class _PaneContent extends StatelessWidget {
       );
       if (!context.mounted) return;
       final layoutState = context.read<LayoutState>();
+      final repository = context.read<AppState>().repository;
+      // 回收站面板就地摘除已还原条目 + 回收站目录缓存同步摘除。
       layoutState.applyLocalRemovals(parsingNames);
+      repository.patchCompleteCache(
+        FileService.recycleBinShellPath,
+        removedPaths: parsingNames,
+      );
       final originalDirectories = entries
           .map((entry) => entry.originalPath)
           .whereType<String>()
           .toSet();
       if (fallback != null) originalDirectories.add(fallback);
-      layoutState.refreshPanesWhere(
-        (path) =>
-            originalDirectories.any((directory) => p.equals(directory, path)),
-      );
+      if (keepBothOnCollision) {
+        // 还原名由 Shell 决定：原始目录面板重枚举 + 缓存定点失效。
+        layoutState.refreshPanesWhere(
+          (path) => originalDirectories.any((d) => p.equals(d, path)),
+        );
+        for (final directory in originalDirectories) {
+          repository.invalidate(directory);
+        }
+      } else {
+        // 名称已知：扇形增量添加 + 就地补丁原始目录缓存。
+        final restoredPaths = <String>[];
+        for (var i = 0; i < entries.length; i++) {
+          final directory = destinations?[i] ?? entries[i].originalPath;
+          if (directory == null || directory.isEmpty) continue;
+          restoredPaths.add(p.join(directory, entries[i].name));
+        }
+        _applyIncrementalRefresh(context, addedPaths: restoredPaths);
+      }
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         SnackBar(
           content: Text('已还原 ${entries.length} 个项目'),
@@ -1194,6 +1278,11 @@ class _PaneContent extends StatelessWidget {
         },
       );
       if (context.mounted) {
+        // 回收站缓存就地摘除被永久删除的条目；面板重新枚举。
+        context.read<AppState>().repository.patchCompleteCache(
+          FileService.recycleBinShellPath,
+          removedPaths: selected,
+        );
         context.read<LayoutState>().refreshPanesWhere(
           FileService.isRecycleBinPath,
         );
@@ -1216,6 +1305,10 @@ class _PaneContent extends StatelessWidget {
     try {
       FileService.emptyRecycleBin();
       if (context.mounted) {
+        // 清空后回收站目录缓存整体作废，面板重新枚举。
+        context.read<AppState>().repository.invalidate(
+          FileService.recycleBinShellPath,
+        );
         context.read<LayoutState>().refreshPanesWhere(
           FileService.isRecycleBinPath,
         );

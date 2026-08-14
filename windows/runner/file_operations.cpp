@@ -61,6 +61,43 @@ bool IsCancelled(const std::shared_ptr<AsyncOperationState>& state) {
     return state && state->cancelRequested.load();
 }
 
+// Same Windows natural-sort key the directory enumerator uses
+// (directory_listing.cpp BuildNameSortKey), so locally inserted entries sort
+// identically to enumerated ones.
+std::vector<unsigned char> BuildSortKeyForName(const std::wstring& name) {
+    if (name.empty()) return {};
+
+    constexpr DWORD flags =
+        LCMAP_SORTKEY | SORT_DIGITSASNUMBERS | NORM_IGNORECASE;
+    const int keyLength = LCMapStringEx(
+        LOCALE_NAME_USER_DEFAULT,
+        flags,
+        name.data(),
+        static_cast<int>(name.size()),
+        nullptr,
+        0,
+        nullptr,
+        nullptr,
+        0);
+    if (keyLength <= 0) return {};
+
+    std::vector<unsigned char> key(keyLength);
+    const int written = LCMapStringEx(
+        LOCALE_NAME_USER_DEFAULT,
+        flags,
+        name.data(),
+        static_cast<int>(name.size()),
+        reinterpret_cast<LPWSTR>(key.data()),
+        keyLength,
+        nullptr,
+        nullptr,
+        0);
+    if (written <= 0) return {};
+
+    key.resize(written);
+    return key;
+}
+
 std::string EscapeJsonString(const std::wstring& value) {
     std::string out;
     out.reserve(value.size() + 8);
@@ -475,6 +512,28 @@ HRESULT InfDirCloseFileOperationW(int64_t operationId)
 {
     std::lock_guard<std::mutex> lock(g_asyncOperationsMutex);
     g_asyncOperations.erase(operationId);
+    return S_OK;
+}
+
+extern "C" __declspec(dllexport)
+HRESULT InfDirBuildNameSortKeyW(
+    const wchar_t* name,
+    unsigned char** outKey,
+    int* outKeyLen)
+{
+    if (!name || !*name || !outKey || !outKeyLen) return E_INVALIDARG;
+    *outKey = nullptr;
+    *outKeyLen = 0;
+
+    const std::vector<unsigned char> key = BuildSortKeyForName(name);
+    if (key.empty()) return S_FALSE;
+
+    unsigned char* buffer = static_cast<unsigned char*>(
+        CoTaskMemAlloc(key.size()));
+    if (!buffer) return E_OUTOFMEMORY;
+    memcpy(buffer, key.data(), key.size());
+    *outKey = buffer;
+    *outKeyLen = static_cast<int>(key.size());
     return S_OK;
 }
 

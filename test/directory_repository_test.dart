@@ -273,6 +273,90 @@ void main() {
       expect(source.created.length, 2);
     });
 
+    test('patchCompleteCache 就地增删目录条目并保持排序', () async {
+      final source = FakeCursorSource({
+        'C:\\A': [
+          [dirEntry('C:\\A\\a1'), dirEntry('C:\\A\\a3')],
+          null,
+        ],
+      });
+      final pump = ManualPump();
+      final repo = makeRepo(source, pump);
+
+      final token = repo.startRequest();
+      final future = repo.loadChildren('C:\\A', token: token);
+      await runToIdle(pump);
+      await future;
+
+      final changedKeys = <String>[];
+      repo.onCacheChanged = changedKeys.add;
+
+      repo.patchCompleteCache(
+        'C:\\A',
+        added: [dirEntry('C:\\A\\a2')],
+      );
+      expect(repo.cachedChildren('C:\\A')!.map((e) => e.name), [
+        'a1',
+        'a2',
+        'a3',
+      ]);
+      expect(changedKeys, [normPath('C:\\A')]);
+
+      // 文件条目被忽略（缓存只存目录）；删除按路径匹配。
+      changedKeys.clear();
+      repo.patchCompleteCache(
+        'C:\\A',
+        added: [fileEntry('C:\\A\\f.txt')],
+        removedPaths: ['C:\\A\\a2'],
+      );
+      expect(repo.cachedChildren('C:\\A')!.map((e) => e.name), ['a1', 'a3']);
+      expect(changedKeys, [normPath('C:\\A')]);
+
+      // 无实际变化的补丁不触发回调。
+      changedKeys.clear();
+      repo.patchCompleteCache('C:\\A', added: [dirEntry('C:\\A\\a1')]);
+      expect(changedKeys, isEmpty);
+    });
+
+    test('patchCompleteCache 未缓存路径是空操作，空目录补丁更新 hasChildren',
+        () async {
+      final source = FakeCursorSource({
+        'C:\\Empty': [null],
+      });
+      final pump = ManualPump();
+      final repo = makeRepo(source, pump);
+      final token = repo.startRequest();
+      final future = repo.loadChildren('C:\\Empty', token: token);
+      await runToIdle(pump);
+      await future;
+
+      var changed = 0;
+      repo.onCacheChanged = (_) => changed++;
+
+      repo.patchCompleteCache('C:\\Missing', added: [dirEntry('C:\\M\\x')]);
+      expect(changed, 0);
+
+      expect(repo.hasChildrenIfKnown('C:\\Empty'), isFalse);
+      repo.patchCompleteCache(
+        'C:\\Empty',
+        added: [dirEntry('C:\\Empty\\new')],
+      );
+      expect(repo.cachedChildren('C:\\Empty')!.map((e) => e.name), ['new']);
+      expect(repo.hasChildrenIfKnown('C:\\Empty'), isTrue);
+      expect(changed, 1);
+    });
+
+    test('invalidate 触发 onCacheChanged 回调', () async {
+      final source = FakeCursorSource({});
+      final pump = ManualPump();
+      final repo = makeRepo(source, pump);
+      final changedKeys = <String>[];
+      repo.onCacheChanged = changedKeys.add;
+
+      repo.invalidate('C:\\X');
+      expect(changedKeys, [normPath('C:\\X')]);
+    });
+
     test('hasChildren：未知路径只 probe 一次并缓存', () async {
       final source = FakeCursorSource({});
       final pump = ManualPump();

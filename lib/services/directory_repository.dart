@@ -65,6 +65,10 @@ class DirectoryRepository {
 
   int _nextRequestId = 0;
 
+  /// 缓存被就地补丁或定点失效后回调（AppShell 桥接到侧栏控制器，
+  /// 让树重读新缓存）。参数为规范化 pathKey。
+  void Function(String pathKey)? onCacheChanged;
+
   DirectoryRepository({
     CursorFactory? cursorFactory,
     FrameYield? yieldFrame,
@@ -118,6 +122,47 @@ class DirectoryRepository {
     final key = normPath(path);
     _completeCache.remove(key);
     _hasChildrenCache.remove(key);
+    onCacheChanged?.call(key);
+  }
+
+  /// 就地打补丁：把已知的文件系统变更应用到已完整缓存的目录，
+  /// 不重新枚举。仅更新目录条目（缓存只存子目录，供侧栏使用）；
+  /// [added] 由调用方经 FileService.inspectEntry 构造并带排序键。
+  ///
+  /// 两种退化场景下改为定点失效：该路径存在 in-flight 任务（旧分页
+  /// 结果可能覆盖补丁）——调用方此时应让后续访问重新枚举。
+  /// [removedPaths] 之外的缓存条目保持不变。
+  void patchCompleteCache(
+    String path, {
+    Iterable<FileEntry> added = const [],
+    Iterable<String> removedPaths = const [],
+  }) {
+    final key = normPath(path);
+    final cached = _completeCache[key];
+    if (cached == null) return;
+    if (_activeTasks.containsKey(key)) {
+      invalidate(path);
+      return;
+    }
+
+    final removed = removedPaths.map(normPath).toSet();
+    final next = cached
+        .where((entry) => !removed.contains(normPath(entry.path)))
+        .toList();
+    var changed = next.length != cached.length;
+    final existing = next.map((entry) => normPath(entry.path)).toSet();
+    for (final entry in added) {
+      if (!entry.isDirectory) continue; // 缓存只存目录（§7.1）
+      if (!existing.add(normPath(entry.path))) continue;
+      next.add(entry);
+      changed = true;
+    }
+
+    if (!changed) return;
+    next.sort((a, b) => a.compareNameTo(b));
+    _completeCache[key] = List.unmodifiable(next);
+    _hasChildrenCache[key] = next.isNotEmpty;
+    onCacheChanged?.call(key);
   }
 
   /// 全局失效（设置变化后调用）：取消所有活动任务并清空全部缓存，

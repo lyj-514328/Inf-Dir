@@ -69,6 +69,16 @@ HRESULT InfDirGetFileOperationResultsW(int64_t operationId, char** outJson);
 __declspec(dllexport)
 HRESULT InfDirCloseFileOperationW(int64_t operationId);
 
+// Builds the Windows natural-sort key for a file name (same key the directory
+// enumerator produces), so locally inserted entries sort identically.
+// On success *outKey is a CoTaskMemAlloc'd buffer of *outKeyLen bytes (free
+// with FreeCoTaskMemW); returns S_FALSE when the name produces no key.
+__declspec(dllexport)
+HRESULT InfDirBuildNameSortKeyW(
+    const wchar_t* name,
+    unsigned char** outKey,
+    int* outKeyLen);
+
 // Empties the shared Windows Recycle Bin without showing Shell UI. The app
 // owns confirmation and error reporting.
 __declspec(dllexport)

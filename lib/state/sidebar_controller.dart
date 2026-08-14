@@ -114,6 +114,18 @@ class SidebarSyncController extends ChangeNotifier {
 
   void consumeScrollRequest() => needsScrollToSelected = false;
 
+  /// complete cache 被就地补丁 / 定点失效后回调：清掉该路径的残留
+  /// partial 视图并通知重绘，树直接读到新缓存（增量刷新）。
+  void onCachePatched(String path) {
+    if (_disposed) return;
+    final key = normPath(path);
+    // 有 in-flight 任务时 partial 属于活动加载，不能清。
+    if (partialNodes.containsKey(key) && !repository.isTaskActive(key)) {
+      partialNodes.remove(key);
+    }
+    _notifySafe();
+  }
+
   // ── 路径同步（latest-wins，§6 / §8 / §12）────────────────────
 
   /// [scrollToSelected] 为 false 时表示本次同步由用户点击侧栏触发：

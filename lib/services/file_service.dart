@@ -271,7 +271,9 @@ class FileService {
   }
 
   /// Reads the metadata needed to add a newly-created filesystem item to an
-  /// already-visible pane without re-enumerating the whole directory.
+  /// already-visible pane or cache without re-enumerating the whole
+  /// directory. Carries the native natural-sort key when available so the
+  /// inserted entry sorts like enumerated ones.
   static FileEntry? inspectEntry(String path) {
     try {
       final type = FileSystemEntity.typeSync(path, followLinks: false);
@@ -281,6 +283,7 @@ class FileService {
       final isDirectory = type == FileSystemEntityType.directory;
       return FileEntry(
         name: p.basename(path),
+        nameSortKey: ShellFileOperation.buildNameSortKey(p.basename(path)),
         path: path,
         isDirectory: isDirectory,
         size: isDirectory ? 0 : stat.size,

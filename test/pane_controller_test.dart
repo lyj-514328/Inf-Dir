@@ -368,6 +368,37 @@ void main() {
       layout.dispose();
     });
 
+    testWidgets('applyLocalChanges fans out to panes showing the affected '
+        'directories only', (tester) async {
+      final layout = LayoutState(repository: repo);
+      final panes = layout.allPaneNodes
+          .map(layout.controllerFor)
+          .whereType<PaneController>()
+          .toList();
+      panes[0].navigateTo('C:\\A');
+      panes[1].navigateTo('C:\\A');
+      panes[2].navigateTo('C:\\B');
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      const removedPath = 'C:\\A\\f1.txt';
+      panes[0].selectSingle(removedPath);
+      panes[1].selectSingle(removedPath);
+      source.created.clear();
+
+      layout.applyLocalChanges(removedPaths: const [removedPath]);
+
+      for (final pane in panes.take(2)) {
+        expect(pane.entries.map((entry) => entry.path),
+            isNot(contains(removedPath)));
+        expect(pane.selectedPaths, isNot(contains(removedPath)));
+      }
+      // 显示其他目录的面板不受影响。
+      expect(panes[2].entries.map((entry) => entry.name), ['b1']);
+      expect(source.created, isEmpty);
+      layout.dispose();
+    });
+
     test('uses a sort change for pages that arrive while loading', () async {
       source = FakeCursorSource({
         'C:\\Paged': [

@@ -8,6 +8,7 @@ import 'package:toastification/toastification.dart';
 import 'package:window_manager/window_manager.dart';
 import '../features/quick_view/quick_view_service.dart';
 import '../features/quick_view/viewer_associations_dialog.dart';
+import '../services/directory_repository.dart';
 import '../services/file_operation_center.dart';
 import '../services/file_service.dart';
 import '../services/home_service.dart';
@@ -55,6 +56,8 @@ class _AppShellState extends State<AppShell>
     ServicesBinding.instance.keyboard.addHandler(_onKey);
     windowManager.addListener(this);
     context.read<AppState>().fileOperations.addListener(_onFileOperationsChanged);
+    // 目录缓存被操作就地补丁/失效后，桥接到侧栏控制器重读（增量刷新）。
+    context.read<DirectoryRepository>().onCacheChanged = _onRepositoryCacheChanged;
     // 焦点 pane 路径 → 侧栏同步（§12）：监听稳定 notifier，
     // 不再靠 didUpdateWidget 比较字符串驱动业务。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -63,6 +66,11 @@ class _AppShellState extends State<AppShell>
       layout.activePanePath.addListener(_syncSidebar);
       _syncSidebar();
     });
+  }
+
+  void _onRepositoryCacheChanged(String pathKey) {
+    if (!mounted) return;
+    context.read<SidebarSyncController>().onCachePatched(pathKey);
   }
 
   void _onFileOperationsChanged() {
@@ -89,6 +97,7 @@ class _AppShellState extends State<AppShell>
     context.read<AppState>().fileOperations.removeListener(
       _onFileOperationsChanged,
     );
+    context.read<DirectoryRepository>().onCacheChanged = null;
     context.read<LayoutState>().activePanePath.removeListener(_syncSidebar);
     ServicesBinding.instance.keyboard.removeHandler(_onKey);
     WidgetsBinding.instance.removeObserver(this);

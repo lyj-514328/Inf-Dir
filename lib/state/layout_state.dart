@@ -295,6 +295,21 @@ class LayoutState extends ChangeNotifier {
     }
   }
 
+  /// 扇形增量更新：把新增 / 移除的路径应用到所有正显示其所在目录的
+  /// 面板（每个面板按 currentPath 自行守卫，未命中为空操作），
+  /// 不重新枚举。
+  void applyLocalChanges({
+    Iterable<String> addedPaths = const [],
+    Iterable<String> removedPaths = const [],
+  }) {
+    final added = addedPaths.toSet();
+    final removed = removedPaths.toSet();
+    if (added.isEmpty && removed.isEmpty) return;
+    for (final controller in _controllers.values) {
+      controller.applyLocalChanges(addedPaths: added, removedPaths: removed);
+    }
+  }
+
   void _collectPaneNodes(LayoutNode node, List<LayoutNode> out) {
     if (node.isPane) {
       out.add(node);

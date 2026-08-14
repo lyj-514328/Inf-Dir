@@ -54,6 +54,35 @@ void main() {
       controller.dispose();
     });
 
+    test('onCachePatched 后直接读到补丁后的缓存', () async {
+      final source = FakeCursorSource({
+        'C:\\': [
+          [dirEntry('C:\\A', hasChildren: true)],
+          null,
+        ],
+      });
+      final pump = ManualPump();
+      final controller = makeController(source, pump);
+
+      controller.syncTo('C:\\');
+      await runToIdle(pump);
+      expect(controller.childrenFor('C:\\').map((e) => e.name), ['A']);
+
+      var notified = 0;
+      controller.addListener(() => notified++);
+
+      // 模拟文件操作后的就地缓存补丁 + AppShell 桥接通知。
+      controller.repository.patchCompleteCache(
+        'C:\\',
+        added: [dirEntry('C:\\B')],
+      );
+      controller.onCachePatched('C:\\');
+
+      expect(controller.childrenFor('C:\\').map((e) => e.name), ['A', 'B']);
+      expect(notified, greaterThan(0));
+      controller.dispose();
+    });
+
     test('同一轮事件的重复 syncTo 用 microtask 合并，只提交最后一个', () async {
       final source = FakeCursorSource({
         'C:\\': [
