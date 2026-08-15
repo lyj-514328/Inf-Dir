@@ -7,9 +7,10 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-use dpi::{LogicalPosition, LogicalSize};
+use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use http::{header, Request, Response, StatusCode};
 use percent_encoding::{percent_decode_str, percent_encode, NON_ALPHANUMERIC};
+use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGUMENT};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -24,41 +25,52 @@ const HOST: &str = "office-view.local";
 const WEB_DIR_NAME: &str = "office-view-web";
 
 struct Args {
-    width: u32,
-    height: u32,
     file: PathBuf,
+    window_placement: Option<WindowPlacement>,
 }
 
 fn parse_args() -> Result<Args, String> {
-    let mut width = 960u32;
-    let mut height = 720u32;
-    let mut file: Option<PathBuf> = None;
+    parse_args_from(std::env::args().skip(1))
+}
 
-    let mut it = std::env::args().skip(1);
+fn parse_args_from(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
+    let mut file: Option<PathBuf> = None;
+    let mut window_placement = None;
+
+    let mut it = args.into_iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
-            "--width" => {
-                width = it
+            WINDOW_PLACEMENT_ARGUMENT => {
+                if window_placement.is_some() {
+                    return Err(format!("duplicate option: {WINDOW_PLACEMENT_ARGUMENT}"));
+                }
+                let value = it
                     .next()
-                    .and_then(|v| v.parse().ok())
-                    .ok_or_else(|| "--width 需要一个数值参数".to_string())?;
+                    .ok_or_else(|| format!("{WINDOW_PLACEMENT_ARGUMENT} requires a JSON value"))?;
+                window_placement = Some(WindowPlacement::from_json(&value)?);
             }
-            "--height" => {
-                height = it
-                    .next()
-                    .and_then(|v| v.parse().ok())
-                    .ok_or_else(|| "--height 需要一个数值参数".to_string())?;
+            _ if arg.starts_with('-') && arg != "-" => {
+                return Err(format!("unknown option: {arg}"));
             }
-            _ => file = Some(PathBuf::from(arg)),
+            _ => {
+                if file.is_some() {
+                    return Err(format!("unexpected argument: {arg}"));
+                }
+                file = Some(PathBuf::from(arg));
+            }
         }
     }
 
-    let file = file
-        .ok_or_else(|| "用法: office-view.exe [--width N] [--height N] <file>".to_string())?;
+    let file = file.ok_or_else(|| {
+        format!("用法: office-view.exe <file> [{WINDOW_PLACEMENT_ARGUMENT} <JSON>]")
+    })?;
     if !file.is_file() {
         return Err(format!("文件不存在: {}", file.display()));
     }
-    Ok(Args { width, height, file })
+    Ok(Args {
+        file,
+        window_placement,
+    })
 }
 
 /// 资源目录定位：优先 exe 旁边的 office-view-web/，其次当前目录。
@@ -70,7 +82,9 @@ fn resolve_web_root() -> Option<PathBuf> {
         }
     }
     candidates.push(PathBuf::from(WEB_DIR_NAME));
-    candidates.into_iter().find(|dir| dir.join("index.html").is_file())
+    candidates
+        .into_iter()
+        .find(|dir| dir.join("index.html").is_file())
 }
 
 fn response(status: StatusCode, mime: &str, body: Vec<u8>) -> Response<Cow<'static, [u8]>> {
@@ -187,10 +201,17 @@ impl ApplicationHandler for App {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.args.file.display().to_string());
 
-        let attributes = Window::default_attributes()
+        let mut attributes = Window::default_attributes()
             .with_title(format!("{name} - Office 查看器"))
-            .with_inner_size(LogicalSize::new(self.args.width, self.args.height))
             .with_min_inner_size(LogicalSize::new(480u32, 360u32));
+        if let Some(placement) = self.args.window_placement {
+            attributes = attributes
+                .with_position(PhysicalPosition::new(placement.x, placement.y))
+                .with_inner_size(PhysicalSize::new(placement.width, placement.height))
+                .with_maximized(placement.maximized);
+        } else {
+            attributes = attributes.with_inner_size(LogicalSize::new(960u32, 720u32));
+        }
         let window = match event_loop.create_window(attributes) {
             Ok(w) => w,
             Err(e) => {
@@ -274,4 +295,56 @@ fn main() {
         webview: None,
     };
     let _ = event_loop.run_app(&mut app);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn manifest_path() -> String {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("Cargo.toml")
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    fn placement_json() -> String {
+        r#"{"version":1,"x":1024,"y":0,"width":1024,"height":1152,"maximized":false}"#.to_string()
+    }
+
+    #[test]
+    fn parses_window_placement_before_or_after_file() {
+        for arguments in [
+            vec![
+                manifest_path(),
+                WINDOW_PLACEMENT_ARGUMENT.to_string(),
+                placement_json(),
+            ],
+            vec![
+                WINDOW_PLACEMENT_ARGUMENT.to_string(),
+                placement_json(),
+                manifest_path(),
+            ],
+        ] {
+            let args = parse_args_from(arguments).unwrap();
+            assert_eq!(args.window_placement.unwrap().x, 1024);
+        }
+    }
+
+    #[test]
+    fn rejects_bad_command_line_shapes() {
+        assert!(parse_args_from(vec!["--unknown".to_string()]).is_err());
+        assert!(parse_args_from(vec![manifest_path(), manifest_path()]).is_err());
+        assert!(
+            parse_args_from(vec![manifest_path(), WINDOW_PLACEMENT_ARGUMENT.to_string(),]).is_err()
+        );
+        assert!(parse_args_from(vec![
+            manifest_path(),
+            WINDOW_PLACEMENT_ARGUMENT.to_string(),
+            placement_json(),
+            WINDOW_PLACEMENT_ARGUMENT.to_string(),
+            placement_json(),
+        ])
+        .is_err());
+    }
 }

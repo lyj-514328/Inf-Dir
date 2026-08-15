@@ -40,5 +40,5 @@ office-view-web/            （随 exe 发布的静态资源）
 ## 用法
 
 ```
-office-view.exe [--width 960] [--height 720] <file.docx|xlsx|pptx>
+office-view.exe <file.docx|xlsx|pptx> [--window-placement <JSON>]
 ```

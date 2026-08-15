@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/features/quick_view/plugin_manifest.dart';
 import 'package:inf_dir/features/quick_view/quick_view_service.dart';
 import 'package:inf_dir/features/quick_view/viewer_association_config.dart';
+import 'package:inf_dir/features/quick_view/viewer_window_controller.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -249,6 +251,7 @@ void main() {
         final file = File(p.join(temp.path, 'report with spaces.md'))
           ..writeAsStringSync('test');
         final starts = <(String, List<String>, String)>[];
+        final windows = _FakeViewerWindowController();
         final launchingService = QuickViewService(
           pluginRoots: [pluginRoot],
           associationStore: ViewerAssociationStore(
@@ -260,7 +263,9 @@ void main() {
             if (executable.contains('viewer.b')) {
               throw const ProcessException('viewer.b', [], 'failed');
             }
+            return windows.createProcess();
           },
+          windowController: windows,
         );
         addTearDown(launchingService.dispose);
         launchingService.setCandidates(ViewerAssociationKind.extension, '.md', [
@@ -276,7 +281,240 @@ void main() {
         expect(starts.first.$2, [p.absolute(file.path)]);
       },
     );
+
+    test('replaces the attached viewer and preserves its placement', () async {
+      final firstFile = File(p.join(temp.path, 'first.md'))
+        ..writeAsStringSync('first');
+      final secondFile = File(p.join(temp.path, 'second.md'))
+        ..writeAsStringSync('second');
+      final windows = _FakeViewerWindowController();
+      final starts = <List<String>>[];
+      final launchingService = QuickViewService(
+        pluginRoots: [pluginRoot],
+        associationStore: ViewerAssociationStore(
+          filePath: p.join(temp.path, 'replace-associations.json'),
+        ),
+        mimeTypeResolver: (_) => null,
+        processStarter: (executable, arguments, workingDirectory) async {
+          starts.add(arguments);
+          return windows.createProcess();
+        },
+        windowController: windows,
+      );
+      addTearDown(launchingService.dispose);
+      launchingService.setCandidates(ViewerAssociationKind.extension, '.md', [
+        'viewer.b',
+      ]);
+
+      expect((await launchingService.open(firstFile.path)).started, isTrue);
+      final firstWindow = windows.createdWindows.single;
+      expect((await launchingService.open(secondFile.path)).started, isTrue);
+
+      expect(starts.first, [p.absolute(firstFile.path)]);
+      expect(starts.last.take(2), [
+        p.absolute(secondFile.path),
+        '--window-placement',
+      ]);
+      expect(jsonDecode(starts.last.last), {
+        'version': 1,
+        'x': 120,
+        'y': 80,
+        'width': 960,
+        'height': 720,
+        'maximized': false,
+      });
+      expect(windows.appliedPlacements, [
+        (windows.createdWindows.last, windows.initialPlacement),
+      ]);
+      expect(windows.closeRequests, [firstWindow]);
+      expect(windows.lifecycleEvents, [
+        'apply:${windows.createdWindows.last}',
+        'close:$firstWindow',
+      ]);
+      expect(launchingService.hasAttachedViewer, isTrue);
+    });
+
+    test(
+      'keeps the old viewer when the replacement cannot be positioned',
+      () async {
+        final firstFile = File(p.join(temp.path, 'first.md'))
+          ..writeAsStringSync('first');
+        final secondFile = File(p.join(temp.path, 'second.md'))
+          ..writeAsStringSync('second');
+        final windows = _FakeViewerWindowController();
+        final launchingService = QuickViewService(
+          pluginRoots: [pluginRoot],
+          associationStore: ViewerAssociationStore(
+            filePath: p.join(temp.path, 'rollback-associations.json'),
+          ),
+          mimeTypeResolver: (_) => null,
+          processStarter: (executable, arguments, workingDirectory) async =>
+              windows.createProcess(),
+          windowController: windows,
+        );
+        addTearDown(launchingService.dispose);
+        launchingService.setCandidates(ViewerAssociationKind.extension, '.md', [
+          'viewer.b',
+        ]);
+
+        await launchingService.open(firstFile.path);
+        final firstWindow = windows.createdWindows.single;
+        windows.allowPlacement = false;
+
+        final result = await launchingService.open(secondFile.path);
+
+        expect(result.started, isFalse);
+        expect(launchingService.hasAttachedViewer, isTrue);
+        expect(windows.closeRequests, [windows.createdWindows.last]);
+        expect(windows.closeRequests, isNot(contains(firstWindow)));
+      },
+    );
+
+    test('clears attached state when the viewer exits itself', () async {
+      final file = File(p.join(temp.path, 'first.md'))
+        ..writeAsStringSync('first');
+      final windows = _FakeViewerWindowController();
+      final launchingService = QuickViewService(
+        pluginRoots: [pluginRoot],
+        associationStore: ViewerAssociationStore(
+          filePath: p.join(temp.path, 'exit-associations.json'),
+        ),
+        mimeTypeResolver: (_) => null,
+        processStarter: (executable, arguments, workingDirectory) async =>
+            windows.createProcess(),
+        windowController: windows,
+      );
+      addTearDown(launchingService.dispose);
+      launchingService.setCandidates(ViewerAssociationKind.extension, '.md', [
+        'viewer.b',
+      ]);
+
+      await launchingService.open(file.path);
+      expect(launchingService.hasAttachedViewer, isTrue);
+
+      windows.exitWindow(windows.createdWindows.single);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(launchingService.hasAttachedViewer, isFalse);
+    });
+
+    test(
+      'detach leaves the old viewer alive and the next open starts fresh',
+      () async {
+        final firstFile = File(p.join(temp.path, 'first.md'))
+          ..writeAsStringSync('first');
+        final secondFile = File(p.join(temp.path, 'second.md'))
+          ..writeAsStringSync('second');
+        final windows = _FakeViewerWindowController();
+        final launchingService = QuickViewService(
+          pluginRoots: [pluginRoot],
+          associationStore: ViewerAssociationStore(
+            filePath: p.join(temp.path, 'detach-associations.json'),
+          ),
+          mimeTypeResolver: (_) => null,
+          processStarter: (executable, arguments, workingDirectory) async =>
+              windows.createProcess(),
+          windowController: windows,
+        );
+        addTearDown(launchingService.dispose);
+        launchingService.setCandidates(ViewerAssociationKind.extension, '.md', [
+          'viewer.b',
+        ]);
+
+        await launchingService.open(firstFile.path);
+        final detachedWindow = windows.createdWindows.single;
+        expect(await launchingService.detachViewer(), isTrue);
+        expect(launchingService.hasAttachedViewer, isFalse);
+        expect(windows.closeRequests, isEmpty);
+
+        await launchingService.open(secondFile.path);
+        expect(windows.createdWindows, hasLength(2));
+        expect(windows.appliedPlacements, isEmpty);
+
+        await launchingService.shutdown();
+        expect(windows.closeRequests, [windows.createdWindows.last]);
+        expect(windows.closeRequests, isNot(contains(detachedWindow)));
+      },
+    );
   });
+}
+
+class _FakeViewerWindowController implements ViewerWindowController {
+  final ViewerWindowPlacement initialPlacement = const ViewerWindowPlacement(
+    left: 120,
+    top: 80,
+    right: 1080,
+    bottom: 800,
+    maximized: false,
+  );
+  final List<int> createdWindows = [];
+  final List<(int, ViewerWindowPlacement)> appliedPlacements = [];
+  final List<int> closeRequests = [];
+  final List<String> lifecycleEvents = [];
+  bool allowPlacement = true;
+
+  final Map<int, int> _windowByProcess = {};
+  final Map<int, int> _processByWindow = {};
+  final Map<int, ViewerWindowPlacement> _placementByWindow = {};
+  final Map<int, Completer<int>> _exitByProcess = {};
+  int _nextProcessId = 1000;
+  int _nextWindowHandle = 5000;
+
+  ViewerProcessHandle createProcess() {
+    final processId = _nextProcessId++;
+    final windowHandle = _nextWindowHandle++;
+    final exit = Completer<int>();
+    _windowByProcess[processId] = windowHandle;
+    _processByWindow[windowHandle] = processId;
+    _placementByWindow[windowHandle] = initialPlacement;
+    _exitByProcess[processId] = exit;
+    createdWindows.add(windowHandle);
+    return ViewerProcessHandle(
+      processId: processId,
+      exitCode: exit.future,
+      terminate: () {
+        if (!exit.isCompleted) exit.complete(-1);
+        return true;
+      },
+    );
+  }
+
+  @override
+  bool applyPlacement(int windowHandle, ViewerWindowPlacement placement) {
+    appliedPlacements.add((windowHandle, placement));
+    lifecycleEvents.add('apply:$windowHandle');
+    if (!allowPlacement) return false;
+    _placementByWindow[windowHandle] = placement;
+    return true;
+  }
+
+  void exitWindow(int windowHandle) {
+    final processId = _processByWindow[windowHandle];
+    final exit = processId == null ? null : _exitByProcess[processId];
+    if (exit != null && !exit.isCompleted) exit.complete(0);
+  }
+
+  @override
+  ViewerWindowPlacement? capturePlacement(
+    int windowHandle, {
+    String? logLabel,
+  }) => _placementByWindow[windowHandle];
+
+  @override
+  bool requestClose(int windowHandle) {
+    closeRequests.add(windowHandle);
+    lifecycleEvents.add('close:$windowHandle');
+    final processId = _processByWindow[windowHandle];
+    final exit = processId == null ? null : _exitByProcess[processId];
+    if (exit != null && !exit.isCompleted) exit.complete(0);
+    return processId != null;
+  }
+
+  @override
+  Future<int?> waitForTopLevelWindow(
+    int processId, {
+    required Duration timeout,
+  }) async => _windowByProcess[processId];
 }
 
 void _writePlugin(

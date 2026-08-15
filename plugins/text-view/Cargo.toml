@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 eframe = "0.29"
 two-face = "0.5.1"
+viewer-window-placement = { path = "../viewer-window-placement" }
 
 [profile.release]
 opt-level = 2

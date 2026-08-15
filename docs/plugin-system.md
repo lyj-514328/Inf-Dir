@@ -87,7 +87,31 @@ Viewer 插件的 `quickView` 至少要包含一个非空匹配组。绝大多数
 <entrypoint> <absolute-file-path>
 ```
 
-插件工作目录设为插件包目录。后续协议升级通过新增 Manifest 字段完成，不改变版本 1 的行为。
+插件工作目录设为插件包目录。所有 Quick View viewer 都必须接受可选的窗口位置参数；替换
+attached viewer 时按下面的形式启动：
+
+```text
+<entrypoint> <absolute-file-path> --window-placement <json>
+```
+
+`<json>` 由参数数组直接传递，是一个完整的命令行参数，不经过 shell 拼接或再次解析：
+
+```json
+{"version":1,"x":1024,"y":0,"width":1024,"height":1152,"maximized":false}
+```
+
+`x`、`y`、`width`、`height` 是 Win32 物理像素下的窗口外框；最大化时它们表示恢复后的外框。
+首次打开或已 detach 后重新打开时没有可继承窗口，因此不传该参数。viewer 不再支持旧的
+`--width` / `--height` 参数，也不通过 Manifest 协商窗口位置协议。
+
+Inf-Dir 同一时间只管理一个 attached Quick View 进程。再次快速查看时，主程序读取旧
+viewer 的顶层窗口位置、大小和最大化状态，把完整位置作为启动参数交给新 viewer；新 HWND
+稳定后仍会执行一次 Win32 校正，以消除 DPI、非客户区边框和 Snap 状态造成的偏差。新窗口
+定位成功后再关闭旧进程。viewer 不需要实现文件热切换或 IPC。
+
+顶栏的“分离快速查看窗口”命令会解除当前 viewer 与 Inf-Dir 的管理关系。分离后的进程不会因
+Inf-Dir 退出或后续快速查看而关闭；下一次快速查看会创建新的 attached viewer。Inf-Dir 正常
+退出时只关闭仍处于 attached 状态的 viewer。
 
 ### 3.3 搜索提供器
 

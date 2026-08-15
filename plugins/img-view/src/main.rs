@@ -6,6 +6,7 @@ use egui::{
     Color32, ColorImage, Context, Rect, Sense, TextureHandle, TextureOptions, Vec2, ViewportCommand,
 };
 use image::{DynamicImage, GenericImageView};
+use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGUMENT};
 
 const DEFAULT_W: usize = 960;
 const DEFAULT_H: usize = 720;
@@ -29,9 +30,9 @@ struct Viewer {
 impl Viewer {
     fn new(cc: &eframe::CreationContext<'_>, original: DynamicImage) -> Self {
         let rotated = original.clone();
-        let texture = cc
-            .egui_ctx
-            .load_texture("img", color_image(&rotated), TextureOptions::LINEAR);
+        let texture =
+            cc.egui_ctx
+                .load_texture("img", color_image(&rotated), TextureOptions::LINEAR);
         Viewer {
             original,
             rotated,
@@ -133,8 +134,7 @@ impl eframe::App for Viewer {
             self.offset.x = self.offset.x.clamp(-max_x, max_x);
             self.offset.y = self.offset.y.clamp(-max_y, max_y);
 
-            ui.painter()
-                .rect_filled(available, 0.0, Color32::BLACK);
+            ui.painter().rect_filled(available, 0.0, Color32::BLACK);
             let rect = Rect::from_center_size(center + self.offset, disp);
             let uv = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
             ui.painter()
@@ -154,18 +154,24 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     let mut file_arg: Option<&str> = None;
-    let mut win_w: usize = 0;
-    let mut win_h: usize = 0;
+    let mut placement: Option<WindowPlacement> = None;
 
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "--width" | "-w" if i + 1 < args.len() => {
-                win_w = args[i + 1].parse().unwrap_or(0);
-                i += 2;
-            }
-            "--height" | "-h" if i + 1 < args.len() => {
-                win_h = args[i + 1].parse().unwrap_or(0);
+            WINDOW_PLACEMENT_ARGUMENT => {
+                let value = args.get(i + 1).unwrap_or_else(|| {
+                    eprintln!("{WINDOW_PLACEMENT_ARGUMENT} requires a JSON value");
+                    std::process::exit(1);
+                });
+                let parsed = WindowPlacement::from_json(value).unwrap_or_else(|error| {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                });
+                if placement.replace(parsed).is_some() {
+                    eprintln!("{WINDOW_PLACEMENT_ARGUMENT} may only be specified once");
+                    std::process::exit(1);
+                }
                 i += 2;
             }
             s if s.starts_with('-') => {
@@ -173,6 +179,10 @@ fn main() {
                 std::process::exit(1);
             }
             _ => {
+                if file_arg.is_some() {
+                    eprintln!("Unexpected argument: {}", args[i]);
+                    std::process::exit(1);
+                }
                 file_arg = Some(&args[i]);
                 i += 1;
             }
@@ -180,7 +190,7 @@ fn main() {
     }
 
     let path = file_arg.unwrap_or_else(|| {
-        eprintln!("Usage: img-view <IMAGE_FILE> [--width W] [--height H]");
+        eprintln!("Usage: img-view <IMAGE_FILE> [{WINDOW_PLACEMENT_ARGUMENT} JSON]");
         std::process::exit(1);
     });
 
@@ -198,21 +208,19 @@ fn main() {
     };
 
     let (iw, ih) = original.dimensions();
-    let win_w = if win_w > 0 {
-        win_w
+    let viewport = if let Some(placement) = placement {
+        egui::ViewportBuilder::default()
+            .with_position([placement.x as f32, placement.y as f32])
+            .with_inner_size([placement.width as f32, placement.height as f32])
+            .with_maximized(placement.maximized)
     } else {
-        (iw as usize).min(DEFAULT_W).max(640)
-    };
-    let win_h = if win_h > 0 {
-        win_h
-    } else {
-        (ih as usize).min(DEFAULT_H).max(480)
+        let win_w = (iw as usize).min(DEFAULT_W).max(640);
+        let win_h = (ih as usize).min(DEFAULT_H).max(480);
+        egui::ViewportBuilder::default().with_inner_size([win_w as f32, win_h as f32])
     };
 
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([win_w as f32, win_h as f32])
-            .with_title("img-view"),
+        viewport: viewport.with_title("img-view"),
         ..Default::default()
     };
 

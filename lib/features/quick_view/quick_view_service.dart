@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -6,13 +8,55 @@ import 'package:path/path.dart' as p;
 import '../../services/mime_type_service.dart';
 import 'plugin_manifest.dart';
 import 'viewer_association_config.dart';
+import 'viewer_window_controller.dart';
+
+File? _viewerWindowLogFile;
+
+void _logViewerWindow(String message) {
+  debugPrint(message);
+  try {
+    final file = _viewerWindowLogFile ??= _resolveViewerWindowLogFile();
+    if (file.existsSync() && file.lengthSync() > 2 * 1024 * 1024) {
+      file.writeAsStringSync('');
+    }
+    file.writeAsStringSync(
+      '${DateTime.now().toIso8601String()} $message\r\n',
+      mode: FileMode.append,
+      flush: true,
+    );
+  } catch (error) {
+    debugPrint('[QuickViewWindow] failed to write diagnostic log: $error');
+  }
+}
+
+File _resolveViewerWindowLogFile() {
+  final localAppData = Platform.environment['LOCALAPPDATA'];
+  final directory = Directory(
+    localAppData == null || localAppData.isEmpty
+        ? p.join(Directory.systemTemp.path, 'Inf-Dir')
+        : p.join(localAppData, 'Inf-Dir'),
+  )..createSync(recursive: true);
+  return File(p.join(directory.path, 'quick_view.log'));
+}
 
 typedef ViewerProcessStarter =
-    Future<void> Function(
+    Future<ViewerProcessHandle> Function(
       String executable,
       List<String> arguments,
       String workingDirectory,
     );
+
+class ViewerProcessHandle {
+  const ViewerProcessHandle({
+    required this.processId,
+    required this.exitCode,
+    required this.terminate,
+  });
+
+  final int processId;
+  final Future<int> exitCode;
+  final bool Function() terminate;
+}
 
 class PluginDiscoveryIssue {
   const PluginDiscoveryIssue(this.path, this.message);
@@ -49,8 +93,16 @@ class QuickViewService extends ChangeNotifier {
     ViewerAssociationStore? associationStore,
     String? Function(String filePath)? mimeTypeResolver,
     ViewerProcessStarter? processStarter,
+    ViewerWindowController? windowController,
+    Duration windowDiscoveryTimeout = const Duration(seconds: 12),
+    Duration processExitTimeout = const Duration(milliseconds: 250),
   }) : _pluginRoots = pluginRoots ?? defaultPluginRoots(),
-       _associationStore = associationStore ?? ViewerAssociationStore() {
+       _associationStore = associationStore ?? ViewerAssociationStore(),
+       _windowController =
+           windowController ??
+           Win32ViewerWindowController(logger: _logViewerWindow),
+       _windowDiscoveryTimeout = windowDiscoveryTimeout,
+       _processExitTimeout = processExitTimeout {
     _mimeTypeResolver = mimeTypeResolver ?? MimeTypeService.forPath;
     _processStarter = processStarter ?? _startProcess;
     reload(notify: false);
@@ -58,11 +110,19 @@ class QuickViewService extends ChangeNotifier {
 
   final List<Directory> _pluginRoots;
   final ViewerAssociationStore _associationStore;
+  final ViewerWindowController _windowController;
+  final Duration _windowDiscoveryTimeout;
+  final Duration _processExitTimeout;
   late final String? Function(String filePath) _mimeTypeResolver;
   late final ViewerProcessStarter _processStarter;
   final Map<String, ViewerPlugin> _plugins = {};
   final List<PluginDiscoveryIssue> _issues = [];
   late ViewerAssociationConfig _associations;
+  _AttachedViewer? _attachedViewer;
+  Future<void> _operationQueue = Future<void>.value();
+  Future<void>? _shutdownFuture;
+  bool _shuttingDown = false;
+  bool _disposed = false;
 
   List<ViewerPlugin> get plugins {
     final result = _plugins.values.toList()..sort(_comparePlugins);
@@ -70,6 +130,8 @@ class QuickViewService extends ChangeNotifier {
   }
 
   List<PluginDiscoveryIssue> get issues => List.unmodifiable(_issues);
+
+  bool get hasAttachedViewer => _attachedViewer != null;
 
   static List<Directory> defaultPluginRoots() {
     final overridePath = Platform.environment['INF_DIR_PLUGIN_DIR'];
@@ -264,7 +326,15 @@ class QuickViewService extends ChangeNotifier {
     ];
   }
 
-  Future<QuickViewOpenResult> open(String filePath, {String? mimeType}) async {
+  Future<QuickViewOpenResult> open(String filePath, {String? mimeType}) {
+    return _serialize(() => _open(filePath, mimeType: mimeType));
+  }
+
+  Future<QuickViewOpenResult> _open(String filePath, {String? mimeType}) async {
+    if (_shuttingDown) {
+      return QuickViewOpenResult.failure('应用正在退出，无法打开快速查看');
+    }
+
     FileSystemEntityType type;
     try {
       type = FileSystemEntity.typeSync(filePath, followLinks: true);
@@ -287,18 +357,107 @@ class QuickViewService extends ChangeNotifier {
     }
 
     Object? lastError;
+    final previous = _attachedViewer;
+    final placement = previous == null
+        ? null
+        : _windowController.capturePlacement(
+            previous.windowHandle,
+            logLabel:
+                'capture-old plugin=${previous.plugin.manifest.id} '
+                'pid=${previous.process.processId}',
+          );
+    if (previous != null) {
+      debugPrint(
+        '[QuickViewWindow] captured old plugin=${previous.plugin.manifest.id} '
+        'pid=${previous.process.processId} hwnd=${previous.windowHandle} '
+        'placement=$placement',
+      );
+    }
     for (final plugin in candidates) {
+      ViewerProcessHandle? process;
+      int? windowHandle;
       try {
-        await _processStarter(plugin.executablePath, [
-          p.absolute(filePath),
-        ], plugin.directoryPath);
+        final arguments = <String>[p.absolute(filePath)];
+        if (placement != null) {
+          arguments.addAll([
+            '--window-placement',
+            jsonEncode(placement.toProtocolV1Json()),
+          ]);
+        }
+        _logViewerWindow(
+          '[QuickViewWindow] starting plugin=${plugin.manifest.id} '
+          'placementArgument=${arguments.length == 3 ? arguments.last : 'none'}',
+        );
+        process = await _processStarter(
+          plugin.executablePath,
+          arguments,
+          plugin.directoryPath,
+        );
+
+        windowHandle = await Future.any<int?>([
+          _windowController.waitForTopLevelWindow(
+            process.processId,
+            timeout: _windowDiscoveryTimeout,
+          ),
+          process.exitCode.then<int?>((_) => null),
+        ]);
+        if (windowHandle == null) {
+          throw StateError('查看器未能创建窗口');
+        }
+        debugPrint(
+          '[QuickViewWindow] launched new plugin=${plugin.manifest.id} '
+          'pid=${process.processId} hwnd=$windowHandle inherit=$placement',
+        );
+        if (placement != null &&
+            !_windowController.applyPlacement(windowHandle, placement)) {
+          throw StateError('无法恢复查看器窗口的位置和大小');
+        }
+
+        final viewer = _AttachedViewer(
+          plugin: plugin,
+          process: process,
+          windowHandle: windowHandle,
+        );
+        _attachedViewer = viewer;
+        _watchExit(viewer);
+        _notify();
+
+        if (previous != null) await _closeViewer(previous);
         return QuickViewOpenResult.success(plugin);
       } catch (error) {
+        if (windowHandle != null) {
+          _windowController.requestClose(windowHandle);
+        }
+        process?.terminate();
         lastError = error;
         debugPrint('[QuickView] ${plugin.manifest.id} launch failed: $error');
       }
     }
     return QuickViewOpenResult.failure('查看器启动失败：$lastError');
+  }
+
+  Future<bool> detachViewer() {
+    return _serialize(() async {
+      final viewer = _attachedViewer;
+      if (viewer == null) return false;
+      _attachedViewer = null;
+      debugPrint(
+        '[QuickView] detached ${viewer.plugin.manifest.id} '
+        '(pid ${viewer.process.processId})',
+      );
+      _notify();
+      return true;
+    });
+  }
+
+  Future<void> shutdown() {
+    _shuttingDown = true;
+    return _shutdownFuture ??= _serialize(() async {
+      final viewer = _attachedViewer;
+      _attachedViewer = null;
+      _notify();
+      if (viewer != null) await _closeViewer(viewer);
+    });
   }
 
   void _saveAndNotify() {
@@ -317,16 +476,106 @@ class QuickViewService extends ChangeNotifier {
     return byName != 0 ? byName : a.manifest.id.compareTo(b.manifest.id);
   }
 
-  static Future<void> _startProcess(
+  Future<void> _closeViewer(_AttachedViewer viewer) async {
+    _windowController.requestClose(viewer.windowHandle);
+    try {
+      await viewer.process.exitCode.timeout(_processExitTimeout);
+    } on TimeoutException {
+      viewer.process.terminate();
+    } catch (error) {
+      debugPrint('[QuickView] viewer exit failed: $error');
+      viewer.process.terminate();
+    }
+  }
+
+  void _watchExit(_AttachedViewer viewer) {
+    unawaited(
+      viewer.process.exitCode.then<void>(
+        (exitCode) {
+          if (!identical(_attachedViewer, viewer)) return;
+          _attachedViewer = null;
+          debugPrint(
+            '[QuickView] ${viewer.plugin.manifest.id} exited with $exitCode',
+          );
+          _notify();
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (!identical(_attachedViewer, viewer)) return;
+          _attachedViewer = null;
+          debugPrint('[QuickView] viewer exit observation failed: $error');
+          _notify();
+        },
+      ),
+    );
+  }
+
+  Future<T> _serialize<T>(Future<T> Function() operation) {
+    final completer = Completer<T>();
+    _operationQueue = _operationQueue.then((_) async {
+      try {
+        completer.complete(await operation());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    final viewer = _attachedViewer;
+    _attachedViewer = null;
+    if (viewer != null) {
+      _windowController.requestClose(viewer.windowHandle);
+      viewer.process.terminate();
+    }
+    super.dispose();
+  }
+
+  static Future<ViewerProcessHandle> _startProcess(
     String executable,
     List<String> arguments,
     String workingDirectory,
   ) async {
-    await Process.start(
+    final process = await Process.start(
       executable,
       arguments,
       workingDirectory: workingDirectory,
-      mode: ProcessStartMode.detached,
+      mode: ProcessStartMode.normal,
+    );
+    unawaited(
+      process.stdout.drain<void>().then<void>(
+        (_) {},
+        onError: (Object _, StackTrace _) {},
+      ),
+    );
+    unawaited(
+      process.stderr.drain<void>().then<void>(
+        (_) {},
+        onError: (Object _, StackTrace _) {},
+      ),
+    );
+    return ViewerProcessHandle(
+      processId: process.pid,
+      exitCode: process.exitCode,
+      terminate: process.kill,
     );
   }
+}
+
+class _AttachedViewer {
+  const _AttachedViewer({
+    required this.plugin,
+    required this.process,
+    required this.windowHandle,
+  });
+
+  final ViewerPlugin plugin;
+  final ViewerProcessHandle process;
+  final int windowHandle;
 }

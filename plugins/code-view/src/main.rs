@@ -1,9 +1,10 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-use dpi::{LogicalPosition, LogicalSize};
+use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use http::{header, Request, Response, StatusCode};
 use percent_encoding::{percent_decode_str, percent_encode, NON_ALPHANUMERIC};
+use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGUMENT};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -16,30 +17,29 @@ const HOST: &str = "code-view.local";
 const WEB_DIR_NAME: &str = "code-view-web";
 
 struct Args {
-    width: u32,
-    height: u32,
     file: PathBuf,
+    window_placement: Option<WindowPlacement>,
 }
 
 fn parse_args() -> Result<Args, String> {
-    let mut width = 960u32;
-    let mut height = 720u32;
+    parse_args_from(std::env::args().skip(1))
+}
+
+fn parse_args_from(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
     let mut file: Option<PathBuf> = None;
-    let mut it = std::env::args().skip(1);
+    let mut window_placement = None;
+    let mut it = args.into_iter();
 
     while let Some(arg) = it.next() {
         match arg.as_str() {
-            "--width" | "-w" => {
-                width = it
+            WINDOW_PLACEMENT_ARGUMENT => {
+                if window_placement.is_some() {
+                    return Err(format!("duplicate option: {WINDOW_PLACEMENT_ARGUMENT}"));
+                }
+                let value = it
                     .next()
-                    .and_then(|value| value.parse().ok())
-                    .ok_or_else(|| "--width requires a positive integer".to_string())?;
-            }
-            "--height" | "-h" => {
-                height = it
-                    .next()
-                    .and_then(|value| value.parse().ok())
-                    .ok_or_else(|| "--height requires a positive integer".to_string())?;
+                    .ok_or_else(|| format!("{WINDOW_PLACEMENT_ARGUMENT} requires a JSON value"))?;
+                window_placement = Some(WindowPlacement::from_json(&value)?);
             }
             _ if arg.starts_with('-') && arg != "-" => {
                 return Err(format!("unknown option: {arg}"));
@@ -53,19 +53,16 @@ fn parse_args() -> Result<Args, String> {
         }
     }
 
-    let file =
-        file.ok_or_else(|| "Usage: code-view.exe <FILE> [--width N] [--height N]".to_string())?;
-    if width == 0 || height == 0 {
-        return Err("window dimensions must be greater than zero".to_string());
-    }
+    let file = file.ok_or_else(|| {
+        format!("Usage: code-view.exe <FILE> [{WINDOW_PLACEMENT_ARGUMENT} <JSON>]")
+    })?;
     if !file.is_file() {
         return Err(format!("file does not exist: {}", file.display()));
     }
 
     Ok(Args {
-        width,
-        height,
         file,
+        window_placement,
     })
 }
 
@@ -199,10 +196,17 @@ impl ApplicationHandler for App {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| self.args.file.display().to_string());
-        let attributes = Window::default_attributes()
+        let mut attributes = Window::default_attributes()
             .with_title(format!("{file_name} - Code View"))
-            .with_inner_size(LogicalSize::new(self.args.width, self.args.height))
             .with_min_inner_size(LogicalSize::new(520u32, 360u32));
+        if let Some(placement) = self.args.window_placement {
+            attributes = attributes
+                .with_position(PhysicalPosition::new(placement.x, placement.y))
+                .with_inner_size(PhysicalSize::new(placement.width, placement.height))
+                .with_maximized(placement.maximized);
+        } else {
+            attributes = attributes.with_inner_size(LogicalSize::new(960u32, 720u32));
+        }
         let window = match event_loop.create_window(attributes) {
             Ok(window) => window,
             Err(error) => {
@@ -337,5 +341,52 @@ mod tests {
         let directory = webview_data_directory();
 
         assert!(directory.ends_with(Path::new("Inf-Dir/WebView2/code-view")));
+    }
+
+    fn manifest_path() -> String {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("Cargo.toml")
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    fn placement_json() -> String {
+        r#"{"version":1,"x":1024,"y":0,"width":1024,"height":1152,"maximized":false}"#.to_string()
+    }
+
+    #[test]
+    fn parses_window_placement_before_or_after_file() {
+        for arguments in [
+            vec![
+                manifest_path(),
+                WINDOW_PLACEMENT_ARGUMENT.to_string(),
+                placement_json(),
+            ],
+            vec![
+                WINDOW_PLACEMENT_ARGUMENT.to_string(),
+                placement_json(),
+                manifest_path(),
+            ],
+        ] {
+            let args = parse_args_from(arguments).unwrap();
+            assert_eq!(args.window_placement.unwrap().x, 1024);
+        }
+    }
+
+    #[test]
+    fn rejects_bad_command_line_shapes() {
+        assert!(parse_args_from(vec!["--unknown".to_string()]).is_err());
+        assert!(parse_args_from(vec![manifest_path(), manifest_path()]).is_err());
+        assert!(
+            parse_args_from(vec![manifest_path(), WINDOW_PLACEMENT_ARGUMENT.to_string(),]).is_err()
+        );
+        assert!(parse_args_from(vec![
+            manifest_path(),
+            WINDOW_PLACEMENT_ARGUMENT.to_string(),
+            placement_json(),
+            WINDOW_PLACEMENT_ARGUMENT.to_string(),
+            placement_json(),
+        ])
+        .is_err());
     }
 }

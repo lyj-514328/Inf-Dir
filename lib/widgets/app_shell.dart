@@ -140,6 +140,7 @@ class _AppShellState extends State<AppShell>
     if (existing != null) return existing;
 
     final closeFuture = () async {
+      final quickView = context.read<QuickViewService>();
       // 有进行中/排队中的文件操作时先确认，禁止静默中断（4.4）。
       final activeCount =
           context.read<AppState>().fileOperations.activeTasks.length;
@@ -153,6 +154,7 @@ class _AppShellState extends State<AppShell>
         return;
       }
       _saveSessionOnce();
+      await quickView.shutdown();
       // Release the native close so Windows can follow the normal
       // WM_CLOSE -> WM_DESTROY path and shut the Flutter engine down cleanly.
       await windowManager.setPreventClose(false);
@@ -175,6 +177,7 @@ class _AppShellState extends State<AppShell>
   Future<AppExitResponse> didRequestAppExit() async {
     debugPrint('[LayoutCache] didRequestAppExit triggered');
     _saveSessionOnce();
+    await context.read<QuickViewService>().shutdown();
     return AppExitResponse.exit;
   }
 
@@ -251,11 +254,16 @@ class _AppShellState extends State<AppShell>
     );
   }
 
+  Future<void> _detachQuickView() async {
+    await context.read<QuickViewService>().detachViewer();
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     final layoutState = context.watch<LayoutState>();
     final appState = context.watch<AppState>();
+    final quickView = context.watch<QuickViewService>();
     final activePane = layoutState.allPaneNodes.isNotEmpty
         ? layoutState.controllerFor(layoutState.focusedNode)
         : null;
@@ -269,6 +277,7 @@ class _AppShellState extends State<AppShell>
             showFileExtensions: appState.showFileExtensions,
             taskCenter: appState.fileOperations,
             taskCenterOpen: _taskCenterOpen,
+            hasAttachedViewer: quickView.hasAttachedViewer,
             onToggleTaskCenter: () =>
                 setState(() => _taskCenterOpen = !_taskCenterOpen),
             onToggleHiddenFiles: () {
@@ -283,6 +292,7 @@ class _AppShellState extends State<AppShell>
               app.setShowFileExtensions(!app.showFileExtensions);
             },
             onViewerAssociations: () => showViewerAssociationsDialog(context),
+            onDetachViewer: () => unawaited(_detachQuickView()),
             onExit: () => unawaited(_closeApplication()),
           ),
           Expanded(
@@ -400,10 +410,12 @@ class _TopBar extends StatelessWidget {
   final bool showFileExtensions;
   final FileOperationCenter taskCenter;
   final bool taskCenterOpen;
+  final bool hasAttachedViewer;
   final VoidCallback onToggleTaskCenter;
   final VoidCallback onToggleHiddenFiles;
   final VoidCallback onToggleFileExtensions;
   final VoidCallback onViewerAssociations;
+  final VoidCallback onDetachViewer;
   final VoidCallback onExit;
 
   const _TopBar({
@@ -412,10 +424,12 @@ class _TopBar extends StatelessWidget {
     required this.showFileExtensions,
     required this.taskCenter,
     required this.taskCenterOpen,
+    required this.hasAttachedViewer,
     required this.onToggleTaskCenter,
     required this.onToggleHiddenFiles,
     required this.onToggleFileExtensions,
     required this.onViewerAssociations,
+    required this.onDetachViewer,
     required this.onExit,
   });
 
@@ -489,6 +503,13 @@ class _TopBar extends StatelessWidget {
                     tooltip: '主题：${theme.label}',
                     onTap: theme.cycle,
                   ),
+                  if (hasAttachedViewer)
+                    _GhostIconButton(
+                      key: const ValueKey('detach-viewer-button'),
+                      icon: Icons.open_in_new,
+                      tooltip: '分离快速查看窗口',
+                      onTap: onDetachViewer,
+                    ),
                   FileTaskCenterButton(
                     center: taskCenter,
                     open: taskCenterOpen,
@@ -514,6 +535,7 @@ class _GhostIconButton extends StatelessWidget {
   final bool active;
 
   const _GhostIconButton({
+    super.key,
     required this.icon,
     required this.tooltip,
     required this.onTap,

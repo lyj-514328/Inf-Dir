@@ -8,6 +8,7 @@ use egui::{Color32, FontId};
 use syntect::easy::HighlightLines;
 use syntect::util::LinesWithEndings;
 use two_face::re_exports::syntect;
+use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGUMENT};
 
 const FONT_SIZE: f32 = 14.0;
 const LINE_HEIGHT: f32 = 20.0;
@@ -16,41 +17,37 @@ const DEFAULT_HEIGHT: f32 = 720.0;
 
 struct Args {
     file: PathBuf,
-    width: f32,
-    height: f32,
+    placement: Option<WindowPlacement>,
 }
 
 fn usage() -> String {
-    "Usage: text-view <FILE> [--width W] [--height H]".to_string()
+    format!("Usage: text-view <FILE> [{WINDOW_PLACEMENT_ARGUMENT} JSON]")
 }
 
 fn parse_args() -> Result<Args, String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut file: Option<String> = None;
-    let mut width = DEFAULT_WIDTH;
-    let mut height = DEFAULT_HEIGHT;
+    let mut placement = None;
 
     let mut i = 0;
     while i < args.len() {
         let arg = args[i].clone();
         match arg.as_str() {
-            "--width" | "-w" => {
+            WINDOW_PLACEMENT_ARGUMENT => {
                 i += 1;
-                let v = args
-                    .get(i)
-                    .ok_or_else(|| format!("--width requires a value\n{}", usage()))?;
-                width = v
-                    .parse::<f32>()
-                    .map_err(|_| format!("invalid width: {v}"))?;
-            }
-            "--height" | "-h" => {
-                i += 1;
-                let v = args
-                    .get(i)
-                    .ok_or_else(|| format!("--height requires a value\n{}", usage()))?;
-                height = v
-                    .parse::<f32>()
-                    .map_err(|_| format!("invalid height: {v}"))?;
+                let value = args.get(i).ok_or_else(|| {
+                    format!(
+                        "{WINDOW_PLACEMENT_ARGUMENT} requires a JSON value\n{}",
+                        usage()
+                    )
+                })?;
+                let parsed = WindowPlacement::from_json(value)?;
+                if placement.replace(parsed).is_some() {
+                    return Err(format!(
+                        "{WINDOW_PLACEMENT_ARGUMENT} may only be specified once\n{}",
+                        usage()
+                    ));
+                }
             }
             _ if arg.starts_with('-') && arg != "-" => {
                 return Err(format!("unknown flag: {arg}\n{}", usage()));
@@ -66,13 +63,9 @@ fn parse_args() -> Result<Args, String> {
     }
 
     let file = file.ok_or_else(usage)?;
-    if !width.is_finite() || width <= 0.0 || !height.is_finite() || height <= 0.0 {
-        return Err(format!("invalid window size\n{}", usage()));
-    }
     Ok(Args {
         file: PathBuf::from(file),
-        width,
-        height,
+        placement,
     })
 }
 
@@ -386,10 +379,16 @@ fn main() -> ExitCode {
     let text = String::from_utf8_lossy(&bytes).into_owned();
     let title = format!("text-view \u{2014} {}", args.file.display());
 
+    let viewport = if let Some(placement) = args.placement {
+        egui::ViewportBuilder::default()
+            .with_position([placement.x as f32, placement.y as f32])
+            .with_inner_size([placement.width as f32, placement.height as f32])
+            .with_maximized(placement.maximized)
+    } else {
+        egui::ViewportBuilder::default().with_inner_size([DEFAULT_WIDTH, DEFAULT_HEIGHT])
+    };
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([args.width, args.height])
-            .with_title(&title),
+        viewport: viewport.with_title(&title),
         ..Default::default()
     };
 

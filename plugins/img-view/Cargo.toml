@@ -10,3 +10,4 @@ image = { version = "0.25", default-features = false, features = [
 ] }
 eframe = "0.29"
 egui = "0.29"
+viewer-window-placement = { path = "../viewer-window-placement" }

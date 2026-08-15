@@ -8,6 +8,7 @@ use std::time::{Duration, SystemTime};
 
 use eframe::egui;
 use egui_ltreeview::{NodeBuilder, TreeView, TreeViewState};
+use viewer_window_placement::{WindowPlacement, ARGUMENT};
 
 extern "C" {
     fn archive_read_new() -> *mut c_void;
@@ -983,16 +984,77 @@ mod tests {
         assert_eq!(file_icon_kind("backup.tar.gz"), FileIconKind::Archive);
         assert_eq!(file_icon_kind("README"), FileIconKind::Generic);
     }
+
+    #[test]
+    fn cli_parses_window_placement() {
+        let args = [
+            "archive-view",
+            "items.zip",
+            ARGUMENT,
+            r#"{"version":1,"x":-800,"y":20,"width":800,"height":900,"maximized":true}"#,
+        ]
+        .map(str::to_owned);
+
+        let (path, placement) = parse_args(&args).unwrap();
+        assert_eq!(path, "items.zip");
+        assert_eq!(placement.unwrap().x, -800);
+    }
+
+    #[test]
+    fn cli_rejects_missing_window_placement_json() {
+        let args = ["archive-view", "items.zip", ARGUMENT].map(str::to_owned);
+        let error = parse_args(&args).unwrap_err();
+        assert_eq!(error, format!("missing JSON value after {ARGUMENT}"));
+    }
+}
+
+fn parse_args(args: &[String]) -> Result<(String, Option<WindowPlacement>), String> {
+    let mut file_arg = None;
+    let mut placement = None;
+    let mut i = 1;
+
+    while i < args.len() {
+        match args[i].as_str() {
+            ARGUMENT => {
+                if placement.is_some() {
+                    return Err(format!("{ARGUMENT} may only be specified once"));
+                }
+                let value = args
+                    .get(i + 1)
+                    .ok_or_else(|| format!("missing JSON value after {ARGUMENT}"))?;
+                placement = Some(
+                    WindowPlacement::from_json(value)
+                        .map_err(|error| format!("{ARGUMENT}: {error}"))?,
+                );
+                i += 2;
+            }
+            option if option.starts_with('-') => {
+                return Err(format!("unknown option: {option}"));
+            }
+            value => {
+                if file_arg.replace(value.to_owned()).is_some() {
+                    return Err(format!("unexpected positional argument: {value}"));
+                }
+                i += 1;
+            }
+        }
+    }
+
+    let path = file_arg.ok_or_else(|| "missing archive file path".to_owned())?;
+    Ok((path, placement))
 }
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: archive-view <FILE>");
-        return ExitCode::from(1);
-    }
+    let (path, window_placement) = match parse_args(&args) {
+        Ok(parsed) => parsed,
+        Err(error) => {
+            eprintln!("error: {error}");
+            eprintln!("Usage: archive-view <FILE> [{ARGUMENT} <JSON>]");
+            return ExitCode::from(1);
+        }
+    };
 
-    let path = args[1].clone();
     if !Path::new(&path).exists() {
         eprintln!("error: file not found: {path}");
         return ExitCode::from(1);
@@ -1021,10 +1083,17 @@ fn main() -> ExitCode {
         drag_origin_widths: [0.0; 4],
     };
 
+    let mut viewport = egui::ViewportBuilder::default().with_title(&title);
+    viewport = match window_placement {
+        Some(placement) => viewport
+            .with_position([placement.x as f32, placement.y as f32])
+            .with_inner_size([placement.width as f32, placement.height as f32])
+            .with_maximized(placement.maximized),
+        None => viewport.with_inner_size([1000.0, 680.0]),
+    };
+
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title(&title)
-            .with_inner_size([1000.0, 680.0]),
+        viewport,
         ..Default::default()
     };
 

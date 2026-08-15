@@ -7,6 +7,7 @@ use std::sync::Arc;
 use eframe::egui;
 use egui::{Color32, ColorImage, Context, Rect, Sense, TextureHandle, TextureOptions, Vec2, ViewportCommand};
 use libmpv2::Mpv;
+use viewer_window_placement::{WindowPlacement, ARGUMENT};
 
 const DEFAULT_W: usize = 960;
 const DEFAULT_H: usize = 540;
@@ -290,46 +291,91 @@ impl Drop for VideoViewer {
     }
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-
-    let mut file_arg: Option<&str> = None;
-    let mut win_w: usize = 0;
-    let mut win_h: usize = 0;
-
+fn parse_args(args: &[String]) -> Result<(String, Option<WindowPlacement>), String> {
+    let mut file_arg = None;
+    let mut placement = None;
     let mut i = 1;
+
     while i < args.len() {
         match args[i].as_str() {
-            "--width" | "-w" if i + 1 < args.len() => {
-                win_w = args[i + 1].parse().unwrap_or(0);
+            ARGUMENT => {
+                if placement.is_some() {
+                    return Err(format!("{ARGUMENT} may only be specified once"));
+                }
+                let value = args
+                    .get(i + 1)
+                    .ok_or_else(|| format!("missing JSON value after {ARGUMENT}"))?;
+                placement = Some(
+                    WindowPlacement::from_json(value)
+                        .map_err(|error| format!("{ARGUMENT}: {error}"))?,
+                );
                 i += 2;
             }
-            "--height" | "-h" if i + 1 < args.len() => {
-                win_h = args[i + 1].parse().unwrap_or(0);
-                i += 2;
+            option if option.starts_with('-') => {
+                return Err(format!("unknown option: {option}"));
             }
-            s if s.starts_with('-') => {
-                eprintln!("Unknown option: {}", s);
-                std::process::exit(1);
-            }
-            _ => {
-                file_arg = Some(&args[i]);
+            value => {
+                if file_arg.replace(value.to_owned()).is_some() {
+                    return Err(format!("unexpected positional argument: {value}"));
+                }
                 i += 1;
             }
         }
     }
 
-    let path = file_arg.unwrap_or_else(|| {
-        eprintln!("Usage: video-view <VIDEO_FILE> [--width W] [--height H]");
+    let path = file_arg.ok_or_else(|| "missing video file path".to_owned())?;
+    Ok((path, placement))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    #[test]
+    fn parses_window_placement() {
+        let (path, placement) = parse_args(&args(&[
+            "video-view",
+            "movie.mp4",
+            ARGUMENT,
+            r#"{"version":1,"x":1024,"y":0,"width":1024,"height":1152,"maximized":false}"#,
+        ]))
+        .unwrap();
+
+        assert_eq!(path, "movie.mp4");
+        assert_eq!(placement.unwrap().x, 1024);
+    }
+
+    #[test]
+    fn rejects_missing_placement_json_and_legacy_size_flags() {
+        let error = parse_args(&args(&["video-view", "movie.mp4", ARGUMENT])).unwrap_err();
+        assert_eq!(error, format!("missing JSON value after {ARGUMENT}"));
+        assert!(
+            parse_args(&args(&["video-view", "movie.mp4", "--width", "900"]))
+                .unwrap_err()
+                .contains("unknown option")
+        );
+    }
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    let (path, window_placement) = parse_args(&args).unwrap_or_else(|error| {
+        eprintln!("Error: {error}");
+        eprintln!("Usage: video-view <VIDEO_FILE> [{ARGUMENT} <JSON>]");
         std::process::exit(1);
     });
 
-    if !Path::new(path).exists() {
+    if !Path::new(&path).exists() {
         eprintln!("Error: file not found — {}", path);
         std::process::exit(1);
     }
 
-    let file_name = Path::new(path)
+    let file_name = Path::new(&path)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| path.to_string());
@@ -395,13 +441,17 @@ fn main() {
         }
     }
 
-    let win_w = if win_w > 0 { win_w } else { DEFAULT_W };
-    let win_h = if win_h > 0 { win_h } else { DEFAULT_H };
+    let mut viewport = egui::ViewportBuilder::default().with_title("video-view");
+    viewport = match window_placement {
+        Some(placement) => viewport
+            .with_position([placement.x as f32, placement.y as f32])
+            .with_inner_size([placement.width as f32, placement.height as f32])
+            .with_maximized(placement.maximized),
+        None => viewport.with_inner_size([DEFAULT_W as f32, DEFAULT_H as f32]),
+    };
 
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([win_w as f32, win_h as f32])
-            .with_title("video-view"),
+        viewport,
         ..Default::default()
     };
 
