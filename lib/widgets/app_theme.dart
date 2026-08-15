@@ -192,8 +192,7 @@ class AppColors extends ThemeExtension<AppColors> {
       accentHover: accentHover ?? this.accentHover,
       onAccent: onAccent ?? this.onAccent,
       accentSubtle: accentSubtle ?? this.accentSubtle,
-      selectedInactive:
-          selectedInactive ?? this.selectedInactive,
+      selectedInactive: selectedInactive ?? this.selectedInactive,
       danger: danger ?? this.danger,
       success: success ?? this.success,
       iconFolder: iconFolder ?? this.iconFolder,
@@ -222,8 +221,11 @@ class AppColors extends ThemeExtension<AppColors> {
       accentHover: Color.lerp(accentHover, other.accentHover, t)!,
       onAccent: Color.lerp(onAccent, other.onAccent, t)!,
       accentSubtle: Color.lerp(accentSubtle, other.accentSubtle, t)!,
-      selectedInactive:
-          Color.lerp(selectedInactive, other.selectedInactive, t)!,
+      selectedInactive: Color.lerp(
+        selectedInactive,
+        other.selectedInactive,
+        t,
+      )!,
       danger: Color.lerp(danger, other.danger, t)!,
       success: Color.lerp(success, other.success, t)!,
       iconFolder: Color.lerp(iconFolder, other.iconFolder, t)!,
@@ -268,6 +270,7 @@ abstract final class AppMetrics {
   // 间距
   static const double paneGap = 6;
   static const double pagePadding = 8;
+  static const double scrollbarGutter = 12;
 
   // 图标
   static const double iconSm = 14;
@@ -288,18 +291,19 @@ abstract final class AppTheme {
   static ThemeData dark() => _build(AppColors.dark, Brightness.dark);
 
   static ThemeData _build(AppColors c, Brightness brightness) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: c.accent,
-      brightness: brightness,
-    ).copyWith(
-      primary: c.accent,
-      onPrimary: c.onAccent,
-      surface: c.surface,
-      outline: c.borderStrong,
-      outlineVariant: c.border,
-      error: c.danger,
-      surfaceTint: Colors.transparent,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: c.accent,
+          brightness: brightness,
+        ).copyWith(
+          primary: c.accent,
+          onPrimary: c.onAccent,
+          surface: c.surface,
+          outline: c.borderStrong,
+          outlineVariant: c.border,
+          error: c.danger,
+          surfaceTint: Colors.transparent,
+        );
 
     return ThemeData(
       useMaterial3: true,
@@ -314,10 +318,11 @@ abstract final class AppTheme {
       highlightColor: Colors.transparent,
       hoverColor: c.surfaceHover,
       extensions: [c],
-      textTheme: (brightness == Brightness.light
-              ? Typography.material2021().black
-              : Typography.material2021().white)
-          .apply(bodyColor: c.textPrimary, displayColor: c.textPrimary),
+      textTheme:
+          (brightness == Brightness.light
+                  ? Typography.material2021().black
+                  : Typography.material2021().white)
+              .apply(bodyColor: c.textPrimary, displayColor: c.textPrimary),
       scrollbarTheme: ScrollbarThemeData(
         // 细滑块、常驻显示，hover/拖拽时略增粗
         thickness: WidgetStateProperty.resolveWith((states) {
@@ -350,16 +355,17 @@ abstract final class AppTheme {
             ),
           ],
         ),
-        textStyle: TextStyle(fontSize: AppMetrics.fontSmall, color: c.textPrimary),
+        textStyle: TextStyle(
+          fontSize: AppMetrics.fontSmall,
+          color: c.textPrimary,
+        ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: c.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 12,
         shadowColor: c.scrim,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         titleTextStyle: TextStyle(
           fontSize: AppMetrics.fontTitle,
           fontWeight: FontWeight.w600,

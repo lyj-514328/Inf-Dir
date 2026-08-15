@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import '../features/quick_view/quick_view_service.dart';
+import '../models/file_drag_payload.dart';
 import '../models/file_entry.dart';
 import '../models/file_operation_history.dart';
 import '../models/file_operation_task.dart';
@@ -16,6 +19,7 @@ import '../services/archive_service.dart';
 import '../services/cloud_drive_service.dart';
 import '../services/directory_service.dart';
 import '../services/file_service.dart';
+import '../services/file_drop_service.dart';
 import '../services/incremental_refresh.dart';
 import '../services/shell_context_menu.dart';
 import '../services/shell_new_service.dart';
@@ -83,19 +87,41 @@ Future<void> pasteIntoPane(
   PaneController controller,
 ) async {
   final appState = context.read<AppState>();
-
-  // Cannot paste into the Recycle Bin or another virtual shell location.
-  if (FileService.isSpecialPath(controller.currentPath)) return;
   if (!appState.hasClipboard) return;
 
-  final destDir = controller.currentPath;
   final sources = appState.clipboardPaths;
   final isCut = appState.clipboardIsCut;
+  final transferred = await transferPathsIntoPane(
+    context,
+    controller,
+    sources: sources,
+    move: isCut,
+  );
+  if (transferred && context.mounted && isCut) {
+    appState.clearClipboard();
+  }
+}
+
+Future<bool> transferPathsIntoPane(
+  BuildContext context,
+  PaneController controller, {
+  required List<String> sources,
+  required bool move,
+  String? destination,
+}) async {
+  final appState = context.read<AppState>();
+  final destDir = destination ?? controller.currentPath;
+
+  // Cannot transfer into the Recycle Bin or another virtual shell location.
+  if (FileService.isSpecialPath(destDir) || sources.isEmpty) {
+    return false;
+  }
 
   // 目标位置存在同名项目时，先让用户决定冲突策略。
-  final conflictNames = FileService.detectConflicts(sources, destDir)
-      .map((path) => p.basename(path))
-      .toList(growable: false);
+  final conflictNames = FileService.detectConflicts(
+    sources,
+    destDir,
+  ).map((path) => p.basename(path)).toList(growable: false);
   Map<String, ConflictResolution>? resolutions;
   if (conflictNames.isNotEmpty) {
     resolutions = await resolveFileConflicts(
@@ -103,7 +129,7 @@ Future<void> pasteIntoPane(
       conflictNames: conflictNames,
       destination: destDir,
     );
-    if (resolutions == null || !context.mounted) return; // 用户取消
+    if (resolutions == null || !context.mounted) return false; // 用户取消
   }
 
   final replaceSources = <String>[];
@@ -125,10 +151,10 @@ Future<void> pasteIntoPane(
 
   final movedPaths = <String>[...replaceSources, ...keepBothSources];
   if (movedPaths.isEmpty) {
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(content: Text('已跳过 ${skipped.length} 个冲突项')),
-    );
-    return;
+    ScaffoldMessenger.maybeOf(
+      context,
+    )?.showSnackBar(SnackBar(content: Text('已跳过 ${skipped.length} 个冲突项')));
+    return false;
   }
 
   // 一个任务内按策略分组执行：替换组默认覆盖，保留两者组让 Shell 自动
@@ -136,14 +162,14 @@ Future<void> pasteIntoPane(
   late FileOperationTask completedTask;
   try {
     completedTask = await appState.fileOperations.enqueue(
-      type: isCut ? FileOperationType.move : FileOperationType.copy,
+      type: move ? FileOperationType.move : FileOperationType.copy,
       sources: sources,
       destination: destDir,
       action: (task) async {
         final total = movedPaths.length;
         var done = 0;
         final results = <FileOperationItemResult>[];
-        final run = isCut ? FileService.moveEntries : FileService.copyEntries;
+        final run = move ? FileService.moveEntries : FileService.copyEntries;
         if (replaceSources.isNotEmpty) {
           results.addAll(
             await run(
@@ -177,12 +203,9 @@ Future<void> pasteIntoPane(
     );
   } catch (_) {
     controller.refresh();
-    return;
+    return false;
   }
-  if (!context.mounted) return;
-  if (isCut) {
-    appState.clearClipboard();
-  }
+  if (!context.mounted) return false;
   // 录制历史：逐项实际新路径（createdPath 覆盖"保留两者"的自动改名）。
   final itemResults = completedTask.itemResults;
   final historySources = <String>[];
@@ -198,7 +221,7 @@ Future<void> pasteIntoPane(
   if (historySources.isNotEmpty) {
     appState.history.record(
       FileOperationHistory(
-        type: isCut ? HistoryOperationType.move : HistoryOperationType.copy,
+        type: move ? HistoryOperationType.move : HistoryOperationType.copy,
         source: historySources,
         destination: historyDestinations,
       ),
@@ -214,16 +237,17 @@ Future<void> pasteIntoPane(
     _applyIncrementalRefresh(
       context,
       addedPaths: addedPaths,
-      removedPaths: isCut ? movedPaths : const [],
+      removedPaths: move ? movedPaths : const [],
       invalidateDirs: [destDir],
     );
   } else {
     _applyIncrementalRefresh(
       context,
       addedPaths: addedPaths,
-      removedPaths: isCut ? movedPaths : const [],
+      removedPaths: move ? movedPaths : const [],
     );
   }
+  return true;
 }
 
 /// 操作完成后的增量刷新（context 便捷版）：读取 provider 后委托共享助手。
@@ -276,129 +300,152 @@ class _PaneContent extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: controller.isHome
-              ? HomeView(
-                  controller: controller,
-                  onNavigate: controller.navigateTo,
-                  showFileExtensions: context
-                      .watch<AppState>()
-                      .showFileExtensions,
-                )
-              : Focus(
-                  autofocus: false,
-                  onKeyEvent: (node, event) {
-                    if (event is KeyDownEvent) {
-                      final keyboard = HardwareKeyboard.instance;
-                      if (event.logicalKey == LogicalKeyboardKey.backspace ||
-                          (event.logicalKey == LogicalKeyboardKey.arrowUp &&
-                              keyboard.isAltPressed)) {
-                        controller.goUp();
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
-                          keyboard.isAltPressed) {
-                        controller.goBack();
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
-                          keyboard.isAltPressed) {
-                        controller.goForward();
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.f5) {
-                        controller.refresh();
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.keyA &&
-                          keyboard.isControlPressed) {
-                        controller.selectAll();
-                        return KeyEventResult.handled;
-                      }
-                      if (matchesSearchShortcut(event, keyboard)) {
-                        if (!controller.isHome &&
-                            !FileService.isSpecialPath(
-                              controller.currentPath,
-                            )) {
-                          _openSearch(context, controller);
-                        }
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.enter) {
-                        _openSelected(context, controller);
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.delete) {
-                        if (FileService.isRecycleBinPath(
-                          controller.currentPath,
-                        )) {
-                          _deleteRecycleBinSelection(context);
-                        } else {
-                          _deleteSelected(
-                            context,
-                            permanent: keyboard.isShiftPressed,
-                          );
-                        }
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.f2) {
-                        if (!FileService.isRecycleBinPath(
-                          controller.currentPath,
-                        )) {
-                          _renameSelected(context);
-                        }
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.keyC &&
-                          keyboard.isControlPressed &&
-                          keyboard.isShiftPressed) {
-                        _copySelectedPaths(context);
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.keyC &&
-                          keyboard.isControlPressed &&
-                          !keyboard.isShiftPressed) {
-                        _copySelected(context);
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.keyX &&
-                          keyboard.isControlPressed) {
-                        if (FileService.isRecycleBinPath(
-                          controller.currentPath,
-                        )) {
+          child: _PaneDropTarget(
+            paneId: paneNode.paneId!,
+            controller: controller,
+            onDrop: (payload, operation) async {
+              layoutState.focusNode(paneNode);
+              await transferPathsIntoPane(
+                context,
+                controller,
+                sources: payload.paths,
+                move: operation == FileDropOperation.move,
+              );
+            },
+            child: controller.isHome
+                ? HomeView(
+                    controller: controller,
+                    onNavigate: controller.navigateTo,
+                    showFileExtensions: context
+                        .watch<AppState>()
+                        .showFileExtensions,
+                  )
+                : Focus(
+                    autofocus: false,
+                    onKeyEvent: (node, event) {
+                      if (event is KeyDownEvent) {
+                        final keyboard = HardwareKeyboard.instance;
+                        if (event.logicalKey == LogicalKeyboardKey.backspace ||
+                            (event.logicalKey == LogicalKeyboardKey.arrowUp &&
+                                keyboard.isAltPressed)) {
+                          controller.goUp();
                           return KeyEventResult.handled;
                         }
-                        _cutSelected(context);
-                        return KeyEventResult.handled;
-                      }
-                      if (event.logicalKey == LogicalKeyboardKey.keyV &&
-                          keyboard.isControlPressed) {
-                        if (FileService.isRecycleBinPath(
-                          controller.currentPath,
-                        )) {
+                        if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
+                            keyboard.isAltPressed) {
+                          controller.goBack();
                           return KeyEventResult.handled;
                         }
-                        _paste(context);
-                        return KeyEventResult.handled;
+                        if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
+                            keyboard.isAltPressed) {
+                          controller.goForward();
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.f5) {
+                          controller.refresh();
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.keyA &&
+                            keyboard.isControlPressed) {
+                          controller.selectAll();
+                          return KeyEventResult.handled;
+                        }
+                        if (matchesSearchShortcut(event, keyboard)) {
+                          if (!controller.isHome &&
+                              !FileService.isSpecialPath(
+                                controller.currentPath,
+                              )) {
+                            _openSearch(context, controller);
+                          }
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.enter) {
+                          _openSelected(context, controller);
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.delete) {
+                          if (FileService.isRecycleBinPath(
+                            controller.currentPath,
+                          )) {
+                            _deleteRecycleBinSelection(context);
+                          } else {
+                            _deleteSelected(
+                              context,
+                              permanent: keyboard.isShiftPressed,
+                            );
+                          }
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.f2) {
+                          if (!FileService.isRecycleBinPath(
+                            controller.currentPath,
+                          )) {
+                            _renameSelected(context);
+                          }
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.keyC &&
+                            keyboard.isControlPressed &&
+                            keyboard.isShiftPressed) {
+                          _copySelectedPaths(context);
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.keyC &&
+                            keyboard.isControlPressed &&
+                            !keyboard.isShiftPressed) {
+                          _copySelected(context);
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.keyX &&
+                            keyboard.isControlPressed) {
+                          if (FileService.isRecycleBinPath(
+                            controller.currentPath,
+                          )) {
+                            return KeyEventResult.handled;
+                          }
+                          _cutSelected(context);
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.keyV &&
+                            keyboard.isControlPressed) {
+                          if (FileService.isRecycleBinPath(
+                            controller.currentPath,
+                          )) {
+                            return KeyEventResult.handled;
+                          }
+                          _paste(context);
+                          return KeyEventResult.handled;
+                        }
                       }
-                    }
-                    return KeyEventResult.ignored;
-                  },
-                  child: Builder(
-                    builder: (focusContext) => Listener(
-                      onPointerDown: (_) {
-                        Focus.of(focusContext).requestFocus();
-                      },
-                      child: _FileListSection(
-                        isActive: isActive,
-                        cloudZoneResolver: cloudZoneResolver,
-                        onItemContextMenu: (path, position) =>
-                            _openItemContextMenu(context, path, position),
-                        onFolderContextMenu: (position) =>
-                            _openFolderContextMenu(context, position),
+                      return KeyEventResult.ignored;
+                    },
+                    child: Builder(
+                      builder: (focusContext) => Listener(
+                        onPointerDown: (_) {
+                          Focus.of(focusContext).requestFocus();
+                        },
+                        child: _FileListSection(
+                          isActive: isActive,
+                          cloudZoneResolver: cloudZoneResolver,
+                          onItemContextMenu: (path, position) =>
+                              _openItemContextMenu(context, path, position),
+                          onFolderContextMenu: (position) =>
+                              _openFolderContextMenu(context, position),
+                          onFolderDrop: (payload, directory, operation) async {
+                            layoutState.focusNode(paneNode);
+                            await transferPathsIntoPane(
+                              context,
+                              controller,
+                              sources: payload.paths,
+                              move: operation == FileDropOperation.move,
+                              destination: directory.path,
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
-                ),
+          ),
         ),
         if (!controller.isHome) const _StatusBarSection(),
       ],
@@ -1146,12 +1193,14 @@ class _PaneContent extends StatelessWidget {
             keptDestinations.add(destinations?[i]);
           }
           if (keptEntries.isEmpty) return;
-          entries..clear()..addAll(keptEntries);
-          parsingNames..clear()..addAll(
-            keptEntries
-                .map((entry) => entry.parsingName)
-                .whereType<String>(),
-          );
+          entries
+            ..clear()
+            ..addAll(keptEntries);
+          parsingNames
+            ..clear()
+            ..addAll(
+              keptEntries.map((entry) => entry.parsingName).whereType<String>(),
+            );
           destinations = keptDestinations;
           break;
         case _CollisionChoice.keepBoth:
@@ -1295,9 +1344,7 @@ class _PaneContent extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('还原冲突'),
-        content: Text(
-          '有 $collisionCount 个项目与目标位置中的现有项目同名。如何处理？',
-        ),
+        content: Text('有 $collisionCount 个项目与目标位置中的现有项目同名。如何处理？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -1559,17 +1606,269 @@ class _AddressBarSection extends StatelessWidget {
   }
 }
 
+class _PaneDropTarget extends StatefulWidget {
+  const _PaneDropTarget({
+    required this.paneId,
+    required this.controller,
+    required this.onDrop,
+    required this.child,
+  });
+
+  final String paneId;
+  final PaneController controller;
+  final Future<void> Function(
+    FileDragPayload payload,
+    FileDropOperation operation,
+  )
+  onDrop;
+  final Widget child;
+
+  @override
+  State<_PaneDropTarget> createState() => _PaneDropTargetState();
+}
+
+class _PaneDropTargetState extends State<_PaneDropTarget> {
+  FileDragPayload? _payload;
+  final Map<int, Offset> _pointerStarts = {};
+
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
+    super.dispose();
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (_payload == null) return false;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.controlLeft ||
+        key == LogicalKeyboardKey.controlRight ||
+        key == LogicalKeyboardKey.shiftLeft ||
+        key == LogicalKeyboardKey.shiftRight) {
+      final payload = _payload;
+      if (payload != null) {
+        _showTargetFeedback(payload, _decision(payload));
+      }
+      setState(() {});
+    }
+    return false;
+  }
+
+  FileDropDecision _decision(FileDragPayload payload) => FileDropService.decide(
+    payload: payload,
+    targetDirectory: widget.controller.currentPath,
+    controlPressed: HardwareKeyboard.instance.isControlPressed,
+    shiftPressed: HardwareKeyboard.instance.isShiftPressed,
+  );
+
+  void _showPayload(FileDragPayload payload) {
+    if (identical(_payload, payload)) return;
+    setState(() => _payload = payload);
+  }
+
+  void _clearPayload([FileDragPayload? payload]) {
+    if (_payload == null ||
+        (payload != null && !identical(_payload, payload))) {
+      return;
+    }
+    (_payload ?? payload)?.clearTargetFeedback(_feedbackOwner);
+    setState(() => _payload = null);
+  }
+
+  String get _feedbackOwner => 'pane:${widget.paneId}';
+
+  void _showTargetFeedback(FileDragPayload payload, FileDropDecision decision) {
+    var destination = p.basename(widget.controller.currentPath);
+    if (destination.isEmpty) destination = widget.controller.currentPath;
+    payload.showTargetFeedback(
+      FileDragTargetFeedback(
+        owner: _feedbackOwner,
+        accepted: decision.accepted,
+        copy: decision.operation == FileDropOperation.copy,
+        destination: destination,
+        message: decision.message,
+      ),
+    );
+  }
+
+  bool _isScrollbarGutter(Offset globalPosition) {
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return false;
+    final local = renderObject.globalToLocal(globalPosition);
+    return local.dx >= renderObject.size.width - AppMetrics.scrollbarGutter;
+  }
+
+  Offset? _localPosition(Offset globalPosition) {
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return null;
+    return renderObject.globalToLocal(globalPosition);
+  }
+
+  void _logPointerDown(PointerDownEvent event) {
+    _pointerStarts[event.pointer] = event.position;
+    _fileDropLog(
+      '[FileDrop] pointer down pane=${widget.paneId} '
+      'path=${widget.controller.currentPath} pointer=${event.pointer} '
+      'kind=${event.kind.name} buttons=${event.buttons} '
+      'global=${_dropDebugOffset(event.position)} '
+      'local=${_dropDebugOffset(_localPosition(event.position))} '
+      'gutter=${_isScrollbarGutter(event.position)}',
+    );
+  }
+
+  void _logPointerMove(PointerMoveEvent event) {
+    if (event.buttons == 0) return;
+    final start = _pointerStarts[event.pointer];
+    final distance = start == null ? null : (event.position - start).distance;
+    _fileDropLog(
+      '[FileDrop] pointer move pane=${widget.paneId} '
+      'pointer=${event.pointer} buttons=${event.buttons} '
+      'global=${_dropDebugOffset(event.position)} '
+      'local=${_dropDebugOffset(_localPosition(event.position))} '
+      'delta=${_dropDebugOffset(event.delta)} '
+      'distance=${distance?.toStringAsFixed(2) ?? 'unknown'} '
+      'gutter=${_isScrollbarGutter(event.position)}',
+    );
+  }
+
+  void _logPointerEnd(PointerEvent event) {
+    final start = _pointerStarts.remove(event.pointer);
+    final distance = start == null ? null : (event.position - start).distance;
+    _fileDropLog(
+      '[FileDrop] pointer ${event is PointerCancelEvent ? 'cancel' : 'up'} '
+      'pane=${widget.paneId} pointer=${event.pointer} '
+      'global=${_dropDebugOffset(event.position)} '
+      'distance=${distance?.toStringAsFixed(2) ?? 'unknown'}',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final payload = _payload;
+    final decision = payload == null ? null : _decision(payload);
+    final accepted = decision?.accepted == true;
+
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _logPointerDown,
+      onPointerMove: _logPointerMove,
+      onPointerUp: _logPointerEnd,
+      onPointerCancel: _logPointerEnd,
+      child: DragTarget<FileDragPayload>(
+        key: ValueKey('pane-drop-target-${widget.paneId}'),
+        onWillAcceptWithDetails: (details) {
+          final inGutter = _isScrollbarGutter(details.offset);
+          final decision = _decision(details.data);
+          _fileDropLog(
+            '[FileDrop] drag enter pane=${widget.paneId} '
+            'path=${widget.controller.currentPath} '
+            'global=${_dropDebugOffset(details.offset)} '
+            'local=${_dropDebugOffset(_localPosition(details.offset))} '
+            'gutter=$inGutter accepted=${decision.accepted} '
+            'operation=${decision.operation} reason=${decision.message}',
+          );
+          if (inGutter) {
+            details.data.clearTargetFeedback(_feedbackOwner);
+            _clearPayload();
+            return false;
+          }
+          _showPayload(details.data);
+          _showTargetFeedback(details.data, decision);
+          return decision.accepted;
+        },
+        onMove: (details) {
+          if (_isScrollbarGutter(details.offset)) {
+            _clearPayload(details.data);
+          } else {
+            _showPayload(details.data);
+            _showTargetFeedback(details.data, _decision(details.data));
+          }
+        },
+        onLeave: (payload) {
+          _fileDropLog(
+            '[FileDrop] drag leave pane=${widget.paneId} '
+            'path=${widget.controller.currentPath}',
+          );
+          _clearPayload(payload);
+        },
+        onAcceptWithDetails: (details) {
+          final inGutter = _isScrollbarGutter(details.offset);
+          final latest = _decision(details.data);
+          _fileDropLog(
+            '[FileDrop] drag accept pane=${widget.paneId} '
+            'path=${widget.controller.currentPath} '
+            'global=${_dropDebugOffset(details.offset)} gutter=$inGutter '
+            'accepted=${latest.accepted} operation=${latest.operation} '
+            'reason=${latest.message}',
+          );
+          if (inGutter) {
+            _clearPayload(details.data);
+            return;
+          }
+          _clearPayload(details.data);
+          final operation = latest.operation;
+          if (operation != null) {
+            unawaited(widget.onDrop(details.data, operation));
+          }
+        },
+        builder: (context, _, _) => Stack(
+          fit: StackFit.expand,
+          children: [
+            widget.child,
+            if (payload != null)
+              IgnorePointer(
+                child: Container(
+                  key: ValueKey('pane-drop-highlight-${widget.paneId}'),
+                  decoration: BoxDecoration(
+                    color: accepted
+                        ? c.accentSubtle.withValues(alpha: 0.2)
+                        : c.danger.withValues(alpha: 0.06),
+                    border: Border.all(
+                      color: accepted ? c.accent : c.danger,
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _dropDebugOffset(Offset? offset) => offset == null
+    ? 'unavailable'
+    : '(${offset.dx.toStringAsFixed(1)},${offset.dy.toStringAsFixed(1)})';
+
+void _fileDropLog(String message) {
+  if (kDebugMode) debugPrint(message);
+}
+
 class _FileListSection extends StatelessWidget {
   final bool isActive;
   final bool Function(String path)? cloudZoneResolver;
   final void Function(String path, Offset position) onItemContextMenu;
   final ValueChanged<Offset> onFolderContextMenu;
+  final Future<void> Function(
+    FileDragPayload payload,
+    FileEntry directory,
+    FileDropOperation operation,
+  )
+  onFolderDrop;
 
   const _FileListSection({
     required this.isActive,
     required this.cloudZoneResolver,
     required this.onItemContextMenu,
     required this.onFolderContextMenu,
+    required this.onFolderDrop,
   });
 
   @override
@@ -1595,6 +1894,16 @@ class _FileListSection extends StatelessWidget {
             columnWidths: controller.columnWidths,
             onResizeColumn: controller.resizeColumn,
             onInitWidths: controller.initColumnWidths,
+            dragPayloadBuilder: (entry) =>
+                _buildFileDragPayload(controller, entry),
+            folderDropDecisionBuilder: (payload, directory) =>
+                FileDropService.decide(
+                  payload: payload,
+                  targetDirectory: directory.path,
+                  controlPressed: HardwareKeyboard.instance.isControlPressed,
+                  shiftPressed: HardwareKeyboard.instance.isShiftPressed,
+                ),
+            onFolderDrop: onFolderDrop,
             // 当前目录位于云同步区（OneDrive 等）时显示"状态"列，同资源管理器。
             showStatusColumn:
                 cloudZoneResolver?.call(controller.currentPath) ??
@@ -1606,7 +1915,19 @@ class _FileListSection extends StatelessWidget {
                 controller.selectRange(path);
               } else if (ctrl) {
                 controller.toggleSelection(path);
+              } else if (controller.selectedPaths.length > 1 &&
+                  controller.selectedPaths.contains(path)) {
+                // Preserve the multi-selection while a pointer drag starts.
               } else {
+                controller.selectSingle(path);
+              }
+            },
+            onPrimaryTap: (path) {
+              final keyboard = HardwareKeyboard.instance;
+              if (!keyboard.isControlPressed &&
+                  !keyboard.isShiftPressed &&
+                  controller.selectedPaths.length > 1 &&
+                  controller.selectedPaths.contains(path)) {
                 controller.selectSingle(path);
               }
             },
@@ -1618,6 +1939,24 @@ class _FileListSection extends StatelessWidget {
       ],
     );
   }
+}
+
+FileDragPayload? _buildFileDragPayload(
+  PaneController controller,
+  FileEntry entry,
+) {
+  if (FileService.isSpecialPath(controller.currentPath)) return null;
+
+  final selectedPaths = controller.selectedPaths.contains(entry.path)
+      ? controller.selectedPaths
+      : {entry.path};
+  final items = [
+    for (final candidate in controller.visibleEntries)
+      if (selectedPaths.contains(candidate.path))
+        FileDragItem(path: candidate.path, isDirectory: candidate.isDirectory),
+  ];
+  if (items.isEmpty) return null;
+  return FileDragPayload(sourceDirectory: controller.currentPath, items: items);
 }
 
 class _StatusBarSection extends StatelessWidget {

@@ -1,8 +1,15 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
+import '../models/file_drag_payload.dart';
 import '../models/file_entry.dart';
 import '../models/file_group.dart';
+import '../services/file_drop_service.dart';
 import '../services/icon_service.dart';
 import '../state/pane_controller.dart';
 import 'app_theme.dart';
@@ -26,6 +33,7 @@ class FileListView extends StatefulWidget {
   final Set<String> selectedPaths;
   final bool isActive;
   final ValueChanged<String> onSingleTap;
+  final ValueChanged<String>? onPrimaryTap;
   final ValueChanged<String> onDoubleTap;
   final Function(String path, Offset globalPosition)? onItemRightClick;
   final Function(Offset globalPosition)? onEmptyRightClick;
@@ -40,6 +48,15 @@ class FileListView extends StatefulWidget {
   final FileGroupBy groupBy;
   final bool groupAscending;
   final bool showFileExtensions;
+  final FileDragPayload? Function(FileEntry entry)? dragPayloadBuilder;
+  final FileDropDecision Function(FileDragPayload payload, FileEntry directory)?
+  folderDropDecisionBuilder;
+  final Future<void> Function(
+    FileDragPayload payload,
+    FileEntry directory,
+    FileDropOperation operation,
+  )?
+  onFolderDrop;
 
   /// 当前目录位于云同步区时，追加只读的"状态"列（资源管理器同款）。
   final bool showStatusColumn;
@@ -50,6 +67,7 @@ class FileListView extends StatefulWidget {
     required this.selectedPaths,
     this.isActive = true,
     required this.onSingleTap,
+    this.onPrimaryTap,
     required this.onDoubleTap,
     this.onItemRightClick,
     this.onEmptyRightClick,
@@ -64,6 +82,9 @@ class FileListView extends StatefulWidget {
     this.groupBy = FileGroupBy.none,
     this.groupAscending = true,
     this.showFileExtensions = true,
+    this.dragPayloadBuilder,
+    this.folderDropDecisionBuilder,
+    this.onFolderDrop,
     this.showStatusColumn = false,
   });
 
@@ -83,6 +104,8 @@ class _FileListViewState extends State<FileListView> {
 
   /// 鼠标悬停在列表面板上时显示滚动条。
   bool _scrollbarHovered = false;
+  FileDragPayload? _folderDropPayload;
+  String? _folderDropPath;
 
   double get _totalColWidth =>
       widget.columnWidths.reduce((a, b) => a + b) +
@@ -117,7 +140,14 @@ class _FileListViewState extends State<FileListView> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+  }
+
+  @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     _hScrollController.dispose();
     _vScrollController.dispose();
     super.dispose();
@@ -202,48 +232,59 @@ class _FileListViewState extends State<FileListView> {
                             : Scrollbar(
                                 controller: _vScrollController,
                                 thumbVisibility: _scrollbarHovered,
-                                child: CustomScrollView(
-                                  controller: _vScrollController,
-                                  slivers: [
-                                    for (final group in _groups) ...[
-                                      if (_showGroupHeaders)
-                                        SliverToBoxAdapter(
-                                          child: _FileGroupHeader(
-                                            label: group.label,
-                                            count: group.entries.length,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    right: AppMetrics.scrollbarGutter,
+                                  ),
+                                  child: CustomScrollView(
+                                    controller: _vScrollController,
+                                    slivers: [
+                                      for (final group in _groups) ...[
+                                        if (_showGroupHeaders)
+                                          SliverToBoxAdapter(
+                                            child: _FileGroupHeader(
+                                              label: group.label,
+                                              count: group.entries.length,
+                                            ),
                                           ),
+                                        SliverFixedExtentList(
+                                          itemExtent: AppMetrics.rowHeight,
+                                          delegate: SliverChildBuilderDelegate((
+                                            context,
+                                            index,
+                                          ) {
+                                            final entry = group.entries[index];
+                                            return _wrapEntryInteraction(
+                                              entry,
+                                              _FileRow(
+                                                entry: entry,
+                                                isSelected: widget.selectedPaths
+                                                    .contains(entry.path),
+                                                isActive: widget.isActive,
+                                                columnWidths:
+                                                    widget.columnWidths,
+                                                blankWidth: blankW,
+                                                viewMode: widget.viewMode,
+                                                showFileExtensions:
+                                                    widget.showFileExtensions,
+                                                showStatusColumn:
+                                                    widget.showStatusColumn,
+                                                onSingleTap: () => widget
+                                                    .onSingleTap(entry.path),
+                                                onTap: () => widget.onPrimaryTap
+                                                    ?.call(entry.path),
+                                                onDoubleTap: () => widget
+                                                    .onDoubleTap(entry.path),
+                                                onRightClick: (pos) => widget
+                                                    .onItemRightClick
+                                                    ?.call(entry.path, pos),
+                                              ),
+                                            );
+                                          }, childCount: group.entries.length),
                                         ),
-                                      SliverFixedExtentList(
-                                        itemExtent: AppMetrics.rowHeight,
-                                        delegate: SliverChildBuilderDelegate((
-                                          context,
-                                          index,
-                                        ) {
-                                          final entry = group.entries[index];
-                                          return _FileRow(
-                                            entry: entry,
-                                            isSelected: widget.selectedPaths
-                                                .contains(entry.path),
-                                            isActive: widget.isActive,
-                                            columnWidths: widget.columnWidths,
-                                            blankWidth: blankW,
-                                            viewMode: widget.viewMode,
-                                            showFileExtensions:
-                                                widget.showFileExtensions,
-                                            showStatusColumn:
-                                                widget.showStatusColumn,
-                                            onSingleTap: () =>
-                                                widget.onSingleTap(entry.path),
-                                            onDoubleTap: () =>
-                                                widget.onDoubleTap(entry.path),
-                                            onRightClick: (pos) => widget
-                                                .onItemRightClick
-                                                ?.call(entry.path, pos),
-                                          );
-                                        }, childCount: group.entries.length),
-                                      ),
+                                      ],
                                     ],
-                                  ],
+                                  ),
                                 ),
                               ),
                       ),
@@ -266,6 +307,191 @@ class _FileListViewState extends State<FileListView> {
     PaneViewMode.compact => true,
     _ => false,
   };
+
+  Widget _wrapDraggable(FileEntry entry, Widget child) {
+    final payload = widget.dragPayloadBuilder?.call(entry);
+    if (payload == null) return child;
+
+    return _FileDraggable<FileDragPayload>(
+      key: ValueKey('file-drag-${entry.path}'),
+      debugLabel: entry.path,
+      data: payload,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      rootOverlay: true,
+      feedback: _FileDragFeedback(payload: payload),
+      childWhenDragging: Opacity(opacity: 0.45, child: child),
+      onDragStarted: () {
+        _fileDragLog(
+          'started source=${entry.path} '
+          'items=${payload.items.length} from=${payload.sourceDirectory}',
+        );
+      },
+      onDragEnd: (details) {
+        payload.clearTargetFeedback();
+        _fileDragLog(
+          'ended source=${entry.path} accepted=${details.wasAccepted} '
+          'offset=${_debugOffset(details.offset)} '
+          'velocity=${_debugOffset(details.velocity.pixelsPerSecond)}',
+        );
+      },
+      child: child,
+    );
+  }
+
+  Widget _wrapEntryInteraction(FileEntry entry, Widget child) {
+    final draggable = _wrapDraggable(entry, child);
+    if (!entry.isDirectory ||
+        widget.folderDropDecisionBuilder == null ||
+        widget.onFolderDrop == null) {
+      return draggable;
+    }
+    return _wrapFolderDropTarget(entry, draggable);
+  }
+
+  Widget _wrapFolderDropTarget(FileEntry entry, Widget child) {
+    final payload = _folderDropPath == entry.path ? _folderDropPayload : null;
+    final decision = payload == null
+        ? null
+        : widget.folderDropDecisionBuilder!(payload, entry);
+    final accepted = decision?.accepted == true;
+    final c = context.colors;
+
+    return DragTarget<FileDragPayload>(
+      key: ValueKey('folder-drop-${entry.path}'),
+      onWillAcceptWithDetails: (details) {
+        final decision = widget.folderDropDecisionBuilder!(details.data, entry);
+        _fileDragLog(
+          'folder enter target=${entry.path} '
+          'at=${_debugOffset(details.offset)} '
+          'accepted=${decision.accepted} reason=${decision.message}',
+        );
+        _showFolderDrop(entry.path, details.data);
+        _showFolderTargetFeedback(details.data, entry, decision);
+        return decision.accepted;
+      },
+      onMove: (details) {
+        final decision = widget.folderDropDecisionBuilder!(details.data, entry);
+        _showFolderDrop(entry.path, details.data);
+        _showFolderTargetFeedback(details.data, entry, decision);
+      },
+      onLeave: (data) {
+        _fileDragLog('folder leave target=${entry.path}');
+        _clearFolderDrop(entry.path, data);
+      },
+      onAcceptWithDetails: (details) {
+        final latest = widget.folderDropDecisionBuilder!(details.data, entry);
+        _fileDragLog(
+          'folder accept target=${entry.path} '
+          'at=${_debugOffset(details.offset)} '
+          'accepted=${latest.accepted} operation=${latest.operation}',
+        );
+        _clearFolderDrop(entry.path, details.data);
+        final operation = latest.operation;
+        if (operation != null) {
+          unawaited(widget.onFolderDrop!(details.data, entry, operation));
+        }
+      },
+      builder: (context, _, _) => Stack(
+        fit: StackFit.passthrough,
+        children: [
+          child,
+          if (payload != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  key: ValueKey('folder-drop-highlight-${entry.path}'),
+                  decoration: BoxDecoration(
+                    color: accepted
+                        ? c.accentSubtle.withValues(alpha: 0.82)
+                        : c.danger.withValues(alpha: 0.08),
+                    border: Border.all(
+                      color: accepted ? c.accent : c.danger,
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(
+                      AppMetrics.controlRadius,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (_folderDropPayload == null) return false;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.controlLeft ||
+        key == LogicalKeyboardKey.controlRight ||
+        key == LogicalKeyboardKey.shiftLeft ||
+        key == LogicalKeyboardKey.shiftRight) {
+      final path = _folderDropPath;
+      final payload = _folderDropPayload;
+      if (path != null && payload != null) {
+        final entry = _entryAtPath(path);
+        if (entry != null) {
+          _showFolderTargetFeedback(
+            payload,
+            entry,
+            widget.folderDropDecisionBuilder!(payload, entry),
+          );
+        }
+      }
+      setState(() {});
+    }
+    return false;
+  }
+
+  void _showFolderDrop(String path, FileDragPayload payload) {
+    if (_folderDropPath == path && identical(_folderDropPayload, payload)) {
+      return;
+    }
+    setState(() {
+      _folderDropPath = path;
+      _folderDropPayload = payload;
+    });
+  }
+
+  void _clearFolderDrop(String path, [FileDragPayload? payload]) {
+    if (_folderDropPath != path ||
+        (payload != null && !identical(_folderDropPayload, payload))) {
+      return;
+    }
+    (_folderDropPayload ?? payload)?.clearTargetFeedback(
+      _folderFeedbackOwner(path),
+    );
+    setState(() {
+      _folderDropPath = null;
+      _folderDropPayload = null;
+    });
+  }
+
+  FileEntry? _entryAtPath(String path) {
+    for (final entry in widget.entries) {
+      if (entry.path == path) return entry;
+    }
+    return null;
+  }
+
+  String _folderFeedbackOwner(String path) => 'folder:$path';
+
+  void _showFolderTargetFeedback(
+    FileDragPayload payload,
+    FileEntry entry,
+    FileDropDecision decision,
+  ) {
+    payload.showTargetFeedback(
+      FileDragTargetFeedback(
+        owner: _folderFeedbackOwner(entry.path),
+        accepted: decision.accepted,
+        copy: decision.operation == FileDropOperation.copy,
+        destination: entry.name,
+        message: decision.message,
+      ),
+    );
+  }
 
   ({double iconSize, double tileWidth, double tileHeight, bool horizontal})
   _iconSpec(PaneViewMode mode) => switch (mode) {
@@ -330,17 +556,21 @@ class _FileListViewState extends State<FileListView> {
                 ),
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final entry = group.entries[index];
-                  return _ExplorerTile(
-                    entry: entry,
-                    iconSize: spec.iconSize,
-                    horizontal: spec.horizontal,
-                    showFileExtensions: widget.showFileExtensions,
-                    isSelected: widget.selectedPaths.contains(entry.path),
-                    isActive: widget.isActive,
-                    onSingleTap: () => widget.onSingleTap(entry.path),
-                    onDoubleTap: () => widget.onDoubleTap(entry.path),
-                    onRightClick: (position) =>
-                        widget.onItemRightClick?.call(entry.path, position),
+                  return _wrapEntryInteraction(
+                    entry,
+                    _ExplorerTile(
+                      entry: entry,
+                      iconSize: spec.iconSize,
+                      horizontal: spec.horizontal,
+                      showFileExtensions: widget.showFileExtensions,
+                      isSelected: widget.selectedPaths.contains(entry.path),
+                      isActive: widget.isActive,
+                      onSingleTap: () => widget.onSingleTap(entry.path),
+                      onTap: () => widget.onPrimaryTap?.call(entry.path),
+                      onDoubleTap: () => widget.onDoubleTap(entry.path),
+                      onRightClick: (position) =>
+                          widget.onItemRightClick?.call(entry.path, position),
+                    ),
                   );
                 }, childCount: group.entries.length),
               ),
@@ -383,16 +613,20 @@ class _FileListViewState extends State<FileListView> {
                 itemExtent: contentMode ? 68 : 58,
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final entry = group.entries[index];
-                  return _ExplorerContentRow(
-                    entry: entry,
-                    contentMode: contentMode,
-                    showFileExtensions: widget.showFileExtensions,
-                    isSelected: widget.selectedPaths.contains(entry.path),
-                    isActive: widget.isActive,
-                    onSingleTap: () => widget.onSingleTap(entry.path),
-                    onDoubleTap: () => widget.onDoubleTap(entry.path),
-                    onRightClick: (position) =>
-                        widget.onItemRightClick?.call(entry.path, position),
+                  return _wrapEntryInteraction(
+                    entry,
+                    _ExplorerContentRow(
+                      entry: entry,
+                      contentMode: contentMode,
+                      showFileExtensions: widget.showFileExtensions,
+                      isSelected: widget.selectedPaths.contains(entry.path),
+                      isActive: widget.isActive,
+                      onSingleTap: () => widget.onSingleTap(entry.path),
+                      onTap: () => widget.onPrimaryTap?.call(entry.path),
+                      onDoubleTap: () => widget.onDoubleTap(entry.path),
+                      onRightClick: (position) =>
+                          widget.onItemRightClick?.call(entry.path, position),
+                    ),
                   );
                 }, childCount: group.entries.length),
               ),
@@ -436,16 +670,20 @@ class _FileListViewState extends State<FileListView> {
                 ),
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final entry = group.entries[index];
-                  return _ExplorerContentRow(
-                    entry: entry,
-                    contentMode: false,
-                    showFileExtensions: widget.showFileExtensions,
-                    isSelected: widget.selectedPaths.contains(entry.path),
-                    isActive: widget.isActive,
-                    onSingleTap: () => widget.onSingleTap(entry.path),
-                    onDoubleTap: () => widget.onDoubleTap(entry.path),
-                    onRightClick: (position) =>
-                        widget.onItemRightClick?.call(entry.path, position),
+                  return _wrapEntryInteraction(
+                    entry,
+                    _ExplorerContentRow(
+                      entry: entry,
+                      contentMode: false,
+                      showFileExtensions: widget.showFileExtensions,
+                      isSelected: widget.selectedPaths.contains(entry.path),
+                      isActive: widget.isActive,
+                      onSingleTap: () => widget.onSingleTap(entry.path),
+                      onTap: () => widget.onPrimaryTap?.call(entry.path),
+                      onDoubleTap: () => widget.onDoubleTap(entry.path),
+                      onRightClick: (position) =>
+                          widget.onItemRightClick?.call(entry.path, position),
+                    ),
                   );
                 }, childCount: group.entries.length),
               ),
@@ -456,6 +694,247 @@ class _FileListViewState extends State<FileListView> {
     );
   }
 }
+
+const double _mouseFileDragSlop = 6;
+
+void _fileDragLog(String message) {
+  if (kDebugMode) debugPrint('[FileDrag] $message');
+}
+
+String _debugOffset(Offset offset) =>
+    '(${offset.dx.toStringAsFixed(1)},${offset.dy.toStringAsFixed(1)})';
+
+class _FileDraggable<T extends Object> extends Draggable<T> {
+  const _FileDraggable({
+    super.key,
+    required this.debugLabel,
+    required super.child,
+    required super.feedback,
+    super.data,
+    super.childWhenDragging,
+    super.dragAnchorStrategy,
+    super.rootOverlay,
+    super.onDragStarted,
+    super.onDragEnd,
+  });
+
+  final String debugLabel;
+
+  @override
+  MultiDragGestureRecognizer createRecognizer(
+    GestureMultiDragStartCallback onStart,
+  ) =>
+      _FileMultiDragGestureRecognizer(debugLabel: debugLabel)
+        ..onStart = onStart;
+}
+
+class _FileMultiDragGestureRecognizer extends MultiDragGestureRecognizer {
+  _FileMultiDragGestureRecognizer({required this.debugLabel, super.debugOwner});
+
+  final String debugLabel;
+
+  @override
+  MultiDragPointerState createNewPointerState(PointerDownEvent event) {
+    final threshold = event.kind == PointerDeviceKind.mouse
+        ? _mouseFileDragSlop
+        : computeHitSlop(event.kind, gestureSettings);
+    _fileDragLog(
+      'source down path=$debugLabel pointer=${event.pointer} '
+      'kind=${event.kind.name} buttons=${event.buttons} '
+      'at=${_debugOffset(event.position)} threshold=$threshold',
+    );
+    return _FileDragPointerState(
+      event.position,
+      event.kind,
+      gestureSettings,
+      debugLabel: debugLabel,
+      pointer: event.pointer,
+    );
+  }
+
+  @override
+  String get debugDescription => 'file multidrag';
+}
+
+class _FileDragPointerState extends MultiDragPointerState {
+  _FileDragPointerState(
+    super.initialPosition,
+    super.kind,
+    super.gestureSettings, {
+    required this.debugLabel,
+    required this.pointer,
+  });
+
+  final String debugLabel;
+  final int pointer;
+  GestureMultiDragStartCallback? _starter;
+  bool _thresholdCrossed = false;
+  bool _started = false;
+
+  @override
+  void checkForResolutionAfterMove() {
+    final distance = pendingDelta?.distance ?? 0;
+    final threshold = kind == PointerDeviceKind.mouse
+        ? _mouseFileDragSlop
+        : computeHitSlop(kind, gestureSettings);
+    _fileDragLog(
+      'source move path=$debugLabel pointer=$pointer '
+      'delta=${_debugOffset(pendingDelta ?? Offset.zero)} '
+      'distance=${distance.toStringAsFixed(2)} threshold=$threshold',
+    );
+    if (distance > threshold && !_thresholdCrossed) {
+      _thresholdCrossed = true;
+      _fileDragLog(
+        'threshold crossed path=$debugLabel pointer=$pointer '
+        'distance=${distance.toStringAsFixed(2)}',
+      );
+      final starter = _starter;
+      if (starter == null) {
+        resolve(GestureDisposition.accepted);
+      } else {
+        _start(starter);
+      }
+    }
+  }
+
+  @override
+  void accepted(GestureMultiDragStartCallback starter) {
+    _fileDragLog(
+      'arena accepted path=$debugLabel pointer=$pointer '
+      'thresholdCrossed=$_thresholdCrossed '
+      'initial=${_debugOffset(initialPosition)}',
+    );
+    _starter = starter;
+    if (_thresholdCrossed) _start(starter);
+  }
+
+  void _start(GestureMultiDragStartCallback starter) {
+    if (_started) return;
+    _started = true;
+    _fileDragLog(
+      'recognizer starting path=$debugLabel pointer=$pointer '
+      'initial=${_debugOffset(initialPosition)}',
+    );
+    starter(initialPosition);
+  }
+
+  @override
+  void rejected() {
+    _fileDragLog('recognizer rejected path=$debugLabel pointer=$pointer');
+    super.rejected();
+  }
+}
+
+class _FileDragFeedback extends StatelessWidget {
+  const _FileDragFeedback({required this.payload});
+
+  final FileDragPayload payload;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final label = payload.items.length == 1
+        ? p.basename(payload.items.single.path)
+        : '${payload.items.length} 个项目';
+    return Transform.translate(
+      offset: const Offset(14, 28),
+      child: Material(
+        key: const ValueKey('file-drag-feedback'),
+        type: MaterialType.transparency,
+        child: ValueListenableBuilder<FileDragTargetFeedback?>(
+          valueListenable: payload.targetFeedback,
+          builder: (context, target, _) {
+            final status = target ?? _invalidDropFeedback;
+            return Container(
+              constraints: const BoxConstraints(minWidth: 170, maxWidth: 280),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: c.menuSurface,
+                border: Border.all(color: c.menuBorder),
+                borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: c.shadow,
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Symbols.drag_indicator,
+                        size: 18,
+                        color: c.textSecondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: c.textPrimary,
+                            fontSize: AppMetrics.fontBody,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Divider(height: 1, color: c.menuBorder),
+                  ),
+                  Row(
+                    key: const ValueKey('file-drag-target-feedback'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        status.accepted
+                            ? status.copy
+                                  ? Symbols.content_copy
+                                  : Symbols.drive_file_move
+                            : Symbols.block,
+                        size: 17,
+                        color: status.accepted ? c.accent : c.danger,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          status.label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: status.accepted ? c.textPrimary : c.danger,
+                            fontSize: AppMetrics.fontSmall,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+const _invalidDropFeedback = FileDragTargetFeedback(
+  owner: 'invalid',
+  accepted: false,
+  copy: false,
+  destination: '',
+  message: '不能放到此处',
+);
 
 class _FileGroupHeader extends StatelessWidget {
   final String label;
@@ -528,7 +1007,12 @@ class _FileSurface extends StatelessWidget {
             : Scrollbar(
                 controller: scrollController,
                 thumbVisibility: scrollbarVisible,
-                child: child,
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    right: AppMetrics.scrollbarGutter,
+                  ),
+                  child: child,
+                ),
               ),
       ),
     );
@@ -545,6 +1029,7 @@ class _ExplorerTile extends StatefulWidget {
   final bool isSelected;
   final bool isActive;
   final VoidCallback onSingleTap;
+  final VoidCallback? onTap;
   final VoidCallback onDoubleTap;
   final ValueChanged<Offset>? onRightClick;
 
@@ -556,6 +1041,7 @@ class _ExplorerTile extends StatefulWidget {
     required this.isSelected,
     required this.isActive,
     required this.onSingleTap,
+    this.onTap,
     required this.onDoubleTap,
     this.onRightClick,
   });
@@ -582,6 +1068,7 @@ class _ExplorerTileState extends State<_ExplorerTile> {
           if (event.buttons & kPrimaryMouseButton != 0) widget.onSingleTap();
         },
         child: GestureDetector(
+          onTap: widget.onTap,
           onDoubleTap: widget.onDoubleTap,
           onSecondaryTapUp: (details) =>
               widget.onRightClick?.call(details.globalPosition),
@@ -673,6 +1160,7 @@ class _ExplorerContentRow extends StatefulWidget {
   final bool isSelected;
   final bool isActive;
   final VoidCallback onSingleTap;
+  final VoidCallback? onTap;
   final VoidCallback onDoubleTap;
   final ValueChanged<Offset>? onRightClick;
 
@@ -683,6 +1171,7 @@ class _ExplorerContentRow extends StatefulWidget {
     required this.isSelected,
     required this.isActive,
     required this.onSingleTap,
+    this.onTap,
     required this.onDoubleTap,
     this.onRightClick,
   });
@@ -710,6 +1199,7 @@ class _ExplorerContentRowState extends State<_ExplorerContentRow> {
           if (event.buttons & kPrimaryMouseButton != 0) widget.onSingleTap();
         },
         child: GestureDetector(
+          onTap: widget.onTap,
           onDoubleTap: widget.onDoubleTap,
           onSecondaryTapUp: (details) =>
               widget.onRightClick?.call(details.globalPosition),
@@ -1023,6 +1513,7 @@ class _FileRow extends StatefulWidget {
   final bool showFileExtensions;
   final bool showStatusColumn;
   final VoidCallback onSingleTap;
+  final VoidCallback? onTap;
   final VoidCallback onDoubleTap;
   final ValueChanged<Offset>? onRightClick;
 
@@ -1036,6 +1527,7 @@ class _FileRow extends StatefulWidget {
     required this.showFileExtensions,
     this.showStatusColumn = false,
     required this.onSingleTap,
+    this.onTap,
     required this.onDoubleTap,
     this.onRightClick,
   });
@@ -1075,6 +1567,7 @@ class _FileRowState extends State<_FileRow> {
           }
         },
         child: GestureDetector(
+          onTap: widget.onTap,
           onDoubleTap: widget.onDoubleTap,
           onSecondaryTapUp: (details) =>
               widget.onRightClick?.call(details.globalPosition),
