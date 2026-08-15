@@ -316,59 +316,16 @@ void main() {
         '--window-placement',
       ]);
       expect(jsonDecode(starts.last.last), {
-        'version': 1,
+        'version': 2,
         'x': 120,
         'y': 80,
-        'width': 960,
-        'height': 720,
+        'clientWidth': 944,
+        'clientHeight': 681,
         'maximized': false,
       });
-      expect(windows.appliedPlacements, [
-        (windows.createdWindows.last, windows.initialPlacement),
-      ]);
       expect(windows.closeRequests, [firstWindow]);
-      expect(windows.lifecycleEvents, [
-        'apply:${windows.createdWindows.last}',
-        'close:$firstWindow',
-      ]);
       expect(launchingService.hasAttachedViewer, isTrue);
     });
-
-    test(
-      'keeps the old viewer when the replacement cannot be positioned',
-      () async {
-        final firstFile = File(p.join(temp.path, 'first.md'))
-          ..writeAsStringSync('first');
-        final secondFile = File(p.join(temp.path, 'second.md'))
-          ..writeAsStringSync('second');
-        final windows = _FakeViewerWindowController();
-        final launchingService = QuickViewService(
-          pluginRoots: [pluginRoot],
-          associationStore: ViewerAssociationStore(
-            filePath: p.join(temp.path, 'rollback-associations.json'),
-          ),
-          mimeTypeResolver: (_) => null,
-          processStarter: (executable, arguments, workingDirectory) async =>
-              windows.createProcess(),
-          windowController: windows,
-        );
-        addTearDown(launchingService.dispose);
-        launchingService.setCandidates(ViewerAssociationKind.extension, '.md', [
-          'viewer.b',
-        ]);
-
-        await launchingService.open(firstFile.path);
-        final firstWindow = windows.createdWindows.single;
-        windows.allowPlacement = false;
-
-        final result = await launchingService.open(secondFile.path);
-
-        expect(result.started, isFalse);
-        expect(launchingService.hasAttachedViewer, isTrue);
-        expect(windows.closeRequests, [windows.createdWindows.last]);
-        expect(windows.closeRequests, isNot(contains(firstWindow)));
-      },
-    );
 
     test('clears attached state when the viewer exits itself', () async {
       final file = File(p.join(temp.path, 'first.md'))
@@ -429,8 +386,6 @@ void main() {
 
         await launchingService.open(secondFile.path);
         expect(windows.createdWindows, hasLength(2));
-        expect(windows.appliedPlacements, isEmpty);
-
         await launchingService.shutdown();
         expect(windows.closeRequests, [windows.createdWindows.last]);
         expect(windows.closeRequests, isNot(contains(detachedWindow)));
@@ -445,13 +400,12 @@ class _FakeViewerWindowController implements ViewerWindowController {
     top: 80,
     right: 1080,
     bottom: 800,
+    clientWidth: 944,
+    clientHeight: 681,
     maximized: false,
   );
   final List<int> createdWindows = [];
-  final List<(int, ViewerWindowPlacement)> appliedPlacements = [];
   final List<int> closeRequests = [];
-  final List<String> lifecycleEvents = [];
-  bool allowPlacement = true;
 
   final Map<int, int> _windowByProcess = {};
   final Map<int, int> _processByWindow = {};
@@ -479,15 +433,6 @@ class _FakeViewerWindowController implements ViewerWindowController {
     );
   }
 
-  @override
-  bool applyPlacement(int windowHandle, ViewerWindowPlacement placement) {
-    appliedPlacements.add((windowHandle, placement));
-    lifecycleEvents.add('apply:$windowHandle');
-    if (!allowPlacement) return false;
-    _placementByWindow[windowHandle] = placement;
-    return true;
-  }
-
   void exitWindow(int windowHandle) {
     final processId = _processByWindow[windowHandle];
     final exit = processId == null ? null : _exitByProcess[processId];
@@ -503,7 +448,6 @@ class _FakeViewerWindowController implements ViewerWindowController {
   @override
   bool requestClose(int windowHandle) {
     closeRequests.add(windowHandle);
-    lifecycleEvents.add('close:$windowHandle');
     final processId = _processByWindow[windowHandle];
     final exit = processId == null ? null : _exitByProcess[processId];
     if (exit != null && !exit.isCompleted) exit.complete(0);

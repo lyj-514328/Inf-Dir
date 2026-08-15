@@ -1,15 +1,15 @@
 use serde::Deserialize;
 
 pub const ARGUMENT: &str = "--window-placement";
-const PROTOCOL_VERSION: u32 = 1;
+const PROTOCOL_VERSION: u32 = 2;
 const MINIMUM_EXTENT: u32 = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WindowPlacement {
     pub x: i32,
     pub y: i32,
-    pub width: u32,
-    pub height: u32,
+    pub client_width: u32,
+    pub client_height: u32,
     pub maximized: bool,
 }
 
@@ -19,8 +19,10 @@ struct WirePlacement {
     version: u32,
     x: i32,
     y: i32,
-    width: u32,
-    height: u32,
+    #[serde(rename = "clientWidth")]
+    client_width: u32,
+    #[serde(rename = "clientHeight")]
+    client_height: u32,
     maximized: bool,
 }
 
@@ -34,7 +36,7 @@ impl WindowPlacement {
                 wire.version
             ));
         }
-        if wire.width < MINIMUM_EXTENT || wire.height < MINIMUM_EXTENT {
+        if wire.client_width < MINIMUM_EXTENT || wire.client_height < MINIMUM_EXTENT {
             return Err(format!(
                 "window placement must be at least {MINIMUM_EXTENT}x{MINIMUM_EXTENT}"
             ));
@@ -42,8 +44,8 @@ impl WindowPlacement {
         Ok(Self {
             x: wire.x,
             y: wire.y,
-            width: wire.width,
-            height: wire.height,
+            client_width: wire.client_width,
+            client_height: wire.client_height,
             maximized: wire.maximized,
         })
     }
@@ -54,16 +56,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_complete_v1_placement() {
+    fn parses_complete_v2_placement() {
         assert_eq!(
             WindowPlacement::from_json(
-                r#"{"version":1,"x":1024,"y":0,"width":1024,"height":1152,"maximized":false}"#,
+                r#"{"version":2,"x":1024,"y":0,"clientWidth":1008,"clientHeight":1113,"maximized":false}"#,
             ),
             Ok(WindowPlacement {
                 x: 1024,
                 y: 0,
-                width: 1024,
-                height: 1152,
+                client_width: 1008,
+                client_height: 1113,
                 maximized: false,
             })
         );
@@ -72,11 +74,11 @@ mod tests {
     #[test]
     fn rejects_unknown_versions_and_incomplete_payloads() {
         assert!(WindowPlacement::from_json(
-            r#"{"version":2,"x":0,"y":0,"width":960,"height":720,"maximized":false}"#,
+            r#"{"version":1,"x":0,"y":0,"width":960,"height":720,"maximized":false}"#,
         )
         .is_err());
         assert!(WindowPlacement::from_json(
-            r#"{"version":1,"x":0,"y":0,"width":960,"height":720}"#,
+            r#"{"version":2,"x":0,"y":0,"clientWidth":960,"clientHeight":720}"#,
         )
         .is_err());
     }

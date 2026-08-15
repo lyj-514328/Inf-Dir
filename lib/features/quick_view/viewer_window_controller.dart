@@ -9,6 +9,8 @@ class ViewerWindowPlacement {
     required this.top,
     required this.right,
     required this.bottom,
+    required this.clientWidth,
+    required this.clientHeight,
     required this.maximized,
   });
 
@@ -16,21 +18,24 @@ class ViewerWindowPlacement {
   final int top;
   final int right;
   final int bottom;
+  final int clientWidth;
+  final int clientHeight;
   final bool maximized;
 
-  Map<String, Object> toProtocolV1Json() => {
-    'version': 1,
+  Map<String, Object> toProtocolV2Json() => {
+    'version': 2,
     'x': left,
     'y': top,
-    'width': right - left,
-    'height': bottom - top,
+    'clientWidth': clientWidth,
+    'clientHeight': clientHeight,
     'maximized': maximized,
   };
 
   @override
   String toString() {
     return 'rect=($left,$top)-($right,$bottom) '
-        'size=${right - left}x${bottom - top} maximized=$maximized';
+        'outer=${right - left}x${bottom - top} '
+        'client=${clientWidth}x$clientHeight maximized=$maximized';
   }
 }
 
@@ -41,8 +46,6 @@ abstract interface class ViewerWindowController {
   });
 
   ViewerWindowPlacement? capturePlacement(int windowHandle, {String? logLabel});
-
-  bool applyPlacement(int windowHandle, ViewerWindowPlacement placement);
 
   bool requestClose(int windowHandle);
 }
@@ -115,11 +118,27 @@ class Win32ViewerWindowController implements ViewerWindowController {
     final rect = maximized || snapshot.isMinimized
         ? snapshot.normalRect
         : snapshot.currentRect;
+    final clientSize = maximized || snapshot.isMinimized
+        ? _clientSizeForOuterRect(windowHandle, rect)
+        : snapshot.clientSize;
+    if (clientSize == null ||
+        clientSize.width < _minimumWindowExtent ||
+        clientSize.height < _minimumWindowExtent) {
+      if (logLabel != null) {
+        logger?.call(
+          '[QuickViewWindow] $logLabel hwnd=$windowHandle '
+          'could not resolve restore client size',
+        );
+      }
+      return null;
+    }
     final selected = ViewerWindowPlacement(
       left: rect.left,
       top: rect.top,
       right: rect.right,
       bottom: rect.bottom,
+      clientWidth: clientSize.width,
+      clientHeight: clientSize.height,
       maximized: maximized,
     );
     if (logLabel != null) {
@@ -131,74 +150,64 @@ class Win32ViewerWindowController implements ViewerWindowController {
     return selected;
   }
 
-  @override
-  bool applyPlacement(int windowHandle, ViewerWindowPlacement placement) {
-    if (_User32.isWindow(windowHandle) == 0) return false;
-
-    logger?.call(
-      '[QuickViewWindow] apply hwnd=$windowHandle target=$placement '
-      'before=${_describeWindow(windowHandle)}',
-    );
-
-    final bool applied;
-    if (placement.maximized) {
-      final nativePlacement = calloc<_WindowPlacement>();
-      try {
-        nativePlacement.ref
-          ..length = sizeOf<_WindowPlacement>()
-          ..flags = 0
-          ..showCommand = _swShowMaximized;
-        nativePlacement.ref.normalPosition
-          ..left = placement.left
-          ..top = placement.top
-          ..right = placement.right
-          ..bottom = placement.bottom;
-        applied =
-            _User32.setWindowPlacement(windowHandle, nativePlacement) != 0;
-      } finally {
-        calloc.free(nativePlacement);
-      }
-    } else {
-      applied =
-          _User32.setWindowPosition(
-            windowHandle,
-            0,
-            placement.left,
-            placement.top,
-            placement.right - placement.left,
-            placement.bottom - placement.top,
-            _swpNoZOrder,
-          ) !=
-          0;
-    }
-
-    if (applied) _User32.setForegroundWindow(windowHandle);
-    logger?.call(
-      '[QuickViewWindow] applied=$applied hwnd=$windowHandle '
-      'after=${_describeWindow(windowHandle)}',
-    );
-    return applied;
-  }
-
   _WindowSnapshot? _readWindowSnapshot(int windowHandle) {
     if (_User32.isWindow(windowHandle) == 0) return null;
     final nativePlacement = calloc<_WindowPlacement>();
     final currentRect = calloc<_Rect>();
+    final clientRect = calloc<_Rect>();
     try {
       nativePlacement.ref.length = sizeOf<_WindowPlacement>();
       if (_User32.getWindowPlacement(windowHandle, nativePlacement) == 0 ||
-          _User32.getWindowRect(windowHandle, currentRect) == 0) {
+          _User32.getWindowRect(windowHandle, currentRect) == 0 ||
+          _User32.getClientRect(windowHandle, clientRect) == 0) {
         return null;
       }
       return _WindowSnapshot(
         currentRect: _WindowRect.fromNative(currentRect.ref),
         normalRect: _WindowRect.fromNative(nativePlacement.ref.normalPosition),
+        clientSize: _WindowSize(
+          clientRect.ref.right - clientRect.ref.left,
+          clientRect.ref.bottom - clientRect.ref.top,
+        ),
         flags: nativePlacement.ref.flags,
         showCommand: nativePlacement.ref.showCommand,
       );
     } finally {
       calloc.free(nativePlacement);
       calloc.free(currentRect);
+      calloc.free(clientRect);
+    }
+  }
+
+  _WindowSize? _clientSizeForOuterRect(
+    int windowHandle,
+    _WindowRect outerRect,
+  ) {
+    final dpi = _User32.getDpiForWindow(windowHandle);
+    if (dpi == 0) return null;
+
+    final style = _User32.getWindowLongPtr(windowHandle, _gwlStyle);
+    final extendedStyle = _User32.getWindowLongPtr(windowHandle, _gwlExStyle);
+    final adjusted = calloc<_Rect>();
+    try {
+      if (_User32.adjustWindowRectExForDpi(
+            adjusted,
+            style & _unsignedLongMask,
+            0,
+            extendedStyle & _unsignedLongMask,
+            dpi,
+          ) ==
+          0) {
+        return null;
+      }
+      final frameWidth = adjusted.ref.right - adjusted.ref.left;
+      final frameHeight = adjusted.ref.bottom - adjusted.ref.top;
+      return _WindowSize(
+        outerRect.right - outerRect.left - frameWidth,
+        outerRect.bottom - outerRect.top - frameHeight,
+      );
+    } finally {
+      calloc.free(adjusted);
     }
   }
 
@@ -238,16 +247,28 @@ class _WindowRect {
   String toString() => '($left,$top)-($right,$bottom)';
 }
 
+class _WindowSize {
+  const _WindowSize(this.width, this.height);
+
+  final int width;
+  final int height;
+
+  @override
+  String toString() => '${width}x$height';
+}
+
 class _WindowSnapshot {
   const _WindowSnapshot({
     required this.currentRect,
     required this.normalRect,
+    required this.clientSize,
     required this.flags,
     required this.showCommand,
   });
 
   final _WindowRect currentRect;
   final _WindowRect normalRect;
+  final _WindowSize clientSize;
   final int flags;
   final int showCommand;
 
@@ -261,13 +282,15 @@ class _WindowSnapshot {
 
   @override
   String toString() =>
-      'currentRect=$currentRect normalRect=$normalRect '
+      'currentRect=$currentRect normalRect=$normalRect client=$clientSize '
       'showCmd=$showCommand flags=$flags';
 }
 
 bool _hasUsableSize(ViewerWindowPlacement placement) =>
     placement.right - placement.left >= _minimumWindowExtent &&
-    placement.bottom - placement.top >= _minimumWindowExtent;
+    placement.bottom - placement.top >= _minimumWindowExtent &&
+    placement.clientWidth >= _minimumWindowExtent &&
+    placement.clientHeight >= _minimumWindowExtent;
 
 bool _samePlacement(
   ViewerWindowPlacement placement,
@@ -278,8 +301,12 @@ bool _samePlacement(
     placement.top == other.top &&
     placement.right == other.right &&
     placement.bottom == other.bottom &&
+    placement.clientWidth == other.clientWidth &&
+    placement.clientHeight == other.clientHeight &&
     placement.maximized == other.maximized;
 
+const int _gwlStyle = -16;
+const int _gwlExStyle = -20;
 const int _gwOwner = 4;
 const int _minimumWindowExtent = 64;
 const int _stableSampleCount = 3;
@@ -287,9 +314,9 @@ const int _swShowMinimized = 2;
 const int _swShowMaximized = 3;
 const int _swMinimize = 6;
 const int _swShowMinNoActive = 7;
-const int _swpNoZOrder = 0x0004;
 const int _wmClose = 0x0010;
 const int _wpfRestoreToMaximized = 0x0002;
+const int _unsignedLongMask = 0xffffffff;
 
 int _enumWindowsCallback(int windowHandle, int parameter) {
   final context = Pointer<IntPtr>.fromAddress(parameter);
@@ -376,25 +403,26 @@ typedef _GetWindowRectNative =
     Int32 Function(IntPtr windowHandle, Pointer<_Rect> rect);
 typedef _GetWindowRectDart =
     int Function(int windowHandle, Pointer<_Rect> rect);
-typedef _SetWindowPositionNative =
+typedef _GetWindowLongPtrNative =
+    IntPtr Function(IntPtr windowHandle, Int32 index);
+typedef _GetWindowLongPtrDart = int Function(int windowHandle, int index);
+typedef _GetDpiForWindowNative = Uint32 Function(IntPtr windowHandle);
+typedef _GetDpiForWindowDart = int Function(int windowHandle);
+typedef _AdjustWindowRectExForDpiNative =
     Int32 Function(
-      IntPtr windowHandle,
-      IntPtr insertAfter,
-      Int32 x,
-      Int32 y,
-      Int32 width,
-      Int32 height,
-      Uint32 flags,
+      Pointer<_Rect> rect,
+      Uint32 style,
+      Int32 hasMenu,
+      Uint32 extendedStyle,
+      Uint32 dpi,
     );
-typedef _SetWindowPositionDart =
+typedef _AdjustWindowRectExForDpiDart =
     int Function(
-      int windowHandle,
-      int insertAfter,
-      int x,
-      int y,
-      int width,
-      int height,
-      int flags,
+      Pointer<_Rect> rect,
+      int style,
+      int hasMenu,
+      int extendedStyle,
+      int dpi,
     );
 typedef _PostMessageNative =
     Int32 Function(
@@ -433,22 +461,27 @@ abstract final class _User32 {
       .lookupFunction<_GetWindowPlacementNative, _GetWindowPlacementDart>(
         'GetWindowPlacement',
       );
-  static final _GetWindowPlacementDart setWindowPlacement = _library
-      .lookupFunction<_GetWindowPlacementNative, _GetWindowPlacementDart>(
-        'SetWindowPlacement',
-      );
   static final _GetWindowRectDart getWindowRect = _library
       .lookupFunction<_GetWindowRectNative, _GetWindowRectDart>(
         'GetWindowRect',
       );
-  static final _SetWindowPositionDart setWindowPosition = _library
-      .lookupFunction<_SetWindowPositionNative, _SetWindowPositionDart>(
-        'SetWindowPos',
+  static final _GetWindowRectDart getClientRect = _library
+      .lookupFunction<_GetWindowRectNative, _GetWindowRectDart>(
+        'GetClientRect',
       );
-  static final _WindowPredicateDart setForegroundWindow = _library
-      .lookupFunction<_WindowPredicateNative, _WindowPredicateDart>(
-        'SetForegroundWindow',
+  static final _GetWindowLongPtrDart getWindowLongPtr = _library
+      .lookupFunction<_GetWindowLongPtrNative, _GetWindowLongPtrDart>(
+        'GetWindowLongPtrW',
       );
+  static final _GetDpiForWindowDart getDpiForWindow = _library
+      .lookupFunction<_GetDpiForWindowNative, _GetDpiForWindowDart>(
+        'GetDpiForWindow',
+      );
+  static final _AdjustWindowRectExForDpiDart adjustWindowRectExForDpi = _library
+      .lookupFunction<
+        _AdjustWindowRectExForDpiNative,
+        _AdjustWindowRectExForDpiDart
+      >('AdjustWindowRectExForDpi');
   static final _PostMessageDart postMessage = _library
       .lookupFunction<_PostMessageNative, _PostMessageDart>('PostMessageW');
 }

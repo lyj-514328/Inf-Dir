@@ -7,7 +7,7 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-use dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use http::{header, Request, Response, StatusCode};
 use percent_encoding::{percent_decode_str, percent_encode, NON_ALPHANUMERIC};
 use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGUMENT};
@@ -15,7 +15,7 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowId};
-use wry::{Rect, WebViewBuilder};
+use wry::WebViewBuilder;
 
 // 自定义协议伪装成 http://office-view.local/：该域名无 DNS 记录，
 // WebView2 在网络层之前拦截。Chromium 的 fetch()/Worker/wasm 只认
@@ -203,12 +203,19 @@ impl ApplicationHandler for App {
 
         let mut attributes = Window::default_attributes()
             .with_title(format!("{name} - Office 查看器"))
-            .with_min_inner_size(LogicalSize::new(480u32, 360u32));
+            .with_min_inner_size(LogicalSize::new(480u32, 360u32))
+            .with_visible(false);
+        let start_maximized = self
+            .args
+            .window_placement
+            .is_some_and(|placement| placement.maximized);
         if let Some(placement) = self.args.window_placement {
             attributes = attributes
                 .with_position(PhysicalPosition::new(placement.x, placement.y))
-                .with_inner_size(PhysicalSize::new(placement.width, placement.height))
-                .with_maximized(placement.maximized);
+                .with_inner_size(PhysicalSize::new(
+                    placement.client_width,
+                    placement.client_height,
+                ));
         } else {
             attributes = attributes.with_inner_size(LogicalSize::new(960u32, 720u32));
         }
@@ -228,7 +235,7 @@ impl ApplicationHandler for App {
         let webview = match WebViewBuilder::new()
             .with_custom_protocol(SCHEME.into(), move |_id, req| handle_request(req, &root))
             .with_url(&start_url)
-            .build_as_child(&window)
+            .build(&window)
         {
             Ok(wv) => wv,
             Err(e) => {
@@ -236,6 +243,12 @@ impl ApplicationHandler for App {
                 std::process::exit(1);
             }
         };
+
+        if start_maximized {
+            window.set_maximized(true);
+        }
+        window.set_visible(true);
+        window.focus_window();
 
         self.window = Some(window);
         self.webview = Some(webview);
@@ -248,15 +261,6 @@ impl ApplicationHandler for App {
         event: WindowEvent,
     ) {
         match event {
-            WindowEvent::Resized(size) => {
-                if let (Some(window), Some(webview)) = (&self.window, &self.webview) {
-                    let size = size.to_logical::<u32>(window.scale_factor());
-                    let _ = webview.set_bounds(Rect {
-                        position: LogicalPosition::new(0, 0).into(),
-                        size: LogicalSize::new(size.width, size.height).into(),
-                    });
-                }
-            }
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
@@ -309,7 +313,8 @@ mod tests {
     }
 
     fn placement_json() -> String {
-        r#"{"version":1,"x":1024,"y":0,"width":1024,"height":1152,"maximized":false}"#.to_string()
+        r#"{"version":2,"x":1024,"y":0,"clientWidth":1008,"clientHeight":1113,"maximized":false}"#
+            .to_string()
     }
 
     #[test]

@@ -341,7 +341,7 @@ mod tests {
             "video-view",
             "movie.mp4",
             ARGUMENT,
-            r#"{"version":1,"x":1024,"y":0,"width":1024,"height":1152,"maximized":false}"#,
+            r#"{"version":2,"x":1024,"y":0,"clientWidth":1008,"clientHeight":1113,"maximized":false}"#,
         ]))
         .unwrap();
 
@@ -445,7 +445,10 @@ fn main() {
     viewport = match window_placement {
         Some(placement) => viewport
             .with_position([placement.x as f32, placement.y as f32])
-            .with_inner_size([placement.width as f32, placement.height as f32])
+            .with_inner_size([
+                placement.client_width as f32,
+                placement.client_height as f32,
+            ])
             .with_maximized(placement.maximized),
         None => viewport.with_inner_size([DEFAULT_W as f32, DEFAULT_H as f32]),
     };

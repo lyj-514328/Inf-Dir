@@ -17,7 +17,7 @@ with either a file path or a containing folder.
 ## Run
 
 ```text
-pdf-view.exe document.pdf --window-placement "{\"version\":1,\"x\":100,\"y\":100,\"width\":960,\"height\":720,\"maximized\":false}"
+pdf-view.exe document.pdf --window-placement "{\"version\":2,\"x\":100,\"y\":100,\"clientWidth\":944,\"clientHeight\":681,\"maximized\":false}"
 ```
 
 Keys: `Left`/`Right` or `PageUp`/`PageDown` changes pages, `Home`/`End` jumps

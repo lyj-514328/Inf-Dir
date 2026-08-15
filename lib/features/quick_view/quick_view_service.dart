@@ -381,7 +381,7 @@ class QuickViewService extends ChangeNotifier {
         if (placement != null) {
           arguments.addAll([
             '--window-placement',
-            jsonEncode(placement.toProtocolV1Json()),
+            jsonEncode(placement.toProtocolV2Json()),
           ]);
         }
         _logViewerWindow(
@@ -408,11 +408,6 @@ class QuickViewService extends ChangeNotifier {
           '[QuickViewWindow] launched new plugin=${plugin.manifest.id} '
           'pid=${process.processId} hwnd=$windowHandle inherit=$placement',
         );
-        if (placement != null &&
-            !_windowController.applyPlacement(windowHandle, placement)) {
-          throw StateError('无法恢复查看器窗口的位置和大小');
-        }
-
         final viewer = _AttachedViewer(
           plugin: plugin,
           process: process,

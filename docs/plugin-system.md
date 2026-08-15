@@ -97,23 +97,99 @@ attached viewer 时按下面的形式启动：
 `<json>` 由参数数组直接传递，是一个完整的命令行参数，不经过 shell 拼接或再次解析：
 
 ```json
-{"version":1,"x":1024,"y":0,"width":1024,"height":1152,"maximized":false}
+{"version":2,"x":1024,"y":0,"clientWidth":1008,"clientHeight":1113,"maximized":false}
 ```
 
-`x`、`y`、`width`、`height` 是 Win32 物理像素下的窗口外框；最大化时它们表示恢复后的外框。
+`x`、`y` 是 Win32 物理像素下的窗口外框位置，`clientWidth`、`clientHeight` 是客户区物理
+像素尺寸，可直接传给 winit/egui 的 inner size。最大化时这些字段表示恢复后的窗口位置与客户区
+尺寸。版本 2 不兼容旧版把外框宽高写入 `width`、`height` 的协议。
 首次打开或已 detach 后重新打开时没有可继承窗口，因此不传该参数。viewer 不再支持旧的
 `--width` / `--height` 参数，也不通过 Manifest 协商窗口位置协议。
 
 Inf-Dir 同一时间只管理一个 attached Quick View 进程。再次快速查看时，主程序读取旧
-viewer 的顶层窗口位置、大小和最大化状态，把完整位置作为启动参数交给新 viewer；新 HWND
-稳定后仍会执行一次 Win32 校正，以消除 DPI、非客户区边框和 Snap 状态造成的偏差。新窗口
-定位成功后再关闭旧进程。viewer 不需要实现文件热切换或 IPC。
+viewer 的顶层窗口位置、大小和最大化状态，把完整位置作为启动参数交给新 viewer。主程序发现
+新 HWND 且窗口尺寸稳定后关闭旧进程，不再对新窗口执行二次 Win32 位置校正。viewer 不需要
+实现文件热切换或 IPC。
 
 顶栏的“分离快速查看窗口”命令会解除当前 viewer 与 Inf-Dir 的管理关系。分离后的进程不会因
 Inf-Dir 退出或后续快速查看而关闭；下一次快速查看会创建新的 attached viewer。Inf-Dir 正常
 退出时只关闭仍处于 attached 状态的 viewer。
 
-### 3.3 搜索提供器
+### 3.3 WebView2 Viewer 窗口规范
+
+使用 winit + wry/WebView2 的 Quick View viewer 必须遵循以下窗口初始化规范：
+
+- 使用共享的 `viewer-window-placement` crate 解析 `--window-placement`，不得自行解释或扩展
+  placement JSON。
+- `x`、`y` 直接传给 `PhysicalPosition`；`clientWidth`、`clientHeight` 直接传给
+  `PhysicalSize`。不得将外框宽高传给 `with_inner_size`，也不得在物理像素和逻辑像素之间
+  进行不必要的往返换算。
+- 顶层窗口必须使用 `with_visible(false)` 隐藏创建。WebView2 controller 创建成功并已覆盖
+  客户区后，才能显示窗口。WebView2 初始化失败时应保持窗口隐藏并退出进程。
+- 单个 WebView 占满整个客户区时必须使用 `WebViewBuilder::build(&window)`。wry 的 Windows
+  后端会设置初始全尺寸 bounds，并自动跟随父窗口 resize。
+- 最大化应在 WebView 创建成功后、窗口显示前调用 `window.set_maximized(true)`，不得依赖
+  初始窗口属性提前显示一个尚未完成的窗口。
+- 完成初始化后依次调用 `window.set_visible(true)` 和 `window.focus_window()`。`Window` 和
+  `WebView` 必须保存在应用状态中，直到事件循环退出。
+- 不得在正常启动路径中额外调用 `SetWindowPos`，也不得为整窗 WebView 监听
+  `WindowEvent::Resized` 后手工调用 `WebView::set_bounds`。
+
+整窗 WebView2 viewer 的推荐初始化方式如下。代码应放在 winit
+`ApplicationHandler::resumed` 中，并在重复进入 `resumed` 时避免再次创建窗口：
+
+```rust
+use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
+use viewer_window_placement::WindowPlacement;
+use winit::event_loop::ActiveEventLoop;
+use winit::window::{Window, WindowAttributes};
+use wry::{WebView, WebViewBuilder};
+
+fn create_webview_window(
+    event_loop: &ActiveEventLoop,
+    placement: Option<WindowPlacement>,
+    start_url: &str,
+) -> (Window, WebView) {
+    let start_maximized = placement.is_some_and(|value| value.maximized);
+    let mut attributes: WindowAttributes = Window::default_attributes()
+        .with_title("Example View")
+        .with_min_inner_size(LogicalSize::new(480u32, 360u32))
+        .with_visible(false);
+
+    attributes = match placement {
+        Some(value) => attributes
+            .with_position(PhysicalPosition::new(value.x, value.y))
+            .with_inner_size(PhysicalSize::new(
+                value.client_width,
+                value.client_height,
+            )),
+        None => attributes.with_inner_size(LogicalSize::new(960u32, 720u32)),
+    };
+
+    let window = event_loop
+        .create_window(attributes)
+        .expect("failed to create viewer window");
+    let webview = WebViewBuilder::new()
+        .with_url(start_url)
+        .build(&window)
+        .expect("failed to initialize WebView2");
+
+    if start_maximized {
+        window.set_maximized(true);
+    }
+    window.set_visible(true);
+    window.focus_window();
+
+    (window, webview)
+}
+```
+
+只有一个顶层窗口内存在多个 WebView，或 WebView 明确只占客户区一部分时，才允许使用
+`build_as_child`。此时必须在创建时通过 `with_bounds` 提供基于当前客户区的完整初始 bounds，
+并在每次父窗口 resize 时同步更新；不得依赖 wry 默认的 `200x200` child bounds。页面自身还应
+保证 `html`、`body` 高宽为 `100%`、边距为 `0`，避免 Web 内容内部产生未覆盖区域。
+
+### 3.4 搜索提供器
 
 搜索插件通过 `capabilities.search` 声明后端类型和主程序支持的输出协议：
 
@@ -144,7 +220,7 @@ Inf-Dir 退出或后续快速查看而关闭；下一次快速查看会创建新
 `INF_DIR_PLUGIN_DIR`、程序旁 `plugins/`、开发目录 `plugins/dist/` 和用户插件目录发现
 对应 manifest。插件不可用时才回退到旧式程序目录、`tools/` 和 `PATH` 查找。
 
-### 3.4 搜索插件构建
+### 3.5 搜索插件构建
 
 `plugins/search/build.bat` 从官方 GitHub Release 构建两个自包含插件包：
 
@@ -155,7 +231,7 @@ Inf-Dir 退出或后续快速查看而关闭；下一次快速查看会创建新
 `THIRD_PARTY_NOTICES.txt` 一起安装到 `plugins/dist/<plugin-id>/`。主
 `plugins/build.bat` 会自动调用该脚本；也可以单独运行 `plugins/search/build.bat` 只构建搜索插件。
 
-### 3.5 压缩操作插件
+### 3.6 压缩操作插件
 
 压缩操作插件通过 `capabilities.archive` 声明，不参与 Quick View 的文件关联。当前内置
 `inf-dir.7z-archive` 使用官方 7-Zip Extra 包中的 `7za.exe`，协议为 `7zip-cli-v1`：

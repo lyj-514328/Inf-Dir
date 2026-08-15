@@ -991,7 +991,7 @@ mod tests {
             "archive-view",
             "items.zip",
             ARGUMENT,
-            r#"{"version":1,"x":-800,"y":20,"width":800,"height":900,"maximized":true}"#,
+            r#"{"version":2,"x":-800,"y":20,"clientWidth":784,"clientHeight":861,"maximized":true}"#,
         ]
         .map(str::to_owned);
 
@@ -1087,7 +1087,10 @@ fn main() -> ExitCode {
     viewport = match window_placement {
         Some(placement) => viewport
             .with_position([placement.x as f32, placement.y as f32])
-            .with_inner_size([placement.width as f32, placement.height as f32])
+            .with_inner_size([
+                placement.client_width as f32,
+                placement.client_height as f32,
+            ])
             .with_maximized(placement.maximized),
         None => viewport.with_inner_size([1000.0, 680.0]),
     };

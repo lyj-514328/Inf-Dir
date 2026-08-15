@@ -211,7 +211,10 @@ fn main() {
     let viewport = if let Some(placement) = placement {
         egui::ViewportBuilder::default()
             .with_position([placement.x as f32, placement.y as f32])
-            .with_inner_size([placement.width as f32, placement.height as f32])
+            .with_inner_size([
+                placement.client_width as f32,
+                placement.client_height as f32,
+            ])
             .with_maximized(placement.maximized)
     } else {
         let win_w = (iw as usize).min(DEFAULT_W).max(640);
