@@ -292,12 +292,10 @@ class _TaskRow extends StatelessWidget {
                     color: c.textPrimary,
                   ),
                 ),
-                if (task.destination != null &&
-                    (task.type == FileOperationType.copy ||
-                        task.type == FileOperationType.move)) ...[
+                if (task.destination != null && task.type.showsDestination) ...[
                   const SizedBox(height: 1),
                   Text(
-                    '到 ${task.destination}',
+                    '${task.type.destinationLabel} ${task.destination}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -445,6 +443,8 @@ extension on FileOperationType {
     FileOperationType.restore => '还原',
     FileOperationType.create => '新建',
     FileOperationType.rename => '重命名',
+    FileOperationType.compress => '压缩',
+    FileOperationType.extract => '解压',
   };
 
   IconData get icon => switch (this) {
@@ -455,5 +455,21 @@ extension on FileOperationType {
     FileOperationType.restore => Icons.restore_from_trash,
     FileOperationType.create => Icons.create_new_folder_outlined,
     FileOperationType.rename => Icons.drive_file_rename_outline,
+    FileOperationType.compress => Icons.folder_zip_outlined,
+    FileOperationType.extract => Icons.folder_open_outlined,
+  };
+
+  bool get showsDestination => switch (this) {
+    FileOperationType.copy ||
+    FileOperationType.move ||
+    FileOperationType.compress ||
+    FileOperationType.extract => true,
+    _ => false,
+  };
+
+  String get destinationLabel => switch (this) {
+    FileOperationType.compress => '保存到',
+    FileOperationType.extract => '解压到',
+    _ => '到',
   };
 }

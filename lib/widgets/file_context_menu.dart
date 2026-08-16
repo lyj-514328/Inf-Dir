@@ -36,6 +36,11 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
   String? compressName,
   VoidCallback? onCompressZip,
   VoidCallback? onCompress7z,
+  VoidCallback? onCompressDialog,
+  VoidCallback? onExtractFiles,
+  VoidCallback? onExtractHere,
+  VoidCallback? onExtractToFolder,
+  String? extractName,
   VoidCallback? onSendTo,
   VoidCallback? onOpenInTerminal,
   VoidCallback? onPinToSidebar,
@@ -153,8 +158,10 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
     if (compressName != null && (onCompressZip != null || onCompress7z != null))
       CommandMenuItem(
         icon: Icons.folder_zip_outlined,
-        label: '压缩到',
+        label: '压缩',
         children: [
+          if (onCompressDialog != null)
+            CommandMenuItem(label: '创建压缩包…', onAction: onCompressDialog),
           if (onCompressZip != null)
             CommandMenuItem(
               label: '创建 $compressName.zip',
@@ -164,6 +171,25 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
             CommandMenuItem(
               label: '创建 $compressName.7z',
               onAction: onCompress7z,
+            ),
+        ],
+      ),
+    if (onExtractFiles != null)
+      CommandMenuItem(
+        icon: Icons.unarchive_outlined,
+        label: '解压',
+        children: [
+          CommandMenuItem(
+            label: '解压文件…',
+            shortcut: 'Ctrl+E',
+            onAction: onExtractFiles,
+          ),
+          if (onExtractHere != null)
+            CommandMenuItem(label: '解压到当前文件夹', onAction: onExtractHere),
+          if (onExtractToFolder != null && extractName != null)
+            CommandMenuItem(
+              label: '解压到 $extractName',
+              onAction: onExtractToFolder,
             ),
         ],
       ),

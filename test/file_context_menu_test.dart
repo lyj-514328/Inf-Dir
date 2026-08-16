@@ -50,13 +50,13 @@ void main() {
       '复制路径',
       '使用所选内容创建文件夹',
       '创建快捷方式',
-      '压缩到',
+      '压缩',
       '在 Windows 终端中打开',
       '属性',
       '显示更多选项',
     ]);
 
-    final compress = items.firstWhere((item) => item.label == '压缩到');
+    final compress = items.firstWhere((item) => item.label == '压缩');
     expect(compress.children!.map((item) => item.label), [
       '创建 report.zip',
       '创建 report.7z',
@@ -97,7 +97,44 @@ void main() {
       onShowMoreOptions: () {},
     );
 
-    expect(items.map((item) => item.label), isNot(contains('压缩到')));
+    expect(items.map((item) => item.label), isNot(contains('压缩')));
+  });
+
+  test('item context menu exposes archive dialog and extract actions', () {
+    final items = buildFileItemContextMenuItems(
+      onCopyPath: () {},
+      compressName: 'report',
+      onCompressZip: () {},
+      onCompress7z: () {},
+      onCompressDialog: () {},
+      onExtractFiles: () {},
+      onExtractHere: () {},
+      onExtractToFolder: () {},
+      extractName: 'report',
+      onShowMoreOptions: () {},
+    );
+
+    final compress = items.firstWhere((item) => item.label == '压缩');
+    expect(compress.children!.map((item) => item.label), [
+      '创建压缩包…',
+      '创建 report.zip',
+      '创建 report.7z',
+    ]);
+
+    final extract = items.firstWhere((item) => item.label == '解压');
+    expect(extract.children!.map((item) => item.label), [
+      '解压文件…',
+      '解压到当前文件夹',
+      '解压到 report',
+    ]);
+
+    final noExtract = buildFileItemContextMenuItems(
+      onCopyPath: () {},
+      compressName: 'report',
+      onCompressZip: () {},
+      onShowMoreOptions: () {},
+    );
+    expect(noExtract.map((item) => item.label), isNot(contains('解压')));
   });
 
   test('recycle bin item menu exposes only supported operations', () {

@@ -8,7 +8,7 @@
     "archive": {
       "type": "7zip",
       "protocol": "7zip-cli-v1",
-      "operations": ["create"],
+      "operations": ["create", "extract"],
       "formats": ["7z", "zip"]
     }
   },

@@ -219,12 +219,34 @@
 
 ### 5.2 压缩与解压
 
-- [ ] 实现 ZIP 解压到当前目录、同名子目录和指定目录。
+- [x] 实现 ZIP 解压到当前目录、同名子目录和指定目录。
 - [x] 补齐 7z 创建：通过 `plugins/archive` 的独立 7-Zip 操作插件执行。
-- [ ] 提供统一“创建压缩包”对话框。
+- [x] 提供统一“创建压缩包”对话框。
 - [x] 评估并落地 7z 独立进程实现；RAR、tar、gzip 后续按格式能力扩展。
-- [ ] 支持密码、编码、覆盖策略和损坏包错误提示。
-- [ ] 压缩/解压纳入文件任务中心。
+- [x] 支持密码、编码、覆盖策略和损坏包错误提示。
+- [x] 压缩/解压纳入文件任务中心。
+
+实施说明：
+
+- 压缩与解压统一走 `ArchiveService`（随插件分发的 `7za.exe` 子进程），
+  `createArchive` 用 `a -t<fmt> -mx<n> [-p<密码>] [-mhe=on]`，`extractArchive`
+  用 `x -o<目录> [-ao{覆盖/跳过/保留两者}] [-mcp=<编码>] [-p<密码>]`。
+- 生产环境以 `Process.start` + `-bsp1` 流式解析百分比进度，`onProgress`
+  直接喂给任务中心 `FileOperationTask.updateProgress`；`cancelRequested` 触发
+  `Process.kill`，与 Shell 文件操作同一套取消语义。损坏包 / 密码错误等非零
+  退出码连同 stderr 的 `ERROR:` 行封装进 `ArchiveException` 在任务中心展示。
+- 右键菜单：压缩子菜单新增“创建压缩包…”（名称 / 格式 / 压缩级别 / 密码 /
+  加密文件名），对归档文件新增“解压”子菜单（解压文件… / 解压到当前文件夹 /
+  解压到 <目录>）；解压对话框含目标文件夹（可浏览）、覆盖策略、密码、ZIP
+  名称编码与“完成后打开目标文件夹”。
+- 归档判定以扩展名为准（`.7z/.zip/.rar/.tar/.gz/.tgz/.bz2/.tbz2/.xz/.txz/
+  .lzh/.cab/.iso/.jar/.wim/.zst`），对齐 Files 的解压入口范围；创建仅支持
+  ZIP 与 7z，其余格式（RAR/tar/gzip）留待按格式能力扩展。
+- 命名与冲突对齐 Files：创建目标已存在时追加 `" (2)"`、`" (3)"`（绝不覆盖/
+  合并进已有压缩包），"解压到 <目录>" 同样生成唯一同级目录；创建失败时删除
+  残留的部分压缩包。
+- `plugins/archive/7zip/plugin.json` 的 `capabilities.archive.operations`
+  更新为 `["create", "extract"]`。
 
 ### 5.3 多窗口
 

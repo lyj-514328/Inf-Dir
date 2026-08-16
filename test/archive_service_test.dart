@@ -15,12 +15,69 @@ void main() {
         [
           'a',
           '-t7z',
+          '-mx5',
           '-y',
           r'C:\work\report.7z',
           r'C:\work\report.txt',
           r'C:\work\folder with spaces',
         ],
       );
+    });
+
+    test('builds create arguments with password and header encryption', () {
+      expect(
+        ArchiveService.buildArguments(
+          ['a.txt'],
+          'out.7z',
+          ArchiveFormat.sevenZip,
+          password: 'secret',
+          compressionLevel: 9,
+          encryptHeaders: true,
+        ),
+        ['a', '-t7z', '-mx9', '-psecret', '-mhe=on', '-y', 'out.7z', 'a.txt'],
+      );
+    });
+
+    test('does not emit -mhe for ZIP archives', () {
+      expect(
+        ArchiveService.buildArguments(
+          ['a.txt'],
+          'out.zip',
+          ArchiveFormat.zip,
+          password: 'secret',
+          encryptHeaders: true,
+        ),
+        isNot(contains('-mhe=on')),
+      );
+    });
+
+    test('builds extract arguments for each overwrite mode', () {
+      expect(
+        ArchiveService.buildExtractArguments(
+          'in.zip',
+          r'C:\out',
+          overwrite: ArchiveOverwriteMode.skip,
+          password: 'pw',
+          codePage: 936,
+        ),
+        ['x', r'-oC:\out', '-aos', '-mcp=936', '-ppw', '-y', 'in.zip'],
+      );
+      expect(
+        ArchiveService.buildExtractArguments(
+          'in.7z',
+          r'C:\out',
+          overwrite: ArchiveOverwriteMode.keepBoth,
+        ),
+        ['x', r'-oC:\out', '-aou', '-y', 'in.7z'],
+      );
+    });
+
+    test('recognizes archive file names by extension', () {
+      expect(isArchiveName('report.zip'), isTrue);
+      expect(isArchiveName('report.7z'), isTrue);
+      expect(isArchiveName('report.tar.gz'), isTrue);
+      expect(isArchiveName('report.txt'), isFalse);
+      expect(isArchiveName('report'), isFalse);
     });
 
     test(

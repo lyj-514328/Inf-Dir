@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +26,7 @@ import '../services/shell_context_menu.dart';
 import '../services/shell_new_service.dart';
 import '../services/open_with_menu_service.dart';
 import 'app_theme.dart';
+import 'archive_dialogs.dart';
 import 'conflict_dialog.dart';
 import 'file_list_view.dart';
 import 'address_bar.dart';
@@ -642,6 +644,15 @@ class _PaneContent extends StatelessWidget {
           : p.basename(paths.first);
     }
 
+    final singleArchive =
+        canModify &&
+        singleEntry != null &&
+        !singleEntry.isDirectory &&
+        isArchiveName(singleEntry.name);
+    final extractName = singleArchive
+        ? p.basenameWithoutExtension(singleEntry.name)
+        : null;
+
     if (isRecycleBin) {
       showCommandMenu(
         context,
@@ -692,6 +703,17 @@ class _PaneContent extends StatelessWidget {
         compressName: compressName,
         onCompressZip: canModify ? () => _compressZip(context) : null,
         onCompress7z: canModify ? () => _compress7z(context) : null,
+        onCompressDialog: canModify ? () => _compressDialog(context) : null,
+        onExtractFiles: singleArchive
+            ? () => _extractFiles(context, singlePath!)
+            : null,
+        onExtractHere: singleArchive
+            ? () => _extractHere(context, singlePath!)
+            : null,
+        onExtractToFolder: singleArchive
+            ? () => _extractToFolder(context, singlePath!)
+            : null,
+        extractName: extractName,
         onOpenInTerminal: canOpenDir
             ? () => _openTerminal(context, singlePath!)
             : null,
@@ -904,6 +926,23 @@ class _PaneContent extends StatelessWidget {
     await _compress(context, ArchiveFormat.sevenZip);
   }
 
+  Future<void> _compressDialog(BuildContext context) async {
+    final controller = context.read<PaneController>();
+    final paths = controller.selectedPaths.toList();
+    if (paths.isEmpty) return;
+    final first = _findEntry(controller, paths.first);
+    final base = (first != null && !first.isDirectory)
+        ? p.basenameWithoutExtension(paths.first)
+        : p.basename(paths.first);
+    final options = await showCreateArchiveDialog(
+      context,
+      initialName: base,
+      directory: controller.currentPath,
+    );
+    if (options == null || !context.mounted) return;
+    await _compressWithOptions(context, paths, options);
+  }
+
   Future<void> _compress(BuildContext context, ArchiveFormat format) async {
     final controller = context.read<PaneController>();
     final paths = controller.selectedPaths.toList();
@@ -912,15 +951,141 @@ class _PaneContent extends StatelessWidget {
     final base = (first != null && !first.isDirectory)
         ? p.basenameWithoutExtension(paths.first)
         : p.basename(paths.first);
-    final archivePath = p.join(
-      controller.currentPath,
-      '$base.${format.extension}',
+    await _compressWithOptions(
+      context,
+      paths,
+      CreateArchiveOptions(
+        archivePath: p.join(
+          controller.currentPath,
+          '$base.${format.extension}',
+        ),
+        format: format,
+        compressionLevel: 5,
+      ),
     );
+  }
+
+  Future<void> _compressWithOptions(
+    BuildContext context,
+    List<String> paths,
+    CreateArchiveOptions options,
+  ) async {
+    final controller = context.read<PaneController>();
+    final operationCenter = context.read<AppState>().fileOperations;
+    // 对齐 Files：目标已存在时追加 " (2)"、" (3)"，绝不覆盖/合并进已有压缩包。
+    final target = _uniquePath(options.archivePath);
     try {
-      await ArchiveService().createArchive(paths, archivePath, format: format);
+      await operationCenter.enqueue(
+        type: FileOperationType.compress,
+        sources: paths,
+        destination: target,
+        action: (task) async {
+          await ArchiveService().createArchive(
+            paths,
+            target,
+            format: options.format,
+            compressionLevel: options.compressionLevel,
+            password: options.password,
+            encryptHeaders: options.encryptHeaders,
+            cancelRequested: () => task.cancelRequested,
+            onProgress: task.updateProgress,
+          );
+        },
+      );
       controller.refresh();
     } catch (e) {
+      // 目标名是唯一的新路径，创建失败时删除残留的部分压缩包。
+      try {
+        final partial = File(target);
+        if (partial.existsSync()) partial.deleteSync();
+      } on Object {
+        // 删除失败不影响错误提示。
+      }
       if (context.mounted) _showOperationError(context, '压缩失败', e);
+    }
+  }
+
+  /// 返回一个不存在的目标路径：若 [path] 已存在，则在扩展名前追加
+  /// " (2)"、" (3)"，直到找到空闲名称（对齐 Files 的 GenerateUniqueName）。
+  static String _uniquePath(String path) {
+    if (!File(path).existsSync() && !Directory(path).existsSync()) return path;
+    final dir = p.dirname(path);
+    final ext = p.extension(path);
+    final base = p.basenameWithoutExtension(path);
+    for (var i = 2; ; i++) {
+      final candidate = p.join(dir, '$base ($i)$ext');
+      if (!File(candidate).existsSync() && !Directory(candidate).existsSync()) {
+        return candidate;
+      }
+    }
+  }
+
+  Future<void> _extractFiles(BuildContext context, String archivePath) async {
+    final defaultDestination = _uniquePath(
+      p.join(p.dirname(archivePath), p.basenameWithoutExtension(archivePath)),
+    );
+    final options = await showExtractArchiveDialog(
+      context,
+      archivePath: archivePath,
+      defaultDestination: defaultDestination,
+    );
+    if (options == null || !context.mounted) return;
+    await _extract(context, archivePath, options);
+  }
+
+  Future<void> _extractHere(BuildContext context, String archivePath) async {
+    final controller = context.read<PaneController>();
+    await _extract(
+      context,
+      archivePath,
+      ExtractArchiveOptions(destination: controller.currentPath),
+    );
+  }
+
+  Future<void> _extractToFolder(
+    BuildContext context,
+    String archivePath,
+  ) async {
+    final destination = _uniquePath(
+      p.join(p.dirname(archivePath), p.basenameWithoutExtension(archivePath)),
+    );
+    await _extract(
+      context,
+      archivePath,
+      ExtractArchiveOptions(destination: destination),
+    );
+  }
+
+  Future<void> _extract(
+    BuildContext context,
+    String archivePath,
+    ExtractArchiveOptions options,
+  ) async {
+    final controller = context.read<PaneController>();
+    final operationCenter = context.read<AppState>().fileOperations;
+    try {
+      await operationCenter.enqueue(
+        type: FileOperationType.extract,
+        sources: [archivePath],
+        destination: options.destination,
+        action: (task) async {
+          await ArchiveService().extractArchive(
+            archivePath,
+            options.destination,
+            password: options.password,
+            overwrite: options.overwrite,
+            codePage: options.codePage,
+            cancelRequested: () => task.cancelRequested,
+            onProgress: task.updateProgress,
+          );
+        },
+      );
+      controller.refresh();
+      if (options.openWhenDone && context.mounted) {
+        await FileService.openFile(options.destination);
+      }
+    } catch (e) {
+      if (context.mounted) _showOperationError(context, '解压失败', e);
     }
   }
 

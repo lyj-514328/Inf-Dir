@@ -8,6 +8,8 @@ enum FileOperationType {
   restore,
   create,
   rename,
+  compress,
+  extract,
 }
 
 enum FileOperationStatus { queued, running, succeeded, failed, cancelled }
@@ -82,9 +84,8 @@ class FileOperationTask extends ChangeNotifier {
       List.unmodifiable(_itemResults);
 
   /// The items that failed, in report order.
-  List<FileOperationItemResult> get failures => List.unmodifiable(
-    _itemResults.where((result) => !result.isSuccess),
-  );
+  List<FileOperationItemResult> get failures =>
+      List.unmodifiable(_itemResults.where((result) => !result.isSuccess));
 
   bool get hasFailures => _itemResults.any((result) => !result.isSuccess);
 

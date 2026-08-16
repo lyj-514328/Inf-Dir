@@ -20,13 +20,13 @@ void main() {
     await tester.tap(find.text('report.txt'), buttons: kSecondaryMouseButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('压缩到'), findsOneWidget);
-    await tester.tap(find.text('压缩到'));
+    expect(find.text('压缩'), findsOneWidget);
+    await tester.tap(find.text('压缩'));
     await tester.pumpAndSettle();
 
     expect(find.text('创建 report.zip'), findsOneWidget);
     expect(find.text('创建 report.7z'), findsOneWidget);
-    expect(find.text('创建压缩包'), findsNothing);
+    expect(find.text('创建压缩包…'), findsOneWidget);
     expect(find.text('在新窗口中打开'), findsNothing);
     expect(find.text('发送到'), findsNothing);
     expect(find.text('固定到侧边栏'), findsNothing);
