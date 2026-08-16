@@ -45,59 +45,25 @@ static bool EnsureGdiplus() {
 
 // -- Public API -------------------------------------------------------
 
-extern "C" __declspec(dllexport)
-unsigned char* GetFileIconPngW(const wchar_t* path, int size, int* outSize) {
-    if (!path || !outSize || size <= 0) return nullptr;
+static const int kInfDirImageIconOnly = 0x1;
+static const int kInfDirImageThumbnailOnly = 0x2;
+static const int kInfDirImageInCacheOnly = 0x4;
+
+static unsigned char* BitmapToPng(HBITMAP hBitmap, int* outSize) {
     *outSize = 0;
-    if (!EnsureGdiplus()) return nullptr;
+    if (!hBitmap || !EnsureGdiplus()) return nullptr;
 
-    // Ensure COM is initialized on this thread
-    bool comInitialized = false;
-    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-    if (FAILED(hr)) return nullptr;
-    comInitialized = (hr == S_OK);
-
-    // Create IShellItem and query IShellItemImageFactory
-    // Normalize virtual Shell paths: "::{CLSID}" -> "shell:::{CLSID}"
-    std::wstring parsingPath = path;
-    if (parsingPath.substr(0, 3) == L"::{") {
-        parsingPath = L"shell:" + parsingPath;
-    }
-
-    IShellItemImageFactory* factory = nullptr;
-    hr = SHCreateItemFromParsingName(parsingPath.c_str(), nullptr, IID_IShellItemImageFactory, (void**)&factory);
-    if (FAILED(hr) || !factory) {
-        if (comInitialized) CoUninitialize();
-        return nullptr;
-    }
-
-    // Get HBITMAP at requested size (icon-only, no thumbnail)
-    HBITMAP hBitmap = nullptr;
-    hr = factory->GetImage({size, size}, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK, &hBitmap);
-    factory->Release();
-    if (FAILED(hr) || !hBitmap) {
-        if (comInitialized) CoUninitialize();
-        return nullptr;
-    }
-
-    // Get bitmap info
     BITMAP bm = {};
     if (!GetObject(hBitmap, sizeof(bm), &bm) || bm.bmWidth <= 0 || bm.bmHeight <= 0) {
-        DeleteObject(hBitmap);
-        if (comInitialized) CoUninitialize();
         return nullptr;
     }
+    if (!bm.bmBits) return nullptr;
 
-    // Flip rows: HBITMAP is bottom-up, GDI+ Bitmap expects top-down
     int rowBytes = abs(bm.bmWidthBytes);
     int height = bm.bmHeight;
     int width = bm.bmWidth;
     BYTE* flippedBits = (BYTE*)malloc(rowBytes * height);
-    if (!flippedBits) {
-        DeleteObject(hBitmap);
-        if (comInitialized) CoUninitialize();
-        return nullptr;
-    }
+    if (!flippedBits) return nullptr;
 
     BYTE* srcBits = (BYTE*)bm.bmBits;
     for (int y = 0; y < height; y++) {
@@ -106,44 +72,103 @@ unsigned char* GetFileIconPngW(const wchar_t* path, int size, int* outSize) {
                rowBytes);
     }
 
-    // Create GDI+ bitmap from the flipped 32-bit ARGB pixel data
     Gdiplus::Bitmap bmp(width, height, rowBytes, PixelFormat32bppARGB, flippedBits);
 
-    // Save to PNG via IStream
     IStream* stm = nullptr;
     if (CreateStreamOnHGlobal(nullptr, TRUE, &stm) != S_OK) {
         free(flippedBits);
-        DeleteObject(hBitmap);
-        if (comInitialized) CoUninitialize();
         return nullptr;
     }
 
-    if (bmp.Save(stm, &g_pngClsid) != Gdiplus::Ok) {
-        stm->Release();
-        free(flippedBits);
-        DeleteObject(hBitmap);
-        if (comInitialized) CoUninitialize();
-        return nullptr;
+    unsigned char* buf = nullptr;
+    if (bmp.Save(stm, &g_pngClsid) == Gdiplus::Ok) {
+        HGLOBAL hg = nullptr;
+        GetHGlobalFromStream(stm, &hg);
+        SIZE_T sz = GlobalSize(hg);
+        void* src = GlobalLock(hg);
+        buf = (unsigned char*)CoTaskMemAlloc(sz);
+        if (buf) {
+            memcpy(buf, src, sz);
+            *outSize = (int)sz;
+        }
+        GlobalUnlock(hg);
     }
 
-    // Read stream data into CoTaskMem-allocated buffer
-    HGLOBAL hg = nullptr;
-    GetHGlobalFromStream(stm, &hg);
-    SIZE_T sz = GlobalSize(hg);
-    void* src = GlobalLock(hg);
-
-    unsigned char* buf = (unsigned char*)CoTaskMemAlloc(sz);
-    if (buf) {
-        memcpy(buf, src, sz);
-        *outSize = (int)sz;
-    }
-
-    GlobalUnlock(hg);
     stm->Release();
     free(flippedBits);
+    return buf;
+}
+
+static int ToSiigbf(int flags) {
+    int siigbf = SIIGBF_BIGGERSIZEOK;
+    if (flags & kInfDirImageIconOnly) {
+        siigbf |= SIIGBF_ICONONLY;
+    } else {
+        siigbf |= SIIGBF_RESIZETOFIT;
+    }
+    if (flags & kInfDirImageThumbnailOnly) siigbf |= SIIGBF_THUMBNAILONLY;
+    if (flags & kInfDirImageInCacheOnly) siigbf |= SIIGBF_INCACHEONLY;
+    return siigbf;
+}
+
+static unsigned char* GetShellImagePng(
+    const wchar_t* path, int size, int siigbfFlags, int* outSize) {
+    if (!path || !outSize || size <= 0) return nullptr;
+    *outSize = 0;
+    if (!EnsureGdiplus()) return nullptr;
+
+    bool comInitialized = false;
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    if (FAILED(hr)) return nullptr;
+    comInitialized = (hr == S_OK);
+
+    std::wstring parsingPath = path;
+    if (parsingPath.substr(0, 3) == L"::{") {
+        parsingPath = L"shell:" + parsingPath;
+    }
+
+    IShellItemImageFactory* factory = nullptr;
+    hr = SHCreateItemFromParsingName(
+        parsingPath.c_str(), nullptr, IID_IShellItemImageFactory, (void**)&factory);
+    if (FAILED(hr) || !factory) {
+        if (comInitialized) CoUninitialize();
+        return nullptr;
+    }
+
+    HBITMAP hBitmap = nullptr;
+    hr = factory->GetImage({size, size}, siigbfFlags, &hBitmap);
+    factory->Release();
+    if (FAILED(hr) || !hBitmap) {
+        if (comInitialized) CoUninitialize();
+        return nullptr;
+    }
+
+    unsigned char* buf = BitmapToPng(hBitmap, outSize);
     DeleteObject(hBitmap);
     if (comInitialized) CoUninitialize();
     return buf;
+}
+
+extern "C" __declspec(dllexport)
+unsigned char* GetFileIconPngW(const wchar_t* path, int size, int* outSize) {
+    return GetShellImagePng(path, size, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK, outSize);
+}
+
+extern "C" __declspec(dllexport)
+unsigned char* GetFileImagePngW(
+    const wchar_t* path, int size, int flags, int* outSize) {
+    if (!path || !outSize || size <= 0) return nullptr;
+    *outSize = 0;
+
+    const bool thumbnailOnly = (flags & kInfDirImageThumbnailOnly) != 0;
+    const bool cacheOnly = (flags & kInfDirImageInCacheOnly) != 0;
+    if (thumbnailOnly && !cacheOnly) {
+        unsigned char* cached = GetShellImagePng(
+            path, size, ToSiigbf(flags | kInfDirImageInCacheOnly), outSize);
+        if (cached) return cached;
+        *outSize = 0;
+    }
+    return GetShellImagePng(path, size, ToSiigbf(flags), outSize);
 }
 
 extern "C" __declspec(dllexport)

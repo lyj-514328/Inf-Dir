@@ -12,6 +12,16 @@ extern "C" {
 __declspec(dllexport)
 unsigned char* GetFileIconPngW(const wchar_t* path, int size, int* outSize);
 
+// Same as GetFileIconPngW, but `flags` maps to IShellItemImageFactory options:
+//   0x1 = SIIGBF_ICONONLY
+//   0x2 = SIIGBF_THUMBNAILONLY
+//   0x4 = SIIGBF_INCACHEONLY
+// Without ICONONLY, Shell prefers a content thumbnail and falls back to an icon.
+// Returns a CoTaskMem-allocated buffer; caller must free with FreeIconPngW.
+__declspec(dllexport)
+unsigned char* GetFileImagePngW(
+    const wchar_t* path, int size, int flags, int* outSize);
+
 // Returns the shell overlay icon (e.g. shortcut arrow, OneDrive badge) as PNG
 // bytes. Enumerates IShellIconOverlayIdentifier handlers in priority order and
 // returns the first matching overlay. Returns NULL if no overlay applies.

@@ -5,6 +5,8 @@ import '../services/directory_repository.dart';
 import '../services/directory_service.dart';
 import '../services/file_service.dart';
 import '../services/file_operation_center.dart';
+import '../services/icon_service.dart';
+import '../services/prefs_store.dart';
 
 class AppState extends ChangeNotifier {
   late final List<PaneController> panes;
@@ -14,14 +16,18 @@ class AppState extends ChangeNotifier {
   int _activePaneIndex = 0;
   bool _showHiddenFiles = false;
   bool _showFileExtensions = true;
+  bool _showThumbnails = true;
+  final PrefsStore _prefs;
 
   AppState({
     DirectoryRepository? repository,
     FileOperationCenter? fileOperations,
     FileOperationHistoryStack? history,
+    PrefsStore? prefs,
   }) : repository = repository ?? DirectoryRepository(),
        fileOperations = fileOperations ?? FileOperationCenter(),
-       history = history ?? FileOperationHistoryStack() {
+       history = history ?? FileOperationHistoryStack(),
+       _prefs = prefs ?? PrefsStore() {
     final repo = this.repository;
     panes = [
       PaneController(FileService.desktopPath, repository: repo),
@@ -29,6 +35,7 @@ class AppState extends ChangeNotifier {
       PaneController(FileService.documentsPath, repository: repo),
       PaneController(FileService.downloadsPath, repository: repo),
     ];
+    _loadPrefs();
   }
 
   int get activePaneIndex => _activePaneIndex;
@@ -72,6 +79,7 @@ class AppState extends ChangeNotifier {
 
   bool get showHiddenFiles => _showHiddenFiles;
   bool get showFileExtensions => _showFileExtensions;
+  bool get showThumbnails => _showThumbnails;
 
   /// 切换显示隐藏/系统文件：同步原生层过滤标志，清空目录缓存，
   /// 并刷新所有 pane。侧边栏由 AppShell 在切换后重新 sync。
@@ -90,5 +98,29 @@ class AppState extends ChangeNotifier {
     if (_showFileExtensions == value) return;
     _showFileExtensions = value;
     notifyListeners();
+  }
+
+  void setShowThumbnails(bool value) {
+    if (_showThumbnails == value) return;
+    _showThumbnails = value;
+    _savePrefs();
+    notifyListeners();
+  }
+
+  void clearThumbnailCache() {
+    IconService.clearThumbnailCache();
+    notifyListeners();
+  }
+
+  void _loadPrefs() {
+    final values = _prefs.load();
+    final showThumbnails = values['showThumbnails'];
+    if (showThumbnails is bool) {
+      _showThumbnails = showThumbnails;
+    }
+  }
+
+  void _savePrefs() {
+    _prefs.save({'showThumbnails': _showThumbnails});
   }
 }

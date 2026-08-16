@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
@@ -10,6 +11,7 @@ import '../services/file_service.dart';
 import '../services/home_service.dart';
 import '../services/icon_service.dart';
 import '../services/sidebar_service.dart';
+import '../state/app_state.dart';
 import '../state/pane_controller.dart';
 import '../state/sidebar_controller.dart';
 import 'app_theme.dart';
@@ -635,6 +637,7 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
                               ? Icons.folder_outlined
                               : Icons.insert_drive_file_outlined,
                           size: AppMetrics.iconMd,
+                          modified: widget.item.date,
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -747,6 +750,7 @@ class _HomeListRowState extends State<_HomeListRow> {
                         ? Icons.folder_outlined
                         : Icons.insert_drive_file_outlined,
                     size: 20,
+                    modified: widget.item.date,
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -843,6 +847,7 @@ class _HomeContentRowState extends State<_HomeContentRow> {
                         ? Icons.folder_outlined
                         : Icons.insert_drive_file_outlined,
                     size: widget.content ? 40 : 34,
+                    modified: widget.item.date,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -964,6 +969,7 @@ class _HomeIconTileState extends State<_HomeIconTile> {
                       ? Icons.folder_outlined
                       : Icons.insert_drive_file_outlined,
                   size: widget.iconSize,
+                  modified: widget.item.date,
                 ),
                 const SizedBox(width: 7),
                 Expanded(child: _tileName(context)),
@@ -980,6 +986,7 @@ class _HomeIconTileState extends State<_HomeIconTile> {
                           ? Icons.folder_outlined
                           : Icons.insert_drive_file_outlined,
                       size: widget.iconSize,
+                      modified: widget.item.date,
                     ),
                   ),
                 ),
@@ -1022,57 +1029,117 @@ class _HomeIconTileState extends State<_HomeIconTile> {
   }
 }
 
-class _HomeIcon extends StatelessWidget {
+class _HomeIcon extends StatefulWidget {
   final String path;
   final bool isDirectory;
   final IconData fallback;
   final double size;
+  final DateTime? modified;
 
   const _HomeIcon({
     required this.path,
     required this.isDirectory,
     required this.fallback,
     required this.size,
+    this.modified,
   });
 
   @override
+  State<_HomeIcon> createState() => _HomeIconState();
+}
+
+class _HomeIconState extends State<_HomeIcon> {
+  Uint8List? _thumbnail;
+  int _requestId = 0;
+  bool? _lastShowThumbnails;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _requestThumbnail();
+  }
+
+  @override
+  void didUpdateWidget(_HomeIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path ||
+        oldWidget.size != widget.size ||
+        oldWidget.modified != widget.modified) {
+      _thumbnail = null;
+      _requestThumbnail();
+    }
+  }
+
+  void _requestThumbnail() {
+    final showThumbnails = context.read<AppState>().showThumbnails;
+    _lastShowThumbnails = showThumbnails;
+    if (!showThumbnails || !IconService.wantsThumbnail(widget.size)) {
+      _thumbnail = null;
+      return;
+    }
+    final sourceSize = (widget.size * View.of(context).devicePixelRatio).ceil();
+    final key = IconService.thumbnailCacheKey(
+      path: widget.path,
+      size: sourceSize,
+      modified: widget.modified,
+    );
+    final cached = IconService.peekThumbnail(key);
+    if (cached != null) {
+      _thumbnail = cached;
+      return;
+    }
+    final requestId = ++_requestId;
+    unawaited(
+      IconService.getThumbnailPng(
+        path: widget.path,
+        size: sourceSize,
+        modified: widget.modified,
+      ).then((bytes) {
+        if (!mounted || requestId != _requestId || bytes == null) return;
+        setState(() => _thumbnail = bytes);
+      }),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final showThumbnails = context.select<AppState, bool>(
+      (state) => state.showThumbnails,
+    );
+    if (_lastShowThumbnails != showThumbnails) {
+      _requestThumbnail();
+    }
     final c = context.colors;
-    final ext = p.extension(path).toLowerCase();
-    if (!isDirectory &&
-        const {
-          '.png',
-          '.jpg',
-          '.jpeg',
-          '.gif',
-          '.bmp',
-          '.webp',
-        }.contains(ext) &&
-        File(path).existsSync()) {
-      return Image.file(
-        File(path),
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) =>
-            Icon(fallback, size: size, color: c.iconFile),
-      );
+    final sourceSize = (widget.size * View.of(context).devicePixelRatio).ceil();
+    if (!showThumbnails || !IconService.wantsThumbnail(widget.size)) {
+      _thumbnail = null;
     }
 
-    Uint8List? png;
-    try {
-      final sourceSize = (size * View.of(context).devicePixelRatio).ceil();
-      png = IconService.getFileIconPng(path, isDirectory, sourceSize);
-    } on Object {
-      png = null;
+    Uint8List? png = _thumbnail;
+    if (png == null) {
+      try {
+        png = IconService.getFileIconPng(
+          widget.path,
+          widget.isDirectory,
+          sourceSize,
+        );
+      } on Object {
+        png = null;
+      }
     }
     if (png != null) {
-      return Image.memory(png, width: size, height: size, fit: BoxFit.contain);
+      return Image.memory(
+        png,
+        width: widget.size,
+        height: widget.size,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+      );
     }
     return Icon(
-      fallback,
-      size: size,
-      color: isDirectory ? c.iconFolder : c.iconFile,
+      widget.fallback,
+      size: widget.size,
+      color: widget.isDirectory ? c.iconFolder : c.iconFile,
     );
   }
 }

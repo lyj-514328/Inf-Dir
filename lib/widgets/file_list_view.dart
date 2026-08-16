@@ -6,11 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
+import 'package:provider/provider.dart';
 import '../models/file_drag_payload.dart';
 import '../models/file_entry.dart';
 import '../models/file_group.dart';
 import '../services/file_drop_service.dart';
 import '../services/icon_service.dart';
+import '../state/app_state.dart';
 import '../state/pane_controller.dart';
 import 'app_theme.dart';
 
@@ -1098,6 +1100,7 @@ class _ExplorerTileState extends State<_ExplorerTile> {
                         isDirectory: widget.entry.isDirectory,
                         isSelected: false,
                         size: widget.iconSize,
+                        modified: widget.entry.modified,
                       ),
                       const SizedBox(width: 7),
                       Expanded(
@@ -1126,6 +1129,7 @@ class _ExplorerTileState extends State<_ExplorerTile> {
                             isDirectory: widget.entry.isDirectory,
                             isSelected: false,
                             size: widget.iconSize,
+                            modified: widget.entry.modified,
                           ),
                         ),
                       ),
@@ -1226,6 +1230,7 @@ class _ExplorerContentRowState extends State<_ExplorerContentRow> {
                   isDirectory: widget.entry.isDirectory,
                   isSelected: false,
                   size: widget.contentMode ? 40 : 34,
+                  modified: widget.entry.modified,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1598,6 +1603,7 @@ class _FileRowState extends State<_FileRow> {
                                 isDirectory: widget.entry.isDirectory,
                                 isSelected:
                                     widget.isSelected && widget.isActive,
+                                modified: widget.entry.modified,
                               ),
                               const SizedBox(width: 4),
                               Expanded(
@@ -1674,32 +1680,103 @@ class _FileRowState extends State<_FileRow> {
 
 // ── File Icon (real system icon + shell overlay) ─────────────────────
 
-class _FileIcon extends StatelessWidget {
+class _FileIcon extends StatefulWidget {
   final String path;
   final bool isDirectory;
   final bool isSelected;
   final double size;
+  final DateTime? modified;
 
   const _FileIcon({
     required this.path,
     required this.isDirectory,
     required this.isSelected,
     this.size = AppMetrics.iconMd,
+    this.modified,
   });
 
   @override
+  State<_FileIcon> createState() => _FileIconState();
+}
+
+class _FileIconState extends State<_FileIcon> {
+  Uint8List? _thumbnail;
+  int _requestId = 0;
+  bool? _lastShowThumbnails;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _requestThumbnail();
+  }
+
+  @override
+  void didUpdateWidget(_FileIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path ||
+        oldWidget.size != widget.size ||
+        oldWidget.modified != widget.modified) {
+      _thumbnail = null;
+      _requestThumbnail();
+    }
+  }
+
+  void _requestThumbnail() {
+    final showThumbnails = context.read<AppState>().showThumbnails;
+    _lastShowThumbnails = showThumbnails;
+    if (!showThumbnails || !IconService.wantsThumbnail(widget.size)) {
+      _thumbnail = null;
+      return;
+    }
+    final sourceSize = (widget.size * View.of(context).devicePixelRatio).ceil();
+    final key = IconService.thumbnailCacheKey(
+      path: widget.path,
+      size: sourceSize,
+      modified: widget.modified,
+    );
+    final cached = IconService.peekThumbnail(key);
+    if (cached != null) {
+      _thumbnail = cached;
+      return;
+    }
+    final requestId = ++_requestId;
+    unawaited(
+      IconService.getThumbnailPng(
+        path: widget.path,
+        size: sourceSize,
+        modified: widget.modified,
+      ).then((bytes) {
+        if (!mounted || requestId != _requestId || bytes == null) return;
+        setState(() => _thumbnail = bytes);
+      }),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final showThumbnails = context.select<AppState, bool>(
+      (state) => state.showThumbnails,
+    );
+    if (_lastShowThumbnails != showThumbnails) {
+      _requestThumbnail();
+    }
     final c = context.colors;
-    final iconSize = size;
+    final iconSize = widget.size;
     final devicePixelRatio = View.of(context).devicePixelRatio;
     final sourceSize = (iconSize * devicePixelRatio).ceil();
-    // Shell overlay HICON contains transparent padding; keep enough canvas for
-    // the shortcut arrow to stay close to Explorer's large-icon proportion.
-    final badgeSize = (size * 0.42).clamp(8.0, 36.0);
+    final badgeSize = (widget.size * 0.42).clamp(8.0, 36.0);
     final badgeSourceSize = (badgeSize * devicePixelRatio).ceil();
+    if (!showThumbnails || !IconService.wantsThumbnail(widget.size)) {
+      _thumbnail = null;
+    }
 
-    final png = IconService.getFileIconPng(path, isDirectory, sourceSize);
-    final overlayPng = IconService.getFileOverlayPng(path, badgeSourceSize);
+    final png =
+        _thumbnail ??
+        IconService.getFileIconPng(widget.path, widget.isDirectory, sourceSize);
+    final overlayPng = IconService.getFileOverlayPng(
+      widget.path,
+      badgeSourceSize,
+    );
 
     final Widget base = png != null
         ? Image.memory(
@@ -1707,13 +1784,14 @@ class _FileIcon extends StatelessWidget {
             width: iconSize,
             height: iconSize,
             fit: BoxFit.contain,
+            gaplessPlayback: true,
           )
         : Icon(
-            isDirectory ? Icons.folder : Icons.insert_drive_file,
+            widget.isDirectory ? Icons.folder : Icons.insert_drive_file,
             size: iconSize,
-            color: isSelected
+            color: widget.isSelected
                 ? c.onAccent
-                : (isDirectory ? c.iconFolder : c.iconFile),
+                : (widget.isDirectory ? c.iconFolder : c.iconFile),
           );
 
     if (overlayPng == null) {

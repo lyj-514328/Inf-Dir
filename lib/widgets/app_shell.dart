@@ -683,6 +683,10 @@ class _AppMenusState extends State<_AppMenus> {
         if (mounted) setState(() {});
       },
       onManageFavorites: () => showFavoritesDialog(context),
+      onClearThumbnailCache: () {
+        appState.clearThumbnailCache();
+        if (mounted) setState(() {});
+      },
       onAbout: () => showAboutDialog(
         context: context,
         applicationName: 'Inf-Dir',

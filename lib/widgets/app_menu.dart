@@ -25,6 +25,7 @@ List<AppMenuGroup> buildAppMenuGroups({
   required VoidCallback onRemoveFavorite,
   required VoidCallback onManageFavorites,
   required VoidCallback onAbout,
+  required VoidCallback onClearThumbnailCache,
   required bool canUndo,
   required bool canRedo,
   VoidCallback? onUndo,
@@ -156,6 +157,12 @@ List<AppMenuGroup> buildAppMenuGroups({
       ),
     ]),
     AppMenuGroup('选项(O)', [
+      CommandMenuItem(
+        label: '显示缩略图',
+        checked: appState.showThumbnails,
+        onAction: () => appState.setShowThumbnails(!appState.showThumbnails),
+      ),
+      CommandMenuItem(label: '清除缩略图缓存', onAction: onClearThumbnailCache),
       CommandMenuItem(label: '查看器管理', onAction: onViewerAssociations),
     ]),
   ];

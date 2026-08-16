@@ -30,6 +30,7 @@ void main() {
       onRemoveFavorite: () {},
       onManageFavorites: () {},
       onAbout: () {},
+      onClearThumbnailCache: () {},
       onCopy: () {},
       onCut: () {},
       onPaste: () {},
@@ -66,5 +67,11 @@ void main() {
     expect(groups[1].items[4].enabled, isFalse);
     expect(groups[2].items[0].enabled, isTrue);
     expect(groups[4].items[0].enabled, isTrue);
+    expect(groups[5].items.map((item) => item.label), [
+      '显示缩略图',
+      '清除缩略图缓存',
+      '查看器管理',
+    ]);
+    expect(groups[5].items[0].checked, isTrue);
   });
 }
