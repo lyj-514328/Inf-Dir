@@ -2208,14 +2208,8 @@ class _StatusBarSection extends StatelessWidget {
         isLoading: sel.$3,
         selectedCount: sel.$4,
         filterQuery: sel.$5,
-        filterMode: sel.$6,
-        caseSensitive: sel.$7,
         entryFilter: sel.$8,
-        onFilterChanged: context.read<PaneController>().setFilterQuery,
-        onModeSelected: (mode, caseSensitive) => context
-            .read<PaneController>()
-            .setFilterMode(mode, caseSensitive: caseSensitive),
-        onEntryFilterSelected: context.read<PaneController>().setEntryFilter,
+        controller: context.read<PaneController>(),
       ),
     );
   }
@@ -2441,12 +2435,8 @@ class _StatusBar extends StatelessWidget {
   final bool isLoading;
   final int selectedCount;
   final String filterQuery;
-  final QueryFilterMode filterMode;
-  final bool caseSensitive;
   final EntryFilter entryFilter;
-  final ValueChanged<String> onFilterChanged;
-  final void Function(QueryFilterMode mode, bool caseSensitive) onModeSelected;
-  final ValueChanged<EntryFilter> onEntryFilterSelected;
+  final PaneController controller;
 
   const _StatusBar({
     required this.visibleCount,
@@ -2454,12 +2444,8 @@ class _StatusBar extends StatelessWidget {
     required this.isLoading,
     required this.selectedCount,
     required this.filterQuery,
-    required this.filterMode,
-    required this.caseSensitive,
     required this.entryFilter,
-    required this.onFilterChanged,
-    required this.onModeSelected,
-    required this.onEntryFilterSelected,
+    required this.controller,
   });
 
   @override
@@ -2496,239 +2482,454 @@ class _StatusBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          SizedBox(
-            width: 168,
-            child: _StatusFilterField(
-              query: filterQuery,
-              filterMode: filterMode,
-              caseSensitive: caseSensitive,
-              entryFilter: entryFilter,
-              onChanged: onFilterChanged,
-              onModeSelected: onModeSelected,
-              onEntryFilterSelected: onEntryFilterSelected,
-            ),
-          ),
+          _StatusFilterButton(controller: controller),
         ],
       ),
     );
   }
 }
 
-/// 状态栏右侧的过滤输入框：右侧图标打开匹配模式和类型菜单。
-class _StatusFilterField extends StatefulWidget {
-  final String query;
-  final QueryFilterMode filterMode;
-  final bool caseSensitive;
-  final EntryFilter entryFilter;
-  final ValueChanged<String> onChanged;
-  final void Function(QueryFilterMode mode, bool caseSensitive) onModeSelected;
-  final ValueChanged<EntryFilter> onEntryFilterSelected;
+// ── 状态栏筛选按钮与弹出面板 ─────────────────────────────────────────
 
-  const _StatusFilterField({
-    required this.query,
-    required this.filterMode,
-    required this.caseSensitive,
-    required this.entryFilter,
-    required this.onChanged,
-    required this.onModeSelected,
-    required this.onEntryFilterSelected,
-  });
+IconData _filterModeIcon(QueryFilterMode mode, bool caseSensitive) =>
+    switch ((mode, caseSensitive)) {
+      (QueryFilterMode.keyword, false) => Symbols.match_case_off,
+      (QueryFilterMode.keyword, true) => Symbols.match_case,
+      (QueryFilterMode.glob, _) => Symbols.g_mobiledata_badge,
+      (QueryFilterMode.regex, _) => Symbols.regular_expression,
+    };
+
+String? _entryFilterLabel(EntryFilter filter) => switch (filter) {
+  EntryFilter.all => null,
+  EntryFilter.folders => '文件夹',
+  EntryFilter.files => '文件',
+  EntryFilter.images => '图片',
+  EntryFilter.documents => '文档',
+};
+
+/// 状态栏右下角筛选入口：未激活为灰色漏斗图标；激活时图标变主题色，
+/// 右侧追加「匹配模式 | 类型」摘要。点击弹出筛选面板。
+class _StatusFilterButton extends StatefulWidget {
+  final PaneController controller;
+
+  const _StatusFilterButton({required this.controller});
 
   @override
-  State<_StatusFilterField> createState() => _StatusFilterFieldState();
+  State<_StatusFilterButton> createState() => _StatusFilterButtonState();
 }
 
-class _StatusFilterFieldState extends State<_StatusFilterField> {
-  late final TextEditingController _textController;
-  late final FocusNode _focusNode;
+class _StatusFilterButtonState extends State<_StatusFilterButton> {
   bool _hovering = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _textController = TextEditingController(text: widget.query);
-    _focusNode = FocusNode();
-  }
-
-  @override
-  void didUpdateWidget(covariant _StatusFilterField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.query != widget.query &&
-        _textController.text != widget.query) {
-      _textController.value = TextEditingValue(
-        text: widget.query,
-        selection: TextSelection.collapsed(offset: widget.query.length),
-      );
-    }
-  }
+  OverlayEntry? _entry;
 
   @override
   void dispose() {
-    _textController.dispose();
-    _focusNode.dispose();
+    _entry?.remove();
     super.dispose();
   }
 
-  String get _modeTooltip => switch (widget.filterMode) {
-    QueryFilterMode.keyword =>
-      widget.caseSensitive ? '关键字匹配（大小写敏感）' : '关键字匹配（忽略大小写）',
-    QueryFilterMode.glob => 'glob 通配匹配（* 任意串，? 单字符，整名）',
-    QueryFilterMode.regex => '正则匹配（大小写由设置决定）',
-  };
-
-  IconData get _modeIcon => switch ((widget.filterMode, widget.caseSensitive)) {
-    (QueryFilterMode.keyword, false) => Symbols.match_case_off,
-    (QueryFilterMode.keyword, true) => Symbols.match_case,
-    (QueryFilterMode.glob, _) => Symbols.g_mobiledata_badge,
-    (QueryFilterMode.regex, _) => Symbols.regular_expression,
-  };
-
-  bool _isActive(QueryFilterMode mode, bool caseSensitive) {
-    if (widget.filterMode != mode) return false;
-    if (mode == QueryFilterMode.keyword) {
-      return widget.caseSensitive == caseSensitive;
+  void _togglePanel() {
+    if (_entry != null) {
+      _closePanel();
+      return;
     }
-    return true;
+    final box = context.findRenderObject()! as RenderBox;
+    final anchor = box.localToGlobal(Offset(box.size.width, box.size.height));
+    final entry = OverlayEntry(
+      builder: (_) => _FilterPanelOverlay(
+        pane: widget.controller,
+        anchorBottomRight: anchor,
+        close: _closePanel,
+      ),
+    );
+    _entry = entry;
+    Overlay.of(context).insert(entry);
+  }
+
+  void _closePanel() {
+    _entry?.remove();
+    _entry = null;
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final hasQuery = widget.query.trim().isNotEmpty;
-    final hasFilter = hasQuery || widget.entryFilter != EntryFilter.all;
+    final pane = widget.controller;
+    final query = pane.filterQuery.trim();
+    final hasQuery = query.isNotEmpty;
+    final hasFilter = hasQuery || pane.entryFilter != EntryFilter.all;
+    final typeLabel = _entryFilterLabel(pane.entryFilter);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
       child: Tooltip(
-        message: '过滤当前文件夹',
+        message: '筛选当前文件夹',
         waitDuration: const Duration(milliseconds: 600),
-        child: Container(
-          height: 20,
-          padding: const EdgeInsets.only(left: 6, right: 2),
-          decoration: BoxDecoration(
-            color: _hovering || _focusNode.hasFocus
-                ? c.surfaceHover
-                : c.surface,
-            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-            border: Border.all(
-              width: 1,
-              color: _focusNode.hasFocus
-                  ? c.accent
-                  : _hovering
-                  ? c.borderStrong
-                  : c.border,
+        child: InkWell(
+          onTap: _togglePanel,
+          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+          child: Container(
+            height: 20,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            decoration: BoxDecoration(
+              color: _hovering ? c.surfaceHover : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
             ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Focus(
-                  onFocusChange: (_) => setState(() {}),
-                  child: TextField(
-                    controller: _textController,
-                    focusNode: _focusNode,
-                    onChanged: widget.onChanged,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Symbols.filter_alt,
+                  size: AppMetrics.iconSm,
+                  color: hasFilter ? c.accent : c.textTertiary,
+                ),
+                // 查询非空时才显示匹配模式图标与查询内容。
+                if (hasQuery) ...[
+                  const SizedBox(width: 5),
+                  Icon(
+                    _filterModeIcon(pane.filterMode, pane.caseSensitive),
+                    size: 12,
+                    color: c.textSecondary,
+                  ),
+                  const SizedBox(width: 4),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 120),
+                    child: Text(
+                      query,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: AppMetrics.fontSmall,
+                        color: c.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+                if (typeLabel != null) ...[
+                  if (hasQuery)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Container(width: 1, height: 10, color: c.border),
+                    )
+                  else
+                    const SizedBox(width: 5),
+                  Text(
+                    typeLabel,
                     style: TextStyle(
                       fontSize: AppMetrics.fontSmall,
-                      color: c.textPrimary,
-                    ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
+                      color: c.textSecondary,
                     ),
                   ),
-                ),
-              ),
-              if (hasQuery) ...[
-                const SizedBox(width: 2),
-                Tooltip(
-                  message: '清除过滤',
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(
-                      AppMetrics.controlRadius,
-                    ),
-                    onTap: () {
-                      _textController.clear();
-                      widget.onChanged('');
-                      _focusNode.requestFocus();
-                      setState(() {});
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(2),
-                      child: Icon(
-                        Icons.close,
-                        size: 12,
-                        color: c.textSecondary,
-                      ),
-                    ),
-                  ),
-                ),
+                ],
               ],
-              const SizedBox(width: 2),
-              Tooltip(
-                message: '$_modeTooltip，点击选择',
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-                  onTap: _openModeMenu,
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: Center(
-                      child: Icon(
-                        _modeIcon,
-                        size: AppMetrics.iconSm,
-                        color: hasFilter ? c.accent : c.textSecondary,
-                      ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 筛选面板：搜索框与匹配模式为第一组，类型过滤为第二组。
+/// 自按钮上方弹出，点击面板外或 Esc 关闭。
+class _FilterPanelOverlay extends StatefulWidget {
+  final PaneController pane;
+  final Offset anchorBottomRight;
+  final VoidCallback close;
+
+  const _FilterPanelOverlay({
+    required this.pane,
+    required this.anchorBottomRight,
+    required this.close,
+  });
+
+  @override
+  State<_FilterPanelOverlay> createState() => _FilterPanelOverlayState();
+}
+
+class _FilterPanelOverlayState extends State<_FilterPanelOverlay> {
+  static const double _panelWidth = 260;
+  static const double _rowHeight = 32;
+  static const double _dividerHeight = 9;
+  static const double _searchBlockHeight = 34; // 4 + 26 + 4
+  static const double _screenMargin = 8;
+  static const int _modeRowCount = 4;
+  static const int _typeRowCount = 5;
+
+  late final TextEditingController _textController;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController(text: widget.pane.filterQuery);
+    _focusNode = FocusNode();
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+    // overlay 首帧 autofocus 不稳定，post-frame 主动聚焦搜索框。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
+    _textController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      widget.close();
+      return true;
+    }
+    return false;
+  }
+
+  double get _panelHeight =>
+      4 +
+      _searchBlockHeight +
+      _dividerHeight +
+      _modeRowCount * _rowHeight +
+      _dividerHeight +
+      _typeRowCount * _rowHeight +
+      4;
+
+  Offset _position(Size screen) {
+    var x = widget.anchorBottomRight.dx - _panelWidth;
+    var y = widget.anchorBottomRight.dy - _panelHeight - 4;
+    if (x < _screenMargin) x = _screenMargin;
+    if (x + _panelWidth > screen.width - _screenMargin) {
+      x = screen.width - _screenMargin - _panelWidth;
+    }
+    if (y < _screenMargin) y = _screenMargin;
+    if (y + _panelHeight > screen.height - _screenMargin) {
+      y = screen.height - _screenMargin - _panelHeight;
+    }
+    return Offset(x, y);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final pos = _position(MediaQuery.sizeOf(context));
+
+    return Actions(
+      // 输入框持焦时 Esc 触发 DismissIntent，映射为关闭面板。
+      actions: {
+        DismissIntent: CallbackAction<DismissIntent>(
+          onInvoke: (_) {
+            widget.close();
+            return null;
+          },
+        ),
+      },
+      child: Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.close,
+            child: const ColoredBox(color: Colors.transparent),
+          ),
+        ),
+        Positioned(
+          left: pos.dx,
+          top: pos.dy,
+          child: Material(
+            color: c.menuSurface,
+            elevation: 6,
+            shadowColor: c.shadow,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppMetrics.menuRadius),
+              side: BorderSide(color: c.menuBorder),
+            ),
+            child: SizedBox(
+              width: _panelWidth,
+              child: ListenableBuilder(
+                listenable: widget.pane,
+                builder: (context, _) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 4),
+                    _buildSearchField(c),
+                    _modeRow(
+                      c,
+                      Symbols.match_case_off,
+                      '关键字（忽略大小写）',
+                      QueryFilterMode.keyword,
+                      false,
                     ),
-                  ),
+                    _modeRow(
+                      c,
+                      Symbols.match_case,
+                      '关键字（大小写敏感）',
+                      QueryFilterMode.keyword,
+                      true,
+                    ),
+                    _modeRow(
+                      c,
+                      Symbols.g_mobiledata_badge,
+                      'glob（* ? 通配）',
+                      QueryFilterMode.glob,
+                      false,
+                    ),
+                    _modeRow(
+                      c,
+                      Symbols.regular_expression,
+                      '正则表达式',
+                      QueryFilterMode.regex,
+                      false,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Divider(height: 1, color: c.menuBorder),
+                    ),
+                    _typeRow(c, Symbols.select_all, '全部', EntryFilter.all),
+                    _typeRow(
+                      c,
+                      Icons.folder_outlined,
+                      '文件夹',
+                      EntryFilter.folders,
+                    ),
+                    _typeRow(
+                      c,
+                      Icons.insert_drive_file_outlined,
+                      '文件',
+                      EntryFilter.files,
+                    ),
+                    _typeRow(c, Icons.image_outlined, '图片', EntryFilter.images),
+                    _typeRow(
+                      c,
+                      Icons.description_outlined,
+                      '文档',
+                      EntryFilter.documents,
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                 ),
               ),
-            ],
+            ),
+          ),
+        ),
+      ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField(AppColors c) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+      child: Container(
+        height: 26,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: c.surface,
+          border: Border.all(color: c.border),
+          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        ),
+        child: Center(
+          child: TextField(
+            controller: _textController,
+            focusNode: _focusNode,
+            onChanged: widget.pane.setFilterQuery,
+            style: TextStyle(
+              fontSize: AppMetrics.fontSmall,
+              color: c.textPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: '输入筛选内容',
+              hintStyle: TextStyle(
+                fontSize: AppMetrics.fontSmall,
+                color: c.textTertiary,
+              ),
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
           ),
         ),
       ),
     );
   }
 
-  void _openModeMenu() {
-    final box = context.findRenderObject()! as RenderBox;
-    final position = box.localToGlobal(Offset(box.size.width, box.size.height));
-    showCommandMenu(
-      context,
-      position: position,
-      items: [
-        CommandMenuItem(
-          icon: Symbols.match_case_off,
-          label: '关键字（忽略大小写）',
-          checked: _isActive(QueryFilterMode.keyword, false),
-          onAction: () => widget.onModeSelected(QueryFilterMode.keyword, false),
+  Widget _modeRow(
+    AppColors c,
+    IconData icon,
+    String label,
+    QueryFilterMode mode,
+    bool caseSensitive,
+  ) {
+    final pane = widget.pane;
+    final checked =
+        pane.filterMode == mode &&
+        (mode != QueryFilterMode.keyword ||
+            pane.caseSensitive == caseSensitive);
+    return _row(
+      c,
+      icon: icon,
+      label: label,
+      checked: checked,
+      onAction: () => pane.setFilterMode(mode, caseSensitive: caseSensitive),
+    );
+  }
+
+  Widget _typeRow(
+    AppColors c,
+    IconData icon,
+    String label,
+    EntryFilter filter,
+  ) {
+    return _row(
+      c,
+      icon: icon,
+      label: label,
+      checked: widget.pane.entryFilter == filter,
+      onAction: () => widget.pane.setEntryFilter(filter),
+    );
+  }
+
+  Widget _row(
+    AppColors c, {
+    required IconData icon,
+    required String label,
+    required bool checked,
+    required VoidCallback onAction,
+  }) {
+    return InkWell(
+      onTap: () {
+        onAction();
+        widget.close();
+      },
+      child: SizedBox(
+        height: _rowHeight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: c.textSecondary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: AppMetrics.fontBody,
+                    color: c.textPrimary,
+                  ),
+                ),
+              ),
+              if (checked) Icon(Icons.check, size: 16, color: c.accent),
+            ],
+          ),
         ),
-        CommandMenuItem(
-          icon: Symbols.match_case,
-          label: '关键字（大小写敏感）',
-          checked: _isActive(QueryFilterMode.keyword, true),
-          onAction: () => widget.onModeSelected(QueryFilterMode.keyword, true),
-        ),
-        const CommandMenuItem.divider(),
-        CommandMenuItem(
-          icon: Symbols.g_mobiledata_badge,
-          label: 'glob（* ? 通配）',
-          checked: _isActive(QueryFilterMode.glob, false),
-          onAction: () => widget.onModeSelected(QueryFilterMode.glob, false),
-        ),
-        CommandMenuItem(
-          icon: Symbols.regular_expression,
-          label: '正则表达式',
-          checked: _isActive(QueryFilterMode.regex, false),
-          onAction: () => widget.onModeSelected(QueryFilterMode.regex, false),
-        ),
-        const CommandMenuItem.divider(),
-        buildEntryFilterCommandMenuItem(
-          selected: widget.entryFilter,
-          onSelected: widget.onEntryFilterSelected,
-        ),
-      ],
+      ),
     );
   }
 }
+

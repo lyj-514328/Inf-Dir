@@ -121,31 +121,6 @@ List<CommandMenuItem> buildNewItemMenuItems({
   ];
 }
 
-CommandMenuItem buildEntryFilterCommandMenuItem({
-  required EntryFilter selected,
-  required ValueChanged<EntryFilter> onSelected,
-}) {
-  CommandMenuItem option(String label, EntryFilter filter) {
-    return CommandMenuItem(
-      label: label,
-      checked: selected == filter,
-      onAction: () => onSelected(filter),
-    );
-  }
-
-  return CommandMenuItem(
-    icon: Icons.filter_alt_outlined,
-    label: '过滤类型',
-    children: [
-      option('全部', EntryFilter.all),
-      option('文件夹', EntryFilter.folders),
-      option('文件', EntryFilter.files),
-      option('图片', EntryFilter.images),
-      option('文档', EntryFilter.documents),
-    ],
-  );
-}
-
 CommandMenuItem buildSortCommandMenuItem(
   ViewSortMenuConfig m, {
   String label = '排序',
