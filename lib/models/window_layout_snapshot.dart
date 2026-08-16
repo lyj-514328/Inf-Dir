@@ -1,5 +1,36 @@
 import 'layout_node.dart';
 
+/// 单个标签页的持久化状态（路径 + 独立导航历史）。
+class TabSnapshot {
+  const TabSnapshot({
+    required this.path,
+    this.backStack = const [],
+    this.forwardStack = const [],
+  });
+
+  factory TabSnapshot.fromJson(Object? value, String name) {
+    final json = _mapValue(value, name);
+    return TabSnapshot(
+      path: _stringValue(json['path'], '$name.path'),
+      backStack: _stringList(json['backStack'] ?? [], '$name.backStack'),
+      forwardStack: _stringList(
+        json['forwardStack'] ?? [],
+        '$name.forwardStack',
+      ),
+    );
+  }
+
+  final String path;
+  final List<String> backStack;
+  final List<String> forwardStack;
+
+  Map<String, Object?> toJson() => {
+    'path': path,
+    'backStack': backStack,
+    'forwardStack': forwardStack,
+  };
+}
+
 class PaneLayoutSnapshot {
   const PaneLayoutSnapshot({
     required this.currentPath,
@@ -21,8 +52,28 @@ class PaneLayoutSnapshot {
     required this.columnWidths,
   });
 
-  factory PaneLayoutSnapshot.fromJson(Map<String, Object?> json) {
-    final tabs = _stringList(json['tabs'], 'pane.tabs', requireNonEmpty: true);
+  factory PaneLayoutSnapshot.fromJson(
+    Map<String, Object?> json, {
+    required int schemaVersion,
+  }) {
+    final rawTabs = _listValue(json['tabs'], 'pane.tabs');
+    if (rawTabs.isEmpty) {
+      throw const FormatException('pane.tabs 不能为空');
+    }
+    final List<TabSnapshot> tabs;
+    if (schemaVersion >= 2) {
+      tabs = [
+        for (var i = 0; i < rawTabs.length; i++)
+          TabSnapshot.fromJson(rawTabs[i], 'pane.tabs[$i]'),
+      ];
+    } else {
+      // v1：tabs 为纯路径数组，历史栈随后从 pane 级字段迁入活动标签。
+      tabs = [
+        for (final item in rawTabs)
+          TabSnapshot(path: _stringValue(item, 'pane.tabs[]')),
+      ];
+    }
+
     final activeTabIndex = _intValue(
       json['activeTabIndex'],
       'pane.activeTabIndex',
@@ -32,8 +83,22 @@ class PaneLayoutSnapshot {
     }
 
     final currentPath = _stringValue(json['currentPath'], 'pane.currentPath');
-    if (tabs[activeTabIndex] != currentPath) {
+    if (tabs[activeTabIndex].path != currentPath) {
       throw const FormatException('pane.currentPath 与激活标签页不一致');
+    }
+
+    final paneBackStack = _stringList(json['backStack'], 'pane.backStack');
+    final paneForwardStack = _stringList(
+      json['forwardStack'],
+      'pane.forwardStack',
+    );
+    if (schemaVersion < 2) {
+      // v1 迁移：pane 级历史归入活动标签。
+      tabs[activeTabIndex] = TabSnapshot(
+        path: currentPath,
+        backStack: paneBackStack,
+        forwardStack: paneForwardStack,
+      );
     }
 
     final sortColumn = _enumValue(json['sortColumn'], 'pane.sortColumn', const {
@@ -76,8 +141,8 @@ class PaneLayoutSnapshot {
       currentPath: currentPath,
       tabs: tabs,
       activeTabIndex: activeTabIndex,
-      backStack: _stringList(json['backStack'], 'pane.backStack'),
-      forwardStack: _stringList(json['forwardStack'], 'pane.forwardStack'),
+      backStack: paneBackStack,
+      forwardStack: paneForwardStack,
       sortColumn: sortColumn,
       sortAscending: _boolValue(json['sortAscending'], 'pane.sortAscending'),
       groupBy: switch (json['groupBy']) {
@@ -108,7 +173,7 @@ class PaneLayoutSnapshot {
   }
 
   final String currentPath;
-  final List<String> tabs;
+  final List<TabSnapshot> tabs;
   final int activeTabIndex;
   final List<String> backStack;
   final List<String> forwardStack;
@@ -127,7 +192,7 @@ class PaneLayoutSnapshot {
 
   Map<String, Object?> toJson() => {
     'currentPath': currentPath,
-    'tabs': tabs,
+    'tabs': tabs.map((tab) => tab.toJson()).toList(),
     'activeTabIndex': activeTabIndex,
     'backStack': backStack,
     'forwardStack': forwardStack,
@@ -206,7 +271,8 @@ class LayoutNodeSnapshot {
 }
 
 class WindowLayoutSnapshot {
-  static const int currentSchemaVersion = 1;
+  static const int currentSchemaVersion = 2;
+  static const Set<int> supportedSchemaVersions = {1, 2};
 
   const WindowLayoutSnapshot({
     required this.workspaces,
@@ -219,8 +285,9 @@ class WindowLayoutSnapshot {
   });
 
   factory WindowLayoutSnapshot.fromJson(Map<String, Object?> json) {
-    if (json['schemaVersion'] != currentSchemaVersion) {
-      throw FormatException('不支持的窗口布局版本：${json['schemaVersion']}');
+    final schemaVersion = _intValue(json['schemaVersion'], 'schemaVersion');
+    if (!supportedSchemaVersions.contains(schemaVersion)) {
+      throw FormatException('不支持的窗口布局版本：$schemaVersion');
     }
 
     final workspaces = _listValue(json['workspaces'], 'workspaces')
@@ -238,6 +305,7 @@ class WindowLayoutSnapshot {
     for (final entry in rawPanes.entries) {
       panes[entry.key] = PaneLayoutSnapshot.fromJson(
         _mapValue(entry.value, 'panes.${entry.key}'),
+        schemaVersion: schemaVersion,
       );
     }
 
@@ -395,15 +463,8 @@ String? _optionalString(Object? value, String name) {
   return _stringValue(value, name);
 }
 
-List<String> _stringList(
-  Object? value,
-  String name, {
-  bool requireNonEmpty = false,
-}) {
+List<String> _stringList(Object? value, String name) {
   final raw = _listValue(value, name);
-  if (requireNonEmpty && raw.isEmpty) {
-    throw FormatException('$name 不能为空');
-  }
   return List.unmodifiable(
     raw.map((item) => _stringValue(item, '$name[]')).toList(),
   );

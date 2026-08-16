@@ -584,4 +584,209 @@ void main() {
       pc.dispose();
     });
   });
+
+  group('PaneController tab management', () {
+    late FakeCursorSource source;
+    late ManualPump pump;
+    late DirectoryRepository repo;
+    final closedRecords = <TabRecord>[];
+
+    PaneController makePane(String path) => PaneController(
+      path,
+      repository: repo,
+      frameYield: pump.yieldFrame,
+      onTabClosed: closedRecords.add,
+    );
+
+    setUp(() {
+      source = FakeCursorSource({
+        'C:\\A': [[dirEntry('C:\\A\\a1')], null],
+        'C:\\B': [[dirEntry('C:\\B\\b1')], null],
+        'C:\\C': [[dirEntry('C:\\C\\c1')], null],
+        'C:\\D': [[dirEntry('C:\\D\\d1')], null],
+      });
+      pump = ManualPump();
+      repo = DirectoryRepository(
+        cursorFactory: source.open,
+        yieldFrame: pump.yieldFrame,
+        hasChildrenProbe: (_) => true,
+      );
+      closedRecords.clear();
+    });
+
+    Future<void> nav(PaneController pc, String path) async {
+      pc.navigateTo(path);
+      await runToIdle(pump);
+    }
+
+    test('每个标签保留独立的前进后退历史', () async {
+      final pc = makePane('C:\\A');
+      await runToIdle(pump);
+      await nav(pc, 'C:\\B');
+      pc.addTab();
+      await nav(pc, 'C:\\C');
+
+      pc.switchTab(0);
+      expect(pc.currentPath, 'C:\\B');
+      expect(pc.canGoBack, isTrue);
+      pc.goBack();
+      expect(pc.currentPath, 'C:\\A');
+      expect(pc.canGoForward, isTrue);
+
+      pc.switchTab(1);
+      expect(pc.currentPath, 'C:\\C');
+      expect(pc.canGoBack, isTrue);
+      pc.goBack();
+      expect(pc.currentPath, 'C:\\B');
+
+      pc.switchTab(0);
+      expect(pc.currentPath, 'C:\\A');
+      pc.goForward();
+      expect(pc.currentPath, 'C:\\B');
+      pc.dispose();
+    });
+
+    test('addTab 同路径时新标签不继承旧历史', () async {
+      final pc = makePane('C:\\A');
+      await runToIdle(pump);
+      await nav(pc, 'C:\\B');
+      pc.addTab();
+      expect(pc.canGoBack, isFalse);
+      expect(pc.canGoForward, isFalse);
+      pc.switchTab(0);
+      expect(pc.canGoBack, isTrue);
+      pc.dispose();
+    });
+
+    test('moveTab 重排并保持激活标签', () {
+      final pc = makePane('C:\\A');
+      pc.addTab('C:\\B');
+      pc.addTab('C:\\C');
+      expect(pc.activeTabIndex, 2);
+
+      pc.moveTab(0, 3);
+      expect(pc.tabs.map((t) => t.path), ['C:\\B', 'C:\\C', 'C:\\A']);
+      expect(pc.activeTabIndex, 1); // 活动标签 C 随重排移到索引 1
+      expect(pc.currentPath, 'C:\\C');
+
+      pc.moveTab(2, 0);
+      expect(pc.tabs.map((t) => t.path), ['C:\\A', 'C:\\B', 'C:\\C']);
+      expect(pc.activeTabIndex, 2);
+
+      pc.switchTab(1);
+      pc.moveTab(0, 2);
+      expect(pc.tabs.map((t) => t.path), ['C:\\B', 'C:\\A', 'C:\\C']);
+      expect(pc.activeTabIndex, 0);
+      pc.dispose();
+    });
+
+    test('duplicateTab 深拷贝历史且互不影响', () async {
+      final pc = makePane('C:\\A');
+      await runToIdle(pump);
+      await nav(pc, 'C:\\B');
+      pc.duplicateTab();
+      expect(pc.tabs, hasLength(2));
+      expect(pc.activeTabIndex, 1);
+      expect(pc.currentPath, 'C:\\B');
+      expect(pc.canGoBack, isTrue);
+
+      await nav(pc, 'C:\\C');
+      pc.switchTab(0);
+      expect(pc.currentPath, 'C:\\B');
+      expect(pc.canGoForward, isFalse);
+      pc.dispose();
+    });
+
+    test('cycleTab 环绕切换', () {
+      final pc = makePane('C:\\A');
+      pc.addTab('C:\\B');
+      pc.addTab('C:\\C');
+      expect(pc.activeTabIndex, 2);
+      pc.cycleTab(1);
+      expect(pc.activeTabIndex, 0);
+      pc.cycleTab(-1);
+      expect(pc.activeTabIndex, 2);
+      pc.cycleTab(-1);
+      expect(pc.activeTabIndex, 1);
+      pc.dispose();
+    });
+
+    test('closeTab 上报关闭记录', () {
+      final pc = makePane('C:\\A');
+      pc.addTab('C:\\B');
+      pc.closeTab(0);
+      expect(closedRecords, hasLength(1));
+      expect(closedRecords.single.path, 'C:\\A');
+      expect(closedRecords.single.index, 0);
+      pc.dispose();
+    });
+
+    test('关闭其他/左侧/右侧会上报关闭记录并保留锚点标签', () {
+      final pc = makePane('C:\\A');
+      pc.addTab('C:\\B');
+      pc.addTab('C:\\C');
+      pc.addTab('C:\\D');
+      pc.switchTab(1);
+
+      pc.closeTabsToTheRight(1);
+      expect(pc.tabs.map((t) => t.path), ['C:\\A', 'C:\\B']);
+      expect(closedRecords.map((r) => r.path), ['C:\\D', 'C:\\C']);
+
+      pc.addTab('C:\\C');
+      pc.addTab('C:\\D');
+      pc.switchTab(2);
+      pc.closeTabsToTheLeft(2);
+      expect(pc.tabs.map((t) => t.path), ['C:\\C', 'C:\\D']);
+      expect(pc.activeTabIndex, 0);
+      expect(pc.currentPath, 'C:\\C');
+      expect(
+        closedRecords.map((r) => r.path),
+        ['C:\\D', 'C:\\C', 'C:\\B', 'C:\\A'],
+      );
+
+      pc.closeOtherTabs(0);
+      expect(pc.tabs.map((t) => t.path), ['C:\\C']);
+      expect(closedRecords.last.path, 'C:\\D');
+      pc.dispose();
+    });
+
+    test('takeTab/insertTab 跨 pane 往返保留历史', () async {
+      final pc = makePane('C:\\A');
+      await runToIdle(pump);
+      await nav(pc, 'C:\\B');
+      pc.addTab('C:\\C');
+      final record = pc.takeTab(0)!;
+      expect(record.path, 'C:\\B');
+      expect(record.backStack, ['C:\\A']);
+      expect(pc.tabs, hasLength(1));
+
+      final other = makePane('C:\\D');
+      other.insertTab(0, record);
+      expect(other.tabs.map((t) => t.path), ['C:\\B', 'C:\\D']);
+      expect(other.activeTabIndex, 0);
+      expect(other.canGoBack, isTrue);
+      other.goBack();
+      expect(other.currentPath, 'C:\\A');
+      other.dispose();
+      pc.dispose();
+    });
+
+    test('takeTab 拒绝取走唯一标签', () {
+      final pc = makePane('C:\\A');
+      expect(pc.takeTab(0), isNull);
+      expect(pc.tabs, hasLength(1));
+      pc.dispose();
+    });
+
+    test('collectClosedRecords 导出全部标签状态', () async {
+      final pc = makePane('C:\\A');
+      await runToIdle(pump);
+      await nav(pc, 'C:\\B');
+      pc.addTab('C:\\C');
+      final records = pc.collectClosedRecords();
+      expect(records.map((r) => r.path), ['C:\\B', 'C:\\C']);
+      expect(records.first.backStack, ['C:\\A']);
+      pc.dispose();
+    });
+  });
 }

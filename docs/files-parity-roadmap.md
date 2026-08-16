@@ -262,13 +262,43 @@
 
 ### 5.4 高级标签页管理
 
-- [ ] 拖动排序标签页。
-- [ ] 在 pane 之间移动或复制标签页。
-- [ ] 复制当前标签页。
-- [ ] 恢复最近关闭的标签页。
-- [ ] 关闭其他、左侧、右侧和全部标签页。
-- [ ] 标签页各自保存前进/后退历史，而不是切换时清空 pane 历史。
-- [ ] 补齐 `Ctrl+T`、`Ctrl+W`、`Ctrl+Tab` 等快捷键。
+- [x] 拖动排序标签页。
+- [x] 在 pane 之间移动或复制标签页。
+- [x] 复制当前标签页。
+- [x] 恢复最近关闭的标签页。
+- [x] 关闭其他、左侧、右侧和全部标签页。
+- [x] 标签页各自保存前进/后退历史，而不是切换时清空 pane 历史。
+- [x] 补齐 `Ctrl+T`、`Ctrl+W`、`Ctrl+Tab` 等快捷键。
+
+实施说明：
+
+- 每个标签携带独立 back/forward 栈（`TabInfo`）：PaneController 保留工作态
+  双栈，`_flushActiveTab` 在切换/关闭/序列化/移交前统一写回，切换标签不再
+  清历史；新标签页从空历史开始。`TabInfo` 的 `==` 只比较 path+label，
+  path 变化替换实例以触发标签栏 Selector rebuild，纯栈变化不触发。
+- 新操作：`moveTab`（拖动排序）、`duplicateTab`（深拷贝历史）、
+  `insertTab`/`takeTab`（恢复与跨 pane 移交）、`cycleTab`（环绕切换）、
+  `closeOtherTabs`/`closeTabsToTheLeft`/`closeTabsToTheRight`、
+  `collectClosedRecords`；pane 至少保留一个标签（`closeTab`/`takeTab` 拒绝
+  取走最后一个）。
+- 「最近关闭的标签页」为会话级 LIFO（上限 20，不落盘）：关闭标签、批量
+  关闭、关闭 pane / workspace 均记录（pane 多标签逆序压栈，连续恢复按原
+  顺序返回）；`Ctrl+Shift+T` 恢复到焦点 pane 的原索引（越界 clamp）。
+- 跨 pane 拖放：拖动数据只带 paneId+索引，落点时经 LayoutState 现取状态；
+  无修饰键=移动、Ctrl=复制；pane 的唯一标签不挂拖动（无处可去，拖动无
+  反应），落点层仍兜底拒绝取走源 pane 唯一标签的移动，拒绝时标签栏显示
+  danger 指示。
+- 标签栏交互：右键菜单（新建/复制/关闭/关闭其他/关闭左侧/关闭右侧/
+  关闭全部/恢复最近关闭，复用 `CommandMenuItem` 与 `showCommandMenu`）、
+  中键关闭、拖动插入指示条。「关闭全部」在 pane 数大于 1 时关闭整个
+  pane（全部标签入最近关闭栈），最后一个 pane 降级为「关闭其他」。
+- 快捷键走全局 raw handler（先于焦点遍历派发，地址栏持焦也生效）：
+  `Ctrl+T` 新建、`Ctrl+W` 关闭（单标签且多 pane 时关 pane）、
+  `Ctrl+Shift+T` 恢复、`Ctrl+Tab`/`Ctrl+Shift+Tab` 环绕切换。
+- 会话快照升至 schema v2：`PaneLayoutSnapshot.tabs` 为
+  `{path, backStack, forwardStack}` 对象数组；读取兼容 v1（字符串数组 →
+  空栈，pane 级历史归入活动标签）。旧版二进制读 v2 缓存将回落默认布局
+  （store 已有 .bak 回退）。
 
 ### 5.5 网络位置
 

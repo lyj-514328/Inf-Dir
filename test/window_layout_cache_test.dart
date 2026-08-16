@@ -83,6 +83,9 @@ void main() {
         r'C:\Alpha',
         r'C:\Beta',
       ]);
+      expect(restoredFirst.canGoBack, isFalse);
+      restoredFirst.switchTab(0);
+      expect(restoredFirst.currentPath, r'C:\Alpha');
       expect(restoredFirst.canGoBack, isTrue);
       expect(restoredFirst.sortColumn, SortColumn.size);
       expect(restoredFirst.sortAscending, isFalse);
@@ -194,7 +197,7 @@ void main() {
           panes: {
             'pane_0': PaneLayoutSnapshot(
               currentPath: FileService.homeViewPath,
-              tabs: [FileService.homeViewPath],
+              tabs: [TabSnapshot(path: FileService.homeViewPath)],
               activeTabIndex: 0,
               backStack: [],
               forwardStack: [],
@@ -229,4 +232,114 @@ void main() {
       );
     },
   );
+
+  test('migrates schema v1 caches: pane-level history joins the active tab', () {
+    final temp = Directory.systemTemp.createTempSync('inf-dir-layout-');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    final store = WindowLayoutStore(
+      filePath: p.join(temp.path, 'window_layout.json'),
+    );
+    File(store.filePath).writeAsStringSync('''
+{
+  "schemaVersion": 1,
+  "activeWorkspaceIndex": 0,
+  "focusedNodeId": "p0",
+  "nodeIdCounter": 0,
+  "nextPaneCounter": 1,
+  "sidebarWidth": 220,
+  "workspaces": [
+    {
+      "id": "ws0",
+      "type": "workspace",
+      "layout": "vertical",
+      "percent": 1,
+      "label": "Workspace 1",
+      "children": [
+        {
+          "id": "p0",
+          "type": "pane",
+          "layout": "horizontal",
+          "percent": 1,
+          "paneId": "pane_0",
+          "children": []
+        }
+      ]
+    }
+  ],
+  "panes": {
+    "pane_0": {
+      "currentPath": "C:\\\\Beta",
+      "tabs": ["C:\\\\Alpha", "C:\\\\Beta"],
+      "activeTabIndex": 1,
+      "backStack": ["C:\\\\Alpha"],
+      "forwardStack": [],
+      "sortColumn": "name",
+      "sortAscending": true,
+      "groupBy": "none",
+      "groupAscending": true,
+      "filterQuery": "",
+      "entryFilter": "all",
+      "filterMode": "keyword",
+      "caseSensitive": false,
+      "viewMode": "details",
+      "showDetailsPane": false,
+      "showPreviewPane": false,
+      "columnWidths": [300, 140, 100, 80]
+    }
+  }
+}
+''');
+
+    final layout = LayoutState(
+      repository: _emptyRepository(),
+      layoutStore: store,
+    );
+    addTearDown(layout.dispose);
+
+    final pane = layout.controllerFor(layout.allPaneNodes.single)!;
+    expect(pane.currentPath, r'C:\Beta');
+    expect(pane.tabs.map((tab) => tab.path), [r'C:\Alpha', r'C:\Beta']);
+    expect(pane.canGoBack, isTrue);
+    pane.switchTab(0);
+    expect(pane.currentPath, r'C:\Alpha');
+    expect(pane.canGoBack, isFalse);
+  });
+
+  test('persists per-tab navigation history across sessions', () async {
+    final temp = Directory.systemTemp.createTempSync('inf-dir-layout-');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    final store = WindowLayoutStore(
+      filePath: p.join(temp.path, 'window_layout.json'),
+    );
+
+    final layout = LayoutState(
+      repository: _emptyRepository(),
+      layoutStore: store,
+    );
+    final node = layout.allPaneNodes.first;
+    final pane = layout.controllerFor(node)!;
+    await pane.navigateTo(r'C:\Alpha');
+    await pane.navigateTo(r'C:\Beta');
+    pane.addTab(r'C:\Gamma');
+    await pane.navigateTo(r'C:\Delta');
+    layout.saveSession();
+    layout.dispose();
+
+    final restored = LayoutState(
+      repository: _emptyRepository(),
+      layoutStore: store,
+    );
+    addTearDown(restored.dispose);
+    final rp = restored.controllerFor(restored.allPaneNodes.first)!;
+    expect(rp.tabs.map((tab) => tab.path), [r'C:\Beta', r'C:\Delta']);
+    expect(rp.activeTabIndex, 1);
+    expect(rp.currentPath, r'C:\Delta');
+    expect(rp.canGoBack, isTrue);
+
+    rp.switchTab(0);
+    expect(rp.currentPath, r'C:\Beta');
+    expect(rp.canGoBack, isTrue);
+    rp.goBack();
+    expect(rp.currentPath, r'C:\Alpha');
+  });
 }

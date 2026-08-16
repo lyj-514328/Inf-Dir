@@ -52,6 +52,46 @@ bool matchesRedoShortcut(KeyEvent event, HardwareKeyboard keyboard) {
       !keyboard.isShiftPressed;
 }
 
+bool matchesNewTabShortcut(KeyEvent event, HardwareKeyboard keyboard) {
+  return event is KeyDownEvent &&
+      event.logicalKey == LogicalKeyboardKey.keyT &&
+      keyboard.isControlPressed &&
+      !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed;
+}
+
+bool matchesRestoreTabShortcut(KeyEvent event, HardwareKeyboard keyboard) {
+  return event is KeyDownEvent &&
+      event.logicalKey == LogicalKeyboardKey.keyT &&
+      keyboard.isControlPressed &&
+      !keyboard.isAltPressed &&
+      keyboard.isShiftPressed;
+}
+
+bool matchesCloseTabShortcut(KeyEvent event, HardwareKeyboard keyboard) {
+  return event is KeyDownEvent &&
+      event.logicalKey == LogicalKeyboardKey.keyW &&
+      keyboard.isControlPressed &&
+      !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed;
+}
+
+bool matchesNextTabShortcut(KeyEvent event, HardwareKeyboard keyboard) {
+  return event is KeyDownEvent &&
+      event.logicalKey == LogicalKeyboardKey.tab &&
+      keyboard.isControlPressed &&
+      !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed;
+}
+
+bool matchesPreviousTabShortcut(KeyEvent event, HardwareKeyboard keyboard) {
+  return event is KeyDownEvent &&
+      event.logicalKey == LogicalKeyboardKey.tab &&
+      keyboard.isControlPressed &&
+      !keyboard.isAltPressed &&
+      keyboard.isShiftPressed;
+}
+
 class _AppShellState extends State<AppShell>
     with WidgetsBindingObserver, WindowListener {
   bool _sidebarHovering = false;
@@ -236,6 +276,26 @@ class _AppShellState extends State<AppShell>
         );
       } else {
         unawaited(undoRedo.redo());
+      }
+      return true;
+    }
+    // Ctrl+T / Ctrl+W / Ctrl+Shift+T / Ctrl+(Shift+)Tab — 标签页
+    if (matchesNewTabShortcut(event, keyboard) ||
+        matchesRestoreTabShortcut(event, keyboard) ||
+        matchesCloseTabShortcut(event, keyboard) ||
+        matchesNextTabShortcut(event, keyboard) ||
+        matchesPreviousTabShortcut(event, keyboard)) {
+      final route = ModalRoute.of(context);
+      if (route != null && !route.isCurrent) return false;
+      final pane = layoutState.controllerFor(layoutState.focusedNode);
+      if (matchesRestoreTabShortcut(event, keyboard)) {
+        layoutState.restoreClosedTab();
+      } else if (matchesNewTabShortcut(event, keyboard)) {
+        pane?.addTab();
+      } else if (matchesCloseTabShortcut(event, keyboard)) {
+        layoutState.closeActiveTabForShortcut();
+      } else {
+        pane?.cycleTab(matchesPreviousTabShortcut(event, keyboard) ? -1 : 1);
       }
       return true;
     }
@@ -661,6 +721,8 @@ class _AppMenusState extends State<_AppMenus> {
       isFavorite: isFavorite,
       canUndo: appState.history.canUndo,
       canRedo: appState.history.canRedo,
+      canRestoreClosedTab: layoutState.canRestoreClosedTab,
+      onRestoreClosedTab: layoutState.restoreClosedTab,
       onUndo: () => unawaited(
         undoRedo.undo(
           confirm: (title, message) =>

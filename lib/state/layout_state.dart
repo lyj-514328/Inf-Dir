@@ -8,6 +8,8 @@ import '../services/file_service.dart';
 import '../services/window_layout_store.dart';
 
 class LayoutState extends ChangeNotifier {
+  static const int maxClosedTabs = 20;
+
   late final LayoutTree _tree;
   final Map<String, PaneController> _controllers = {};
   String _focusedNodeId = '';
@@ -16,6 +18,10 @@ class LayoutState extends ChangeNotifier {
   final WindowLayoutStore? _layoutStore;
   bool _disposed = false;
   double _sidebarWidth = 220;
+
+  /// 会话级「最近关闭的标签页」LIFO；关闭 pane 时其全部标签按逆序压入，
+  /// 使连续恢复时按原顺序返回。
+  final List<TabRecord> _closedTabs = [];
 
   /// 焦点 pane 的当前路径（§12）：焦点切换或焦点 pane 导航时更新。
   /// 用独立的 ValueNotifier，避免无关 notify 也触发侧栏同步。
@@ -51,7 +57,14 @@ class LayoutState extends ChangeNotifier {
     final paneIds = <String>[];
     for (final path in initialPaths) {
       final id = _nextPaneId();
-      _addController(id, PaneController(path, repository: _repository));
+      _addController(
+        id,
+        PaneController(
+          path,
+          repository: _repository,
+          onTabClosed: _recordClosedTab,
+        ),
+      );
       paneIds.add(id);
     }
 
@@ -89,7 +102,7 @@ class LayoutState extends ChangeNotifier {
     return pane != null &&
         pane.currentPath == FileService.homeViewPath &&
         pane.tabs.length == 1 &&
-        pane.tabs.first == FileService.homeViewPath &&
+        pane.tabs.first.path == FileService.homeViewPath &&
         pane.activeTabIndex == 0 &&
         pane.backStack.isEmpty &&
         pane.forwardStack.isEmpty &&
@@ -124,6 +137,7 @@ class LayoutState extends ChangeNotifier {
         restoredControllers[entry.key] = PaneController.fromSnapshot(
           entry.value,
           repository: _repository,
+          onTabClosed: _recordClosedTab,
         );
       }
       _tree = restoredTree;
@@ -325,6 +339,17 @@ class LayoutState extends ChangeNotifier {
     return _controllers[node.paneId];
   }
 
+  /// 根据 paneId 获取对应的 PaneController（跨 pane 标签拖放用）。
+  PaneController? controllerByPaneId(String paneId) => _controllers[paneId];
+
+  /// 当前 workspace 中 paneId 对应的布局节点。
+  LayoutNode? paneNodeById(String paneId) {
+    for (final node in allPaneNodes) {
+      if (node.paneId == paneId) return node;
+    }
+    return null;
+  }
+
   // ============================================================
   // 聚焦管理
   // ============================================================
@@ -346,7 +371,11 @@ class LayoutState extends ChangeNotifier {
     final paneId = _nextPaneId();
     _addController(
       paneId,
-      PaneController(FileService.homeViewPath, repository: _repository),
+      PaneController(
+        FileService.homeViewPath,
+        repository: _repository,
+        onTabClosed: _recordClosedTab,
+      ),
     );
     final pane = LayoutNode(
       id: _tree.genId(),
@@ -375,6 +404,7 @@ class LayoutState extends ChangeNotifier {
     if (_tree.workspaces.length <= 1) return;
     final ws = _tree.workspaces[index];
     final result = _tree.closeNode(ws);
+    _collectClosedTabsFrom(result.removedPanes);
     for (final id in result.removedPanes) {
       _removeController(id);
     }
@@ -398,6 +428,7 @@ class LayoutState extends ChangeNotifier {
     final controller = PaneController(
       controllerFor(node)?.currentPath ?? FileService.desktopPath,
       repository: _repository,
+      onTabClosed: _recordClosedTab,
     );
     _addController(newPaneId, controller);
     _tree.splitNode(node, direction, newPaneId);
@@ -415,6 +446,7 @@ class LayoutState extends ChangeNotifier {
     if (allPaneNodes.length <= 1) return;
 
     final result = _tree.closeNode(node);
+    _collectClosedTabsFrom(result.removedPanes);
     for (final id in result.removedPanes) {
       _removeController(id);
     }
@@ -433,6 +465,95 @@ class LayoutState extends ChangeNotifier {
 
     _updateActivePanePath();
     notifyListeners();
+  }
+
+  // ============================================================
+  // 最近关闭的标签页
+  // ============================================================
+  bool get canRestoreClosedTab => _closedTabs.isNotEmpty;
+
+  /// 把最近关闭的标签页恢复到焦点 pane 的原索引（越界时 clamp）。
+  void restoreClosedTab() {
+    if (_closedTabs.isEmpty) return;
+    final node = _findNodeById(_focusedNodeId);
+    final pane = node == null ? null : controllerFor(node);
+    if (pane == null) return;
+    final record = _closedTabs.removeLast();
+    pane.insertTab(record.index, record);
+    notifyListeners();
+  }
+
+  void _recordClosedTab(TabRecord record) {
+    if (_closedTabs.length >= maxClosedTabs) {
+      _closedTabs.removeAt(0);
+    }
+    _closedTabs.add(record);
+  }
+
+  /// 关闭 pane / workspace 前把其标签压入最近关闭栈（逆序压入，
+  /// 连续恢复时按原顺序返回）。
+  void _collectClosedTabsFrom(Iterable<String> removedPaneIds) {
+    for (final id in removedPaneIds) {
+      final controller = _controllers[id];
+      if (controller == null) continue;
+      final records = controller.collectClosedRecords();
+      for (final record in records.reversed) {
+        _recordClosedTab(record);
+      }
+    }
+  }
+
+  // ============================================================
+  // 跨 pane 移动 / 复制标签
+  // ============================================================
+
+  /// 跨 pane 拖动标签的落点。[copy] 为 true 时保留源标签。
+  /// 移动源 pane 的唯一标签会被拒绝（pane 至少保留一个标签）。
+  bool moveTabBetweenPanes(
+    String sourcePaneId,
+    int sourceIndex,
+    String targetPaneId,
+    int targetIndex, {
+    required bool copy,
+  }) {
+    if (sourcePaneId == targetPaneId) return false;
+    final source = _controllers[sourcePaneId];
+    final target = _controllers[targetPaneId];
+    if (source == null || target == null) return false;
+    if (sourceIndex < 0 || sourceIndex >= source.tabs.length) return false;
+
+    if (copy) {
+      final tab = source.tabs[sourceIndex];
+      target.insertTab(
+        targetIndex,
+        TabRecord(
+          path: tab.path,
+          index: sourceIndex,
+          backStack: List.of(tab.backStack),
+          forwardStack: List.of(tab.forwardStack),
+        ),
+      );
+      return true;
+    }
+
+    final record = source.takeTab(sourceIndex);
+    if (record == null) return false;
+    target.insertTab(targetIndex, record);
+    return true;
+  }
+
+  /// Ctrl+W：多标签时关活动标签；单标签且 pane 数大于 1 时关 pane；
+  /// 否则不执行。
+  void closeActiveTabForShortcut() {
+    final node = _findNodeById(_focusedNodeId);
+    if (node == null) return;
+    final pane = controllerFor(node);
+    if (pane == null) return;
+    if (pane.tabs.length > 1) {
+      pane.closeTab(pane.activeTabIndex);
+    } else if (allPaneNodes.length > 1) {
+      closePane(node);
+    }
   }
 
   // ============================================================

@@ -34,10 +34,24 @@ enum EntryFilter { all, folders, files, images, documents }
 /// - [regex]：正则部分匹配
 enum QueryFilterMode { keyword, glob, regex }
 
+/// 单个标签页，携带独立的前进/后退历史。
+///
+/// 契约：path/label 变化必须替换实例（标签栏 Selector 依赖 `==` 感知变化），
+/// 而 [backStack]/[forwardStack] 列表按引用跨实例携带，纯栈变化不产生新实例、
+/// 不触发 rebuild。`==`/hashCode 只比较 path+label。
 class TabInfo {
   final String path;
   final String label;
-  const TabInfo({required this.path, required this.label});
+  final List<String> backStack;
+  final List<String> forwardStack;
+
+  TabInfo({
+    required this.path,
+    required this.label,
+    List<String>? backStack,
+    List<String>? forwardStack,
+  }) : backStack = backStack ?? <String>[],
+       forwardStack = forwardStack ?? <String>[];
 
   @override
   bool operator ==(Object other) =>
@@ -45,6 +59,22 @@ class TabInfo {
 
   @override
   int get hashCode => Object.hash(path, label);
+}
+
+/// 标签页完整状态（路径 + 导航历史），用于「最近关闭」记录、跨 pane
+/// 移动/复制与会话持久化。
+class TabRecord {
+  final String path;
+  final int index;
+  final List<String> backStack;
+  final List<String> forwardStack;
+
+  const TabRecord({
+    required this.path,
+    required this.index,
+    required this.backStack,
+    required this.forwardStack,
+  });
 }
 
 /// 每次导航独立的列表请求（§11）。
@@ -71,6 +101,7 @@ class PaneController extends ChangeNotifier {
   _ListingRequest? _activeRequest;
   final DirectoryRepository _repository;
   final Future<void> Function() _frameYield;
+  final void Function(TabRecord)? _onTabClosed;
   SortColumn _sortColumn = SortColumn.name;
   bool _sortAscending = true;
   FileGroupBy _groupBy = FileGroupBy.none;
@@ -88,9 +119,11 @@ class PaneController extends ChangeNotifier {
     String initialPath, {
     DirectoryRepository? repository,
     Future<void> Function()? frameYield,
+    void Function(TabRecord)? onTabClosed,
   }) : _currentPath = initialPath,
        _repository = repository ?? DirectoryRepository(),
-       _frameYield = frameYield ?? _defaultFrameYield {
+       _frameYield = frameYield ?? _defaultFrameYield,
+       _onTabClosed = onTabClosed {
     _tabs.add(TabInfo(path: initialPath, label: _pathLabel(initialPath)));
     if (FileService.isHomePath(initialPath)) {
       _viewMode = PaneViewMode.content;
@@ -102,15 +135,24 @@ class PaneController extends ChangeNotifier {
     PaneLayoutSnapshot snapshot, {
     DirectoryRepository? repository,
     Future<void> Function()? frameYield,
+    void Function(TabRecord)? onTabClosed,
   }) : _currentPath = snapshot.currentPath,
        _repository = repository ?? DirectoryRepository(),
-       _frameYield = frameYield ?? _defaultFrameYield {
+       _frameYield = frameYield ?? _defaultFrameYield,
+       _onTabClosed = onTabClosed {
     _tabs.addAll(
-      snapshot.tabs.map((path) => TabInfo(path: path, label: _pathLabel(path))),
+      snapshot.tabs.map(
+        (tab) => TabInfo(
+          path: tab.path,
+          label: _pathLabel(tab.path),
+          backStack: List.of(tab.backStack),
+          forwardStack: List.of(tab.forwardStack),
+        ),
+      ),
     );
     _activeTabIndex = snapshot.activeTabIndex;
-    _backStack.addAll(snapshot.backStack);
-    _forwardStack.addAll(snapshot.forwardStack);
+    _backStack.addAll(_tabs[_activeTabIndex].backStack);
+    _forwardStack.addAll(_tabs[_activeTabIndex].forwardStack);
     _sortColumn = SortColumn.values.byName(snapshot.sortColumn);
     _sortAscending = snapshot.sortAscending;
     _groupBy = FileGroupBy.values.byName(snapshot.groupBy);
@@ -188,25 +230,35 @@ class PaneController extends ChangeNotifier {
   bool get showPreviewPane => _showPreviewPane;
   List<double> get columnWidths => _columnWidths;
 
-  PaneLayoutSnapshot toLayoutSnapshot() => PaneLayoutSnapshot(
-    currentPath: _currentPath,
-    tabs: _tabs.map((tab) => tab.path).toList(growable: false),
-    activeTabIndex: _activeTabIndex,
-    backStack: List.unmodifiable(_backStack),
-    forwardStack: List.unmodifiable(_forwardStack),
-    sortColumn: _sortColumn.name,
-    sortAscending: _sortAscending,
-    groupBy: _groupBy.name,
-    groupAscending: _groupAscending,
-    filterQuery: _filterQuery,
-    entryFilter: _entryFilter.name,
-    filterMode: _filterMode.name,
-    caseSensitive: _caseSensitive,
-    viewMode: _viewMode.name,
-    showDetailsPane: _showDetailsPane,
-    showPreviewPane: _showPreviewPane,
-    columnWidths: List.unmodifiable(_columnWidths),
-  );
+  PaneLayoutSnapshot toLayoutSnapshot() {
+    _flushActiveTab();
+    return PaneLayoutSnapshot(
+      currentPath: _currentPath,
+      tabs: [
+        for (final tab in _tabs)
+          TabSnapshot(
+            path: tab.path,
+            backStack: List.unmodifiable(tab.backStack),
+            forwardStack: List.unmodifiable(tab.forwardStack),
+          ),
+      ],
+      activeTabIndex: _activeTabIndex,
+      backStack: List.unmodifiable(_backStack),
+      forwardStack: List.unmodifiable(_forwardStack),
+      sortColumn: _sortColumn.name,
+      sortAscending: _sortAscending,
+      groupBy: _groupBy.name,
+      groupAscending: _groupAscending,
+      filterQuery: _filterQuery,
+      entryFilter: _entryFilter.name,
+      filterMode: _filterMode.name,
+      caseSensitive: _caseSensitive,
+      viewMode: _viewMode.name,
+      showDetailsPane: _showDetailsPane,
+      showPreviewPane: _showPreviewPane,
+      columnWidths: List.unmodifiable(_columnWidths),
+    );
+  }
 
   bool _matchesEntryFilter(FileEntry entry) {
     switch (_entryFilter) {
@@ -367,8 +419,48 @@ class PaneController extends ChangeNotifier {
 
   void _updateActiveTabPath(String path) {
     if (_activeTabIndex < _tabs.length) {
-      _tabs[_activeTabIndex] = TabInfo(path: path, label: _pathLabel(path));
+      final tab = _tabs[_activeTabIndex];
+      if (tab.path == path) return;
+      _tabs[_activeTabIndex] = TabInfo(
+        path: path,
+        label: _pathLabel(path),
+        backStack: tab.backStack,
+        forwardStack: tab.forwardStack,
+      );
     }
+  }
+
+  /// 把工作态（路径 + 双栈）写回活动标签。切换/关闭/序列化/移交标签前
+  /// 必须调用，所有出口集中在此避免历史串档。
+  void _flushActiveTab() {
+    if (_activeTabIndex >= _tabs.length) return;
+    final tab = _tabs[_activeTabIndex];
+    tab.backStack
+      ..clear()
+      ..addAll(_backStack);
+    tab.forwardStack
+      ..clear()
+      ..addAll(_forwardStack);
+    if (tab.path != _currentPath) {
+      _tabs[_activeTabIndex] = TabInfo(
+        path: _currentPath,
+        label: _pathLabel(_currentPath),
+        backStack: tab.backStack,
+        forwardStack: tab.forwardStack,
+      );
+    }
+  }
+
+  /// 把指定标签的状态载入工作态（切换/恢复后调用）。
+  void _loadTabState(int index) {
+    final tab = _tabs[index];
+    _currentPath = tab.path;
+    _backStack
+      ..clear()
+      ..addAll(tab.backStack);
+    _forwardStack
+      ..clear()
+      ..addAll(tab.forwardStack);
   }
 
   void _cancelActiveRequest() {
@@ -663,9 +755,12 @@ class PaneController extends ChangeNotifier {
   }
 
   void addTab([String? path]) {
+    _flushActiveTab();
     final tabPath = path ?? _currentPath;
     _tabs.add(TabInfo(path: tabPath, label: _pathLabel(tabPath)));
     _activeTabIndex = _tabs.length - 1;
+    _backStack.clear();
+    _forwardStack.clear();
     if (tabPath != _currentPath) {
       _currentPath = tabPath;
       _loadEntries(tabPath);
@@ -676,25 +771,179 @@ class PaneController extends ChangeNotifier {
 
   void switchTab(int index) {
     if (index < 0 || index >= _tabs.length || index == _activeTabIndex) return;
+    _flushActiveTab();
     _activeTabIndex = index;
-    final tabPath = _tabs[index].path;
-    _currentPath = tabPath;
-    _backStack.clear();
-    _forwardStack.clear();
-    _loadEntries(tabPath);
+    _loadTabState(index);
+    _loadEntries(_currentPath);
   }
 
   void closeTab(int index) {
-    if (_tabs.length <= 1) return;
-    _tabs.removeAt(index);
-    if (_activeTabIndex >= _tabs.length) {
-      _activeTabIndex = _tabs.length - 1;
-    } else if (_activeTabIndex > index) {
+    if (index < 0 || index >= _tabs.length || _tabs.length <= 1) return;
+    _flushActiveTab();
+    final removed = _tabs.removeAt(index);
+    _reportClosed(removed, index);
+    if (_activeTabIndex > index) {
       _activeTabIndex--;
+      notifyListeners();
+    } else if (_activeTabIndex == index) {
+      if (_activeTabIndex >= _tabs.length) {
+        _activeTabIndex = _tabs.length - 1;
+      }
+      _loadTabState(_activeTabIndex);
+      _loadEntries(_currentPath);
+    } else {
+      notifyListeners();
     }
-    final tabPath = _tabs[_activeTabIndex].path;
-    _currentPath = tabPath;
-    _loadEntries(tabPath);
+  }
+
+  /// 拖动排序：把 [from] 处标签移到原列表的 [insertIndex] 插入位。
+  void moveTab(int from, int insertIndex) {
+    if (from < 0 || from >= _tabs.length) return;
+    final target = insertIndex.clamp(0, _tabs.length);
+    if (target == from || target == from + 1) return;
+    _flushActiveTab();
+    final tab = _tabs.removeAt(from);
+    final destination = target > from ? target - 1 : target;
+    _tabs.insert(destination, tab);
+    if (_activeTabIndex == from) {
+      _activeTabIndex = destination;
+    } else {
+      var active = _activeTabIndex;
+      if (from < active) active--;
+      if (destination <= active) active++;
+      _activeTabIndex = active;
+    }
+    notifyListeners();
+  }
+
+  /// 复制标签（含历史），插入源标签之后并激活。
+  void duplicateTab([int? index]) {
+    final source = index ?? _activeTabIndex;
+    if (source < 0 || source >= _tabs.length) return;
+    _flushActiveTab();
+    final tab = _tabs[source];
+    final clone = TabInfo(
+      path: tab.path,
+      label: tab.label,
+      backStack: List.of(tab.backStack),
+      forwardStack: List.of(tab.forwardStack),
+    );
+    _tabs.insert(source + 1, clone);
+    if (_activeTabIndex > source) _activeTabIndex++;
+    switchTab(source + 1);
+  }
+
+  /// 插入携带历史的标签（恢复最近关闭 / 跨 pane 移入）并激活。
+  void insertTab(int index, TabRecord record) {
+    _flushActiveTab();
+    final at = index.clamp(0, _tabs.length);
+    _tabs.insert(
+      at,
+      TabInfo(
+        path: record.path,
+        label: _pathLabel(record.path),
+        backStack: List.of(record.backStack),
+        forwardStack: List.of(record.forwardStack),
+      ),
+    );
+    if (_activeTabIndex >= at) _activeTabIndex++;
+    switchTab(at);
+  }
+
+  /// 取出标签供跨 pane 移动。pane 至少保留一个标签，否则返回 null。
+  TabRecord? takeTab(int index) {
+    if (index < 0 || index >= _tabs.length || _tabs.length <= 1) return null;
+    _flushActiveTab();
+    final removed = _tabs.removeAt(index);
+    final record = TabRecord(
+      path: removed.path,
+      index: index,
+      backStack: removed.backStack,
+      forwardStack: removed.forwardStack,
+    );
+    if (_activeTabIndex > index) {
+      _activeTabIndex--;
+      notifyListeners();
+    } else if (_activeTabIndex == index) {
+      if (_activeTabIndex >= _tabs.length) {
+        _activeTabIndex = _tabs.length - 1;
+      }
+      _loadTabState(_activeTabIndex);
+      _loadEntries(_currentPath);
+    } else {
+      notifyListeners();
+    }
+    return record;
+  }
+
+  /// Ctrl+Tab 环绕切换。
+  void cycleTab(int delta) {
+    if (_tabs.length < 2 || delta == 0) return;
+    switchTab((_activeTabIndex + delta) % _tabs.length);
+  }
+
+  void closeOtherTabs(int index) {
+    _closeIndexes([
+      for (var i = 0; i < _tabs.length; i++)
+        if (i != index) i,
+    ]);
+  }
+
+  void closeTabsToTheLeft(int index) {
+    _closeIndexes([for (var i = 0; i < index; i++) i]);
+  }
+
+  void closeTabsToTheRight(int index) {
+    _closeIndexes([for (var i = index + 1; i < _tabs.length; i++) i]);
+  }
+
+  /// 导出全部标签状态（关闭 pane 前由 LayoutState 收集入最近关闭栈）。
+  List<TabRecord> collectClosedRecords() {
+    _flushActiveTab();
+    return [
+      for (var i = 0; i < _tabs.length; i++)
+        TabRecord(
+          path: _tabs[i].path,
+          index: i,
+          backStack: List.unmodifiable(_tabs[i].backStack),
+          forwardStack: List.unmodifiable(_tabs[i].forwardStack),
+        ),
+    ];
+  }
+
+  void _closeIndexes(List<int> indexes) {
+    final targets = indexes
+        .where((i) => i >= 0 && i < _tabs.length)
+        .toSet();
+    if (targets.isEmpty || targets.length >= _tabs.length) return;
+    _flushActiveTab();
+    final closingActive = targets.contains(_activeTabIndex);
+    final ordered = targets.toList()..sort((a, b) => b.compareTo(a));
+    for (final index in ordered) {
+      final removed = _tabs.removeAt(index);
+      _reportClosed(removed, index);
+      if (_activeTabIndex > index) _activeTabIndex--;
+    }
+    if (closingActive) {
+      if (_activeTabIndex >= _tabs.length) {
+        _activeTabIndex = _tabs.length - 1;
+      }
+      _loadTabState(_activeTabIndex);
+      _loadEntries(_currentPath);
+    } else {
+      notifyListeners();
+    }
+  }
+
+  void _reportClosed(TabInfo tab, int index) {
+    _onTabClosed?.call(
+      TabRecord(
+        path: tab.path,
+        index: index,
+        backStack: List.unmodifiable(tab.backStack),
+        forwardStack: List.unmodifiable(tab.forwardStack),
+      ),
+    );
   }
 
   void selectSingle(String path) {

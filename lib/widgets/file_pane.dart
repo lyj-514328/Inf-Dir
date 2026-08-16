@@ -34,6 +34,7 @@ import 'command_menu.dart';
 import 'file_context_menu.dart';
 import 'nav_toolbar.dart';
 import 'pane_tab_bar.dart';
+import 'tab_context_menu.dart';
 import 'home_view.dart';
 import 'search_dialog.dart';
 
@@ -1679,12 +1680,41 @@ class _PaneTabBarSection extends StatelessWidget {
             shouldRebuild: (a, b) => !listEquals(a.$1, b.$1) || a.$2 != b.$2,
             builder: (context, sel, _) {
               final controller = context.read<PaneController>();
+              final layoutState = context.read<LayoutState>();
               return PaneTabBar(
+                paneId: paneId,
                 tabs: sel.$1,
                 activeIndex: sel.$2,
                 onSwitchTab: controller.switchTab,
                 onCloseTab: controller.closeTab,
                 onAddTab: () => controller.addTab(),
+                onReorderTab: controller.moveTab,
+                onTabContextMenu: (index, position) => _showTabContextMenu(
+                  context,
+                  controller,
+                  layoutState,
+                  index,
+                  position,
+                ),
+                canAcceptForeignTab: (payload, {required copy}) {
+                  final source = layoutState.controllerByPaneId(
+                    payload.sourcePaneId,
+                  );
+                  if (source == null) return false;
+                  return copy || source.tabs.length > 1;
+                },
+                onForeignTabDropped: (payload, insertIndex, copy) {
+                  final moved = layoutState.moveTabBetweenPanes(
+                    payload.sourcePaneId,
+                    payload.index,
+                    paneId,
+                    insertIndex,
+                    copy: copy,
+                  );
+                  if (!moved) return;
+                  final node = layoutState.paneNodeById(paneId);
+                  if (node != null) layoutState.focusNode(node);
+                },
               );
             },
           ),
@@ -1708,6 +1738,35 @@ class _PaneTabBarSection extends StatelessWidget {
         const SizedBox(width: 4),
       ],
     );
+  }
+
+  void _showTabContextMenu(
+    BuildContext context,
+    PaneController controller,
+    LayoutState layoutState,
+    int index,
+    Offset position,
+  ) {
+    final items = buildTabContextMenuItems(
+      onNewTab: () => controller.addTab(),
+      onDuplicateTab: () => controller.duplicateTab(index),
+      canClose: controller.tabs.length > 1,
+      onCloseTab: () => controller.closeTab(index),
+      onCloseOtherTabs: () => controller.closeOtherTabs(index),
+      onCloseTabsToTheLeft: () => controller.closeTabsToTheLeft(index),
+      onCloseTabsToTheRight: () => controller.closeTabsToTheRight(index),
+      onCloseAllTabs: () {
+        if (layoutState.allPaneNodes.length > 1) {
+          final node = layoutState.paneNodeById(paneId);
+          if (node != null) layoutState.closePane(node);
+        } else {
+          controller.closeOtherTabs(index);
+        }
+      },
+      canRestoreClosedTab: layoutState.canRestoreClosedTab,
+      onRestoreClosedTab: layoutState.restoreClosedTab,
+    );
+    showCommandMenu(context, position: position, items: items);
   }
 }
 

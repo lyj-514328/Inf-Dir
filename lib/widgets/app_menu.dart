@@ -28,6 +28,8 @@ List<AppMenuGroup> buildAppMenuGroups({
   required VoidCallback onClearThumbnailCache,
   required bool canUndo,
   required bool canRedo,
+  required bool canRestoreClosedTab,
+  VoidCallback? onRestoreClosedTab,
   VoidCallback? onUndo,
   VoidCallback? onRedo,
   VoidCallback? onCopy,
@@ -54,13 +56,26 @@ List<AppMenuGroup> buildAppMenuGroups({
     AppMenuGroup('文件(F)', [
       CommandMenuItem(
         label: '新建标签页',
+        shortcut: 'Ctrl+T',
         enabled: hasPane,
         onAction: hasPane ? pane.addTab : null,
       ),
       CommandMenuItem(
         label: '关闭标签页',
+        shortcut: 'Ctrl+W',
         enabled: canCloseTab,
         onAction: canCloseTab ? () => pane.closeTab(pane.activeTabIndex) : null,
+      ),
+      CommandMenuItem(
+        label: '复制标签页',
+        enabled: hasPane,
+        onAction: hasPane ? pane.duplicateTab : null,
+      ),
+      CommandMenuItem(
+        label: '恢复最近关闭的标签页',
+        shortcut: 'Ctrl+Shift+T',
+        enabled: canRestoreClosedTab && onRestoreClosedTab != null,
+        onAction: canRestoreClosedTab ? onRestoreClosedTab : null,
       ),
       CommandMenuItem(
         label: '关闭面板',

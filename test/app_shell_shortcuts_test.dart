@@ -96,4 +96,111 @@ void main() {
 
     expect(matched, isFalse);
   });
+
+  testWidgets('tab matchers distinguish Ctrl+T from Ctrl+Shift+T', (
+    tester,
+  ) async {
+    var newTab = 0;
+    var restoreTab = 0;
+    bool handler(KeyEvent event) {
+      final keyboard = HardwareKeyboard.instance;
+      if (matchesNewTabShortcut(event, keyboard)) newTab++;
+      if (matchesRestoreTabShortcut(event, keyboard)) restoreTab++;
+      return false;
+    }
+
+    ServicesBinding.instance.keyboard.addHandler(handler);
+    addTearDown(() {
+      ServicesBinding.instance.keyboard.removeHandler(handler);
+    });
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyT);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyT);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyT);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyT);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+
+    expect(newTab, 1);
+    expect(restoreTab, 1);
+  });
+
+  testWidgets('tab matchers recognize Ctrl+W as close tab', (tester) async {
+    var matched = false;
+    bool handler(KeyEvent event) {
+      matched =
+          matched || matchesCloseTabShortcut(event, HardwareKeyboard.instance);
+      return false;
+    }
+
+    ServicesBinding.instance.keyboard.addHandler(handler);
+    addTearDown(() {
+      ServicesBinding.instance.keyboard.removeHandler(handler);
+    });
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyW);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyW);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+
+    expect(matched, isTrue);
+  });
+
+  testWidgets('tab matchers distinguish Ctrl+Tab from Ctrl+Shift+Tab', (
+    tester,
+  ) async {
+    var nextTab = 0;
+    var previousTab = 0;
+    bool handler(KeyEvent event) {
+      final keyboard = HardwareKeyboard.instance;
+      if (matchesNextTabShortcut(event, keyboard)) nextTab++;
+      if (matchesPreviousTabShortcut(event, keyboard)) previousTab++;
+      return false;
+    }
+
+    ServicesBinding.instance.keyboard.addHandler(handler);
+    addTearDown(() {
+      ServicesBinding.instance.keyboard.removeHandler(handler);
+    });
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+
+    expect(nextTab, 1);
+    expect(previousTab, 1);
+  });
+
+  testWidgets('tab matchers reject plain Tab and Alt+Tab', (tester) async {
+    var matched = false;
+    bool handler(KeyEvent event) {
+      final keyboard = HardwareKeyboard.instance;
+      matched =
+          matched ||
+          matchesNextTabShortcut(event, keyboard) ||
+          matchesPreviousTabShortcut(event, keyboard);
+      return false;
+    }
+
+    ServicesBinding.instance.keyboard.addHandler(handler);
+    addTearDown(() {
+      ServicesBinding.instance.keyboard.removeHandler(handler);
+    });
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.tab);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+
+    expect(matched, isFalse);
+  });
 }
