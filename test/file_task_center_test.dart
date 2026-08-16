@@ -100,6 +100,49 @@ void main() {
     await queued;
   });
 
+  testWidgets('progress bar refreshes live as the task advances', (
+    tester,
+  ) async {
+    final center = FileOperationCenter();
+    final step = Completer<void>();
+    final gate = Completer<void>();
+    final future = center.enqueue(
+      type: FileOperationType.compress,
+      sources: const ['C:\\src\\big.iso'],
+      destination: 'C:\\out\\big.zip',
+      action: (task) async {
+        task.updateProgress(0.25);
+        step.complete();
+        await gate.future;
+      },
+    );
+
+    await pumpPanel(tester, center);
+    await tester.pump();
+    await step.future;
+    await tester.pump();
+
+    expect(find.text('进行中 25%'), findsOneWidget);
+    var bar = tester.widget<LinearProgressIndicator>(
+      find.byType(LinearProgressIndicator),
+    );
+    expect(bar.value, 0.25);
+
+    // 进度继续推进但中心不通知（只通知 task）：行也必须实时刷新。
+    center.tasks.single.updateProgress(0.75);
+    await tester.pump();
+    expect(find.text('进行中 75%'), findsOneWidget);
+    bar = tester.widget<LinearProgressIndicator>(
+      find.byType(LinearProgressIndicator),
+    );
+    expect(bar.value, 0.75);
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+    await future;
+  });
+
   testWidgets('cancel button cancels a running task after it returns', (
     tester,
   ) async {
@@ -235,10 +278,9 @@ void main() {
       type: FileOperationType.copy,
       sources: const ['C:\\src\\report.txt'],
       destination: 'D:\\backup',
-      action: (_) async => throw const ShellFileOperationException(
-        0x80070005,
-        [FileOperationItemResult(r'C:\src\report.txt', 0x80070005)],
-      ),
+      action: (_) async => throw const ShellFileOperationException(0x80070005, [
+        FileOperationItemResult(r'C:\src\report.txt', 0x80070005),
+      ]),
     );
     final failedExpectation = expectLater(
       future,
@@ -255,29 +297,30 @@ void main() {
     await failedExpectation;
   });
 
-  testWidgets('succeeded task with item failures shows a partial-failure status', (
-    tester,
-  ) async {
-    final center = FileOperationCenter();
-    final future = center.enqueue(
-      type: FileOperationType.move,
-      sources: const ['C:\\src\\a.txt'],
-      action: (task) async {
-        task.recordItemResults(const [
-          FileOperationItemResult(r'C:\src\a.txt', 0x80070003),
-        ]);
-      },
-    );
+  testWidgets(
+    'succeeded task with item failures shows a partial-failure status',
+    (tester) async {
+      final center = FileOperationCenter();
+      final future = center.enqueue(
+        type: FileOperationType.move,
+        sources: const ['C:\\src\\a.txt'],
+        action: (task) async {
+          task.recordItemResults(const [
+            FileOperationItemResult(r'C:\src\a.txt', 0x80070003),
+          ]);
+        },
+      );
 
-    await pumpPanel(tester, center);
-    await tester.pump();
-    await tester.pump();
+      await pumpPanel(tester, center);
+      await tester.pump();
+      await tester.pump();
 
-    expect(find.text('已完成，1 项失败'), findsOneWidget);
-    expect(find.text('C:\\src\\a.txt（0x80070003）'), findsOneWidget);
+      expect(find.text('已完成，1 项失败'), findsOneWidget);
+      expect(find.text('C:\\src\\a.txt（0x80070003）'), findsOneWidget);
 
-    await future;
-  });
+      await future;
+    },
+  );
 
   testWidgets('restore tasks show an item count instead of parsing names', (
     tester,

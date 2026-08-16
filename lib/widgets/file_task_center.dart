@@ -263,6 +263,15 @@ class _TaskRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // task 是独立的 ChangeNotifier：进度与逐项结果只 notify task，而面板
+    // 外层只监听 center。这里单独监听 task，保证进度条实时刷新。
+    return ListenableBuilder(
+      listenable: task,
+      builder: (context, _) => _buildBody(context),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     final c = context.colors;
     final status = task.status;
     final running = status == FileOperationStatus.running;
