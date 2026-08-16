@@ -53,11 +53,10 @@ void main() async {
               AppState(repository: ctx.read<DirectoryRepository>()),
         ),
         ChangeNotifierProvider(
-          create: (ctx) =>
-              LayoutState(
-                repository: ctx.read<DirectoryRepository>(),
-                layoutStore: WindowLayoutStore(),
-              ),
+          create: (ctx) => LayoutState(
+            repository: ctx.read<DirectoryRepository>(),
+            layoutStore: WindowLayoutStore(),
+          ),
         ),
         Provider<UndoRedoService>(
           create: (ctx) => UndoRedoService(
@@ -88,6 +87,7 @@ class InfDirApp extends StatelessWidget {
     return MaterialApp(
       title: 'Inf-Dir',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const AppScrollBehavior(),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: theme.mode,

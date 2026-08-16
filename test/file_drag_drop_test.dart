@@ -140,10 +140,9 @@ void main() {
     final dragRect = tester.getRect(
       find.byKey(ValueKey('file-drag-${sourceFile.path}')),
     );
-    expect(
-      sourceRect.right - dragRect.right,
-      greaterThanOrEqualTo(AppMetrics.scrollbarGutter - 1),
-    );
+    // 不再预留 12px 滚动条 gutter：行内容直接延伸到面板右缘（滚动条悬浮其上）。
+    expect(sourceRect.right - dragRect.right, lessThan(1));
+    // 滚动条常驻悬浮在最右缘，此点落在 scrollbarHitWidth 热区内。
     final scrollbarPoint = Offset(
       sourceRect.right - 2,
       tester.getCenter(sourceItem).dy,
@@ -151,6 +150,9 @@ void main() {
     await tester.tapAt(scrollbarPoint);
     await tester.pump();
     expect(find.text('源和目标文件夹相同'), findsNothing);
+    // 点击落在行上（滚动条覆盖其上）会单选该行，恢复全选以继续拖拽。
+    sourceController.selectAll();
+    await tester.pump();
 
     final heldGesture = await tester.startGesture(
       tester.getCenter(sourceItem),

@@ -102,13 +102,9 @@ class _AddressBarState extends State<AddressBar> {
     if (FileService.isHomePath(widget.iconPath)) {
       return const HomeIcon(size: AppMetrics.iconSm);
     }
-    final sourceSize =
-        (AppMetrics.iconSm * View.of(context).devicePixelRatio).ceil();
-    final bytes = IconService.getFileIconPng(
-      widget.iconPath,
-      true,
-      sourceSize,
-    );
+    final sourceSize = (AppMetrics.iconSm * View.of(context).devicePixelRatio)
+        .ceil();
+    final bytes = IconService.getFileIconPng(widget.iconPath, true, sourceSize);
     if (bytes != null) {
       return Image.memory(
         bytes,
@@ -184,11 +180,7 @@ class _AddressBarState extends State<AddressBar> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Icon(
-                Icons.chevron_right,
-                size: 12,
-                color: c.textTertiary,
-              ),
+              Icon(Icons.chevron_right, size: 12, color: c.textTertiary),
             ],
           ),
         ),
@@ -202,31 +194,29 @@ class _AddressBarState extends State<AddressBar> {
           if (event is PointerScrollEvent && event.scrollDelta.dy != 0) {
             final pos = _scrollController.position;
             _scrollController.jumpTo(
-            (pos.pixels + event.scrollDelta.dy)
-                .clamp(0.0, pos.maxScrollExtent),
+              (pos.pixels + event.scrollDelta.dy).clamp(
+                0.0,
+                pos.maxScrollExtent,
+              ),
             );
           }
         },
-        child: Scrollbar(
+        child: SingleChildScrollView(
           controller: _scrollController,
-          thickness: 2,
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (var i = 0; i < segments.length; i++) ...[
-                  if (i > 0)
-                    Icon(Icons.chevron_right, size: 12, color: c.textTertiary),
-                  _BreadcrumbSegment(
-                    label: segments[i].label,
-                    isCurrent: i == segments.length - 1,
-                    onTap: () => widget.onSubmit(segments[i].path),
-                  ),
-                ],
-                Icon(Icons.chevron_right, size: 12, color: c.textTertiary),
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var i = 0; i < segments.length; i++) ...[
+                if (i > 0)
+                  Icon(Icons.chevron_right, size: 12, color: c.textTertiary),
+                _BreadcrumbSegment(
+                  label: segments[i].label,
+                  isCurrent: i == segments.length - 1,
+                  onTap: () => widget.onSubmit(segments[i].path),
+                ),
               ],
-            ),
+              Icon(Icons.chevron_right, size: 12, color: c.textTertiary),
+            ],
           ),
         ),
       ),

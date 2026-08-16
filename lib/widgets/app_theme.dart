@@ -270,7 +270,10 @@ abstract final class AppMetrics {
   // 间距
   static const double paneGap = 6;
   static const double pagePadding = 8;
-  static const double scrollbarGutter = 12;
+
+  /// 滚动条常驻显示时的交互热区宽度（拖放落点判定用）。
+  /// 对应主题里滚动条厚度（4px，hover/拖拽时 6px），不再预留 12px gutter。
+  static const double scrollbarHitWidth = 6;
 
   // 图标
   static const double iconSm = 14;
@@ -281,6 +284,34 @@ abstract final class AppMetrics {
   static const double fontBody = 13;
   static const double fontSmall = 12;
   static const double fontCaption = 11;
+}
+
+// ── ScrollBehavior ──────────────────────────────────────────────────
+
+/// Windows 上给水平、垂直两个方向的滚动区域都自动套主题 [Scrollbar]。
+///
+/// 框架默认的 [MaterialScrollBehavior] 只处理垂直方向，横向滚动条此前必须
+/// 手绘；统一收口到主题滚动条后，所有滚动方向都走同一套样式与常驻显隐。
+class AppScrollBehavior extends MaterialScrollBehavior {
+  const AppScrollBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    switch (getPlatform(context)) {
+      case TargetPlatform.linux:
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+        return Scrollbar(controller: details.controller, child: child);
+      case TargetPlatform.android:
+      case TargetPlatform.fuchsia:
+      case TargetPlatform.iOS:
+        return child;
+    }
+  }
 }
 
 // ── ThemeData 工厂 ───────────────────────────────────────────────────

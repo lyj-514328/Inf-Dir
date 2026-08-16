@@ -104,8 +104,6 @@ class _FileListViewState extends State<FileListView> {
   final ScrollController _hScrollController = ScrollController();
   final ScrollController _vScrollController = ScrollController();
 
-  /// 鼠标悬停在列表面板上时显示滚动条。
-  bool _scrollbarHovered = false;
   FileDragPayload? _folderDropPayload;
   String? _folderDropPath;
 
@@ -189,111 +187,92 @@ class _FileListViewState extends State<FileListView> {
         final blankW = _blankWidth;
         final listW = _listWidth;
 
-        return MouseRegion(
-          onEnter: (_) => setState(() => _scrollbarHovered = true),
-          onExit: (_) => setState(() => _scrollbarHovered = false),
-          child: Scrollbar(
-            controller: _hScrollController,
-            thumbVisibility: _scrollbarHovered,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              controller: _hScrollController,
-              child: SizedBox(
-                width: listW,
-                height: constraints.maxHeight,
-                child: Column(
-                  children: [
-                    _ColumnHeader(
-                      sortColumn: widget.sortColumn,
-                      sortAscending: widget.sortAscending,
-                      onSort: widget.onSort,
-                      columnWidths: widget.columnWidths,
-                      blankWidth: blankW,
-                      onResizeColumn: _handleResize,
-                      viewMode: widget.viewMode,
-                      showStatusColumn: widget.showStatusColumn,
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onSecondaryTapUp: (details) {
-                          widget.onEmptyRightClick?.call(
-                            details.globalPosition,
-                          );
-                        },
-                        child: widget.entries.isEmpty
-                            ? Center(
-                                child: Text(
-                                  '空文件夹',
-                                  style: TextStyle(
-                                    color: context.colors.textTertiary,
-                                    fontSize: AppMetrics.fontBody,
-                                  ),
-                                ),
-                              )
-                            : Scrollbar(
-                                controller: _vScrollController,
-                                thumbVisibility: _scrollbarHovered,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(
-                                    right: AppMetrics.scrollbarGutter,
-                                  ),
-                                  child: CustomScrollView(
-                                    controller: _vScrollController,
-                                    slivers: [
-                                      for (final group in _groups) ...[
-                                        if (_showGroupHeaders)
-                                          SliverToBoxAdapter(
-                                            child: _FileGroupHeader(
-                                              label: group.label,
-                                              count: group.entries.length,
-                                            ),
-                                          ),
-                                        SliverFixedExtentList(
-                                          itemExtent: AppMetrics.rowHeight,
-                                          delegate: SliverChildBuilderDelegate((
-                                            context,
-                                            index,
-                                          ) {
-                                            final entry = group.entries[index];
-                                            return _wrapEntryInteraction(
-                                              entry,
-                                              _FileRow(
-                                                entry: entry,
-                                                isSelected: widget.selectedPaths
-                                                    .contains(entry.path),
-                                                isActive: widget.isActive,
-                                                columnWidths:
-                                                    widget.columnWidths,
-                                                blankWidth: blankW,
-                                                viewMode: widget.viewMode,
-                                                showFileExtensions:
-                                                    widget.showFileExtensions,
-                                                showStatusColumn:
-                                                    widget.showStatusColumn,
-                                                onSingleTap: () => widget
-                                                    .onSingleTap(entry.path),
-                                                onTap: () => widget.onPrimaryTap
-                                                    ?.call(entry.path),
-                                                onDoubleTap: () => widget
-                                                    .onDoubleTap(entry.path),
-                                                onRightClick: (pos) => widget
-                                                    .onItemRightClick
-                                                    ?.call(entry.path, pos),
-                                              ),
-                                            );
-                                          }, childCount: group.entries.length),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                      ),
-                    ),
-                  ],
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          controller: _hScrollController,
+          child: SizedBox(
+            width: listW,
+            height: constraints.maxHeight,
+            child: Column(
+              children: [
+                _ColumnHeader(
+                  sortColumn: widget.sortColumn,
+                  sortAscending: widget.sortAscending,
+                  onSort: widget.onSort,
+                  columnWidths: widget.columnWidths,
+                  blankWidth: blankW,
+                  onResizeColumn: _handleResize,
+                  viewMode: widget.viewMode,
+                  showStatusColumn: widget.showStatusColumn,
                 ),
-              ),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onSecondaryTapUp: (details) {
+                      widget.onEmptyRightClick?.call(details.globalPosition);
+                    },
+                    child: widget.entries.isEmpty
+                        ? Center(
+                            child: Text(
+                              '空文件夹',
+                              style: TextStyle(
+                                color: context.colors.textTertiary,
+                                fontSize: AppMetrics.fontBody,
+                              ),
+                            ),
+                          )
+                        : CustomScrollView(
+                            controller: _vScrollController,
+                            slivers: [
+                              for (final group in _groups) ...[
+                                if (_showGroupHeaders)
+                                  SliverToBoxAdapter(
+                                    child: _FileGroupHeader(
+                                      label: group.label,
+                                      count: group.entries.length,
+                                    ),
+                                  ),
+                                SliverFixedExtentList(
+                                  itemExtent: AppMetrics.rowHeight,
+                                  delegate: SliverChildBuilderDelegate((
+                                    context,
+                                    index,
+                                  ) {
+                                    final entry = group.entries[index];
+                                    return _wrapEntryInteraction(
+                                      entry,
+                                      _FileRow(
+                                        entry: entry,
+                                        isSelected: widget.selectedPaths
+                                            .contains(entry.path),
+                                        isActive: widget.isActive,
+                                        columnWidths: widget.columnWidths,
+                                        blankWidth: blankW,
+                                        viewMode: widget.viewMode,
+                                        showFileExtensions:
+                                            widget.showFileExtensions,
+                                        showStatusColumn:
+                                            widget.showStatusColumn,
+                                        onSingleTap: () =>
+                                            widget.onSingleTap(entry.path),
+                                        onTap: () => widget.onPrimaryTap?.call(
+                                          entry.path,
+                                        ),
+                                        onDoubleTap: () =>
+                                            widget.onDoubleTap(entry.path),
+                                        onRightClick: (pos) => widget
+                                            .onItemRightClick
+                                            ?.call(entry.path, pos),
+                                      ),
+                                    );
+                                  }, childCount: group.entries.length),
+                                ),
+                              ],
+                            ],
+                          ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -527,13 +506,6 @@ class _FileListViewState extends State<FileListView> {
   Widget _buildIconView(BuildContext context) {
     final spec = _iconSpec(widget.viewMode);
     return _FileSurface(
-      scrollController: _vScrollController,
-      scrollbarVisible: _scrollbarHovered,
-      onHoverChanged: (hovering) {
-        if (_scrollbarHovered != hovering) {
-          setState(() => _scrollbarHovered = hovering);
-        }
-      },
       onEmptyRightClick: widget.onEmptyRightClick,
       empty: widget.entries.isEmpty,
       child: CustomScrollView(
@@ -589,13 +561,6 @@ class _FileListViewState extends State<FileListView> {
       return _buildTileGrid(context);
     }
     return _FileSurface(
-      scrollController: _vScrollController,
-      scrollbarVisible: _scrollbarHovered,
-      onHoverChanged: (hovering) {
-        if (_scrollbarHovered != hovering) {
-          setState(() => _scrollbarHovered = hovering);
-        }
-      },
       onEmptyRightClick: widget.onEmptyRightClick,
       empty: widget.entries.isEmpty,
       child: CustomScrollView(
@@ -641,13 +606,6 @@ class _FileListViewState extends State<FileListView> {
 
   Widget _buildTileGrid(BuildContext context) {
     return _FileSurface(
-      scrollController: _vScrollController,
-      scrollbarVisible: _scrollbarHovered,
-      onHoverChanged: (hovering) {
-        if (_scrollbarHovered != hovering) {
-          setState(() => _scrollbarHovered = hovering);
-        }
-      },
       onEmptyRightClick: widget.onEmptyRightClick,
       empty: widget.entries.isEmpty,
       child: CustomScrollView(
@@ -971,17 +929,11 @@ class _FileGroupHeader extends StatelessWidget {
 }
 
 class _FileSurface extends StatelessWidget {
-  final ScrollController scrollController;
-  final bool scrollbarVisible;
-  final ValueChanged<bool> onHoverChanged;
   final Function(Offset globalPosition)? onEmptyRightClick;
   final bool empty;
   final Widget child;
 
   const _FileSurface({
-    required this.scrollController,
-    required this.scrollbarVisible,
-    required this.onHoverChanged,
     required this.onEmptyRightClick,
     required this.empty,
     required this.child,
@@ -989,34 +941,21 @@ class _FileSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => onHoverChanged(true),
-      onExit: (_) => onHoverChanged(false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onSecondaryTapUp: (details) =>
-            onEmptyRightClick?.call(details.globalPosition),
-        child: empty
-            ? Center(
-                child: Text(
-                  '空文件夹',
-                  style: TextStyle(
-                    fontSize: AppMetrics.fontBody,
-                    color: context.colors.textTertiary,
-                  ),
-                ),
-              )
-            : Scrollbar(
-                controller: scrollController,
-                thumbVisibility: scrollbarVisible,
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                    right: AppMetrics.scrollbarGutter,
-                  ),
-                  child: child,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onSecondaryTapUp: (details) =>
+          onEmptyRightClick?.call(details.globalPosition),
+      child: empty
+          ? Center(
+              child: Text(
+                '空文件夹',
+                style: TextStyle(
+                  fontSize: AppMetrics.fontBody,
+                  color: context.colors.textTertiary,
                 ),
               ),
-      ),
+            )
+          : child,
     );
   }
 }

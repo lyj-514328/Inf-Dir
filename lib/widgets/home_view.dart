@@ -18,7 +18,6 @@ import 'app_theme.dart';
 
 enum _HomeSection { quickAccess, recent, favorites }
 
-
 class _HomeItem {
   final String name;
   final String path;
@@ -111,18 +110,15 @@ class _HomeViewState extends State<HomeView> {
     final recent = _recentFiles.map(_recentItem).toList(growable: false);
     final favorites = _favorites.map(_recentItem).toList(growable: false);
 
-    return Scrollbar(
+    return SingleChildScrollView(
       controller: _scrollController,
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        padding: EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSection(context, _HomeSection.quickAccess, quickAccess),
-            _buildActivitySection(context, recent, favorites),
-          ],
-        ),
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSection(context, _HomeSection.quickAccess, quickAccess),
+          _buildActivitySection(context, recent, favorites),
+        ],
       ),
     );
   }
@@ -625,67 +621,67 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: Row(
-                      children: [
-                        _HomeIcon(
-                          path: widget.item.path,
-                          isDirectory: widget.item.isDirectory,
-                          fallback: widget.item.isDirectory
-                              ? Icons.folder_outlined
-                              : Icons.insert_drive_file_outlined,
-                          size: AppMetrics.iconMd,
-                          modified: widget.item.date,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            _displayHomeName(
-                              widget.item.name,
-                              widget.item.isDirectory,
-                              widget.showFileExtensions,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: AppMetrics.fontBody,
-                              color: nameColor,
-                            ),
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Row(
+                    children: [
+                      _HomeIcon(
+                        path: widget.item.path,
+                        isDirectory: widget.item.isDirectory,
+                        fallback: widget.item.isDirectory
+                            ? Icons.folder_outlined
+                            : Icons.insert_drive_file_outlined,
+                        size: AppMetrics.iconMd,
+                        modified: widget.item.date,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          _displayHomeName(
+                            widget.item.name,
+                            widget.item.isDirectory,
+                            widget.showFileExtensions,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: AppMetrics.fontBody,
+                            color: nameColor,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      widget.section == _HomeSection.quickAccess
-                          ? (widget.item.isDirectory ? '文件夹' : '文件')
-                          : date,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontSmall,
-                        color: secondaryColor,
                       ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    widget.section == _HomeSection.quickAccess
+                        ? (widget.item.isDirectory ? '文件夹' : '文件')
+                        : date,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppMetrics.fontSmall,
+                      color: secondaryColor,
                     ),
                   ),
-                  Expanded(
-                    flex: 5,
-                    child: Text(
-                      widget.item.path,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontSmall,
-                        color: secondaryColor,
-                      ),
+                ),
+                Expanded(
+                  flex: 5,
+                  child: Text(
+                    widget.item.path,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppMetrics.fontSmall,
+                      color: secondaryColor,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -764,9 +760,7 @@ class _HomeListRowState extends State<_HomeListRow> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: AppMetrics.fontBody,
-                        color: widget.isSelected
-                            ? c.onAccent
-                            : c.textPrimary,
+                        color: widget.isSelected ? c.onAccent : c.textPrimary,
                       ),
                     ),
                   ),
@@ -809,8 +803,8 @@ class _HomeContentRowState extends State<_HomeContentRow> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final secondary = widget.section == _HomeSection.recent &&
-            widget.item.date != null
+    final secondary =
+        widget.section == _HomeSection.recent && widget.item.date != null
         ? '最近访问 ${_formatDate(widget.item.date!)}'
         : widget.item.isDirectory
         ? '文件夹'
@@ -1003,10 +997,7 @@ class _HomeIconTileState extends State<_HomeIconTile> {
           // 鼠标按下即选中：避免 onTap 等待双击判定（kDoubleTapTimeout）的延迟
           if (event.buttons & kPrimaryMouseButton != 0) widget.onSingleTap();
         },
-        child: GestureDetector(
-          onDoubleTap: widget.onDoubleTap,
-          child: tile,
-        ),
+        child: GestureDetector(onDoubleTap: widget.onDoubleTap, child: tile),
       ),
     );
   }

@@ -1700,7 +1700,7 @@ class _PaneDropTargetState extends State<_PaneDropTarget> {
     final renderObject = context.findRenderObject();
     if (renderObject is! RenderBox || !renderObject.hasSize) return false;
     final local = renderObject.globalToLocal(globalPosition);
-    return local.dx >= renderObject.size.width - AppMetrics.scrollbarGutter;
+    return local.dx >= renderObject.size.width - AppMetrics.scrollbarHitWidth;
   }
 
   Offset? _localPosition(Offset globalPosition) {
