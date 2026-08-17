@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import '../models/layout_node.dart';
+import '../models/pane_drag_payload.dart';
 import 'app_theme.dart';
 
 /// Alt 键按下时在每个面板上显示的浮动操作层。
 ///
 /// 设计：操作层是"浮在面板上的一张玻璃片"——
 /// - 面板中央一条收敛的细十字线（仅作分割方向暗示，两端渐隐）
-/// - 中央三个浮动操作 chip：水平切分 / 交换 / 垂直切分
+/// - 中央浮动操作 chip：水平切分 / 交换 / 移动 / 垂直切分
 ///   （surface 底 + 1px 边框 + 柔和投影，hover 显 surfaceHover）
 /// - 左下角一行低调提示文字（tertiary），弥补顶栏移除的 Alt 提示
 /// - 右上角关闭按钮（hover 显红，Win11 语义）
@@ -18,6 +20,10 @@ class AltOverlay extends StatelessWidget {
   final VoidCallback onClose;
   final ValueChanged<SplitDirection> onSplit;
   final VoidCallback onSwap;
+  final String dragLabel;
+  final bool isDragging;
+  final VoidCallback onDragStarted;
+  final VoidCallback onDragEnded;
 
   const AltOverlay({
     super.key,
@@ -26,6 +32,10 @@ class AltOverlay extends StatelessWidget {
     required this.onClose,
     required this.onSplit,
     required this.onSwap,
+    required this.dragLabel,
+    required this.isDragging,
+    required this.onDragStarted,
+    required this.onDragEnded,
   });
 
   @override
@@ -44,11 +54,13 @@ class AltOverlay extends StatelessWidget {
             child: Container(
               height: 1,
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [
-                  c.border.withValues(alpha: 0),
-                  c.border,
-                  c.border.withValues(alpha: 0),
-                ]),
+                gradient: LinearGradient(
+                  colors: [
+                    c.border.withValues(alpha: 0),
+                    c.border,
+                    c.border.withValues(alpha: 0),
+                  ],
+                ),
               ),
             ),
           ),
@@ -94,6 +106,13 @@ class AltOverlay extends StatelessWidget {
                   onTap: onSwap,
                 ),
                 const SizedBox(width: 8),
+                _PaneDragHandle(
+                  payload: PaneDragPayload(source: node, label: dragLabel),
+                  isDragging: isDragging,
+                  onDragStarted: onDragStarted,
+                  onDragEnded: onDragEnded,
+                ),
+                const SizedBox(width: 8),
                 _ActionChip(
                   icon: Icons.vertical_split,
                   label: '垂直切分',
@@ -128,12 +147,144 @@ class AltOverlay extends StatelessWidget {
         ),
 
         // ── 右上角关闭 ──
-        Positioned(
-          top: 4,
-          right: 4,
-          child: _CloseBtn(onTap: onClose),
-        ),
+        Positioned(top: 4, right: 4, child: _CloseBtn(onTap: onClose)),
       ],
+    );
+  }
+}
+
+class _PaneDragHandle extends StatefulWidget {
+  const _PaneDragHandle({
+    required this.payload,
+    required this.isDragging,
+    required this.onDragStarted,
+    required this.onDragEnded,
+  });
+
+  final PaneDragPayload payload;
+  final bool isDragging;
+  final VoidCallback onDragStarted;
+  final VoidCallback onDragEnded;
+
+  @override
+  State<_PaneDragHandle> createState() => _PaneDragHandleState();
+}
+
+class _PaneDragHandleState extends State<_PaneDragHandle> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final active = widget.isDragging || _hovering;
+    final chip = MouseRegion(
+      cursor: SystemMouseCursors.grab,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? c.accentSubtle : c.surface.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+          border: Border.all(color: active ? c.accent : c.border),
+          boxShadow: [
+            BoxShadow(
+              color: c.scrim,
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Symbols.drag_indicator,
+              size: AppMetrics.iconSm,
+              color: c.textPrimary,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              '移动',
+              style: TextStyle(
+                fontSize: AppMetrics.fontSmall,
+                color: c.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return Tooltip(
+      message: '拖动面板',
+      child: Draggable<PaneDragPayload>(
+        key: ValueKey('pane-drag-handle-${widget.payload.source.id}'),
+        data: widget.payload,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        rootOverlay: true,
+        maxSimultaneousDrags: 1,
+        feedback: _PaneDragFeedback(label: widget.payload.label),
+        childWhenDragging: Opacity(opacity: 0.45, child: chip),
+        onDragStarted: widget.onDragStarted,
+        onDragEnd: (_) => widget.onDragEnded(),
+        child: chip,
+      ),
+    );
+  }
+}
+
+class _PaneDragFeedback extends StatelessWidget {
+  const _PaneDragFeedback({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Transform.translate(
+      offset: const Offset(14, 20),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 260),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: c.menuSurface,
+            border: Border.all(color: c.menuBorder),
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            boxShadow: [
+              BoxShadow(
+                color: c.shadow,
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Symbols.drag_indicator,
+                size: AppMetrics.iconMd,
+                color: c.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: c.textPrimary,
+                    fontSize: AppMetrics.fontSmall,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -170,8 +321,8 @@ class _ActionChipState extends State<_ActionChip> {
     final bg = selected
         ? c.accent
         : _hovering
-            ? c.surfaceHover
-            : c.surface.withValues(alpha: 0.95);
+        ? c.surfaceHover
+        : c.surface.withValues(alpha: 0.95);
     final fg = selected ? c.onAccent : c.textPrimary;
 
     return Tooltip(
@@ -202,10 +353,7 @@ class _ActionChipState extends State<_ActionChip> {
                 const SizedBox(width: 5),
                 Text(
                   widget.label,
-                  style: TextStyle(
-                    fontSize: AppMetrics.fontSmall,
-                    color: fg,
-                  ),
+                  style: TextStyle(fontSize: AppMetrics.fontSmall, color: fg),
                 ),
               ],
             ),
@@ -244,9 +392,7 @@ class _CloseBtnState extends State<_CloseBtn> {
             width: 22,
             height: 22,
             decoration: BoxDecoration(
-              color: _hovering
-                  ? c.danger
-                  : c.surface.withValues(alpha: 0.9),
+              color: _hovering ? c.danger : c.surface.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
               border: Border.all(color: _hovering ? c.danger : c.border),
               boxShadow: [

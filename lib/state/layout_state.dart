@@ -582,11 +582,40 @@ class LayoutState extends ChangeNotifier {
     return result;
   }
 
+  bool movePaneBeside(LayoutNode source, LayoutNode target, PaneDropEdge edge) {
+    final result = _tree.movePaneBeside(source, target, edge);
+    if (!result) return false;
+
+    _focusedNodeId = source.id;
+    _swapPendingIds.clear();
+    _updateActivePanePath();
+    notifyListeners();
+    return true;
+  }
+
   // ============================================================
   // 浮动/覆盖层
   // ============================================================
   bool _altOverlayVisible = false;
   bool get altOverlayVisible => _altOverlayVisible;
+
+  String? _draggedPaneNodeId;
+  String? get draggedPaneNodeId => _draggedPaneNodeId;
+  bool get paneDragActive => _draggedPaneNodeId != null;
+
+  void beginPaneDrag(LayoutNode node) {
+    if (!node.isPane || node.workspace != _tree.activeWorkspace) return;
+    if (_maximizedPaneId != null || _draggedPaneNodeId == node.id) return;
+    _draggedPaneNodeId = node.id;
+    _swapPendingIds.clear();
+    notifyListeners();
+  }
+
+  void endPaneDrag() {
+    if (_draggedPaneNodeId == null) return;
+    _draggedPaneNodeId = null;
+    notifyListeners();
+  }
 
   /// 最大化（浮于所有面板之上）的 pane id，null 表示无。
   String? _maximizedPaneId;
@@ -596,6 +625,7 @@ class LayoutState extends ChangeNotifier {
     _maximizedPaneId = _maximizedPaneId == paneId ? null : paneId;
     if (_maximizedPaneId != null) {
       _altOverlayVisible = false;
+      _draggedPaneNodeId = null;
       _swapPendingIds.clear();
     }
     notifyListeners();

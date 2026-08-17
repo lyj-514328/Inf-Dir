@@ -4,6 +4,9 @@ enum NodeType { workspace, split, pane }
 /// 分割方向
 enum SplitDirection { horizontal, vertical }
 
+/// 面板拖放到目标面板的相对位置。
+enum PaneDropEdge { left, right, top, bottom }
+
 /// 参考 Hyprland Dwindle 的递归分割节点，并扩展为可容纳多个子节点。
 ///
 /// 上游参考：
@@ -303,6 +306,94 @@ class LayoutTree {
     _fixPercent(pa);
     _fixPercent(pb);
     return true;
+  }
+
+  // ============================================================
+  // 操作 6：移动 pane 到目标 pane 的一侧
+  // ============================================================
+  bool movePaneBeside(LayoutNode source, LayoutNode target, PaneDropEdge edge) {
+    if (source == target || !source.isPane || !target.isPane) return false;
+    if (source.parent == null || target.parent == null) return false;
+    if (source.workspace != target.workspace) return false;
+
+    final direction = switch (edge) {
+      PaneDropEdge.left || PaneDropEdge.right => SplitDirection.horizontal,
+      PaneDropEdge.top || PaneDropEdge.bottom => SplitDirection.vertical,
+    };
+    final sourceFirst = edge == PaneDropEdge.left || edge == PaneDropEdge.top;
+
+    // 已经是目标的直接二叉兄弟时，保持原有分割比例和节点层级。
+    final sharedParent = source.parent == target.parent ? source.parent : null;
+    if (sharedParent != null &&
+        sharedParent.isSplit &&
+        sharedParent.children.length == 2 &&
+        sharedParent.layout == direction) {
+      final expectedFirst = sourceFirst ? source : target;
+      if (sharedParent.children.first == expectedFirst) return false;
+      return swapPanes(source, target);
+    }
+
+    _detachForMove(source);
+
+    final targetParent = target.parent;
+    if (targetParent == null) return false;
+    final targetIndex = targetParent.children.indexOf(target);
+    if (targetIndex < 0) return false;
+
+    final split = LayoutNode(
+      id: genId(),
+      type: NodeType.split,
+      layout: direction,
+      percent: target.percent,
+      parent: targetParent,
+    );
+    targetParent.children[targetIndex] = split;
+
+    target.parent = split;
+    source.parent = split;
+    target.percent = 0.5;
+    source.percent = 0.5;
+    split.children.addAll(sourceFirst ? [source, target] : [target, source]);
+
+    _fixPercent(targetParent);
+    return true;
+  }
+
+  void _detachForMove(LayoutNode node) {
+    final parent = node.parent!;
+    parent.children.remove(node);
+    node.parent = null;
+    node.percent = 0.0;
+    _repairAfterDetach(parent);
+  }
+
+  void _repairAfterDetach(LayoutNode container) {
+    if (!container.isSplit || container.children.length > 1) {
+      _fixPercent(container);
+      return;
+    }
+
+    final grandparent = container.parent;
+    if (grandparent == null) {
+      _fixPercent(container);
+      return;
+    }
+
+    final containerIndex = grandparent.children.indexOf(container);
+    if (containerIndex < 0) return;
+
+    if (container.children.length == 1) {
+      final survivor = container.children.removeAt(0);
+      grandparent.children[containerIndex] = survivor;
+      survivor.parent = grandparent;
+      survivor.percent = container.percent;
+    } else {
+      grandparent.children.removeAt(containerIndex);
+    }
+
+    container.parent = null;
+    container.percent = 0.0;
+    _repairAfterDetach(grandparent);
   }
 
   // ============================================================
