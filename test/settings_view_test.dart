@@ -142,6 +142,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('settings-category-viewers')));
     await tester.pumpAndSettle();
 
+    expect(find.text('路径'), findsOneWidget);
     expect(find.text('扩展名'), findsOneWidget);
     expect(find.text('文件名'), findsOneWidget);
     expect(find.text('MIME'), findsOneWidget);

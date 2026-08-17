@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/features/quick_view/plugin_manifest.dart';
 import 'package:inf_dir/features/quick_view/quick_view_service.dart';
 import 'package:inf_dir/features/quick_view/viewer_association_config.dart';
+import 'package:inf_dir/features/quick_view/viewer_file_facts.dart';
+import 'package:inf_dir/features/quick_view/viewer_rule.dart';
 import 'package:inf_dir/features/quick_view/viewer_window_controller.dart';
 import 'package:path/path.dart' as p;
 
@@ -75,27 +77,59 @@ void main() {
   });
 
   group('ViewerAssociationConfig', () {
-    test('round-trips candidate order and explicit empty lists', () {
+    test('round-trips incremental overrides and path rules', () {
       final config = ViewerAssociationConfig.empty();
-      config.set(ViewerAssociationKind.extension, '.PDF', [
-        'viewer.b',
-        'viewer.a',
-      ]);
-      config.set(ViewerAssociationKind.fileName, 'Dockerfile', const []);
+      config.setOverride(
+        ViewerAssociationKind.extension,
+        '.PDF',
+        enabled: true,
+        viewerOrder: ['viewer.b', 'viewer.a'],
+        excludedViewerIds: ['viewer.c'],
+      );
+      config.setOverride(
+        ViewerAssociationKind.fileName,
+        'Dockerfile',
+        enabled: false,
+        viewerOrder: const [],
+        excludedViewerIds: const [],
+      );
+      config.addRule(
+        ViewerPathRule(
+          id: 'path-work',
+          enabled: true,
+          mode: ViewerPathMatchMode.glob,
+          pattern: r'C:\Work\**\*.pdf',
+          viewerIds: const ['viewer.a'],
+        ),
+      );
 
       final decoded = jsonDecode(jsonEncode(config.toJson()));
       final restored = ViewerAssociationConfig.fromJson(
         Map<String, Object?>.from(decoded as Map),
       );
 
-      expect(restored.idsFor(ViewerAssociationKind.extension, '.pdf'), [
-        'viewer.b',
-        'viewer.a',
-      ]);
-      expect(
-        restored.idsFor(ViewerAssociationKind.fileName, 'dockerfile'),
-        isEmpty,
+      final extensionOverride = restored.overrideFor(
+        ViewerAssociationKind.extension,
+        '.pdf',
       );
+      expect(extensionOverride?.viewerOrder, ['viewer.b', 'viewer.a']);
+      expect(extensionOverride?.excludedViewerIds, {'viewer.c'});
+      expect(
+        restored
+            .overrideFor(ViewerAssociationKind.fileName, 'dockerfile')
+            ?.enabled,
+        isFalse,
+      );
+      expect(restored.rules.single.id, 'path-work');
+      expect(restored.toJson()['schemaVersion'], 2);
+    });
+
+    test('extracts compound suffixes and treats a dotfile as a file name', () {
+      expect(ViewerFileFacts.fromPath(r'C:\Work\archive.tar.gz').suffixes, [
+        '.tar.gz',
+        '.gz',
+      ]);
+      expect(ViewerFileFacts.fromPath(r'C:\Work\.gitignore').suffixes, isEmpty);
     });
   });
 
@@ -131,6 +165,18 @@ void main() {
         id: 'viewer.image',
         name: 'Image Viewer',
         mimeTypes: ['image/*'],
+      );
+      _writePlugin(
+        pluginRoot,
+        id: 'viewer.archive-long',
+        name: 'Archive Long Viewer',
+        extensions: ['.tar.gz'],
+      );
+      _writePlugin(
+        pluginRoot,
+        id: 'viewer.archive-short',
+        name: 'Archive Short Viewer',
+        extensions: ['.gz'],
       );
       service = QuickViewService(
         pluginRoots: [pluginRoot],
@@ -170,6 +216,128 @@ void main() {
             .resolve(r'C:\images\photo', mimeType: 'image/png')
             .map((plugin) => plugin.manifest.id),
         ['viewer.image'],
+      );
+    });
+
+    test('matches compound suffixes from longest to shortest', () {
+      final candidates = service.resolveCandidates(
+        r'C:\archives\source.tar.gz',
+      );
+
+      expect(candidates.map((candidate) => candidate.plugin.manifest.id), [
+        'viewer.archive-long',
+        'viewer.archive-short',
+      ]);
+      expect(candidates.map((candidate) => candidate.matchedValue), [
+        '.tar.gz',
+        '.gz',
+      ]);
+    });
+
+    test('places ordered path rules before file name and suffix matches', () {
+      final rule = service.addPathRule(
+        pattern: r'C:\docs\**\*.md',
+        mode: ViewerPathMatchMode.glob,
+        viewerIds: ['viewer.c'],
+      );
+
+      final candidates = service.resolveCandidates(r'C:\docs\README.md');
+
+      expect(candidates.map((candidate) => candidate.plugin.manifest.id), [
+        'viewer.c',
+        'viewer.a',
+        'viewer.b',
+      ]);
+      expect(candidates.first.matchKind, ViewerMatchKind.pathRule);
+      expect(candidates.first.ruleId, rule.id);
+
+      service.setPathRuleEnabled(rule.id, false);
+      expect(
+        service
+            .resolve(r'C:\docs\README.md')
+            .map((plugin) => plugin.manifest.id),
+        ['viewer.a', 'viewer.b', 'viewer.c'],
+      );
+    });
+
+    test('matches exact paths case-insensitively', () {
+      service.addPathRule(
+        pattern: r'C:\Docs\README.md',
+        mode: ViewerPathMatchMode.exact,
+        viewerIds: ['viewer.c'],
+      );
+
+      expect(
+        service.resolveCandidates(r'c:\docs\readme.md').first.matchKind,
+        ViewerMatchKind.pathRule,
+      );
+    });
+
+    test('migrates v1 exactly and appends plugins installed later', () {
+      final configFile = File(p.join(temp.path, 'legacy-associations.json'))
+        ..writeAsStringSync(
+          jsonEncode({
+            'schemaVersion': 1,
+            'associations': {
+              'extensions': {
+                '.md': ['viewer.b'],
+              },
+            },
+          }),
+        );
+      final migratingService = QuickViewService(
+        pluginRoots: [pluginRoot],
+        associationStore: ViewerAssociationStore(filePath: configFile.path),
+        mimeTypeResolver: (_) => null,
+      );
+      addTearDown(migratingService.dispose);
+
+      expect(
+        migratingService
+            .resolve(r'C:\docs\guide.md')
+            .map((plugin) => plugin.manifest.id),
+        ['viewer.b'],
+      );
+      final migratedJson = jsonDecode(configFile.readAsStringSync()) as Map;
+      expect(migratedJson['schemaVersion'], 2);
+
+      _writePlugin(
+        pluginRoot,
+        id: 'viewer.new',
+        name: 'New Viewer',
+        extensions: ['.md'],
+      );
+      migratingService.reload();
+
+      expect(
+        migratingService
+            .resolve(r'C:\docs\guide.md')
+            .map((plugin) => plugin.manifest.id),
+        ['viewer.b', 'viewer.new'],
+      );
+    });
+
+    test('does not overwrite an unsupported future config', () {
+      final configFile = File(p.join(temp.path, 'future-associations.json'));
+      const original = '{"schemaVersion":99,"futureSetting":true}';
+      configFile.writeAsStringSync(original);
+      final futureService = QuickViewService(
+        pluginRoots: [pluginRoot],
+        associationStore: ViewerAssociationStore(filePath: configFile.path),
+        mimeTypeResolver: (_) => null,
+      );
+      addTearDown(futureService.dispose);
+
+      futureService.addPathRule(
+        pattern: r'C:\docs\**\*.md',
+        mode: ViewerPathMatchMode.glob,
+        viewerIds: ['viewer.b'],
+      );
+
+      expect(configFile.readAsStringSync(), original);
+      expect(
+        futureService.issues.map((issue) => issue.message),
+        contains(contains('不支持的关联配置版本')),
       );
     });
 

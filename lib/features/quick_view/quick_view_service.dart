@@ -8,6 +8,8 @@ import 'package:path/path.dart' as p;
 import '../../services/mime_type_service.dart';
 import 'plugin_manifest.dart';
 import 'viewer_association_config.dart';
+import 'viewer_file_facts.dart';
+import 'viewer_rule.dart';
 import 'viewer_window_controller.dart';
 
 File? _viewerWindowLogFile;
@@ -87,6 +89,22 @@ class QuickViewOpenResult {
   final ViewerPlugin? plugin;
 }
 
+enum ViewerMatchKind { pathRule, fileName, suffix, mimeExact, mimeWildcard }
+
+class ViewerResolutionCandidate {
+  const ViewerResolutionCandidate({
+    required this.plugin,
+    required this.matchKind,
+    required this.matchedValue,
+    this.ruleId,
+  });
+
+  final ViewerPlugin plugin;
+  final ViewerMatchKind matchKind;
+  final String matchedValue;
+  final String? ruleId;
+}
+
 class QuickViewService extends ChangeNotifier {
   QuickViewService({
     List<Directory>? pluginRoots,
@@ -118,6 +136,7 @@ class QuickViewService extends ChangeNotifier {
   final Map<String, ViewerPlugin> _plugins = {};
   final List<PluginDiscoveryIssue> _issues = [];
   late ViewerAssociationConfig _associations;
+  bool _associationStoreWritable = true;
   _AttachedViewer? _attachedViewer;
   Future<void> _operationQueue = Future<void>.value();
   Future<void>? _shutdownFuture;
@@ -201,13 +220,28 @@ class QuickViewService extends ChangeNotifier {
       }
     }
 
+    _associationStoreWritable = true;
     try {
       _associations = _associationStore.load();
     } catch (error) {
       _associations = ViewerAssociationConfig.empty();
+      _associationStoreWritable = false;
       _issues.add(
         PluginDiscoveryIssue(_associationStore.filePath, '关联配置加载失败：$error'),
       );
+    }
+    if (_associationStoreWritable && _associations.needsMigration) {
+      _associations.finishLegacyMigration(
+        (kind, key) =>
+            availablePluginsFor(kind, key).map((plugin) => plugin.manifest.id),
+      );
+      try {
+        _associationStore.save(_associations);
+      } catch (error) {
+        _issues.add(
+          PluginDiscoveryIssue(_associationStore.filePath, '关联配置迁移保存失败：$error'),
+        );
+      }
     }
     if (notify) notifyListeners();
   }
@@ -247,11 +281,20 @@ class QuickViewService extends ChangeNotifier {
   ) {
     final key = kind.normalize(rawKey);
     final available = availablePluginsFor(kind, key);
-    final configuredIds = _associations.idsFor(kind, key);
-    if (configuredIds == null) return available;
-
+    final baseline = _defaultPluginsFor(kind, key);
+    final override = _associations.overrideFor(kind, key);
+    if (override == null) return baseline;
+    if (!override.enabled) return const [];
     final byId = {for (final plugin in available) plugin.manifest.id: plugin};
-    return [for (final id in configuredIds) ?byId[id]];
+    final seen = <String>{};
+    return [
+      for (final id in override.viewerOrder)
+        if (!override.excludedViewerIds.contains(id) && seen.add(id)) ?byId[id],
+      for (final plugin in baseline)
+        if (!override.excludedViewerIds.contains(plugin.manifest.id) &&
+            seen.add(plugin.manifest.id))
+          plugin,
+    ];
   }
 
   void setCandidates(
@@ -268,12 +311,25 @@ class QuickViewService extends ChangeNotifier {
     if (invalid.isNotEmpty) {
       throw ArgumentError('插件未声明支持 $key：${invalid.join(', ')}');
     }
-    _associations.set(kind, key, ids);
+    _associations.setOverride(
+      kind,
+      key,
+      enabled: true,
+      viewerOrder: ids,
+      excludedViewerIds: validIds.where((id) => !ids.contains(id)),
+    );
     _saveAndNotify();
   }
 
   void disableAssociation(ViewerAssociationKind kind, String rawKey) {
-    _associations.set(kind, rawKey, const []);
+    final current = _associations.overrideFor(kind, rawKey);
+    _associations.setOverride(
+      kind,
+      rawKey,
+      enabled: false,
+      viewerOrder: current?.viewerOrder ?? const [],
+      excludedViewerIds: current?.excludedViewerIds ?? const [],
+    );
     _saveAndNotify();
   }
 
@@ -282,47 +338,163 @@ class QuickViewService extends ChangeNotifier {
     _saveAndNotify();
   }
 
-  List<ViewerPlugin> resolve(String filePath, {String? mimeType}) {
-    final candidateGroups = <List<ViewerPlugin>>[];
-    final fileName = p.basename(filePath).toLowerCase();
-    final extension = p.extension(fileName).toLowerCase();
+  List<ViewerPathRule> get pathRules => _associations.rules;
 
-    if (fileName.isNotEmpty) {
-      candidateGroups.add(
-        candidatesForAssociation(ViewerAssociationKind.fileName, fileName),
-      );
-    }
-    if (extension.isNotEmpty) {
-      candidateGroups.add(
-        candidatesForAssociation(ViewerAssociationKind.extension, extension),
-      );
-    }
+  List<ViewerPlugin> get availablePathRulePlugins =>
+      plugins.where((plugin) => plugin.isAvailable).toList();
+
+  List<ViewerPlugin> candidatesForPathRule(ViewerPathRule rule) {
+    final byId = {
+      for (final plugin in availablePathRulePlugins) plugin.manifest.id: plugin,
+    };
+    return [for (final id in rule.viewerIds) ?byId[id]];
+  }
+
+  ViewerPathRule addPathRule({
+    required String pattern,
+    required ViewerPathMatchMode mode,
+    required Iterable<String> viewerIds,
+  }) {
+    final ids = _validatePathRuleViewerIds(viewerIds);
+    final rule = ViewerPathRule(
+      id: _newPathRuleId(),
+      enabled: true,
+      mode: mode,
+      pattern: pattern,
+      viewerIds: ids,
+    );
+    _associations.addRule(rule);
+    _saveAndNotify();
+    return rule;
+  }
+
+  void setPathRuleEnabled(String id, bool enabled) {
+    final rule = _pathRule(id);
+    _associations.updateRule(rule.copyWith(enabled: enabled));
+    _saveAndNotify();
+  }
+
+  void updatePathRule(
+    String id, {
+    required String pattern,
+    required ViewerPathMatchMode mode,
+  }) {
+    final rule = _pathRule(id);
+    _associations.updateRule(rule.copyWith(pattern: pattern, mode: mode));
+    _saveAndNotify();
+  }
+
+  void setPathRuleCandidates(String id, Iterable<String> viewerIds) {
+    final rule = _pathRule(id);
+    _associations.updateRule(
+      rule.copyWith(viewerIds: _validatePathRuleViewerIds(viewerIds)),
+    );
+    _saveAndNotify();
+  }
+
+  void movePathRule(String id, int offset) {
+    _associations.moveRule(id, offset);
+    _saveAndNotify();
+  }
+
+  void removePathRule(String id) {
+    _associations.removeRule(id);
+    _saveAndNotify();
+  }
+
+  List<ViewerPlugin> resolve(String filePath, {String? mimeType}) {
+    return resolveCandidates(
+      filePath,
+      mimeType: mimeType,
+    ).map((candidate) => candidate.plugin).toList();
+  }
+
+  List<ViewerResolutionCandidate> resolveCandidates(
+    String filePath, {
+    String? mimeType,
+  }) {
     final resolvedMime = mimeType ?? _mimeTypeResolver(filePath);
-    if (resolvedMime != null && resolvedMime.trim().isNotEmpty) {
-      try {
-        final mime = ViewerAssociationKind.mimeType.normalize(
-          resolvedMime.split(';').first,
-        );
-        candidateGroups.add(
-          candidatesForAssociation(ViewerAssociationKind.mimeType, mime),
-        );
-        final slash = mime.indexOf('/');
-        candidateGroups.add(
-          candidatesForAssociation(
-            ViewerAssociationKind.mimeType,
-            '${mime.substring(0, slash)}/*',
+    final facts = ViewerFileFacts.fromPath(filePath, mimeType: resolvedMime);
+    final candidateGroups = <List<ViewerResolutionCandidate>>[];
+
+    for (final rule in pathRules) {
+      if (!rule.matches(facts)) continue;
+      candidateGroups.add([
+        for (final plugin in candidatesForPathRule(rule))
+          ViewerResolutionCandidate(
+            plugin: plugin,
+            matchKind: ViewerMatchKind.pathRule,
+            matchedValue: rule.pattern,
+            ruleId: rule.id,
           ),
-        );
+      ]);
+    }
+
+    if (facts.fileName.isNotEmpty) {
+      candidateGroups.add([
+        for (final plugin in candidatesForAssociation(
+          ViewerAssociationKind.fileName,
+          facts.fileName,
+        ))
+          ViewerResolutionCandidate(
+            plugin: plugin,
+            matchKind: ViewerMatchKind.fileName,
+            matchedValue: facts.fileName,
+          ),
+      ]);
+    }
+
+    for (final suffix in facts.suffixes) {
+      candidateGroups.add([
+        for (final plugin in candidatesForAssociation(
+          ViewerAssociationKind.extension,
+          suffix,
+        ))
+          ViewerResolutionCandidate(
+            plugin: plugin,
+            matchKind: ViewerMatchKind.suffix,
+            matchedValue: suffix,
+          ),
+      ]);
+    }
+
+    if (facts.mimeType != null) {
+      try {
+        final mime = ViewerAssociationKind.mimeType.normalize(facts.mimeType!);
+        candidateGroups.add([
+          for (final plugin in candidatesForAssociation(
+            ViewerAssociationKind.mimeType,
+            mime,
+          ))
+            ViewerResolutionCandidate(
+              plugin: plugin,
+              matchKind: ViewerMatchKind.mimeExact,
+              matchedValue: mime,
+            ),
+        ]);
+        final slash = mime.indexOf('/');
+        final wildcard = '${mime.substring(0, slash)}/*';
+        candidateGroups.add([
+          for (final plugin in candidatesForAssociation(
+            ViewerAssociationKind.mimeType,
+            wildcard,
+          ))
+            ViewerResolutionCandidate(
+              plugin: plugin,
+              matchKind: ViewerMatchKind.mimeWildcard,
+              matchedValue: wildcard,
+            ),
+        ]);
       } on FormatException {
-        debugPrint('[QuickView] ignored invalid MIME: $resolvedMime');
+        debugPrint('[QuickView] ignored invalid MIME: ${facts.mimeType}');
       }
     }
 
     final seen = <String>{};
     return [
       for (final group in candidateGroups)
-        for (final plugin in group)
-          if (seen.add(plugin.manifest.id)) plugin,
+        for (final candidate in group)
+          if (seen.add(candidate.plugin.manifest.id)) candidate,
     ];
   }
 
@@ -455,13 +627,59 @@ class QuickViewService extends ChangeNotifier {
     });
   }
 
+  List<ViewerPlugin> _defaultPluginsFor(
+    ViewerAssociationKind kind,
+    String key,
+  ) {
+    final available = availablePluginsFor(kind, key);
+    if (kind != ViewerAssociationKind.mimeType || key.endsWith('/*')) {
+      return available;
+    }
+    return available
+        .where((plugin) => plugin.manifest.quickView.mimeTypes.contains(key))
+        .toList();
+  }
+
+  List<String> _validatePathRuleViewerIds(Iterable<String> viewerIds) {
+    final ids = viewerIds.map((id) => id.trim().toLowerCase()).toSet().toList();
+    final availableIds = {
+      for (final plugin in availablePathRulePlugins) plugin.manifest.id,
+    };
+    final invalid = ids.where((id) => !availableIds.contains(id)).toList();
+    if (invalid.isNotEmpty) {
+      throw ArgumentError('查看器不可用：${invalid.join(', ')}');
+    }
+    return ids;
+  }
+
+  ViewerPathRule _pathRule(String id) {
+    for (final rule in pathRules) {
+      if (rule.id == id) return rule;
+    }
+    throw ArgumentError('规则不存在：$id');
+  }
+
+  String _newPathRuleId() {
+    final base = 'path-${DateTime.now().microsecondsSinceEpoch}';
+    var id = base;
+    var suffix = 2;
+    final existing = pathRules.map((rule) => rule.id).toSet();
+    while (existing.contains(id)) {
+      id = '$base-$suffix';
+      suffix++;
+    }
+    return id;
+  }
+
   void _saveAndNotify() {
-    try {
-      _associationStore.save(_associations);
-    } catch (error) {
-      _issues.add(
-        PluginDiscoveryIssue(_associationStore.filePath, '关联配置保存失败：$error'),
-      );
+    if (_associationStoreWritable) {
+      try {
+        _associationStore.save(_associations);
+      } catch (error) {
+        _issues.add(
+          PluginDiscoveryIssue(_associationStore.filePath, '关联配置保存失败：$error'),
+        );
+      }
     }
     notifyListeners();
   }

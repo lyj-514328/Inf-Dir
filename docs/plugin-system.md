@@ -7,9 +7,10 @@
 - 插件使用独立进程运行，不把第三方 DLL 加载到 Flutter 主进程。
 - `quickView` 与 `search` 是独立能力；搜索插件不参与 Viewer 关联解析。
 - Manifest 只声明插件能力，不声明插件优先级。
-- 用户关联配置中的插件 ID 数组顺序就是候选顺序。
+- 用户关联配置只保存候选顺序和排除项；未配置的 Manifest 候选仍可增量加入。
 - `extensions`、`fileNames`、`mimeTypes` 是三种独立的匹配方式，彼此为 OR。
-- 用户只能把插件关联到其 Manifest 已声明支持的类型。
+- 文件名、后缀和 MIME 关联只能选择 Manifest 已声明支持的插件。
+- 路径规则只由用户创建，插件不能在 Manifest 中声明路径规则。
 - 主程序通过参数数组传递文件路径，不拼接或重新解析命令行字符串。
 
 ## 2. 发布目录
@@ -76,7 +77,7 @@ Viewer 插件的 `quickView` 至少要包含一个非空匹配组。绝大多数
 
 ### 3.2 规范化
 
-- `extensions`：小写、以点开头，例如 `.pdf`。
+- `extensions`：小写、以点开头，例如 `.pdf`；允许 `.tar.gz` 等复合后缀。
 - `fileNames`：Windows 下不区分大小写，必须是文件名而不是路径。
 - `mimeTypes`：小写、不带参数，允许 `type/*` 通配符。
 - 同一数组内的重复项在加载时去重。
@@ -272,24 +273,51 @@ Windows 下配置文件存储在：
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "rules": [
+    {
+      "id": "path-work-pdf",
+      "enabled": true,
+      "type": "path",
+      "mode": "glob",
+      "pattern": "C:\\Work\\**\\*.pdf",
+      "viewerIds": [
+        "inf-dir.pdf-view"
+      ]
+    }
+  ],
   "associations": {
     "extensions": {
-      ".pdf": ["inf-dir.pdf-view", "third-party.pdf-view"]
+      ".pdf": {
+        "enabled": true,
+        "viewerOrder": ["inf-dir.pdf-view"],
+        "excludedViewerIds": ["third-party.browser-view"]
+      }
     },
     "fileNames": {
-      "dockerfile": ["inf-dir.text-view"]
+      "dockerfile": {
+        "enabled": true,
+        "viewerOrder": ["inf-dir.text-view"],
+        "excludedViewerIds": []
+      }
     },
-    "mimeTypes": {
-      "application/pdf": ["inf-dir.pdf-view"]
-    }
+    "mimeTypes": {}
   }
 }
 ```
 
-配置保存插件 ID，不保存 EXE 路径。空数组表示用户显式禁用了该关联的自动候选。
+配置保存插件 ID，不保存 EXE 路径。关联覆盖采用增量语义：
 
-配置加载与保存时必须验证：
+- `enabled` 控制整条关联是否参与解析；
+- `viewerOrder` 中的 Viewer 优先于 Manifest 自动候选，数组顺序就是候选顺序；
+- `excludedViewerIds` 是用户明确排除的 Viewer；
+- 新安装且没有被明确排除的 Viewer 会自动加入 Manifest 候选；
+- 插件暂时缺失时保留其 ID，重新安装后可以恢复。
+
+版本 1 的完整候选数组会在首次加载时迁移：当前已安装但不在旧数组中的 Viewer
+会转换为明确排除项，配置随后只按版本 2 写回。
+
+普通文件名、后缀和 MIME 关联加载与保存时必须验证：
 
 - 插件已安装且 Manifest 有效；
 - 插件具备 `quickView` 能力；
@@ -298,19 +326,31 @@ Windows 下配置文件存储在：
 
 失效配置可以保留在磁盘中供插件重新安装后恢复，但 Resolver 必须跳过。
 
-版本 1 通过 Win32 `AssocQueryStringW(ASSOCSTR_CONTENTTYPE)` 获取扩展名在 Windows
+当前版本通过 Win32 `AssocQueryStringW(ASSOCSTR_CONTENTTYPE)` 获取扩展名在 Windows
 文件关联中注册的 MIME。它不读取文件内容；没有注册 MIME 时只使用文件名和扩展名。
+
+### 4.1 路径规则
+
+路径规则按 `rules` 数组顺序执行，每条规则只有启用和禁用两种状态。`viewerIds`
+是该规则命中时贡献的有序候选，可关联任意已安装且可用的 Quick View 插件。
+
+- 路径必须是 Windows 绝对路径；
+- 匹配不区分大小写，`/` 会规范化为 `\`；
+- `exact` 为精确路径，不允许 `*` 或 `?`；
+- `glob` 中 `*` 匹配单个路径段内的字符，`**` 可跨目录，`?` 匹配一个非分隔符字符。
 
 ## 5. 候选解析
 
 给定一个文件，按以下具体程度查找关联：
 
-1. 精确文件名；
-2. 扩展名；
-3. 精确 MIME；
-4. MIME 通配符。
+1. 已启用的路径规则，按配置顺序；
+2. 精确文件名；
+3. 后缀，复合后缀优先，例如 `.tar.gz` 先于 `.gz`；
+4. 精确 MIME；
+5. MIME 通配符。
 
-各组候选按配置数组顺序合并并按插件 ID 去重。例如：
+所有命中规则都会贡献候选。各组按上述顺序合并并按插件 ID 去重，第一次出现的位置
+决定最终优先级。例如：
 
 ```text
 fileNames["readme.md"] = [A, B]
@@ -318,7 +358,10 @@ extensions[".md"]      = [B, C]
 最终候选                 = [A, B, C]
 ```
 
-没有用户配置时，从 Manifest 自动生成候选。单候选直接使用；多候选使用稳定的名称、ID 顺序，用户可在配置界面调整。
+没有用户配置时，从 Manifest 自动生成候选。单候选直接使用；多候选使用稳定的名称、ID
+顺序，用户可在配置界面调整。前一个 Viewer 启动失败时继续尝试后续候选。
+
+Resolver 同时保留每个候选首次命中的规则类型、匹配值和路径规则 ID，供后续诊断界面展示。
 
 例如，代码文件可以同时由 `inf-dir.code-view`（CodeMirror 只读代码查看器）和
 `inf-dir.text-view`（轻量文本查看器）声明支持。两者会作为独立候选出现，不会互相覆盖；
@@ -328,13 +371,23 @@ F3 使用当前焦点面板中最近操作的项目。文件夹、无候选、�
 
 ## 6. 配置界面
 
-插件关联界面包含三个标签页：扩展名、文件名、MIME。每页包括：
+插件关联界面包含四个标签页：路径、扩展名、文件名、MIME。
+
+路径页支持：
+
+- 新建和编辑精确路径或 Glob 规则；
+- 启用、禁用和删除规则；
+- 调整路径规则之间的优先级；
+- 添加、移除和排序该规则的候选 Viewer。
+
+扩展名、文件名和 MIME 页包括：
 
 - 关联项列表；
 - 当前候选插件列表；
-- 添加、删除关联；
+- 添加、禁用关联；
 - 添加、移除候选；
 - 上移、下移候选；
 - 恢复 Manifest 自动候选。
 
-候选选择器只展示 Manifest 与当前关联项匹配的已安装插件。
+普通关联的候选选择器只展示 Manifest 与当前关联项匹配的已安装插件；路径规则候选
+展示全部已安装且可用的 Quick View 插件。

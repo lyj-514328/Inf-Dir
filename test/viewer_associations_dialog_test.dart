@@ -7,6 +7,7 @@ import 'package:inf_dir/features/quick_view/plugin_manifest.dart';
 import 'package:inf_dir/features/quick_view/quick_view_service.dart';
 import 'package:inf_dir/features/quick_view/viewer_association_config.dart';
 import 'package:inf_dir/features/quick_view/viewer_associations_dialog.dart';
+import 'package:inf_dir/features/quick_view/viewer_rule.dart';
 import 'package:inf_dir/widgets/app_theme.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
@@ -36,7 +37,7 @@ void main() {
     temp.deleteSync(recursive: true);
   });
 
-  testWidgets('shows three association groups and matching candidates', (
+  testWidgets('shows path and three manifest association groups', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1000, 700);
@@ -46,9 +47,12 @@ void main() {
 
     await _openDialog(tester, service);
 
+    expect(find.text('路径'), findsOneWidget);
     expect(find.text('扩展名'), findsOneWidget);
     expect(find.text('文件名'), findsOneWidget);
     expect(find.text('MIME'), findsOneWidget);
+    await tester.tap(find.text('扩展名'));
+    await tester.pumpAndSettle();
     expect(find.text('.txt'), findsOneWidget);
     expect(find.text('A Viewer'), findsOneWidget);
     expect(find.text('B Viewer'), findsOneWidget);
@@ -65,6 +69,8 @@ void main() {
 
     await _openDialog(tester, service);
 
+    await tester.tap(find.text('扩展名'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('下移').first);
     await tester.pump();
     expect(
@@ -83,6 +89,45 @@ void main() {
       ['viewer.a'],
     );
     expect(File(p.join(temp.path, 'associations.json')).existsSync(), isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('path rules can be enabled and disabled', (tester) async {
+    tester.view.physicalSize = const Size(1000, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final rule = service.addPathRule(
+      pattern: r'C:\Work\**\*.txt',
+      mode: ViewerPathMatchMode.glob,
+      viewerIds: ['viewer.a'],
+    );
+
+    await _openDialog(tester, service);
+
+    expect(find.text(rule.pattern), findsOneWidget);
+    await tester.tap(find.byKey(ValueKey('path-rule-enabled-${rule.id}')));
+    await tester.pump();
+    expect(service.pathRules.single.enabled, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('adds a path rule with an initial viewer', (tester) async {
+    tester.view.physicalSize = const Size(1000, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _openDialog(tester, service);
+    await tester.tap(find.byTooltip('添加路径规则'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), r'C:\Work\**\*.txt');
+    await tester.tap(find.widgetWithText(FilledButton, '添加'));
+    await tester.pumpAndSettle();
+
+    expect(service.pathRules, hasLength(1));
+    expect(service.pathRules.single.pattern, r'C:\Work\**\*.txt');
+    expect(service.pathRules.single.viewerIds, ['viewer.a']);
     expect(tester.takeException(), isNull);
   });
 }
