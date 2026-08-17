@@ -29,12 +29,11 @@ void main() {
       onUndo: () {},
       onRedo: () {},
       onExit: () {},
-      onViewerAssociations: () {},
+      onOpenSettings: () {},
       onAddFavorite: () {},
       onRemoveFavorite: () {},
       onManageFavorites: () {},
       onAbout: () {},
-      onClearThumbnailCache: () {},
       onCopy: () {},
       onCut: () {},
       onPaste: () {},
@@ -75,12 +74,8 @@ void main() {
     expect(groups[1].items[4].enabled, isFalse);
     expect(groups[2].items[0].enabled, isTrue);
     expect(groups[4].items[0].enabled, isTrue);
-    expect(groups[5].items.map((item) => item.label), [
-      '显示缩略图',
-      '清除缩略图缓存',
-      '查看器管理',
-    ]);
-    expect(groups[5].items[0].checked, isTrue);
+    expect(groups[5].items.map((item) => item.label), ['设置…']);
+    expect(groups[5].items[0].shortcut, 'Ctrl+,');
 
     // 关闭一个标签后，「恢复最近关闭的标签页」变为可用。
     final pane = layoutState.controllerFor(layoutState.focusedNode)!;
@@ -98,12 +93,11 @@ void main() {
       onUndo: () {},
       onRedo: () {},
       onExit: () {},
-      onViewerAssociations: () {},
+      onOpenSettings: () {},
       onAddFavorite: () {},
       onRemoveFavorite: () {},
       onManageFavorites: () {},
       onAbout: () {},
-      onClearThumbnailCache: () {},
       onCopy: () {},
       onCut: () {},
       onPaste: () {},

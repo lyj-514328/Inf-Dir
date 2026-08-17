@@ -102,6 +102,7 @@ class PaneController extends ChangeNotifier {
   final DirectoryRepository _repository;
   final Future<void> Function() _frameYield;
   final void Function(TabRecord)? _onTabClosed;
+  final String Function(String currentPath)? _newTabPathResolver;
   SortColumn _sortColumn = SortColumn.name;
   bool _sortAscending = true;
   FileGroupBy _groupBy = FileGroupBy.none;
@@ -120,13 +121,18 @@ class PaneController extends ChangeNotifier {
     DirectoryRepository? repository,
     Future<void> Function()? frameYield,
     void Function(TabRecord)? onTabClosed,
+    PaneViewMode defaultViewMode = PaneViewMode.details,
+    String Function(String currentPath)? newTabPathResolver,
   }) : _currentPath = initialPath,
        _repository = repository ?? DirectoryRepository(),
        _frameYield = frameYield ?? _defaultFrameYield,
-       _onTabClosed = onTabClosed {
+       _onTabClosed = onTabClosed,
+       _newTabPathResolver = newTabPathResolver {
     _tabs.add(TabInfo(path: initialPath, label: _pathLabel(initialPath)));
     if (FileService.isHomePath(initialPath)) {
       _viewMode = PaneViewMode.content;
+    } else {
+      _viewMode = defaultViewMode;
     }
     _startListing(initialPath);
   }
@@ -136,10 +142,12 @@ class PaneController extends ChangeNotifier {
     DirectoryRepository? repository,
     Future<void> Function()? frameYield,
     void Function(TabRecord)? onTabClosed,
+    String Function(String currentPath)? newTabPathResolver,
   }) : _currentPath = snapshot.currentPath,
        _repository = repository ?? DirectoryRepository(),
        _frameYield = frameYield ?? _defaultFrameYield,
-       _onTabClosed = onTabClosed {
+       _onTabClosed = onTabClosed,
+       _newTabPathResolver = newTabPathResolver {
     _tabs.addAll(
       snapshot.tabs.map(
         (tab) => TabInfo(
@@ -756,7 +764,8 @@ class PaneController extends ChangeNotifier {
 
   void addTab([String? path]) {
     _flushActiveTab();
-    final tabPath = path ?? _currentPath;
+    final tabPath =
+        path ?? _newTabPathResolver?.call(_currentPath) ?? _currentPath;
     _tabs.add(TabInfo(path: tabPath, label: _pathLabel(tabPath)));
     _activeTabIndex = _tabs.length - 1;
     _backStack.clear();
@@ -912,9 +921,7 @@ class PaneController extends ChangeNotifier {
   }
 
   void _closeIndexes(List<int> indexes) {
-    final targets = indexes
-        .where((i) => i >= 0 && i < _tabs.length)
-        .toSet();
+    final targets = indexes.where((i) => i >= 0 && i < _tabs.length).toSet();
     if (targets.isEmpty || targets.length >= _tabs.length) return;
     _flushActiveTab();
     final closingActive = targets.contains(_activeTabIndex);

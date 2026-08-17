@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:toastification/toastification.dart';
 import 'package:window_manager/window_manager.dart';
 import '../features/quick_view/quick_view_service.dart';
-import '../features/quick_view/viewer_associations_dialog.dart';
+import '../features/settings/settings_view.dart';
 import '../services/directory_repository.dart';
 import '../services/file_operation_center.dart';
 import '../services/file_service.dart';
@@ -15,7 +15,7 @@ import '../services/home_service.dart';
 import '../state/app_state.dart';
 import '../state/layout_state.dart';
 import '../state/sidebar_controller.dart';
-import '../state/theme_controller.dart';
+import '../state/settings_controller.dart';
 import '../services/undo_redo_service.dart';
 import 'app_theme.dart';
 import 'app_menu.dart';
@@ -92,6 +92,14 @@ bool matchesPreviousTabShortcut(KeyEvent event, HardwareKeyboard keyboard) {
       keyboard.isShiftPressed;
 }
 
+bool matchesSettingsShortcut(KeyEvent event, HardwareKeyboard keyboard) {
+  return event is KeyDownEvent &&
+      event.logicalKey == LogicalKeyboardKey.comma &&
+      keyboard.isControlPressed &&
+      !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed;
+}
+
 class _AppShellState extends State<AppShell>
     with WidgetsBindingObserver, WindowListener {
   bool _sidebarHovering = false;
@@ -107,6 +115,7 @@ class _AppShellState extends State<AppShell>
 
   /// 文件任务中心面板是否展开；任务列表清空后自动收起。
   bool _taskCenterOpen = false;
+  bool _settingsOpen = false;
 
   @override
   void initState() {
@@ -114,9 +123,12 @@ class _AppShellState extends State<AppShell>
     WidgetsBinding.instance.addObserver(this);
     ServicesBinding.instance.keyboard.addHandler(_onKey);
     windowManager.addListener(this);
-    context.read<AppState>().fileOperations.addListener(_onFileOperationsChanged);
+    context.read<AppState>().fileOperations.addListener(
+      _onFileOperationsChanged,
+    );
     // 目录缓存被操作就地补丁/失效后，桥接到侧栏控制器重读（增量刷新）。
-    context.read<DirectoryRepository>().onCacheChanged = _onRepositoryCacheChanged;
+    context.read<DirectoryRepository>().onCacheChanged =
+        _onRepositoryCacheChanged;
     // 焦点 pane 路径 → 侧栏同步（§12）：监听稳定 notifier，
     // 不再靠 didUpdateWidget 比较字符串驱动业务。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -147,6 +159,26 @@ class _AppShellState extends State<AppShell>
       layout.activePanePath.value,
       scrollToSelected: !suppress,
     );
+  }
+
+  void _openSettings() {
+    if (_settingsOpen) return;
+    context.read<LayoutState>().hideAltOverlay();
+    setState(() {
+      _settingsOpen = true;
+      _taskCenterOpen = false;
+    });
+  }
+
+  void _closeSettings() {
+    if (!_settingsOpen) return;
+    setState(() => _settingsOpen = false);
+  }
+
+  void _setShowHiddenFiles(bool value) {
+    context.read<AppState>().setShowHiddenFiles(value);
+    context.read<LayoutState>().refreshAllPanes();
+    _syncSidebar();
   }
 
   @override
@@ -182,12 +214,12 @@ class _AppShellState extends State<AppShell>
     final closeFuture = () async {
       final quickView = context.read<QuickViewService>();
       // 有进行中/排队中的文件操作时先确认，禁止静默中断（4.4）。
-      final activeCount =
-          context.read<AppState>().fileOperations.activeTasks.length;
-      final confirmed = await confirmCloseWithActiveTasks(
-        context,
-        activeCount,
-      );
+      final activeCount = context
+          .read<AppState>()
+          .fileOperations
+          .activeTasks
+          .length;
+      final confirmed = await confirmCloseWithActiveTasks(context, activeCount);
       if (!confirmed) {
         // 用户取消：窗口保持打开，允许稍后重试关闭。
         _closeFuture = null;
@@ -222,6 +254,20 @@ class _AppShellState extends State<AppShell>
   }
 
   bool _onKey(KeyEvent event) {
+    final keyboard = HardwareKeyboard.instance;
+    if (matchesSettingsShortcut(event, keyboard)) {
+      _settingsOpen ? _closeSettings() : _openSettings();
+      return true;
+    }
+    if (_settingsOpen) {
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.escape) {
+        _closeSettings();
+        return true;
+      }
+      return false;
+    }
+
     final layoutState = context.read<LayoutState>();
     final isAltDown =
         event is KeyDownEvent &&
@@ -236,7 +282,6 @@ class _AppShellState extends State<AppShell>
       if (isAltDown) layoutState.showAltOverlay();
       if (isAltUp) layoutState.hideAltOverlay();
     }
-    final keyboard = HardwareKeyboard.instance;
     // F3 — Quick View
     if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.f3 &&
@@ -267,11 +312,8 @@ class _AppShellState extends State<AppShell>
       if (matchesUndoShortcut(event, keyboard)) {
         unawaited(
           undoRedo.undo(
-            confirm: (title, message) => showConfirmDialog(
-              context,
-              title: title,
-              message: message,
-            ),
+            confirm: (title, message) =>
+                showConfirmDialog(context, title: title, message: message),
           ),
         );
       } else {
@@ -333,6 +375,7 @@ class _AppShellState extends State<AppShell>
         children: [
           _TopBar(
             layoutState: layoutState,
+            settingsOpen: _settingsOpen,
             showHiddenFiles: appState.showHiddenFiles,
             showFileExtensions: appState.showFileExtensions,
             taskCenter: appState.fileOperations,
@@ -351,109 +394,126 @@ class _AppShellState extends State<AppShell>
               final app = context.read<AppState>();
               app.setShowFileExtensions(!app.showFileExtensions);
             },
-            onViewerAssociations: () => showViewerAssociationsDialog(context),
+            onOpenSettings: _openSettings,
+            onCloseSettings: _closeSettings,
             onDetachViewer: () => unawaited(_detachQuickView()),
             onExit: () => unawaited(_closeApplication()),
           ),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(AppMetrics.pagePadding),
-              child: Row(
-                children: [
-                  Container(
-                    margin: const EdgeInsets.all(1),
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(
-                        AppMetrics.paneRadius,
+            child: IndexedStack(
+              index: _settingsOpen ? 1 : 0,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(AppMetrics.pagePadding),
+                  child: Row(
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.all(1),
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            AppMetrics.paneRadius,
+                          ),
+                          color: c.surface,
+                        ),
+                        foregroundDecoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            AppMetrics.paneRadius,
+                          ),
+                          border: Border.all(color: c.border),
+                        ),
+                        child: SizedBox(
+                          key: ValueKey(layoutState.activeWorkspaceIndex),
+                          width: layoutState.sidebarWidth,
+                          child: SidebarTree(
+                            onNavigate: (path) {
+                              _suppressSidebarScroll = true;
+                              activePane?.navigateTo(path);
+                              _suppressSidebarScroll = false;
+                            },
+                          ),
+                        ),
                       ),
-                      color: c.surface,
-                    ),
-                    foregroundDecoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(
-                        AppMetrics.paneRadius,
-                      ),
-                      border: Border.all(color: c.border),
-                    ),
-                    child: SizedBox(
-                      key: ValueKey(layoutState.activeWorkspaceIndex),
-                      width: layoutState.sidebarWidth,
-                      child: SidebarTree(
-                        onNavigate: (path) {
-                          _suppressSidebarScroll = true;
-                          activePane?.navigateTo(path);
-                          _suppressSidebarScroll = false;
+                      _SideSplitter(
+                        hovering: _sidebarHovering,
+                        dragging: _sidebarDragging,
+                        onHoverChanged: (v) =>
+                            setState(() => _sidebarHovering = v),
+                        onDragStart: () =>
+                            setState(() => _sidebarDragging = true),
+                        onDragUpdate: (delta) => layoutState.setSidebarWidth(
+                          layoutState.sidebarWidth + delta,
+                        ),
+                        onDragEnd: () {
+                          setState(() => _sidebarDragging = false);
                         },
                       ),
-                    ),
-                  ),
-                  _SideSplitter(
-                    hovering: _sidebarHovering,
-                    dragging: _sidebarDragging,
-                    onHoverChanged: (v) => setState(() => _sidebarHovering = v),
-                    onDragStart: () => setState(() => _sidebarDragging = true),
-                    onDragUpdate: (delta) => layoutState.setSidebarWidth(
-                      layoutState.sidebarWidth + delta,
-                    ),
-                    onDragEnd: () {
-                      setState(() => _sidebarDragging = false);
-                    },
-                  ),
-                  const SizedBox(width: AppMetrics.paneGap),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        LayoutView(node: layoutState.activeWorkspace),
-                        if (layoutState.maximizedPaneId != null &&
-                            layoutState.allPaneNodes.any(
-                              (n) => n.paneId == layoutState.maximizedPaneId,
-                            ))
-                          Positioned.fill(
-                            child: Container(
-                              margin: EdgeInsets.all(AppMetrics.paneGap / 2),
-                              clipBehavior: Clip.antiAlias,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(
-                                  AppMetrics.paneRadius,
-                                ),
-                                color: c.surface,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: c.scrim,
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 2),
+                      const SizedBox(width: AppMetrics.paneGap),
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            LayoutView(node: layoutState.activeWorkspace),
+                            if (layoutState.maximizedPaneId != null &&
+                                layoutState.allPaneNodes.any(
+                                  (n) =>
+                                      n.paneId == layoutState.maximizedPaneId,
+                                ))
+                              Positioned.fill(
+                                child: Container(
+                                  margin: EdgeInsets.all(
+                                    AppMetrics.paneGap / 2,
                                   ),
-                                ],
-                              ),
-                              foregroundDecoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(
-                                  AppMetrics.paneRadius,
+                                  clipBehavior: Clip.antiAlias,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(
+                                      AppMetrics.paneRadius,
+                                    ),
+                                    color: c.surface,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: c.scrim,
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  foregroundDecoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(
+                                      AppMetrics.paneRadius,
+                                    ),
+                                    border: Border.all(
+                                      color: c.accent.withValues(alpha: 0.6),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: FilePane(
+                                    paneId: layoutState.maximizedPaneId!,
+                                  ),
                                 ),
-                                border: Border.all(
-                                  color: c.accent.withValues(alpha: 0.6),
-                                  width: 1,
+                              ),
+                            if (_taskCenterOpen)
+                              Positioned(
+                                right: AppMetrics.paneGap,
+                                bottom: AppMetrics.paneGap,
+                                child: FileTaskCenterPanel(
+                                  center: appState.fileOperations,
+                                  onClose: () =>
+                                      setState(() => _taskCenterOpen = false),
                                 ),
                               ),
-                              child: FilePane(
-                                paneId: layoutState.maximizedPaneId!,
-                              ),
-                            ),
-                          ),
-                        if (_taskCenterOpen)
-                          Positioned(
-                            right: AppMetrics.paneGap,
-                            bottom: AppMetrics.paneGap,
-                            child: FileTaskCenterPanel(
-                              center: appState.fileOperations,
-                              onClose: () =>
-                                  setState(() => _taskCenterOpen = false),
-                            ),
-                          ),
-                      ],
-                    ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                SettingsView(
+                  onShowHiddenFilesChanged: _setShowHiddenFiles,
+                  onShowFileExtensionsChanged: appState.setShowFileExtensions,
+                  onShowThumbnailsChanged: appState.setShowThumbnails,
+                  onClearThumbnailCache: appState.clearThumbnailCache,
+                ),
+              ],
             ),
           ),
         ],
@@ -466,6 +526,7 @@ class _AppShellState extends State<AppShell>
 /// 兼作无边框窗口的拖拽/双击最大化区域。
 class _TopBar extends StatelessWidget {
   final LayoutState layoutState;
+  final bool settingsOpen;
   final bool showHiddenFiles;
   final bool showFileExtensions;
   final FileOperationCenter taskCenter;
@@ -474,12 +535,14 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onToggleTaskCenter;
   final VoidCallback onToggleHiddenFiles;
   final VoidCallback onToggleFileExtensions;
-  final VoidCallback onViewerAssociations;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onCloseSettings;
   final VoidCallback onDetachViewer;
   final VoidCallback onExit;
 
   const _TopBar({
     required this.layoutState,
+    required this.settingsOpen,
     required this.showHiddenFiles,
     required this.showFileExtensions,
     required this.taskCenter,
@@ -488,7 +551,8 @@ class _TopBar extends StatelessWidget {
     required this.onToggleTaskCenter,
     required this.onToggleHiddenFiles,
     required this.onToggleFileExtensions,
-    required this.onViewerAssociations,
+    required this.onOpenSettings,
+    required this.onCloseSettings,
     required this.onDetachViewer,
     required this.onExit,
   });
@@ -496,7 +560,7 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final theme = context.watch<ThemeController>();
+    final settings = context.watch<SettingsController>();
 
     // DragToMoveArea 放在背景层：空白处可拖拽/双击最大化，
     // 前景交互控件（菜单、tab、按钮）不被原生拖动拦截。
@@ -522,59 +586,80 @@ class _TopBar extends StatelessWidget {
                 children: [
                   _AppMenus(
                     layoutState: layoutState,
-                    onViewerAssociations: onViewerAssociations,
+                    workspaceActive: !settingsOpen,
+                    onOpenSettings: onOpenSettings,
                     onExit: onExit,
                   ),
                   const SizedBox(width: 8),
-                  for (int i = 0; i < layoutState.workspaces.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 2),
-                    _WorkspaceTab(
-                      label: layoutState.workspaces[i].label ?? 'WS$i',
-                      isActive: i == layoutState.activeWorkspaceIndex,
-                      onTap: () => layoutState.switchWorkspace(i),
-                      onClose: layoutState.workspaces.length > 1
-                          ? () => layoutState.removeWorkspace(i)
-                          : null,
+                  if (settingsOpen) ...[
+                    _GhostIconButton(
+                      key: const ValueKey('close-settings-button'),
+                      icon: Icons.arrow_back,
+                      tooltip: '返回文件',
+                      onTap: onCloseSettings,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '设置',
+                      style: TextStyle(
+                        color: c.textPrimary,
+                        fontSize: AppMetrics.fontTitle,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ] else ...[
+                    for (int i = 0; i < layoutState.workspaces.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 2),
+                      _WorkspaceTab(
+                        label: layoutState.workspaces[i].label ?? 'WS$i',
+                        isActive: i == layoutState.activeWorkspaceIndex,
+                        onTap: () => layoutState.switchWorkspace(i),
+                        onClose: layoutState.workspaces.length > 1
+                            ? () => layoutState.removeWorkspace(i)
+                            : null,
+                      ),
+                    ],
+                    const SizedBox(width: 4),
+                    _GhostIconButton(
+                      icon: Icons.add,
+                      tooltip: '新建工作区',
+                      onTap: layoutState.addWorkspace,
                     ),
                   ],
-                  const SizedBox(width: 4),
-                  _GhostIconButton(
-                    icon: Icons.add,
-                    tooltip: '新建工作区',
-                    onTap: layoutState.addWorkspace,
-                  ),
                   const Spacer(),
-                  _GhostIconButton(
-                    icon: showHiddenFiles
-                        ? Icons.visibility
-                        : Icons.visibility_off,
-                    tooltip: showHiddenFiles ? '隐藏文件：显示中' : '隐藏文件：已隐藏',
-                    active: showHiddenFiles,
-                    onTap: onToggleHiddenFiles,
-                  ),
-                  _GhostIconButton(
-                    icon: Icons.text_fields,
-                    tooltip: showFileExtensions ? '文件后缀名：显示中' : '文件后缀名：已隐藏',
-                    active: showFileExtensions,
-                    onTap: onToggleFileExtensions,
-                  ),
-                  _GhostIconButton(
-                    icon: theme.icon,
-                    tooltip: '主题：${theme.label}',
-                    onTap: theme.cycle,
-                  ),
-                  if (hasAttachedViewer)
+                  if (!settingsOpen) ...[
                     _GhostIconButton(
-                      key: const ValueKey('detach-viewer-button'),
-                      icon: Icons.open_in_new,
-                      tooltip: '分离快速查看窗口',
-                      onTap: onDetachViewer,
+                      icon: showHiddenFiles
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      tooltip: showHiddenFiles ? '隐藏文件：显示中' : '隐藏文件：已隐藏',
+                      active: showHiddenFiles,
+                      onTap: onToggleHiddenFiles,
                     ),
-                  FileTaskCenterButton(
-                    center: taskCenter,
-                    open: taskCenterOpen,
-                    onTap: onToggleTaskCenter,
-                  ),
+                    _GhostIconButton(
+                      icon: Icons.text_fields,
+                      tooltip: showFileExtensions ? '文件后缀名：显示中' : '文件后缀名：已隐藏',
+                      active: showFileExtensions,
+                      onTap: onToggleFileExtensions,
+                    ),
+                    _GhostIconButton(
+                      icon: settings.themeIcon,
+                      tooltip: '主题：${settings.themeLabel}',
+                      onTap: settings.cycleTheme,
+                    ),
+                    if (hasAttachedViewer)
+                      _GhostIconButton(
+                        key: const ValueKey('detach-viewer-button'),
+                        icon: Icons.open_in_new,
+                        tooltip: '分离快速查看窗口',
+                        onTap: onDetachViewer,
+                      ),
+                    FileTaskCenterButton(
+                      center: taskCenter,
+                      open: taskCenterOpen,
+                      onTap: onToggleTaskCenter,
+                    ),
+                  ],
                   const SizedBox(width: 8),
                   const WindowControls(),
                 ],
@@ -682,12 +767,14 @@ class _WorkspaceTab extends StatelessWidget {
 class _AppMenus extends StatefulWidget {
   const _AppMenus({
     required this.layoutState,
-    required this.onViewerAssociations,
+    required this.workspaceActive,
+    required this.onOpenSettings,
     required this.onExit,
   });
 
   final LayoutState layoutState;
-  final VoidCallback onViewerAssociations;
+  final bool workspaceActive;
+  final VoidCallback onOpenSettings;
   final VoidCallback onExit;
 
   @override
@@ -696,13 +783,14 @@ class _AppMenus extends StatefulWidget {
 
 class _AppMenusState extends State<_AppMenus> {
   LayoutState get layoutState => widget.layoutState;
-  VoidCallback get onViewerAssociations => widget.onViewerAssociations;
+  VoidCallback get onOpenSettings => widget.onOpenSettings;
   VoidCallback get onExit => widget.onExit;
 
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    final activePane = layoutState.allPaneNodes.isEmpty
+    final activePane =
+        !widget.workspaceActive || layoutState.allPaneNodes.isEmpty
         ? null
         : layoutState.controllerFor(layoutState.focusedNode);
     final currentPath = activePane?.currentPath;
@@ -731,7 +819,7 @@ class _AppMenusState extends State<_AppMenus> {
       ),
       onRedo: () => unawaited(undoRedo.redo()),
       onExit: onExit,
-      onViewerAssociations: onViewerAssociations,
+      onOpenSettings: onOpenSettings,
       onAddFavorite: () {
         if (currentPath == null) return;
         HomeService.addFavorite(currentPath);
@@ -745,10 +833,7 @@ class _AppMenusState extends State<_AppMenus> {
         if (mounted) setState(() {});
       },
       onManageFavorites: () => showFavoritesDialog(context),
-      onClearThumbnailCache: () {
-        appState.clearThumbnailCache();
-        if (mounted) setState(() {});
-      },
+      workspaceActive: widget.workspaceActive,
       onAbout: () => showAboutDialog(
         context: context,
         applicationName: 'Inf-Dir',

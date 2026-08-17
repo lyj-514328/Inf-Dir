@@ -11,7 +11,7 @@ import 'services/window_layout_store.dart';
 import 'state/app_state.dart';
 import 'state/layout_state.dart';
 import 'state/sidebar_controller.dart';
-import 'state/theme_controller.dart';
+import 'state/settings_controller.dart';
 import 'widgets/app_shell.dart';
 import 'widgets/app_theme.dart';
 
@@ -48,14 +48,19 @@ void main() async {
             },
           ),
         ),
+        ChangeNotifierProvider(create: (_) => SettingsController()),
         ChangeNotifierProvider(
-          create: (ctx) =>
-              AppState(repository: ctx.read<DirectoryRepository>()),
+          create: (ctx) => AppState(
+            repository: ctx.read<DirectoryRepository>(),
+            settings: ctx.read<SettingsController>(),
+            applyInitialNativeSettings: true,
+          ),
         ),
         ChangeNotifierProvider(
           create: (ctx) => LayoutState(
             repository: ctx.read<DirectoryRepository>(),
             layoutStore: WindowLayoutStore(),
+            settings: ctx.read<SettingsController>(),
           ),
         ),
         Provider<UndoRedoService>(
@@ -70,7 +75,6 @@ void main() async {
             repository: ctx.read<DirectoryRepository>(),
           ),
         ),
-        ChangeNotifierProvider(create: (_) => ThemeController()),
         ChangeNotifierProvider(create: (_) => QuickViewService()),
       ],
       child: const ToastificationWrapper(child: InfDirApp()),
@@ -83,14 +87,14 @@ class InfDirApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<ThemeController>();
+    final settings = context.watch<SettingsController>();
     return MaterialApp(
       title: 'Inf-Dir',
       debugShowCheckedModeBanner: false,
       scrollBehavior: const AppScrollBehavior(),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: theme.mode,
+      themeMode: settings.themeMode,
       home: const AppShell(),
     );
   }

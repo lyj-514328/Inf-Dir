@@ -20,12 +20,11 @@ List<AppMenuGroup> buildAppMenuGroups({
   required PaneController? activePane,
   required bool isFavorite,
   required VoidCallback onExit,
-  required VoidCallback onViewerAssociations,
+  required VoidCallback onOpenSettings,
   required VoidCallback onAddFavorite,
   required VoidCallback onRemoveFavorite,
   required VoidCallback onManageFavorites,
   required VoidCallback onAbout,
-  required VoidCallback onClearThumbnailCache,
   required bool canUndo,
   required bool canRedo,
   required bool canRestoreClosedTab,
@@ -35,9 +34,10 @@ List<AppMenuGroup> buildAppMenuGroups({
   VoidCallback? onCopy,
   VoidCallback? onCut,
   VoidCallback? onPaste,
+  bool workspaceActive = true,
 }) {
   final pane = activePane;
-  final hasPane = pane != null;
+  final hasPane = workspaceActive && pane != null;
   final canModify =
       hasPane &&
       pane.selectedPaths.isNotEmpty &&
@@ -49,7 +49,7 @@ List<AppMenuGroup> buildAppMenuGroups({
       !FileService.isSpecialPath(pane.currentPath);
   final canSelect = hasPane && pane.visibleEntries.isNotEmpty;
   final canFavorite = hasPane && !FileService.isSpecialPath(pane.currentPath);
-  final canClosePane = layoutState.allPaneNodes.length > 1;
+  final canClosePane = workspaceActive && layoutState.allPaneNodes.length > 1;
   final canCloseTab = hasPane && pane.tabs.length > 1;
 
   return [
@@ -173,12 +173,10 @@ List<AppMenuGroup> buildAppMenuGroups({
     ]),
     AppMenuGroup('选项(O)', [
       CommandMenuItem(
-        label: '显示缩略图',
-        checked: appState.showThumbnails,
-        onAction: () => appState.setShowThumbnails(!appState.showThumbnails),
+        label: '设置…',
+        shortcut: 'Ctrl+,',
+        onAction: onOpenSettings,
       ),
-      CommandMenuItem(label: '清除缩略图缓存', onAction: onClearThumbnailCache),
-      CommandMenuItem(label: '查看器管理', onAction: onViewerAssociations),
     ]),
   ];
 }

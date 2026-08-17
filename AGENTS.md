@@ -22,7 +22,7 @@
 - 右键菜单、拖放、剪贴板操作
 - 快速查看（Quick View）：manifest 驱动的 viewer 插件关联（text/pdf/img/video/archive/office）
 - 侧边栏驱动器树与云盘状态列（CfAPI：SyncRootManager 检测 + StorageProviderState 状态）
-- 显示隐藏/系统文件开关（会话级）
+- 设置中心：主题、显示、默认视图、新标签位置、删除确认与 Viewer 关联统一持久化
 
 ## 参考代码
 
@@ -38,7 +38,7 @@ Inf-Dir/
 │   ├── features/        # 功能模块（quick_view 插件集成）
 │   ├── models/          # 数据模型（file_entry、layout_node 等）
 │   ├── services/        # 文件/图标/Shell/侧边栏/云盘服务
-│   ├── state/           # 状态管理（app_state、pane_controller、theme_controller 等）
+│   ├── state/           # 状态管理（app_state、pane_controller、settings_controller 等）
 │   ├── utils/           # 工具（path_utils、perf_log）
 │   └── widgets/         # UI 组件与主题 token
 ├── plugins/             # viewer 插件源码、构建脚本与产物（产物已 gitignore）
@@ -52,7 +52,7 @@ Inf-Dir/
 - 文件系统操作及 Shell 集成通过原生 FFI（`dart:ffi` + `package:ffi`）直接调用 Win32 / COM / Shell API
 - 状态管理使用 Provider
 - 保持轻量，避免过度抽象
-- 样式统一走 `lib/widgets/app_theme.dart` 的设计 token（`context.colors` / `AppMetrics`），widget 中禁止新增 `Color(0x...)` / `Colors.xxx` 字面量（`Colors.transparent` 除外）；明暗双主题由 `lib/state/theme_controller.dart` 切换并持久化（`lib/services/theme_store.dart`）
+- 样式统一走 `lib/widgets/app_theme.dart` 的设计 token（`context.colors` / `AppMetrics`），widget 中禁止新增 `Color(0x...)` / `Colors.xxx` 字面量（`Colors.transparent` 除外）；设置由 `lib/state/settings_controller.dart` 统一管理，并通过 `lib/services/settings_store.dart` 持久化与迁移
 - 界面风格为现代极简：一体化无边框顶栏（`app_shell.dart` 的 `_TopBar` + `window_controls.dart`）、胶囊式标签/选中态、面包屑地址栏（`address_bar.dart`）、ghost 按钮命令栏
 - Viewer 插件运行于独立进程，不把第三方 DLL 加载进 Flutter 主进程；Manifest、用户关联与解析规则见 `docs/plugin-system.md`
 

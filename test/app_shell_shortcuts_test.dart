@@ -4,6 +4,38 @@ import 'package:inf_dir/widgets/app_shell.dart';
 import 'package:inf_dir/widgets/file_pane.dart';
 
 void main() {
+  testWidgets('settings matcher recognizes Ctrl+,', (tester) async {
+    var matched = false;
+    bool handler(KeyEvent event) {
+      matched =
+          matched || matchesSettingsShortcut(event, HardwareKeyboard.instance);
+      return false;
+    }
+
+    ServicesBinding.instance.keyboard.addHandler(handler);
+    addTearDown(() {
+      ServicesBinding.instance.keyboard.removeHandler(handler);
+    });
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+
+    expect(matched, isTrue);
+  });
+
+  test('delete confirmation can only be skipped for recycle-bin deletion', () {
+    expect(
+      shouldConfirmFileDelete(permanent: false, confirmRecycleDelete: false),
+      isFalse,
+    );
+    expect(
+      shouldConfirmFileDelete(permanent: true, confirmRecycleDelete: false),
+      isTrue,
+    );
+  });
+
   testWidgets('pane keyboard matcher recognizes Ctrl+F as search', (
     tester,
   ) async {
@@ -82,7 +114,8 @@ void main() {
   testWidgets('undo matcher rejects plain Z without modifiers', (tester) async {
     var matched = false;
     bool handler(KeyEvent event) {
-      matched = matched || matchesUndoShortcut(event, HardwareKeyboard.instance);
+      matched =
+          matched || matchesUndoShortcut(event, HardwareKeyboard.instance);
       return false;
     }
 

@@ -46,6 +46,13 @@ bool matchesSearchShortcut(KeyEvent event, HardwareKeyboard keyboard) {
       !keyboard.isShiftPressed;
 }
 
+bool shouldConfirmFileDelete({
+  required bool permanent,
+  required bool confirmRecycleDelete,
+}) {
+  return permanent || confirmRecycleDelete;
+}
+
 /// How to resolve a name collision when restoring Recycle Bin items.
 enum _CollisionChoice { skip, keepBoth, replace }
 
@@ -972,7 +979,8 @@ class _PaneContent extends StatelessWidget {
     CreateArchiveOptions options,
   ) async {
     final controller = context.read<PaneController>();
-    final operationCenter = context.read<AppState>().fileOperations;
+    final appState = context.read<AppState>();
+    final operationCenter = appState.fileOperations;
     // 对齐 Files：目标已存在时追加 " (2)"、" (3)"，绝不覆盖/合并进已有压缩包。
     final target = _uniquePath(options.archivePath);
     try {
@@ -1147,48 +1155,57 @@ class _PaneContent extends StatelessWidget {
 
     final selected = controller.selectedPaths.toList();
     if (selected.isEmpty) return;
-    final operationCenter = context.read<AppState>().fileOperations;
+    final appState = context.read<AppState>();
+    final operationCenter = appState.fileOperations;
     // 在删除前记录哪些是文件夹：删除后 stat 会失败。
     final deletedDirs = [
       for (final path in selected)
         if (_findEntry(controller, path)?.isDirectory ?? false) path,
     ];
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(permanent ? '永久删除' : '确认删除'),
-        content: Text(
-          selected.length == 1
-              ? permanent
-                    ? '确定要永久删除 "${_basename(selected.first)}" 吗？此操作无法撤销。'
-                    : '确定要将 "${_basename(selected.first)}" 移到回收站吗？'
-              : permanent
-              ? '确定要永久删除 ${selected.length} 个项目吗？此操作无法撤销。'
-              : '确定要将 ${selected.length} 个项目移到回收站吗？',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(
-              foregroundColor: context.colors.textSecondary,
-            ),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: context.colors.danger,
-              foregroundColor: context.colors.onAccent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+    final confirm =
+        !shouldConfirmFileDelete(
+          permanent: permanent,
+          confirmRecycleDelete: appState.confirmRecycleDelete,
+        )
+        ? true
+        : await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(permanent ? '永久删除' : '确认删除'),
+              content: Text(
+                selected.length == 1
+                    ? permanent
+                          ? '确定要永久删除 "${_basename(selected.first)}" 吗？此操作无法撤销。'
+                          : '确定要将 "${_basename(selected.first)}" 移到回收站吗？'
+                    : permanent
+                    ? '确定要永久删除 ${selected.length} 个项目吗？此操作无法撤销。'
+                    : '确定要将 ${selected.length} 个项目移到回收站吗？',
               ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  style: TextButton.styleFrom(
+                    foregroundColor: context.colors.textSecondary,
+                  ),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: context.colors.danger,
+                    foregroundColor: context.colors.onAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        AppMetrics.controlRadius,
+                      ),
+                    ),
+                  ),
+                  child: const Text('删除'),
+                ),
+              ],
             ),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    );
+          );
 
     if (confirm != true) return;
     late FileOperationTask completedTask;
@@ -2728,95 +2745,100 @@ class _FilterPanelOverlayState extends State<_FilterPanelOverlay> {
         ),
       },
       child: Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: widget.close,
-            child: const ColoredBox(color: Colors.transparent),
-          ),
-        ),
-        Positioned(
-          left: pos.dx,
-          top: pos.dy,
-          child: Material(
-            color: c.menuSurface,
-            elevation: 6,
-            shadowColor: c.shadow,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppMetrics.menuRadius),
-              side: BorderSide(color: c.menuBorder),
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.close,
+              child: const ColoredBox(color: Colors.transparent),
             ),
-            child: SizedBox(
-              width: _panelWidth,
-              child: ListenableBuilder(
-                listenable: widget.pane,
-                builder: (context, _) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 4),
-                    _buildSearchField(c),
-                    _modeRow(
-                      c,
-                      Symbols.match_case_off,
-                      '关键字（忽略大小写）',
-                      QueryFilterMode.keyword,
-                      false,
-                    ),
-                    _modeRow(
-                      c,
-                      Symbols.match_case,
-                      '关键字（大小写敏感）',
-                      QueryFilterMode.keyword,
-                      true,
-                    ),
-                    _modeRow(
-                      c,
-                      Symbols.g_mobiledata_badge,
-                      'glob（* ? 通配）',
-                      QueryFilterMode.glob,
-                      false,
-                    ),
-                    _modeRow(
-                      c,
-                      Symbols.regular_expression,
-                      '正则表达式',
-                      QueryFilterMode.regex,
-                      false,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Divider(height: 1, color: c.menuBorder),
-                    ),
-                    _typeRow(c, Symbols.select_all, '全部', EntryFilter.all),
-                    _typeRow(
-                      c,
-                      Icons.folder_outlined,
-                      '文件夹',
-                      EntryFilter.folders,
-                    ),
-                    _typeRow(
-                      c,
-                      Icons.insert_drive_file_outlined,
-                      '文件',
-                      EntryFilter.files,
-                    ),
-                    _typeRow(c, Icons.image_outlined, '图片', EntryFilter.images),
-                    _typeRow(
-                      c,
-                      Icons.description_outlined,
-                      '文档',
-                      EntryFilter.documents,
-                    ),
-                    const SizedBox(height: 4),
-                  ],
+          ),
+          Positioned(
+            left: pos.dx,
+            top: pos.dy,
+            child: Material(
+              color: c.menuSurface,
+              elevation: 6,
+              shadowColor: c.shadow,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppMetrics.menuRadius),
+                side: BorderSide(color: c.menuBorder),
+              ),
+              child: SizedBox(
+                width: _panelWidth,
+                child: ListenableBuilder(
+                  listenable: widget.pane,
+                  builder: (context, _) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 4),
+                      _buildSearchField(c),
+                      _modeRow(
+                        c,
+                        Symbols.match_case_off,
+                        '关键字（忽略大小写）',
+                        QueryFilterMode.keyword,
+                        false,
+                      ),
+                      _modeRow(
+                        c,
+                        Symbols.match_case,
+                        '关键字（大小写敏感）',
+                        QueryFilterMode.keyword,
+                        true,
+                      ),
+                      _modeRow(
+                        c,
+                        Symbols.g_mobiledata_badge,
+                        'glob（* ? 通配）',
+                        QueryFilterMode.glob,
+                        false,
+                      ),
+                      _modeRow(
+                        c,
+                        Symbols.regular_expression,
+                        '正则表达式',
+                        QueryFilterMode.regex,
+                        false,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Divider(height: 1, color: c.menuBorder),
+                      ),
+                      _typeRow(c, Symbols.select_all, '全部', EntryFilter.all),
+                      _typeRow(
+                        c,
+                        Icons.folder_outlined,
+                        '文件夹',
+                        EntryFilter.folders,
+                      ),
+                      _typeRow(
+                        c,
+                        Icons.insert_drive_file_outlined,
+                        '文件',
+                        EntryFilter.files,
+                      ),
+                      _typeRow(
+                        c,
+                        Icons.image_outlined,
+                        '图片',
+                        EntryFilter.images,
+                      ),
+                      _typeRow(
+                        c,
+                        Icons.description_outlined,
+                        '文档',
+                        EntryFilter.documents,
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
       ),
     );
   }
@@ -2932,4 +2954,3 @@ class _FilterPanelOverlayState extends State<_FilterPanelOverlay> {
     );
   }
 }
-

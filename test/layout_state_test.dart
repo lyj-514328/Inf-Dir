@@ -1,7 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inf_dir/models/layout_node.dart';
 import 'package:inf_dir/services/directory_repository.dart';
 import 'package:inf_dir/services/file_service.dart';
+import 'package:inf_dir/services/settings_store.dart';
 import 'package:inf_dir/state/layout_state.dart';
+import 'package:inf_dir/state/pane_controller.dart';
+import 'package:inf_dir/state/settings_controller.dart';
+import 'package:path/path.dart' as p;
 
 DirectoryRepository _emptyRepository() => DirectoryRepository(
   cursorFactory: (path, {bool directoriesOnly = false}) async => null,
@@ -10,6 +17,41 @@ DirectoryRepository _emptyRepository() => DirectoryRepository(
 );
 
 void main() {
+  test(
+    'new panes and tabs use settings defaults without changing existing panes',
+    () {
+      final temp = Directory.systemTemp.createTempSync(
+        'inf_dir_layout_settings_',
+      );
+      addTearDown(() => temp.deleteSync(recursive: true));
+      final settings = SettingsController(
+        store: SettingsStore(filePath: p.join(temp.path, 'settings.json')),
+      );
+      addTearDown(settings.dispose);
+      settings.setDefaultViewMode(PaneViewMode.tiles);
+      settings.setCustomNewTabPath(r'D:\New tabs');
+      final layout = LayoutState(
+        repository: _emptyRepository(),
+        settings: settings,
+      );
+      addTearDown(layout.dispose);
+
+      final existing = layout.controllerFor(layout.allPaneNodes.first)!;
+      expect(existing.viewMode, PaneViewMode.tiles);
+      existing.setViewMode(PaneViewMode.list);
+
+      final created = layout.splitPane(
+        layout.allPaneNodes.first,
+        SplitDirection.horizontal,
+      )!;
+      expect(created.viewMode, PaneViewMode.tiles);
+      expect(existing.viewMode, PaneViewMode.list);
+
+      existing.addTab();
+      expect(existing.currentPath, r'D:\New tabs');
+    },
+  );
+
   test('closeTab 记录最近关闭并可恢复到原索引', () {
     final layout = LayoutState(repository: _emptyRepository());
     addTearDown(layout.dispose);
@@ -71,11 +113,7 @@ void main() {
       layout.restoreClosedTab();
       restoredPaths.add(layout.controllerFor(layout.focusedNode)!.currentPath);
     }
-    expect(restoredPaths, [
-      FileService.desktopPath,
-      r'C:\One',
-      r'C:\Two',
-    ]);
+    expect(restoredPaths, [FileService.desktopPath, r'C:\One', r'C:\Two']);
     expect(layout.canRestoreClosedTab, isFalse);
   });
 

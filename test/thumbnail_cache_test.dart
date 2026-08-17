@@ -4,10 +4,11 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inf_dir/services/directory_repository.dart';
 import 'package:inf_dir/services/icon_service.dart';
-import 'package:inf_dir/services/prefs_store.dart';
+import 'package:inf_dir/services/settings_store.dart';
 import 'package:inf_dir/services/thumbnail_cache.dart';
 import 'package:inf_dir/services/thumbnail_worker.dart';
 import 'package:inf_dir/state/app_state.dart';
+import 'package:inf_dir/state/settings_controller.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -16,7 +17,9 @@ void main() {
   setUp(() {
     tempDir = Directory.systemTemp.createTempSync('inf-dir-thumbs-');
     IconService.debugReset(
-      cache: ThumbnailCache(directory: Directory(p.join(tempDir.path, 'thumbs'))),
+      cache: ThumbnailCache(
+        directory: Directory(p.join(tempDir.path, 'thumbs')),
+      ),
     );
     ThumbnailWorker.extractImpl = null;
   });
@@ -24,7 +27,9 @@ void main() {
   tearDown(() {
     ThumbnailWorker.extractImpl = null;
     IconService.debugReset(
-      cache: ThumbnailCache(directory: Directory(p.join(tempDir.path, 'reset'))),
+      cache: ThumbnailCache(
+        directory: Directory(p.join(tempDir.path, 'reset')),
+      ),
     );
     if (tempDir.existsSync()) {
       tempDir.deleteSync(recursive: true);
@@ -64,66 +69,82 @@ void main() {
     expect(cache.getMemory('c'), [3]);
   });
 
-  test('getThumbnailPng caches extract result and skips retries on miss', () async {
-    var extracts = 0;
-    ThumbnailWorker.extractImpl = (path, size, flags) {
-      extracts += 1;
-      expect(flags, IconService.imageThumbnailOnly);
-      return Uint8List.fromList([10, 20, 30]);
-    };
+  test(
+    'getThumbnailPng caches extract result and skips retries on miss',
+    () async {
+      var extracts = 0;
+      ThumbnailWorker.extractImpl = (path, size, flags) {
+        extracts += 1;
+        expect(flags, IconService.imageThumbnailOnly);
+        return Uint8List.fromList([10, 20, 30]);
+      };
 
-    final first = await IconService.getThumbnailPng(
-      path: r'C:\pic.jpg',
-      size: 96,
-      modified: DateTime.fromMillisecondsSinceEpoch(1),
-    );
-    final second = await IconService.getThumbnailPng(
-      path: r'C:\pic.jpg',
-      size: 96,
-      modified: DateTime.fromMillisecondsSinceEpoch(1),
-    );
-    expect(first, [10, 20, 30]);
-    expect(second, [10, 20, 30]);
-    expect(extracts, 1);
+      final first = await IconService.getThumbnailPng(
+        path: r'C:\pic.jpg',
+        size: 96,
+        modified: DateTime.fromMillisecondsSinceEpoch(1),
+      );
+      final second = await IconService.getThumbnailPng(
+        path: r'C:\pic.jpg',
+        size: 96,
+        modified: DateTime.fromMillisecondsSinceEpoch(1),
+      );
+      expect(first, [10, 20, 30]);
+      expect(second, [10, 20, 30]);
+      expect(extracts, 1);
 
-    extracts = 0;
-    ThumbnailWorker.extractImpl = (path, size, flags) {
-      extracts += 1;
-      return null;
-    };
-    final missed = await IconService.getThumbnailPng(
-      path: r'C:\none.jpg',
-      size: 96,
-    );
-    final retried = await IconService.getThumbnailPng(
-      path: r'C:\none.jpg',
-      size: 96,
-    );
-    expect(missed, isNull);
-    expect(retried, isNull);
-    expect(extracts, 1);
-  });
+      extracts = 0;
+      ThumbnailWorker.extractImpl = (path, size, flags) {
+        extracts += 1;
+        return null;
+      };
+      final missed = await IconService.getThumbnailPng(
+        path: r'C:\none.jpg',
+        size: 96,
+      );
+      final retried = await IconService.getThumbnailPng(
+        path: r'C:\none.jpg',
+        size: 96,
+      );
+      expect(missed, isNull);
+      expect(retried, isNull);
+      expect(extracts, 1);
+    },
+  );
 
-  test('prefs store persists showThumbnails', () {
-    final store = PrefsStore(filePath: p.join(tempDir.path, 'prefs.json'));
-    expect(store.load(), isEmpty);
-    store.save({'showThumbnails': false});
-    expect(store.load()['showThumbnails'], isFalse);
+  test('settings store persists showThumbnails', () {
+    final store = SettingsStore(
+      filePath: p.join(tempDir.path, 'settings.json'),
+    );
+    expect(store.load().showThumbnails, isTrue);
+    final controller = SettingsController(store: store);
+    controller.setShowThumbnails(false);
+    expect(store.load().showThumbnails, isFalse);
+    controller.dispose();
   });
 
   test('AppState thumbnail toggle is persisted', () {
-    final store = PrefsStore(filePath: p.join(tempDir.path, 'prefs.json'));
+    final store = SettingsStore(
+      filePath: p.join(tempDir.path, 'settings.json'),
+    );
     final repository = DirectoryRepository(
       cursorFactory: (_, {bool directoriesOnly = false}) async => null,
       hasChildrenProbe: (_) => false,
     );
-    final first = AppState(repository: repository, prefs: store);
+    final firstSettings = SettingsController(store: store);
+    final first = AppState(repository: repository, settings: firstSettings);
     expect(first.showThumbnails, isTrue);
     first.setShowThumbnails(false);
     first.dispose();
+    firstSettings.dispose();
 
-    final restored = AppState(repository: repository, prefs: store);
+    final restoredSettings = SettingsController(store: store);
+    final restored = AppState(
+      repository: repository,
+      settings: restoredSettings,
+    );
     expect(restored.showThumbnails, isFalse);
     restored.dispose();
+    restoredSettings.dispose();
   });
 }

@@ -6,6 +6,7 @@ import 'pane_controller.dart';
 import '../services/directory_repository.dart';
 import '../services/file_service.dart';
 import '../services/window_layout_store.dart';
+import 'settings_controller.dart';
 
 class LayoutState extends ChangeNotifier {
   static const int maxClosedTabs = 20;
@@ -16,6 +17,7 @@ class LayoutState extends ChangeNotifier {
   int _nextPaneCounter = 0;
   final DirectoryRepository _repository;
   final WindowLayoutStore? _layoutStore;
+  final SettingsController? _settings;
   bool _disposed = false;
   double _sidebarWidth = 220;
 
@@ -27,9 +29,13 @@ class LayoutState extends ChangeNotifier {
   /// 用独立的 ValueNotifier，避免无关 notify 也触发侧栏同步。
   final ValueNotifier<String> activePanePath = ValueNotifier<String>('');
 
-  LayoutState({DirectoryRepository? repository, WindowLayoutStore? layoutStore})
-    : _repository = repository ?? DirectoryRepository(),
-      _layoutStore = layoutStore {
+  LayoutState({
+    DirectoryRepository? repository,
+    WindowLayoutStore? layoutStore,
+    SettingsController? settings,
+  }) : _repository = repository ?? DirectoryRepository(),
+       _layoutStore = layoutStore,
+       _settings = settings {
     final cached = _layoutStore?.load();
     debugPrint(
       '[LayoutCache] load -> ${cached == null ? 'null' : '${cached.panes.length} panes, ${cached.workspaces.length} workspaces'}',
@@ -63,6 +69,8 @@ class LayoutState extends ChangeNotifier {
           path,
           repository: _repository,
           onTabClosed: _recordClosedTab,
+          defaultViewMode: _settings?.defaultViewMode ?? PaneViewMode.details,
+          newTabPathResolver: _settings?.resolveNewTabPath,
         ),
       );
       paneIds.add(id);
@@ -138,6 +146,7 @@ class LayoutState extends ChangeNotifier {
           entry.value,
           repository: _repository,
           onTabClosed: _recordClosedTab,
+          newTabPathResolver: _settings?.resolveNewTabPath,
         );
       }
       _tree = restoredTree;
@@ -375,6 +384,8 @@ class LayoutState extends ChangeNotifier {
         FileService.homeViewPath,
         repository: _repository,
         onTabClosed: _recordClosedTab,
+        defaultViewMode: _settings?.defaultViewMode ?? PaneViewMode.details,
+        newTabPathResolver: _settings?.resolveNewTabPath,
       ),
     );
     final pane = LayoutNode(
@@ -429,6 +440,8 @@ class LayoutState extends ChangeNotifier {
       controllerFor(node)?.currentPath ?? FileService.desktopPath,
       repository: _repository,
       onTabClosed: _recordClosedTab,
+      defaultViewMode: _settings?.defaultViewMode ?? PaneViewMode.details,
+      newTabPathResolver: _settings?.resolveNewTabPath,
     );
     _addController(newPaneId, controller);
     _tree.splitNode(node, direction, newPaneId);

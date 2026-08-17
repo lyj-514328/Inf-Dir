@@ -29,33 +29,34 @@ class ViewerAssociationsDialog extends StatelessWidget {
         child: Column(
           children: [
             _DialogHeader(onClose: () => Navigator.of(context).pop()),
-            const Expanded(
-              child: DefaultTabController(
-                length: 3,
-                child: Column(
-                  children: [
-                    _AssociationTabs(),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          _AssociationPage(
-                            kind: ViewerAssociationKind.extension,
-                          ),
-                          _AssociationPage(
-                            kind: ViewerAssociationKind.fileName,
-                          ),
-                          _AssociationPage(
-                            kind: ViewerAssociationKind.mimeType,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            const Expanded(child: ViewerAssociationsView()),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class ViewerAssociationsView extends StatelessWidget {
+  const ViewerAssociationsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          _AssociationTabs(),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _AssociationPage(kind: ViewerAssociationKind.extension),
+                _AssociationPage(kind: ViewerAssociationKind.fileName),
+                _AssociationPage(kind: ViewerAssociationKind.mimeType),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -142,9 +143,7 @@ class _AssociationTabs extends StatelessWidget {
             fontSize: AppMetrics.fontBody,
             fontWeight: FontWeight.w600,
           ),
-          unselectedLabelStyle: const TextStyle(
-            fontSize: AppMetrics.fontBody,
-          ),
+          unselectedLabelStyle: const TextStyle(fontSize: AppMetrics.fontBody),
           tabs: const [
             Tab(text: '扩展名'),
             Tab(text: '文件名'),

@@ -6,7 +6,7 @@ import '../services/directory_service.dart';
 import '../services/file_service.dart';
 import '../services/file_operation_center.dart';
 import '../services/icon_service.dart';
-import '../services/prefs_store.dart';
+import 'settings_controller.dart';
 
 class AppState extends ChangeNotifier {
   late final List<PaneController> panes;
@@ -14,28 +14,39 @@ class AppState extends ChangeNotifier {
   final FileOperationCenter fileOperations;
   final FileOperationHistoryStack history;
   int _activePaneIndex = 0;
-  bool _showHiddenFiles = false;
-  bool _showFileExtensions = true;
-  bool _showThumbnails = true;
-  final PrefsStore _prefs;
+  final SettingsController settings;
+  final bool _ownsSettings;
 
   AppState({
     DirectoryRepository? repository,
     FileOperationCenter? fileOperations,
     FileOperationHistoryStack? history,
-    PrefsStore? prefs,
+    SettingsController? settings,
+    bool applyInitialNativeSettings = false,
   }) : repository = repository ?? DirectoryRepository(),
        fileOperations = fileOperations ?? FileOperationCenter(),
        history = history ?? FileOperationHistoryStack(),
-       _prefs = prefs ?? PrefsStore() {
+       settings = settings ?? SettingsController(),
+       _ownsSettings = settings == null {
+    this.settings.addListener(_onSettingsChanged);
+    if (applyInitialNativeSettings) {
+      DirectoryService.setShowHiddenFiles(this.settings.showHiddenFiles);
+    }
     final repo = this.repository;
     panes = [
-      PaneController(FileService.desktopPath, repository: repo),
-      PaneController(FileService.homeDirectory, repository: repo),
-      PaneController(FileService.documentsPath, repository: repo),
-      PaneController(FileService.downloadsPath, repository: repo),
+      for (final path in [
+        FileService.desktopPath,
+        FileService.homeDirectory,
+        FileService.documentsPath,
+        FileService.downloadsPath,
+      ])
+        PaneController(
+          path,
+          repository: repo,
+          defaultViewMode: this.settings.defaultViewMode,
+          newTabPathResolver: this.settings.resolveNewTabPath,
+        ),
     ];
-    _loadPrefs();
   }
 
   int get activePaneIndex => _activePaneIndex;
@@ -77,34 +88,29 @@ class AppState extends ChangeNotifier {
 
   // ── 显示隐藏文件（会话级设置）─────────────────────────────────
 
-  bool get showHiddenFiles => _showHiddenFiles;
-  bool get showFileExtensions => _showFileExtensions;
-  bool get showThumbnails => _showThumbnails;
+  bool get showHiddenFiles => settings.showHiddenFiles;
+  bool get showFileExtensions => settings.showFileExtensions;
+  bool get showThumbnails => settings.showThumbnails;
+  bool get confirmRecycleDelete => settings.confirmRecycleDelete;
 
   /// 切换显示隐藏/系统文件：同步原生层过滤标志，清空目录缓存，
   /// 并刷新所有 pane。侧边栏由 AppShell 在切换后重新 sync。
   void setShowHiddenFiles(bool value) {
-    if (_showHiddenFiles == value) return;
-    _showHiddenFiles = value;
+    if (showHiddenFiles == value) return;
     DirectoryService.setShowHiddenFiles(value);
     repository.invalidateAll();
     for (final pane in panes) {
       pane.refresh();
     }
-    notifyListeners();
+    settings.setShowHiddenFiles(value);
   }
 
   void setShowFileExtensions(bool value) {
-    if (_showFileExtensions == value) return;
-    _showFileExtensions = value;
-    notifyListeners();
+    settings.setShowFileExtensions(value);
   }
 
   void setShowThumbnails(bool value) {
-    if (_showThumbnails == value) return;
-    _showThumbnails = value;
-    _savePrefs();
-    notifyListeners();
+    settings.setShowThumbnails(value);
   }
 
   void clearThumbnailCache() {
@@ -112,15 +118,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _loadPrefs() {
-    final values = _prefs.load();
-    final showThumbnails = values['showThumbnails'];
-    if (showThumbnails is bool) {
-      _showThumbnails = showThumbnails;
-    }
+  void _onSettingsChanged() {
+    notifyListeners();
   }
 
-  void _savePrefs() {
-    _prefs.save({'showThumbnails': _showThumbnails});
+  @override
+  void dispose() {
+    settings.removeListener(_onSettingsChanged);
+    if (_ownsSettings) settings.dispose();
+    super.dispose();
   }
 }
