@@ -430,15 +430,12 @@ class _ViewerSettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('查看器', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 4),
-          Text('管理快速查看使用的候选查看器及顺序', style: TextStyle(color: c.textSecondary)),
           const SizedBox(height: 16),
           const Expanded(child: ViewerAssociationsView()),
         ],

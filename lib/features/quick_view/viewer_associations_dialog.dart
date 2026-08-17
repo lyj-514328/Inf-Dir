@@ -48,10 +48,10 @@ class ViewerAssociationsView extends StatefulWidget {
 
 class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
   String? _selectedGroupId;
+  double _ruleGroupsWidth = 210;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     final service = context.watch<QuickViewService>();
     final groups = service.ruleGroups;
     final selected = groups.where((group) => group.id == _selectedGroupId);
@@ -61,7 +61,7 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
     return Row(
       children: [
         SizedBox(
-          width: 210,
+          width: _ruleGroupsWidth,
           child: Column(
             children: [
               _RuleGroupToolbar(
@@ -100,7 +100,10 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
             ],
           ),
         ),
-        Container(width: 1, color: c.border),
+        _ColumnSplitter(
+          width: _ruleGroupsWidth,
+          onWidthChanged: (w) => setState(() => _ruleGroupsWidth = w),
+        ),
         Expanded(
           child: switch (activeGroup.type) {
             ViewerRuleGroupType.path => _PathRulePage(
@@ -518,6 +521,7 @@ class _PathRulePage extends StatefulWidget {
 class _PathRulePageState extends State<_PathRulePage>
     with AutomaticKeepAliveClientMixin {
   String? _selectedId;
+  double _listWidth = 280;
 
   @override
   bool get wantKeepAlive => true;
@@ -541,7 +545,7 @@ class _PathRulePageState extends State<_PathRulePage>
     return Row(
       children: [
         SizedBox(
-          width: 280,
+          width: _listWidth,
           child: Column(
             children: [
               _PathRuleToolbar(
@@ -592,7 +596,10 @@ class _PathRulePageState extends State<_PathRulePage>
             ],
           ),
         ),
-        Container(width: 1, color: c.border),
+        _ColumnSplitter(
+          width: _listWidth,
+          onWidthChanged: (w) => setState(() => _listWidth = w),
+        ),
         Expanded(
           child: activeRule == null
               ? const SizedBox.shrink()
@@ -1053,6 +1060,7 @@ class _AssociationPage extends StatefulWidget {
 class _AssociationPageState extends State<_AssociationPage>
     with AutomaticKeepAliveClientMixin {
   String? _selectedKey;
+  double _listWidth = 230;
 
   @override
   bool get wantKeepAlive => true;
@@ -1072,7 +1080,7 @@ class _AssociationPageState extends State<_AssociationPage>
     return Row(
       children: [
         SizedBox(
-          width: 230,
+          width: _listWidth,
           child: Column(
             children: [
               _AssociationToolbar(
@@ -1146,7 +1154,10 @@ class _AssociationPageState extends State<_AssociationPage>
             ],
           ),
         ),
-        Container(width: 1, color: c.border),
+        _ColumnSplitter(
+          width: _listWidth,
+          onWidthChanged: (w) => setState(() => _listWidth = w),
+        ),
         Expanded(
           child: selected == null
               ? const SizedBox.shrink()
@@ -1584,6 +1595,68 @@ class _IconAction extends StatelessWidget {
       constraints: const BoxConstraints.tightFor(width: 30, height: 30),
       padding: EdgeInsets.zero,
       icon: Icon(icon),
+    );
+  }
+}
+
+/// 查看器关联面板内的可拖拽分栏线，风格与 pane 间 splitter 一致：
+/// 8px 热区 + 居中 1px 线条，hover 高亮、拖动时显示 accent。
+class _ColumnSplitter extends StatefulWidget {
+  const _ColumnSplitter({required this.width, required this.onWidthChanged});
+
+  /// 当前左/上侧栏宽度（拖拽起点基准）。
+  final double width;
+
+  /// 拖拽过程中回调新的栏宽（已按 min/max 钳制）。
+  final ValueChanged<double> onWidthChanged;
+
+  @override
+  State<_ColumnSplitter> createState() => _ColumnSplitterState();
+}
+
+class _ColumnSplitterState extends State<_ColumnSplitter> {
+  static const double _minWidth = 140;
+  static const double _maxWidth = 520;
+
+  bool _hovering = false;
+  bool _dragging = false;
+  double _startPos = 0; // 拖拽起点（全局坐标）
+  double _startWidth = 0; // 拖拽起点时的栏宽
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanStart: (details) {
+          setState(() => _dragging = true);
+          _startPos = details.globalPosition.dx;
+          _startWidth = widget.width;
+        },
+        onPanUpdate: (details) {
+          final target = _startWidth + details.globalPosition.dx - _startPos;
+          widget.onWidthChanged(target.clamp(_minWidth, _maxWidth));
+        },
+        onPanEnd: (_) => setState(() => _dragging = false),
+        onPanCancel: () => setState(() => _dragging = false),
+        child: Container(
+          width: 8,
+          color: Colors.transparent,
+          alignment: Alignment.center,
+          child: Container(
+            width: 1,
+            color: _dragging
+                ? c.accent
+                : _hovering
+                ? c.accent.withValues(alpha: 0.5)
+                : c.border,
+          ),
+        ),
+      ),
     );
   }
 }
