@@ -1,7 +1,7 @@
 # Inf-Dir 对照 Files 功能路线图
 
 本文记录 Inf-Dir 与 Files 的功能差距、优先级和验收标准。它用于规划后续
-迭代，不要求机械复刻 Files；Inf-Dir 仍以 i3 动态分割、多 workspace 和
+迭代，不要求机械复刻 Files；Inf-Dir 仍以 Hyprland Dwindle 风格动态分割、多 workspace 和
 独立进程 Viewer 插件体系为核心差异。
 
 ## 1. 对照基线
@@ -18,7 +18,7 @@
 
 以下能力已经存在，不属于本路线图的待办范围：
 
-- i3 风格任意水平/垂直分割、关闭、缩放、面板交换和多 workspace；
+- Hyprland Dwindle 风格任意水平/垂直分割、关闭、缩放、面板交换和多 workspace；
 - 每面板独立路径、标签页、历史、排序、分组、过滤和视图模式；
 - 文件与正文搜索（fd/ripgrep 插件）；
 - manifest 驱动的独立进程 Quick View Viewer；
@@ -250,7 +250,7 @@
 
 ### 5.3 多窗口（已搁置）
 
-> 决策：Inf-Dir 的 i3 动态分割 + 多 pane + 多 workspace 已覆盖"同时操作多个位置"
+> 决策：Inf-Dir 的 Dwindle 风格动态分割 + 多 pane + 多 workspace 已覆盖"同时操作多个位置"
 > 的核心需求，多窗口增量价值有限、且引入原生窗口层/会话并发复杂度，暂不实现。
 > 若未来需要（多显示器、跨窗口拖放）再重新评估。
 

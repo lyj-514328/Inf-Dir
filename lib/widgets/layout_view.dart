@@ -6,7 +6,7 @@ import 'app_theme.dart';
 import 'file_pane.dart';
 import 'alt_overlay.dart';
 
-/// 递归渲染布局树 — 仿 i3 render_con()
+/// 递归渲染布局树，参考 SDwindleNodeData::recalcSizePosRecursive()。
 class LayoutView extends StatelessWidget {
   final LayoutNode node;
 

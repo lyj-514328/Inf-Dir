@@ -4,11 +4,14 @@ enum NodeType { workspace, split, pane }
 /// 分割方向
 enum SplitDirection { horizontal, vertical }
 
-/// 仿 i3 的 Con 节点 — 布局树的核心数据结构
+/// 参考 Hyprland Dwindle 的递归分割节点，并扩展为可容纳多个子节点。
+///
+/// 上游参考：
+/// ai_refs/Hyprland/src/layout/algorithm/tiled/dwindle/DwindleAlgorithm.hpp
 ///
 /// 树结构示例：
-///   workspace (L_SPLITH)
-///   ├── split (L_SPLITV)
+///   workspace (horizontal / 左右排列)
+///   ├── split (vertical / 上下排列)
 ///   │   ├── pane (A)
 ///   │   └── pane (B)
 ///   └── pane (C)
@@ -110,7 +113,7 @@ class LayoutTree {
   }
 
   // ============================================================
-  // 操作 2：分割 (水平/垂直) —— 类似 i3 tree_split()
+  // 操作 2：分割（水平/垂直）—— 参考 CDwindleAlgorithm::addTarget()
   // ============================================================
   void splitNode(LayoutNode node, SplitDirection direction, String newPaneId) {
     final parent = node.parent;
@@ -166,7 +169,7 @@ class LayoutTree {
   }
 
   // ============================================================
-  // 操作 3：关闭节点 —— 类似 i3 tree_close_internal()
+  // 操作 3：关闭节点 —— 参考 CDwindleAlgorithm::removeTarget()
   // ============================================================
   /// 关闭节点，返回 (需清理的 paneId 列表, 建议聚焦节点 ID)
   CloseResult closeNode(LayoutNode node) {
@@ -242,7 +245,7 @@ class LayoutTree {
   }
 
   // ============================================================
-  // 操作 4：缩放 —— 类似 i3 resize_neighboring_cons()
+  // 操作 4：缩放 —— CDwindleAlgorithm::resizeTarget() 的相邻兄弟简化版
   // ============================================================
   /// first 和 second 是同一父节点的相邻兄弟，delta 是比例变化 (正=first 增大)
   bool resizeNodes(LayoutNode first, LayoutNode second, double deltaPercent) {
@@ -262,7 +265,7 @@ class LayoutTree {
   }
 
   // ============================================================
-  // 操作 5：交换两个 pane —— 类似 i3 con_swap()
+  // 操作 5：交换两个 pane —— 参考 CDwindleAlgorithm::swapTargets()
   // ============================================================
   bool swapPanes(LayoutNode a, LayoutNode b) {
     if (a == b || !a.isPane || !b.isPane) return false;
@@ -303,7 +306,7 @@ class LayoutTree {
   }
 
   // ============================================================
-  // 百分比归一化 —— 类似 i3 con_fix_percent()
+  // 百分比归一化 —— 维护本项目多子节点扩展的比例不变量
   // ============================================================
   void _fixPercent(LayoutNode parent) {
     final n = parent.children.length;

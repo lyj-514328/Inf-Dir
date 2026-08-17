@@ -2,7 +2,7 @@
 
 ## 项目目标
 
-从零实现一个多面板 GUI 文件管理器（Windows 平台）：布局采用 **i3 风格动态分割树**（默认初始为 2×2 四宫格，可任意拆分），并通过 manifest 驱动的 **viewer 插件体系**为各类文件提供快速预览。
+从零实现一个多面板 GUI 文件管理器（Windows 平台）：布局采用 **Hyprland Dwindle 风格递归分割树**（默认初始为 2×2 四宫格，可任意拆分），并通过 manifest 驱动的 **viewer 插件体系**为各类文件提供快速预览。
 
 ## 技术栈
 
@@ -14,7 +14,7 @@
 
 ## 核心特性
 
-- i3 风格布局树：多 workspace、水平/垂直分割、关闭、拖拽缩放、Alt 交换面板（`LayoutTree` + `LayoutView` 递归渲染）
+- Hyprland Dwindle 风格布局树：多 workspace、水平/垂直分割、关闭、拖拽缩放、Alt 交换面板（`LayoutTree` + `LayoutView` 递归渲染）
 - 每个面板独立浏览文件系统
 - 文件列表：图标、排序、筛选、快速搜索
 - 地址栏导航、面包屑路径
@@ -26,7 +26,7 @@
 
 ## 参考代码
 
-`ai_refs/` 目录下存放参考源码（以 git submodule 管理），**仅作为功能与架构参考**，不作为基础框架或代码依赖。
+`ai_refs/` 目录下存放参考源码（以 git submodule 管理），**仅作为功能与架构参考**，不作为基础框架或代码依赖。布局树主要参考 `ai_refs/Hyprland/src/layout/algorithm/tiled/dwindle/`。
 
 ## 目录结构
 
