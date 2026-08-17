@@ -1,7 +1,16 @@
 enum NewTabLocation { current, home, custom }
 
+class UnsupportedSettingsVersion implements Exception {
+  const UnsupportedSettingsVersion(this.version);
+
+  final int version;
+
+  @override
+  String toString() => 'Unsupported settings schema version: $version';
+}
+
 class AppSettings {
-  static const currentSchemaVersion = 1;
+  static const currentSchemaVersion = 2;
 
   static const _themeModes = {'system', 'light', 'dark'};
   static const _viewModes = {
@@ -16,7 +25,6 @@ class AppSettings {
   };
 
   const AppSettings({
-    this.schemaVersion = currentSchemaVersion,
     this.themeMode = 'system',
     this.showHiddenFiles = false,
     this.showFileExtensions = true,
@@ -25,10 +33,8 @@ class AppSettings {
     this.newTabLocation = NewTabLocation.current,
     this.customNewTabPath,
     this.confirmRecycleDelete = true,
-    this.extraFields = const {},
   });
 
-  final int schemaVersion;
   final String themeMode;
   final bool showHiddenFiles;
   final bool showFileExtensions;
@@ -37,30 +43,37 @@ class AppSettings {
   final NewTabLocation newTabLocation;
   final String? customNewTabPath;
   final bool confirmRecycleDelete;
-  final Map<String, Object?> extraFields;
 
   factory AppSettings.fromJson(Map<String, Object?> json) {
-    final extras = Map<String, Object?>.from(json)
-      ..remove('schemaVersion')
-      ..remove('themeMode')
-      ..remove('showHiddenFiles')
-      ..remove('showFileExtensions')
-      ..remove('showThumbnails')
-      ..remove('defaultViewMode')
-      ..remove('newTabLocation')
-      ..remove('customNewTabPath')
-      ..remove('confirmRecycleDelete');
+    return switch (schemaVersionOf(json)) {
+      1 => _decodeV1(json),
+      currentSchemaVersion => _decodeV2(json),
+      final version => throw UnsupportedSettingsVersion(version),
+    };
+  }
 
+  static int schemaVersionOf(Map<String, Object?> json) {
+    final value = json['schemaVersion'];
+    if (value == null) return 1;
+    if (value is int && value > 0) return value;
+    throw const FormatException('Invalid settings schemaVersion');
+  }
+
+  static AppSettings _decodeV1(Map<String, Object?> json) {
+    return _decodeFlatJson(json);
+  }
+
+  static AppSettings _decodeV2(Map<String, Object?> json) {
+    return _decodeFlatJson(json);
+  }
+
+  static AppSettings _decodeFlatJson(Map<String, Object?> json) {
     final rawTheme = json['themeMode'];
     final rawView = json['defaultViewMode'];
     final rawLocation = json['newTabLocation'];
     final rawCustomPath = json['customNewTabPath'];
 
     return AppSettings(
-      schemaVersion: switch (json['schemaVersion']) {
-        final int value when value > 0 => value,
-        _ => currentSchemaVersion,
-      },
       themeMode: rawTheme is String && _themeModes.contains(rawTheme)
           ? rawTheme
           : 'system',
@@ -87,19 +100,21 @@ class AppSettings {
       confirmRecycleDelete: json['confirmRecycleDelete'] is bool
           ? json['confirmRecycleDelete']! as bool
           : true,
-      extraFields: extras,
     );
   }
 
   Map<String, Object?> toJson() => {
-    ...extraFields,
-    'schemaVersion': schemaVersion,
+    'schemaVersion': currentSchemaVersion,
     'themeMode': themeMode,
     'showHiddenFiles': showHiddenFiles,
     'showFileExtensions': showFileExtensions,
     'showThumbnails': showThumbnails,
     'defaultViewMode': defaultViewMode,
-    'newTabLocation': newTabLocation.name,
+    'newTabLocation': switch (newTabLocation) {
+      NewTabLocation.current => 'current',
+      NewTabLocation.home => 'home',
+      NewTabLocation.custom => 'custom',
+    },
     'customNewTabPath': customNewTabPath,
     'confirmRecycleDelete': confirmRecycleDelete,
   };
@@ -115,7 +130,6 @@ class AppSettings {
     bool? confirmRecycleDelete,
   }) {
     return AppSettings(
-      schemaVersion: schemaVersion,
       themeMode: themeMode ?? this.themeMode,
       showHiddenFiles: showHiddenFiles ?? this.showHiddenFiles,
       showFileExtensions: showFileExtensions ?? this.showFileExtensions,
@@ -124,7 +138,6 @@ class AppSettings {
       newTabLocation: newTabLocation ?? this.newTabLocation,
       customNewTabPath: customNewTabPath ?? this.customNewTabPath,
       confirmRecycleDelete: confirmRecycleDelete ?? this.confirmRecycleDelete,
-      extraFields: extraFields,
     );
   }
 }

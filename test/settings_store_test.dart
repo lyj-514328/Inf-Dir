@@ -46,31 +46,54 @@ void main() {
     expect(settings.showFileExtensions, isFalse);
     expect(settings.showThumbnails, isFalse);
     expect(File(settingsPath).existsSync(), isTrue);
+    final json = jsonDecode(File(settingsPath).readAsStringSync()) as Map;
+    expect(json['schemaVersion'], AppSettings.currentSchemaVersion);
   });
 
-  test('preserves future schema and unknown fields when a setting changes', () {
-    File(settingsPath).writeAsStringSync(
-      jsonEncode({
-        'schemaVersion': 9,
-        'themeMode': 'light',
-        'futureSetting': {'enabled': true},
-      }),
-    );
-    final controller = SettingsController(
-      store: SettingsStore(filePath: settingsPath),
-    );
+  test(
+    'decodes v1 into current settings and rewrites only the latest JSON',
+    () {
+      File(settingsPath).writeAsStringSync(
+        jsonEncode({
+          'schemaVersion': 1,
+          'themeMode': 'light',
+          'showThumbnails': false,
+          'removedSetting': 'legacy',
+        }),
+      );
+
+      final settings = SettingsStore(filePath: settingsPath).load();
+
+      final json = jsonDecode(File(settingsPath).readAsStringSync()) as Map;
+      expect(settings.themeMode, 'light');
+      expect(settings.showThumbnails, isFalse);
+      expect(json['schemaVersion'], AppSettings.currentSchemaVersion);
+      expect(json['themeMode'], 'light');
+      expect(json.containsKey('removedSetting'), isFalse);
+    },
+  );
+
+  test('does not overwrite a settings file from a future version', () {
+    final original = jsonEncode({
+      'schemaVersion': AppSettings.currentSchemaVersion + 1,
+      'themeMode': 'future-theme',
+      'futureSetting': true,
+    });
+    File(settingsPath).writeAsStringSync(original);
+    final store = SettingsStore(filePath: settingsPath);
+    final controller = SettingsController(store: store);
     addTearDown(controller.dispose);
 
+    expect(store.writesEnabled, isFalse);
+    expect(controller.themeMode, ThemeMode.system);
     controller.setThemeMode(ThemeMode.dark);
 
-    final json = jsonDecode(File(settingsPath).readAsStringSync()) as Map;
-    expect(json['schemaVersion'], 9);
-    expect(json['themeMode'], 'dark');
-    expect(json['futureSetting'], {'enabled': true});
+    expect(File(settingsPath).readAsStringSync(), original);
   });
 
   test('invalid enum values fall back without discarding valid values', () {
     final settings = AppSettings.fromJson({
+      'schemaVersion': AppSettings.currentSchemaVersion,
       'themeMode': 'midnight',
       'defaultViewMode': 'gallery',
       'newTabLocation': 'cloud',

@@ -323,8 +323,9 @@
 - 顶层「选项 → 设置…」或 `Ctrl+,` 打开应用级设置页；设置页使用 `IndexedStack`
   保留工作区和各面板的运行状态，`Esc` 或顶栏返回按钮关闭。
 - `SettingsController` 是运行时单一设置源，`SettingsStore` 将配置原子写入
-  `%LOCALAPPDATA%/Inf-Dir/settings.json`，保留 `.bak` 回退、schema 版本和未知字段。
-  首次启动自动迁移原 `prefs.json` 与 `theme.json`。
+  `%LOCALAPPDATA%/Inf-Dir/settings.json`，保留 `.bak` 回退。读取端按 schema 版本
+  将历史 JSON 映射到当前 `AppSettings`，写入端只输出最新 schema；无法识别的未来
+  版本保持原文件只读。首次启动自动迁移原 `prefs.json` 与 `theme.json`。
 - 已实现删除到回收站前确认策略和默认新标签位置（当前目录、主文件夹、自定义目录）；
   永久删除始终确认。单击/双击打开行为仍待实现，因此对应复选项保持未完成。
 - 已实现缩略图显示开关和缓存清理；文件夹大小及网络位置开关依赖 5.7 与 5.5，

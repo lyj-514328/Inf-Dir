@@ -22,6 +22,9 @@ class SettingsStore {
   final String filePath;
   final String legacyPrefsPath;
   final String legacyThemePath;
+  bool _writesEnabled = true;
+
+  bool get writesEnabled => _writesEnabled;
 
   String get _backupPath => '$filePath.bak';
   String get _temporaryPath => '$filePath.tmp';
@@ -35,9 +38,28 @@ class SettingsStore {
   }
 
   AppSettings load() {
+    _writesEnabled = true;
     for (final path in [filePath, _backupPath]) {
       final json = _readJson(path);
-      if (json != null) return AppSettings.fromJson(json);
+      if (json == null) continue;
+      try {
+        final version = AppSettings.schemaVersionOf(json);
+        if (version > AppSettings.currentSchemaVersion) {
+          _writesEnabled = false;
+          debugPrint(
+            '[Settings] schema v$version is newer than supported '
+            'v${AppSettings.currentSchemaVersion}; writes disabled',
+          );
+          return const AppSettings();
+        }
+        final settings = AppSettings.fromJson(json);
+        if (path == filePath && version < AppSettings.currentSchemaVersion) {
+          save(settings);
+        }
+        return settings;
+      } on Object catch (error) {
+        debugPrint('[Settings] decode failed from $path: $error');
+      }
     }
 
     final migrated = _loadLegacy();
@@ -81,6 +103,7 @@ class SettingsStore {
   }
 
   void save(AppSettings settings) {
+    if (!_writesEnabled) return;
     const encoder = JsonEncoder.withIndent('  ');
     final contents = '${encoder.convert(settings.toJson())}\n';
     final target = File(filePath);
