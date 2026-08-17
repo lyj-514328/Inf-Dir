@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../widgets/app_theme.dart';
 import 'plugin_manifest.dart';
 import 'quick_view_service.dart';
+import 'viewer_association_config.dart';
 import 'viewer_rule.dart';
 
 Future<void> showViewerAssociationsDialog(BuildContext context) {
@@ -38,29 +39,141 @@ class ViewerAssociationsDialog extends StatelessWidget {
   }
 }
 
-class ViewerAssociationsView extends StatelessWidget {
+class ViewerAssociationsView extends StatefulWidget {
   const ViewerAssociationsView({super.key});
 
   @override
+  State<ViewerAssociationsView> createState() => _ViewerAssociationsViewState();
+}
+
+class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
+  String? _selectedGroupId;
+
+  @override
   Widget build(BuildContext context) {
-    return const DefaultTabController(
-      length: 4,
-      child: Column(
-        children: [
-          _AssociationTabs(),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _PathRulePage(),
-                _AssociationPage(kind: ViewerAssociationKind.extension),
-                _AssociationPage(kind: ViewerAssociationKind.fileName),
-                _AssociationPage(kind: ViewerAssociationKind.mimeType),
-              ],
+    final c = context.colors;
+    final service = context.watch<QuickViewService>();
+    final groups = service.ruleGroups;
+    final selected = groups.where((group) => group.id == _selectedGroupId);
+    final activeGroup = selected.isEmpty ? groups.first : selected.first;
+    _selectedGroupId = activeGroup.id;
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 210,
+          child: Column(
+            children: [
+              _RuleGroupToolbar(
+                hasIssues: service.issues.isNotEmpty,
+                issueMessage: service.issues
+                    .map((issue) => '${issue.message}\n${issue.path}')
+                    .join('\n\n'),
+                onAdd: () => _addGroup(context, service),
+                onEdit: () => _editGroup(context, service, activeGroup),
+                onDelete: activeGroup.builtIn
+                    ? null
+                    : () => _deleteGroup(context, service, activeGroup),
+                onReload: service.reload,
+              ),
+              Expanded(
+                child: ReorderableListView.builder(
+                  buildDefaultDragHandles: false,
+                  itemExtent: 52,
+                  itemCount: groups.length,
+                  onReorder: service.reorderRuleGroups,
+                  itemBuilder: (context, index) {
+                    final group = groups[index];
+                    return _RuleGroupRow(
+                      key: ValueKey('viewer-rule-group-${group.id}'),
+                      group: group,
+                      index: index,
+                      selected: group.id == activeGroup.id,
+                      onSelected: () =>
+                          setState(() => _selectedGroupId = group.id),
+                      onEnabled: (enabled) =>
+                          service.setRuleGroupEnabled(group.id, enabled),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(width: 1, color: c.border),
+        Expanded(
+          child: switch (activeGroup.type) {
+            ViewerRuleGroupType.path => _PathRulePage(
+              key: ValueKey('path-group-${activeGroup.id}'),
+              groupId: activeGroup.id,
+            ),
+            final type => _AssociationPage(
+              key: ValueKey('association-group-${activeGroup.id}'),
+              groupId: activeGroup.id,
+              kind: type.associationKind!,
+            ),
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _addGroup(BuildContext context, QuickViewService service) async {
+    final draft = await _showRuleGroupDialog(context);
+    if (draft == null || !mounted) return;
+    final group = service.addRuleGroup(name: draft.name, type: draft.type);
+    setState(() => _selectedGroupId = group.id);
+  }
+
+  Future<void> _editGroup(
+    BuildContext context,
+    QuickViewService service,
+    ViewerRuleGroup group,
+  ) async {
+    final draft = await _showRuleGroupDialog(context, initialGroup: group);
+    if (draft == null || !mounted) return;
+    service.renameRuleGroup(group.id, draft.name);
+  }
+
+  Future<void> _deleteGroup(
+    BuildContext context,
+    QuickViewService service,
+    ViewerRuleGroup group,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final c = dialogContext.colors;
+        return AlertDialog(
+          title: const Text('删除规则组'),
+          content: Text(
+            group.name,
+            style: TextStyle(
+              fontSize: AppMetrics.fontBody,
+              color: c.textSecondary,
             ),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              style: TextButton.styleFrom(foregroundColor: c.textSecondary),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: c.danger,
+                foregroundColor: c.onAccent,
+              ),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
     );
+    if (confirmed != true || !mounted) return;
+    service.removeRuleGroup(group.id);
+    setState(() => _selectedGroupId = null);
   }
 }
 
@@ -115,51 +228,288 @@ class _DialogHeader extends StatelessWidget {
   }
 }
 
-/// 分段（segmented）样式的 tab 切换：surfaceSubtle 底槽 + surface 选中胶囊
-class _AssociationTabs extends StatelessWidget {
-  const _AssociationTabs();
+class _RuleGroupToolbar extends StatelessWidget {
+  const _RuleGroupToolbar({
+    required this.hasIssues,
+    required this.issueMessage,
+    required this.onAdd,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onReload,
+  });
+
+  final bool hasIssues;
+  final String issueMessage;
+  final VoidCallback onAdd;
+  final VoidCallback onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback onReload;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return SizedBox(
+      height: 36,
+      child: Row(
+        children: [
+          const SizedBox(width: 4),
+          _IconAction(icon: Icons.add, tooltip: '添加规则组', onPressed: onAdd),
+          _IconAction(icon: Icons.edit, tooltip: '编辑规则组', onPressed: onEdit),
+          _IconAction(
+            icon: Icons.delete_outline,
+            tooltip: '删除规则组',
+            onPressed: onDelete,
+          ),
+          const Spacer(),
+          if (hasIssues)
+            Tooltip(
+              message: issueMessage,
+              child: Icon(
+                Icons.error_outline,
+                size: AppMetrics.iconSm,
+                color: c.danger,
+              ),
+            ),
+          _IconAction(
+            icon: Icons.refresh,
+            tooltip: '重新扫描插件',
+            onPressed: onReload,
+          ),
+          const SizedBox(width: 2),
+        ],
+      ),
+    );
+  }
+}
+
+class _RuleGroupRow extends StatelessWidget {
+  const _RuleGroupRow({
+    required super.key,
+    required this.group,
+    required this.index,
+    required this.selected,
+    required this.onSelected,
+    required this.onEnabled,
+  });
+
+  final ViewerRuleGroup group;
+  final int index;
+  final bool selected;
+  final VoidCallback onSelected;
+  final ValueChanged<bool> onEnabled;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-      child: Container(
-        height: 28,
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: c.surfaceSubtle,
-          borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
-        ),
-        child: TabBar(
-          indicator: BoxDecoration(
-            color: c.surface,
-            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-            border: Border.all(color: c.border),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Material(
+        color: selected ? c.accentSubtle : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        child: InkWell(
+          onTap: onSelected,
+          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+          hoverColor: c.surfaceHover,
+          child: Row(
+            children: [
+              ReorderableDragStartListener(
+                index: index,
+                child: Tooltip(
+                  message: '拖动排序',
+                  child: SizedBox(
+                    width: 28,
+                    height: 48,
+                    child: Icon(
+                      Icons.drag_indicator,
+                      size: AppMetrics.iconMd,
+                      color: c.textTertiary,
+                    ),
+                  ),
+                ),
+              ),
+              Icon(
+                _ruleGroupIcon(group.type),
+                size: AppMetrics.iconSm,
+                color: group.enabled ? c.textSecondary : c.textTertiary,
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      group.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: AppMetrics.fontBody,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: group.enabled ? c.textPrimary : c.textTertiary,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        if (!group.builtIn || group.name != group.type.label)
+                          Flexible(
+                            child: Text(
+                              group.type.label,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: AppMetrics.fontCaption,
+                                color: c.textTertiary,
+                              ),
+                            ),
+                          ),
+                        if (group.builtIn) ...[
+                          if (group.name != group.type.label)
+                            const SizedBox(width: 4),
+                          Tooltip(
+                            message: '内置规则组',
+                            child: Icon(
+                              Icons.lock_outline,
+                              size: 11,
+                              color: c.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Tooltip(
+                message: group.enabled ? '禁用规则组' : '启用规则组',
+                child: Checkbox(
+                  value: group.enabled,
+                  onChanged: (value) => onEnabled(value ?? false),
+                  activeColor: c.accent,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
           ),
-          indicatorSize: TabBarIndicatorSize.tab,
-          dividerColor: Colors.transparent,
-          labelColor: c.textPrimary,
-          unselectedLabelColor: c.textSecondary,
-          labelStyle: const TextStyle(
-            fontSize: AppMetrics.fontBody,
-            fontWeight: FontWeight.w600,
-          ),
-          unselectedLabelStyle: const TextStyle(fontSize: AppMetrics.fontBody),
-          tabs: const [
-            Tab(text: '路径'),
-            Tab(text: '扩展名'),
-            Tab(text: '文件名'),
-            Tab(text: 'MIME'),
-          ],
         ),
       ),
     );
   }
 }
 
+class _RuleGroupDraft {
+  const _RuleGroupDraft({required this.name, required this.type});
+
+  final String name;
+  final ViewerRuleGroupType type;
+}
+
+Future<_RuleGroupDraft?> _showRuleGroupDialog(
+  BuildContext context, {
+  ViewerRuleGroup? initialGroup,
+}) async {
+  final controller = TextEditingController(text: initialGroup?.name ?? '');
+  var type = initialGroup?.type ?? ViewerRuleGroupType.path;
+  String? error;
+  final result = await showDialog<_RuleGroupDraft>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) {
+        final c = context.colors;
+        final inputBorder = OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+          borderSide: BorderSide.none,
+        );
+
+        void submit() {
+          final name = controller.text.trim();
+          if (name.isEmpty) {
+            setDialogState(() => error = '规则组名称不能为空');
+            return;
+          }
+          Navigator.pop(dialogContext, _RuleGroupDraft(name: name, type: type));
+        }
+
+        return AlertDialog(
+          title: Text(initialGroup == null ? '添加规则组' : '编辑规则组'),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    filled: true,
+                    fillColor: c.surfaceSubtle,
+                    labelText: '名称',
+                    errorText: error,
+                    border: inputBorder,
+                    enabledBorder: inputBorder,
+                  ),
+                  onSubmitted: (_) => submit(),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<ViewerRuleGroupType>(
+                  initialValue: type,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    filled: true,
+                    fillColor: c.surfaceSubtle,
+                    labelText: '类型',
+                    border: inputBorder,
+                    enabledBorder: inputBorder,
+                  ),
+                  items: [
+                    for (final item in ViewerRuleGroupType.values)
+                      DropdownMenuItem(value: item, child: Text(item.label)),
+                  ],
+                  onChanged: initialGroup == null
+                      ? (value) {
+                          if (value != null) {
+                            setDialogState(() => type = value);
+                          }
+                        }
+                      : null,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              style: TextButton.styleFrom(foregroundColor: c.textSecondary),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: c.accent,
+                foregroundColor: c.onAccent,
+              ),
+              child: Text(initialGroup == null ? '添加' : '保存'),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+  controller.dispose();
+  return result;
+}
+
+IconData _ruleGroupIcon(ViewerRuleGroupType type) => switch (type) {
+  ViewerRuleGroupType.path => Icons.account_tree_outlined,
+  ViewerRuleGroupType.extension => Icons.description_outlined,
+  ViewerRuleGroupType.fileName => Icons.text_fields,
+  ViewerRuleGroupType.mimeType => Icons.data_object,
+};
+
 class _PathRulePage extends StatefulWidget {
-  const _PathRulePage();
+  const _PathRulePage({super.key, required this.groupId});
+
+  final String groupId;
 
   @override
   State<_PathRulePage> createState() => _PathRulePageState();
@@ -177,7 +527,7 @@ class _PathRulePageState extends State<_PathRulePage>
     super.build(context);
     final c = context.colors;
     final service = context.watch<QuickViewService>();
-    final rules = service.pathRules;
+    final rules = service.pathRulesForGroup(widget.groupId);
     final selectedIndex = rules.indexWhere((rule) => rule.id == _selectedId);
     final selected = selectedIndex < 0 ? null : rules[selectedIndex];
     if (selected == null && rules.isNotEmpty) {
@@ -255,7 +605,8 @@ class _PathRulePageState extends State<_PathRulePage>
   Future<void> _addRule(BuildContext context, QuickViewService service) async {
     final draft = await _showPathRuleDialog(context, service);
     if (draft == null || !mounted) return;
-    final rule = service.addPathRule(
+    final rule = service.addPathRuleToGroup(
+      widget.groupId,
       pattern: draft.pattern,
       mode: draft.mode,
       viewerIds: [draft.viewerId!],
@@ -686,8 +1037,13 @@ Future<_PathRuleDraft?> _showPathRuleDialog(
 }
 
 class _AssociationPage extends StatefulWidget {
-  const _AssociationPage({required this.kind});
+  const _AssociationPage({
+    super.key,
+    required this.groupId,
+    required this.kind,
+  });
 
+  final String groupId;
   final ViewerAssociationKind kind;
 
   @override
@@ -706,7 +1062,8 @@ class _AssociationPageState extends State<_AssociationPage>
     super.build(context);
     final c = context.colors;
     final service = context.watch<QuickViewService>();
-    final keys = service.associationKeys(widget.kind);
+    final group = service.ruleGroup(widget.groupId);
+    final keys = service.associationKeysForRuleGroup(widget.groupId);
     final selected = keys.contains(_selectedKey)
         ? _selectedKey
         : (keys.isEmpty ? null : keys.first);
@@ -720,14 +1077,34 @@ class _AssociationPageState extends State<_AssociationPage>
             children: [
               _AssociationToolbar(
                 onAdd: () => _addAssociation(context, service),
-                onDisable: selected == null
+                builtInGroup: group.builtIn,
+                enabled: selected == null
                     ? null
-                    : () => service.disableAssociation(widget.kind, selected),
+                    : service.associationEnabledForRuleGroup(
+                        widget.groupId,
+                        selected,
+                      ),
+                onToggleEnabled: selected == null
+                    ? null
+                    : () => service.setAssociationEnabledForRuleGroup(
+                        widget.groupId,
+                        selected,
+                        !service.associationEnabledForRuleGroup(
+                          widget.groupId,
+                          selected,
+                        ),
+                      ),
                 onReset:
                     selected == null ||
-                        !service.hasOverride(widget.kind, selected)
+                        !service.hasOverrideForRuleGroup(
+                          widget.groupId,
+                          selected,
+                        )
                     ? null
-                    : () => service.resetAssociation(widget.kind, selected),
+                    : () => service.resetAssociationForRuleGroup(
+                        widget.groupId,
+                        selected,
+                      ),
               ),
               Expanded(
                 child: keys.isEmpty
@@ -745,14 +1122,21 @@ class _AssociationPageState extends State<_AssociationPage>
                         itemCount: keys.length,
                         itemBuilder: (context, index) {
                           final key = keys[index];
-                          final candidates = service.candidatesForAssociation(
-                            widget.kind,
+                          final candidates = service.candidatesForRuleGroup(
+                            widget.groupId,
                             key,
                           );
                           return _AssociationRow(
                             value: key,
                             candidateCount: candidates.length,
-                            overridden: service.hasOverride(widget.kind, key),
+                            enabled: service.associationEnabledForRuleGroup(
+                              widget.groupId,
+                              key,
+                            ),
+                            overridden: service.hasOverrideForRuleGroup(
+                              widget.groupId,
+                              key,
+                            ),
                             selected: key == selected,
                             onTap: () => setState(() => _selectedKey = key),
                           );
@@ -766,7 +1150,11 @@ class _AssociationPageState extends State<_AssociationPage>
         Expanded(
           child: selected == null
               ? const SizedBox.shrink()
-              : _CandidateEditor(kind: widget.kind, associationKey: selected),
+              : _CandidateEditor(
+                  groupId: widget.groupId,
+                  kind: widget.kind,
+                  associationKey: selected,
+                ),
         ),
       ],
     );
@@ -851,8 +1239,8 @@ class _AssociationPageState extends State<_AssociationPage>
     controller.dispose();
     if (key == null || !mounted) return;
     final plugins = service.availablePluginsFor(widget.kind, key);
-    service.setCandidates(
-      widget.kind,
+    service.setCandidatesForRuleGroup(
+      widget.groupId,
       key,
       plugins.map((plugin) => plugin.manifest.id),
     );
@@ -881,12 +1269,16 @@ class _AssociationPageState extends State<_AssociationPage>
 class _AssociationToolbar extends StatelessWidget {
   const _AssociationToolbar({
     required this.onAdd,
-    required this.onDisable,
+    required this.builtInGroup,
+    required this.enabled,
+    required this.onToggleEnabled,
     required this.onReset,
   });
 
   final VoidCallback onAdd;
-  final VoidCallback? onDisable;
+  final bool builtInGroup;
+  final bool? enabled;
+  final VoidCallback? onToggleEnabled;
   final VoidCallback? onReset;
 
   @override
@@ -898,13 +1290,13 @@ class _AssociationToolbar extends StatelessWidget {
           const SizedBox(width: 4),
           _IconAction(icon: Icons.add, tooltip: '添加关联', onPressed: onAdd),
           _IconAction(
-            icon: Icons.link_off,
-            tooltip: '禁用关联',
-            onPressed: onDisable,
+            icon: enabled == false ? Icons.link : Icons.link_off,
+            tooltip: enabled == false ? '启用关联' : '禁用关联',
+            onPressed: onToggleEnabled,
           ),
           _IconAction(
-            icon: Icons.restore,
-            tooltip: '恢复 Manifest 候选',
+            icon: builtInGroup ? Icons.restore : Icons.delete_outline,
+            tooltip: builtInGroup ? '恢复 Manifest 候选' : '删除关联',
             onPressed: onReset,
           ),
         ],
@@ -917,6 +1309,7 @@ class _AssociationRow extends StatelessWidget {
   const _AssociationRow({
     required this.value,
     required this.candidateCount,
+    required this.enabled,
     required this.overridden,
     required this.selected,
     required this.onTap,
@@ -924,6 +1317,7 @@ class _AssociationRow extends StatelessWidget {
 
   final String value;
   final int candidateCount;
+  final bool enabled;
   final bool overridden;
   final bool selected;
   final VoidCallback onTap;
@@ -950,13 +1344,19 @@ class _AssociationRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: AppMetrics.fontBody,
-                      color: candidateCount == 0
+                      color: !enabled || candidateCount == 0
                           ? c.textTertiary
                           : c.textPrimary,
                     ),
                   ),
                 ),
-                if (overridden)
+                if (!enabled)
+                  Icon(
+                    Icons.link_off,
+                    size: AppMetrics.iconSm,
+                    color: c.textTertiary,
+                  )
+                else if (overridden)
                   Icon(
                     Icons.tune,
                     size: AppMetrics.iconSm,
@@ -980,8 +1380,13 @@ class _AssociationRow extends StatelessWidget {
 }
 
 class _CandidateEditor extends StatelessWidget {
-  const _CandidateEditor({required this.kind, required this.associationKey});
+  const _CandidateEditor({
+    required this.groupId,
+    required this.kind,
+    required this.associationKey,
+  });
 
+  final String groupId;
   final ViewerAssociationKind kind;
   final String associationKey;
 
@@ -989,7 +1394,11 @@ class _CandidateEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     final service = context.watch<QuickViewService>();
-    final selected = service.candidatesForAssociation(kind, associationKey);
+    final selected = service.candidatesForRuleGroup(
+      groupId,
+      associationKey,
+      includeDisabled: true,
+    );
     final selectedIds = selected.map((plugin) => plugin.manifest.id).toList();
     final selectedSet = selectedIds.toSet();
     final available = service.availablePluginsFor(kind, associationKey);
@@ -1048,19 +1457,31 @@ class _CandidateEditor extends StatelessWidget {
                         } else {
                           next.remove(id);
                         }
-                        service.setCandidates(kind, associationKey, next);
+                        service.setCandidatesForRuleGroup(
+                          groupId,
+                          associationKey,
+                          next,
+                        );
                       },
                       onMoveUp: () {
                         final next = [...selectedIds];
                         final item = next.removeAt(selectedIndex);
                         next.insert(selectedIndex - 1, item);
-                        service.setCandidates(kind, associationKey, next);
+                        service.setCandidatesForRuleGroup(
+                          groupId,
+                          associationKey,
+                          next,
+                        );
                       },
                       onMoveDown: () {
                         final next = [...selectedIds];
                         final item = next.removeAt(selectedIndex);
                         next.insert(selectedIndex + 1, item);
-                        service.setCandidates(kind, associationKey, next);
+                        service.setCandidatesForRuleGroup(
+                          groupId,
+                          associationKey,
+                          next,
+                        );
                       },
                     );
                   },
@@ -1096,6 +1517,7 @@ class _CandidateRow extends StatelessWidget {
     return Row(
       children: [
         Checkbox(
+          key: ValueKey('viewer-candidate-${plugin.manifest.id}'),
           value: checked,
           onChanged: (value) => onChecked(value ?? false),
           activeColor: c.accent,

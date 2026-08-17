@@ -274,39 +274,93 @@ Windows 下配置文件存储在：
 ```json
 {
   "schemaVersion": 2,
-  "rules": [
+  "groups": [
     {
-      "id": "path-work-pdf",
-      "enabled": true,
+      "id": "builtin-path",
+      "name": "路径",
       "type": "path",
-      "mode": "glob",
-      "pattern": "C:\\Work\\**\\*.pdf",
-      "viewerIds": [
-        "inf-dir.pdf-view"
+      "builtIn": true,
+      "enabled": true,
+      "rules": [
+        {
+          "id": "path-work-pdf",
+          "enabled": true,
+          "type": "path",
+          "mode": "glob",
+          "pattern": "C:\\Work\\**\\*.pdf",
+          "viewerIds": ["inf-dir.pdf-view"]
+        }
       ]
+    },
+    {
+      "id": "builtin-extension",
+      "name": "扩展名",
+      "type": "extension",
+      "builtIn": true,
+      "enabled": true,
+      "associations": {
+        ".pdf": {
+          "enabled": true,
+          "viewerOrder": ["inf-dir.pdf-view"],
+          "excludedViewerIds": ["third-party.browser-view"]
+        }
+      }
+    },
+    {
+      "id": "builtin-file-name",
+      "name": "文件名",
+      "type": "fileName",
+      "builtIn": true,
+      "enabled": true,
+      "associations": {
+        "dockerfile": {
+          "enabled": true,
+          "viewerOrder": ["inf-dir.text-view"],
+          "excludedViewerIds": []
+        }
+      }
+    },
+    {
+      "id": "builtin-mime",
+      "name": "MIME",
+      "type": "mimeType",
+      "builtIn": true,
+      "enabled": true,
+      "associations": {}
+    },
+    {
+      "id": "group-project-images",
+      "name": "项目图片",
+      "type": "extension",
+      "builtIn": false,
+      "enabled": true,
+      "associations": {
+        ".png": {
+          "enabled": true,
+          "viewerOrder": ["inf-dir.image-view"],
+          "excludedViewerIds": []
+        }
+      }
     }
-  ],
-  "associations": {
-    "extensions": {
-      ".pdf": {
-        "enabled": true,
-        "viewerOrder": ["inf-dir.pdf-view"],
-        "excludedViewerIds": ["third-party.browser-view"]
-      }
-    },
-    "fileNames": {
-      "dockerfile": {
-        "enabled": true,
-        "viewerOrder": ["inf-dir.text-view"],
-        "excludedViewerIds": []
-      }
-    },
-    "mimeTypes": {}
-  }
+  ]
 }
 ```
 
-配置保存插件 ID，不保存 EXE 路径。关联覆盖采用增量语义：
+`groups` 数组顺序就是规则组优先级。首次运行固定创建以下四个内置组，默认顺序为路径、扩展名、
+文件名、MIME：
+
+| ID | `type` | 默认名称 |
+| --- | --- | --- |
+| `builtin-path` | `path` | 路径 |
+| `builtin-extension` | `extension` | 扩展名 |
+| `builtin-file-name` | `fileName` | 文件名 |
+| `builtin-mime` | `mimeType` | MIME |
+
+内置组可改名、启用、禁用和排序，但不能删除或修改类型。用户组的 `builtIn` 固定为 `false`，类型也
+只能从上述四种类型中选择。内置普通关联组会合并 Manifest 自动候选；自定义组只包含用户显式添加的
+关联，避免同一批 Manifest 规则在多个组中自动重复。
+
+配置保存插件 ID，不保存 EXE 路径。普通关联覆盖采用增量语义：
 
 - `enabled` 控制整条关联是否参与解析；
 - `viewerOrder` 中的 Viewer 优先于 Manifest 自动候选，数组顺序就是候选顺序；
@@ -314,8 +368,9 @@ Windows 下配置文件存储在：
 - 新安装且没有被明确排除的 Viewer 会自动加入 Manifest 候选；
 - 插件暂时缺失时保留其 ID，重新安装后可以恢复。
 
-版本 1 的完整候选数组会在首次加载时迁移：当前已安装但不在旧数组中的 Viewer
-会转换为明确排除项，配置随后只按版本 2 写回。
+版本 1 的完整候选数组会在首次加载时迁移：当前已安装但不在旧数组中的 Viewer 会转换为明确排除项。
+早期 v2 使用根级 `rules + associations` 的平面结构；当前版本仍能读取，并会在加载后按上述 `groups`
+结构写回。
 
 普通文件名、后缀和 MIME 关联加载与保存时必须验证：
 
@@ -329,9 +384,9 @@ Windows 下配置文件存储在：
 当前版本通过 Win32 `AssocQueryStringW(ASSOCSTR_CONTENTTYPE)` 获取扩展名在 Windows
 文件关联中注册的 MIME。它不读取文件内容；没有注册 MIME 时只使用文件名和扩展名。
 
-### 4.1 路径规则
+### 4.1 路径规则组
 
-路径规则按 `rules` 数组顺序执行，每条规则只有启用和禁用两种状态。`viewerIds`
+每个路径类型组内的规则按 `rules` 数组顺序执行，每条规则只有启用和禁用两种状态。`viewerIds`
 是该规则命中时贡献的有序候选，可关联任意已安装且可用的 Quick View 插件。
 
 - 路径必须是 Windows 绝对路径；
@@ -341,27 +396,26 @@ Windows 下配置文件存储在：
 
 ## 5. 候选解析
 
-给定一个文件，按以下具体程度查找关联：
+Resolver 从前到后遍历已启用的 `groups`。每个规则组根据自己的类型贡献候选：
 
-1. 已启用的路径规则，按配置顺序；
-2. 精确文件名；
-3. 后缀，复合后缀优先，例如 `.tar.gz` 先于 `.gz`；
-4. 精确 MIME；
-5. MIME 通配符。
+- `path`：按组内 `rules` 顺序匹配所有已启用路径规则；
+- `extension`：按复合后缀到短后缀匹配，例如 `.tar.gz` 先于 `.gz`；
+- `fileName`：匹配精确文件名；
+- `mimeType`：先匹配精确 MIME，再匹配同组的 MIME 通配符。
 
-所有命中规则都会贡献候选。各组按上述顺序合并并按插件 ID 去重，第一次出现的位置
-决定最终优先级。例如：
+所有命中规则都会贡献候选。规则组顺序、组内规则顺序和组内 Viewer 顺序共同决定最终优先级，
+最后按插件 ID 去重，第一次出现的位置生效。例如默认“扩展名”组位于“文件名”组之前时：
 
 ```text
-fileNames["readme.md"] = [A, B]
 extensions[".md"]      = [B, C]
-最终候选                 = [A, B, C]
+fileNames["readme.md"] = [A, B]
+最终候选                 = [B, C, A]
 ```
 
 没有用户配置时，从 Manifest 自动生成候选。单候选直接使用；多候选使用稳定的名称、ID
 顺序，用户可在配置界面调整。前一个 Viewer 启动失败时继续尝试后续候选。
 
-Resolver 同时保留每个候选首次命中的规则类型、匹配值和路径规则 ID，供后续诊断界面展示。
+Resolver 同时保留每个候选首次命中的规则组 ID、规则类型、匹配值和路径规则 ID，供后续诊断界面展示。
 
 例如，代码文件可以同时由 `inf-dir.code-view`（CodeMirror 只读代码查看器）和
 `inf-dir.text-view`（轻量文本查看器）声明支持。两者会作为独立候选出现，不会互相覆盖；
@@ -371,23 +425,35 @@ F3 使用当前焦点面板中最近操作的项目。文件夹、无候选、�
 
 ## 6. 配置界面
 
-插件关联界面包含四个标签页：路径、扩展名、文件名、MIME。
+插件关联界面左侧是竖向规则组导航，右侧是当前组的规则与候选 Viewer。规则组导航支持拖拽排序，
+排序结果直接写入 `groups` 数组并影响 Resolver 优先级。
 
-路径页支持：
+路径、扩展名、文件名和 MIME 是初始内置规则组。用户可以：
+
+- 拖拽调整所有规则组的顺序；
+- 修改规则组名称；
+- 启用或禁用规则组；
+- 新建类型为路径、扩展名、文件名或 MIME 的自定义规则组；
+- 删除自定义规则组。
+
+内置规则组不能删除或修改类型；自定义规则组创建后也不能修改类型，避免已有规则被按另一种语义解释。
+
+路径类型组支持：
 
 - 新建和编辑精确路径或 Glob 规则；
 - 启用、禁用和删除规则；
 - 调整路径规则之间的优先级；
 - 添加、移除和排序该规则的候选 Viewer。
 
-扩展名、文件名和 MIME 页包括：
+扩展名、文件名和 MIME 类型组包括：
 
 - 关联项列表；
 - 当前候选插件列表；
 - 添加、禁用关联；
 - 添加、移除候选；
 - 上移、下移候选；
-- 恢复 Manifest 自动候选。
+- 内置组可恢复 Manifest 自动候选；
+- 自定义组可删除关联。
 
 普通关联的候选选择器只展示 Manifest 与当前关联项匹配的已安装插件；路径规则候选
 展示全部已安装且可用的 Quick View 插件。

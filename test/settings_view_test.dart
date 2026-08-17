@@ -146,6 +146,11 @@ void main() {
     expect(find.text('扩展名'), findsOneWidget);
     expect(find.text('文件名'), findsOneWidget);
     expect(find.text('MIME'), findsOneWidget);
+    expect(find.byType(ReorderableListView), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('viewer-rule-group-builtin-path')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }

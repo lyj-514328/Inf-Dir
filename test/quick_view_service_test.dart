@@ -122,6 +122,48 @@ void main() {
       );
       expect(restored.rules.single.id, 'path-work');
       expect(restored.toJson()['schemaVersion'], 2);
+      expect(
+        restored.groups.map((group) => group.type),
+        ViewerRuleGroupType.values,
+      );
+      expect(restored.toJson(), contains('groups'));
+    });
+
+    test('reads the legacy v2 layout and writes ordered groups', () {
+      final restored = ViewerAssociationConfig.fromJson({
+        'schemaVersion': 2,
+        'rules': [
+          {
+            'id': 'path-work',
+            'enabled': true,
+            'type': 'path',
+            'mode': 'glob',
+            'pattern': r'C:\Work\**\*.pdf',
+            'viewerIds': ['viewer.a'],
+          },
+        ],
+        'associations': {
+          'extensions': {
+            '.pdf': {
+              'enabled': true,
+              'viewerOrder': ['viewer.a'],
+              'excludedViewerIds': <String>[],
+            },
+          },
+          'fileNames': <String, Object?>{},
+          'mimeTypes': <String, Object?>{},
+        },
+      });
+
+      expect(restored.needsMigration, isTrue);
+      expect(restored.groups.map((group) => group.type), [
+        ViewerRuleGroupType.path,
+        ViewerRuleGroupType.extension,
+        ViewerRuleGroupType.fileName,
+        ViewerRuleGroupType.mimeType,
+      ]);
+      expect(restored.rules.single.id, 'path-work');
+      expect(restored.toJson(), isNot(contains('associations')));
     });
 
     test('extracts compound suffixes and treats a dotfile as a file name', () {
@@ -206,7 +248,7 @@ void main() {
         service
             .resolve(r'C:\docs\README.md')
             .map((plugin) => plugin.manifest.id),
-        ['viewer.a', 'viewer.b', 'viewer.c'],
+        ['viewer.b', 'viewer.c', 'viewer.a'],
       );
     });
 
@@ -245,8 +287,8 @@ void main() {
 
       expect(candidates.map((candidate) => candidate.plugin.manifest.id), [
         'viewer.c',
-        'viewer.a',
         'viewer.b',
+        'viewer.a',
       ]);
       expect(candidates.first.matchKind, ViewerMatchKind.pathRule);
       expect(candidates.first.ruleId, rule.id);
@@ -256,8 +298,37 @@ void main() {
         service
             .resolve(r'C:\docs\README.md')
             .map((plugin) => plugin.manifest.id),
-        ['viewer.a', 'viewer.b', 'viewer.c'],
+        ['viewer.b', 'viewer.c', 'viewer.a'],
       );
+    });
+
+    test('ordered custom groups change resolver priority and persist', () {
+      final group = service.addRuleGroup(
+        name: '优先 Markdown',
+        type: ViewerRuleGroupType.extension,
+      );
+      service.setCandidatesForRuleGroup(group.id, '.md', ['viewer.c']);
+
+      final oldIndex = service.ruleGroups.indexWhere(
+        (item) => item.id == group.id,
+      );
+      service.reorderRuleGroups(oldIndex, 0);
+
+      final candidates = service.resolveCandidates(r'C:\docs\README.md');
+      expect(candidates.map((candidate) => candidate.plugin.manifest.id), [
+        'viewer.c',
+        'viewer.b',
+        'viewer.a',
+      ]);
+      expect(candidates.first.groupId, group.id);
+
+      final saved =
+          jsonDecode(
+                File(p.join(temp.path, 'associations.json')).readAsStringSync(),
+              )
+              as Map;
+      final groups = saved['groups']! as List;
+      expect((groups.first as Map)['id'], group.id);
     });
 
     test('matches exact paths case-insensitively', () {
@@ -300,6 +371,8 @@ void main() {
       );
       final migratedJson = jsonDecode(configFile.readAsStringSync()) as Map;
       expect(migratedJson['schemaVersion'], 2);
+      expect(migratedJson['groups'], isA<List>());
+      expect(migratedJson, isNot(contains('associations')));
 
       _writePlugin(
         pluginRoot,
@@ -411,6 +484,79 @@ void main() {
             .map((plugin) => plugin.manifest.id),
         ['viewer.b', 'viewer.c'],
       );
+    });
+
+    test('disabling and enabling preserves the configured candidate order', () {
+      service.setCandidates(ViewerAssociationKind.extension, '.md', [
+        'viewer.c',
+        'viewer.b',
+      ]);
+      service.disableAssociation(ViewerAssociationKind.extension, '.md');
+
+      expect(
+        service
+            .candidatesForRuleGroup(
+              ViewerAssociationConfig.builtInExtensionGroupId,
+              '.md',
+              includeDisabled: true,
+            )
+            .map((plugin) => plugin.manifest.id),
+        ['viewer.c', 'viewer.b'],
+      );
+
+      service.setAssociationEnabledForRuleGroup(
+        ViewerAssociationConfig.builtInExtensionGroupId,
+        '.md',
+        true,
+      );
+      expect(
+        service
+            .candidatesForAssociation(ViewerAssociationKind.extension, '.md')
+            .map((plugin) => plugin.manifest.id),
+        ['viewer.c', 'viewer.b'],
+      );
+    });
+
+    test('editing candidates retains a temporarily missing viewer ID', () {
+      final configFile = File(p.join(temp.path, 'missing-viewer.json'))
+        ..writeAsStringSync(
+          jsonEncode({
+            'schemaVersion': 2,
+            'rules': <Object?>[],
+            'associations': {
+              'extensions': {
+                '.md': {
+                  'enabled': true,
+                  'viewerOrder': ['viewer.b', 'viewer.missing'],
+                  'excludedViewerIds': <String>[],
+                },
+              },
+              'fileNames': <String, Object?>{},
+              'mimeTypes': <String, Object?>{},
+            },
+          }),
+        );
+      final preservingService = QuickViewService(
+        pluginRoots: [pluginRoot],
+        associationStore: ViewerAssociationStore(filePath: configFile.path),
+        mimeTypeResolver: (_) => null,
+      );
+      addTearDown(preservingService.dispose);
+
+      preservingService.setCandidates(ViewerAssociationKind.extension, '.md', [
+        'viewer.c',
+      ]);
+
+      final saved = jsonDecode(configFile.readAsStringSync()) as Map;
+      final groups = saved['groups']! as List;
+      final extensionGroup = groups.cast<Map>().singleWhere(
+        (group) => group['id'] == 'builtin-extension',
+      );
+      final associations = extensionGroup['associations']! as Map;
+      expect((associations['.md'] as Map)['viewerOrder'], [
+        'viewer.c',
+        'viewer.missing',
+      ]);
     });
 
     test(

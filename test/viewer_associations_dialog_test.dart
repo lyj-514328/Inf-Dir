@@ -37,9 +37,7 @@ void main() {
     temp.deleteSync(recursive: true);
   });
 
-  testWidgets('shows path and three manifest association groups', (
-    tester,
-  ) async {
+  testWidgets('shows built-in groups in vertical navigation', (tester) async {
     tester.view.physicalSize = const Size(1000, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -51,11 +49,68 @@ void main() {
     expect(find.text('扩展名'), findsOneWidget);
     expect(find.text('文件名'), findsOneWidget);
     expect(find.text('MIME'), findsOneWidget);
+    expect(find.byType(ReorderableListView), findsOneWidget);
     await tester.tap(find.text('扩展名'));
     await tester.pumpAndSettle();
     expect(find.text('.txt'), findsOneWidget);
     expect(find.text('A Viewer'), findsOneWidget);
     expect(find.text('B Viewer'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reorders rule groups through the navigation callback', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _openDialog(tester, service);
+
+    final list = tester.widget<ReorderableListView>(
+      find.byType(ReorderableListView),
+    );
+    list.onReorder(3, 0);
+    await tester.pump();
+
+    expect(service.ruleGroups.map((group) => group.type), [
+      ViewerRuleGroupType.mimeType,
+      ViewerRuleGroupType.path,
+      ViewerRuleGroupType.extension,
+      ViewerRuleGroupType.fileName,
+    ]);
+    final saved =
+        jsonDecode(
+              File(p.join(temp.path, 'associations.json')).readAsStringSync(),
+            )
+            as Map;
+    expect(((saved['groups'] as List).first as Map)['type'], 'mimeType');
+  });
+
+  testWidgets('adds a custom rule group with one of the four types', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _openDialog(tester, service);
+    await tester.tap(find.byTooltip('添加规则组'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '项目文件名');
+    await tester.tap(find.byType(DropdownButtonFormField<ViewerRuleGroupType>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('文件名').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '添加'));
+    await tester.pumpAndSettle();
+
+    expect(service.ruleGroups, hasLength(5));
+    expect(service.ruleGroups.last.name, '项目文件名');
+    expect(service.ruleGroups.last.type, ViewerRuleGroupType.fileName);
+    expect(find.text('项目文件名'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -80,7 +135,7 @@ void main() {
       ['viewer.b', 'viewer.a'],
     );
 
-    await tester.tap(find.byType(Checkbox).first);
+    await tester.tap(find.byKey(const ValueKey('viewer-candidate-viewer.b')));
     await tester.pump();
     expect(
       service
