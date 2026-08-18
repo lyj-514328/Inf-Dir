@@ -483,7 +483,7 @@ class _ViewerSettingsPage extends StatelessWidget {
               decoration: BoxDecoration(
                 color: c.surface,
                 border: Border.all(color: c.border),
-                borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+                borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
               ),
               child: const ViewerAssociationsView(),
             ),
@@ -512,11 +512,11 @@ class _CategoryButton extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 3),
       child: Material(
         color: selected ? c.selectedInactive : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
         child: InkWell(
           key: ValueKey('settings-category-${category.name}'),
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+          borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
           child: SizedBox(
             height: 38,
             child: Row(
@@ -576,7 +576,7 @@ class _SettingsRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: c.surface,
         border: Border.all(color: c.border),
-        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+        borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -611,7 +611,7 @@ class _SettingsRow extends StatelessWidget {
             children: [
               Expanded(child: info),
               const SizedBox(width: 20),
-              Flexible(child: control),
+              control,
             ],
           );
         },
