@@ -73,22 +73,46 @@ class QuickViewCapability {
   }
 }
 
+class OpenDirectoryCapability {
+  const OpenDirectoryCapability({
+    required this.executables,
+    required this.appPaths,
+    required this.installPaths,
+    this.arguments = const [],
+  });
+
+  /// PATH 扫描候选（裸可执行文件名，按序）。
+  final List<String> executables;
+
+  /// App Paths 注册表查询名（按序）。
+  final List<String> appPaths;
+
+  /// 常见安装位置模板（可含 %VAR% 环境变量）。
+  final List<String> installPaths;
+
+  /// 启动参数模板；`{dir}` 在启动时替换为目录绝对路径。
+  /// 为空时默认只传入目录绝对路径。
+  final List<String> arguments;
+}
+
 class PluginManifest {
   const PluginManifest({
     required this.manifestVersion,
     required this.id,
     required this.name,
     required this.version,
-    required this.entrypoint,
-    required this.quickView,
+    this.entrypoint,
+    this.quickView,
+    this.openDirectory,
   });
 
   final int manifestVersion;
   final String id;
   final String name;
   final String version;
-  final String entrypoint;
-  final QuickViewCapability quickView;
+  final String? entrypoint;
+  final QuickViewCapability? quickView;
+  final OpenDirectoryCapability? openDirectory;
 
   factory PluginManifest.fromJson(Map<String, Object?> json) {
     final manifestVersion = json['manifestVersion'];
@@ -101,34 +125,78 @@ class PluginManifest {
       throw FormatException('无效插件 ID：$id');
     }
 
-    final entrypoint = _requiredString(json, 'entrypoint');
-    final entrySegments = p.split(p.normalize(entrypoint));
-    if (p.isAbsolute(entrypoint) || entrySegments.contains('..')) {
-      throw FormatException('entrypoint 必须位于插件目录内：$entrypoint');
+    final entrypointRaw = json['entrypoint'];
+    String? entrypoint;
+    if (entrypointRaw != null) {
+      if (entrypointRaw is! String || entrypointRaw.trim().isEmpty) {
+        throw const FormatException('entrypoint 必须是字符串');
+      }
+      entrypoint = entrypointRaw.trim();
+      final entrySegments = p.split(p.normalize(entrypoint));
+      if (p.isAbsolute(entrypoint) || entrySegments.contains('..')) {
+        throw FormatException('entrypoint 必须位于插件目录内：$entrypoint');
+      }
     }
 
     final capabilities = json['capabilities'];
-    final quickViewJson = capabilities is Map<String, Object?>
-        ? capabilities['quickView']
-        : null;
-    if (quickViewJson is! Map<String, Object?>) {
-      throw const FormatException('缺少 capabilities.quickView');
+    final capabilityMap = capabilities is Map<String, Object?>
+        ? capabilities
+        : const <String, Object?>{};
+
+    QuickViewCapability? quickView;
+    final quickViewJson = capabilityMap['quickView'];
+    if (quickViewJson != null) {
+      if (quickViewJson is! Map<String, Object?>) {
+        throw const FormatException('capabilities.quickView 必须是对象');
+      }
+      if (entrypoint == null) {
+        throw const FormatException('quickView 插件必须声明 entrypoint');
+      }
+      final extensions = _normalizedList(
+        quickViewJson['extensions'],
+        ViewerAssociationKind.extension,
+      );
+      final fileNames = _normalizedList(
+        quickViewJson['fileNames'],
+        ViewerAssociationKind.fileName,
+      );
+      final mimeTypes = _normalizedList(
+        quickViewJson['mimeTypes'],
+        ViewerAssociationKind.mimeType,
+      );
+      if (extensions.isEmpty && fileNames.isEmpty && mimeTypes.isEmpty) {
+        throw const FormatException('quickView 至少需要一个匹配项');
+      }
+      quickView = QuickViewCapability(
+        extensions: extensions,
+        fileNames: fileNames,
+        mimeTypes: mimeTypes,
+      );
     }
 
-    final extensions = _normalizedList(
-      quickViewJson['extensions'],
-      ViewerAssociationKind.extension,
-    );
-    final fileNames = _normalizedList(
-      quickViewJson['fileNames'],
-      ViewerAssociationKind.fileName,
-    );
-    final mimeTypes = _normalizedList(
-      quickViewJson['mimeTypes'],
-      ViewerAssociationKind.mimeType,
-    );
-    if (extensions.isEmpty && fileNames.isEmpty && mimeTypes.isEmpty) {
-      throw const FormatException('quickView 至少需要一个匹配项');
+    OpenDirectoryCapability? openDirectory;
+    final openDirectoryJson = capabilityMap['openDirectory'];
+    if (openDirectoryJson != null) {
+      if (openDirectoryJson is! Map<String, Object?>) {
+        throw const FormatException('capabilities.openDirectory 必须是对象');
+      }
+      final executables = _stringList(openDirectoryJson['executables']);
+      final appPaths = _stringList(openDirectoryJson['appPaths']);
+      final installPaths = _stringList(openDirectoryJson['installPaths']);
+      final arguments = _stringList(openDirectoryJson['arguments']);
+      if (executables.isEmpty && appPaths.isEmpty && installPaths.isEmpty) {
+        throw const FormatException('openDirectory 至少需要一个解析候选');
+      }
+      openDirectory = OpenDirectoryCapability(
+        executables: executables,
+        appPaths: appPaths,
+        installPaths: installPaths,
+        arguments: arguments,
+      );
+    }
+
+    if (quickView == null && openDirectory == null) {
+      throw const FormatException('缺少受支持的能力：quickView 或 openDirectory');
     }
 
     return PluginManifest(
@@ -137,11 +205,8 @@ class PluginManifest {
       name: _requiredString(json, 'name'),
       version: _requiredString(json, 'version'),
       entrypoint: entrypoint,
-      quickView: QuickViewCapability(
-        extensions: extensions,
-        fileNames: fileNames,
-        mimeTypes: mimeTypes,
-      ),
+      quickView: quickView,
+      openDirectory: openDirectory,
     );
   }
 
@@ -153,13 +218,15 @@ class PluginManifest {
     return PluginManifest.fromJson(decoded);
   }
 
-  static bool declaresQuickView(File file) {
+  static bool declaresSupportedCapability(File file) {
     final decoded = jsonDecode(file.readAsStringSync());
     if (decoded is! Map) {
       throw const FormatException('Manifest 根节点必须是对象');
     }
     final capabilities = decoded['capabilities'];
-    return capabilities is Map && capabilities.containsKey('quickView');
+    return capabilities is Map &&
+        (capabilities.containsKey('quickView') ||
+            capabilities.containsKey('openDirectory'));
   }
 
   static String _requiredString(Map<String, Object?> json, String key) {
@@ -168,6 +235,21 @@ class PluginManifest {
       throw FormatException('缺少字段：$key');
     }
     return value.trim();
+  }
+
+  static List<String> _stringList(Object? raw) {
+    if (raw == null) return const [];
+    if (raw is! List) {
+      throw const FormatException('openDirectory 候选必须是数组');
+    }
+    final result = <String>{};
+    for (final value in raw) {
+      if (value is! String || value.trim().isEmpty) {
+        throw const FormatException('openDirectory 候选只能包含非空字符串');
+      }
+      result.add(value.trim());
+    }
+    return List.unmodifiable(result);
   }
 
   static List<String> _normalizedList(Object? raw, ViewerAssociationKind kind) {
@@ -193,7 +275,7 @@ class ViewerPlugin {
   final String directoryPath;
 
   String get executablePath =>
-      p.normalize(p.join(directoryPath, manifest.entrypoint));
+      p.normalize(p.join(directoryPath, manifest.entrypoint!));
 
   bool get isAvailable => File(executablePath).existsSync();
 }

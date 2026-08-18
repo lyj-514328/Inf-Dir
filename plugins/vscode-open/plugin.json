@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.vscode-open",
+  "name": "Visual Studio Code",
+  "version": "1.0.0",
+  "capabilities": {
+    "openDirectory": {
+      "executables": ["code.cmd", "Code.exe"],
+      "appPaths": ["Code.exe"],
+      "installPaths": [
+        "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe",
+        "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\bin\\code.cmd",
+        "%ProgramFiles%\\Microsoft VS Code\\Code.exe",
+        "%ProgramFiles%\\Microsoft VS Code\\bin\\code.cmd",
+        "%ProgramFiles(x86)%\\Microsoft VS Code\\bin\\code.cmd"
+      ]
+    }
+  }
+}

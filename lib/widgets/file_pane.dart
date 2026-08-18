@@ -644,6 +644,20 @@ class _PaneContent extends StatelessWidget {
     final openWithData = canOpenFile
         ? _buildOpenWithMenu(singlePath!, menuIconSize)
         : null;
+    final directoryOpenerItems = canOpenDir
+        ? [
+            for (final opener in context
+                .read<QuickViewService>()
+                .directoryOpeners)
+              CommandMenuItem(
+                icon: Icons.open_in_new,
+                label: '用 ${opener.manifest.name} 打开',
+                onAction: () => unawaited(
+                  _openDirectoryWith(context, opener.manifest.id, singlePath!),
+                ),
+              ),
+          ]
+        : const <CommandMenuItem>[];
 
     String? compressName;
     if (canModify) {
@@ -685,6 +699,7 @@ class _PaneContent extends StatelessWidget {
         openImage: openWithData?.defaultAppImage,
         onOpenWith: canOpenFile ? () => _openWith(context, singlePath!) : null,
         openWithChildren: openWithData?.items,
+        directoryOpenerItems: directoryOpenerItems,
         onQuickView: canOpenFile
             ? () => _openQuickView(context, singlePath!)
             : null,
@@ -722,9 +737,6 @@ class _PaneContent extends StatelessWidget {
             ? () => _extractToFolder(context, singlePath!)
             : null,
         extractName: extractName,
-        onOpenInTerminal: canOpenDir
-            ? () => _openTerminal(context, singlePath!)
-            : null,
         onProperties: canModify
             ? () => _showPropertiesVerb(context, paths)
             : null,
@@ -767,6 +779,24 @@ class _PaneContent extends StatelessWidget {
     }
 
     final canWrite = !FileService.isSpecialPath(controller.currentPath);
+    final directoryOpenerItems = canWrite
+        ? [
+            for (final opener in context
+                .read<QuickViewService>()
+                .directoryOpeners)
+              CommandMenuItem(
+                icon: Icons.open_in_new,
+                label: '用 ${opener.manifest.name} 打开',
+                onAction: () => unawaited(
+                  _openDirectoryWith(
+                    context,
+                    opener.manifest.id,
+                    controller.currentPath,
+                  ),
+                ),
+              ),
+          ]
+        : const <CommandMenuItem>[];
     showCommandMenu(
       context,
       position: position,
@@ -792,16 +822,31 @@ class _PaneContent extends StatelessWidget {
         onCreateFromTemplate: (entry) => _createFromTemplate(context, entry),
         onPaste: () => _paste(context),
         onSelectAll: controller.selectAll,
-        onOpenInTerminal: canWrite
-            ? () => _openTerminal(context, controller.currentPath)
-            : null,
         onShowMoreOptions: () => _showNativeMenu(context, const [], position),
+        directoryOpenerItems: directoryOpenerItems,
       ),
     );
   }
 
   Future<void> _openQuickView(BuildContext context, String path) async {
     final result = await context.read<QuickViewService>().open(path);
+    if (!context.mounted || result.started) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(result.message),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Future<void> _openDirectoryWith(
+    BuildContext context,
+    String pluginId,
+    String path,
+  ) async {
+    final result = await context
+        .read<QuickViewService>()
+        .openDirectoryWith(pluginId, path);
     if (!context.mounted || result.started) return;
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
@@ -1095,14 +1140,6 @@ class _PaneContent extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) _showOperationError(context, '解压失败', e);
-    }
-  }
-
-  Future<void> _openTerminal(BuildContext context, String dirPath) async {
-    try {
-      await FileService.openTerminal(dirPath);
-    } catch (e) {
-      if (context.mounted) _showOperationError(context, '打开终端失败', e);
     }
   }
 

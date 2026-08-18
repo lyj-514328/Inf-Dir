@@ -420,10 +420,7 @@ class _GroupsColumn extends StatelessWidget {
               buildDefaultDragHandles: false,
               itemExtent: 52,
               itemCount: groups.length,
-              onReorder: (oldIndex, newIndex) {
-                if (newIndex > oldIndex) newIndex -= 1;
-                onReorder(oldIndex, newIndex);
-              },
+              onReorderItem: onReorder,
               itemBuilder: (context, index) {
                 final group = groups[index];
                 return DragTarget<_RuleDragData>(
@@ -864,14 +861,8 @@ class _ViewersColumn extends StatelessWidget {
                     buildDefaultDragHandles: false,
                     itemExtent: 52,
                     itemCount: valueRule.viewers.length,
-                    onReorder: (oldIndex, newIndex) {
-                      if (newIndex > oldIndex) newIndex -= 1;
-                      service.reorderRuleViewers(
-                        valueRule.id,
-                        oldIndex,
-                        newIndex,
-                      );
-                    },
+                    onReorderItem: (oldIndex, newIndex) => service
+                        .reorderRuleViewers(valueRule.id, oldIndex, newIndex),
                     itemBuilder: (context, index) {
                       final viewer = valueRule.viewers[index];
                       final plugin = service.pluginById(viewer.id);

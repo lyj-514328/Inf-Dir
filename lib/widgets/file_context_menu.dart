@@ -21,6 +21,7 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
   ImageProvider<Object>? openImage,
   VoidCallback? onOpenWith,
   List<CommandMenuItem>? openWithChildren,
+  List<CommandMenuItem> directoryOpenerItems = const [],
   VoidCallback? onQuickView,
   VoidCallback? onOpenInNewTab,
   VoidCallback? onOpenInNewWindow,
@@ -42,7 +43,6 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
   VoidCallback? onExtractToFolder,
   String? extractName,
   VoidCallback? onSendTo,
-  VoidCallback? onOpenInTerminal,
   VoidCallback? onPinToSidebar,
   VoidCallback? onProperties,
   required VoidCallback onShowMoreOptions,
@@ -63,6 +63,7 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
         children: openWithChildren,
         onAction: onOpenWith,
       ),
+    ...directoryOpenerItems,
     if (onOpenInNewTab != null)
       CommandMenuItem(
         icon: Icons.tab,
@@ -202,12 +203,6 @@ List<CommandMenuItem> buildFileItemContextMenuItems({
   ];
 
   final tailItems = <CommandMenuItem>[
-    if (onOpenInTerminal != null)
-      CommandMenuItem(
-        icon: Icons.terminal,
-        label: '在 Windows 终端中打开',
-        onAction: onOpenInTerminal,
-      ),
     if (onPinToSidebar != null)
       CommandMenuItem(
         icon: Icons.push_pin_outlined,
@@ -367,10 +362,10 @@ List<CommandMenuItem> buildFolderContextMenuItems({
   required VoidCallback onCreateShortcut,
   required VoidCallback onPaste,
   required VoidCallback onSelectAll,
-  VoidCallback? onOpenInTerminal,
   required VoidCallback onShowMoreOptions,
   List<ShellNewEntry> shellNewEntries = const [],
   required ValueChanged<ShellNewEntry> onCreateFromTemplate,
+  List<CommandMenuItem> directoryOpenerItems = const [],
 }) {
   final sharedConfig = ViewSortMenuConfig(
     sortColumn: sortColumn,
@@ -412,15 +407,10 @@ List<CommandMenuItem> buildFolderContextMenuItems({
       enabled: canSelectAll,
       onAction: onSelectAll,
     ),
-    if (onOpenInTerminal != null)
-      CommandMenuItem(
-        icon: Icons.terminal,
-        label: '在 Windows 终端中打开',
-        onAction: onOpenInTerminal,
-      ),
   ];
 
   return _joinSections([
+    directoryOpenerItems,
     [
       buildViewCommandMenuItem(sharedConfig),
       buildSortCommandMenuItem(sharedConfig, label: '排序方式'),

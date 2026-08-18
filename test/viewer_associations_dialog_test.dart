@@ -66,7 +66,7 @@ void main() {
     final list = tester.widget<ReorderableListView>(
       find.byKey(const ValueKey('viewer-rule-groups-list')),
     );
-    list.onReorder(0, 4);
+    list.onReorderItem!(0, 3);
     await tester.pump();
 
     expect(service.ruleGroups.map((group) => group.id), [
@@ -179,7 +179,7 @@ void main() {
     final list = tester.widget<ReorderableListView>(
       find.byKey(const ValueKey('viewer-candidates-list')),
     );
-    list.onReorder(0, 2);
+    list.onReorderItem!(0, 1);
     await tester.pump();
     expect(
       service

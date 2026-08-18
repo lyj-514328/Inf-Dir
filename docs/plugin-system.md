@@ -70,8 +70,8 @@ Inf-Dir/
 | `id` | 全局稳定 ID，仅允许小写字母、数字、点和连字符 |
 | `name` | 配置界面显示名称 |
 | `version` | 插件版本 |
-| `entrypoint` | 插件目录内的 EXE 相对路径 |
-| `capabilities` | 至少声明一个受支持能力：`quickView`、`search` 或 `archive` |
+| `entrypoint` | 插件目录内的 EXE 相对路径；仅对携带可执行程序的插件（`quickView`）必填 |
+| `capabilities` | 至少声明一个受支持能力：`quickView`、`search`、`archive` 或 `openDirectory` |
 
 Viewer 插件的 `quickView` 至少要包含一个非空匹配组。绝大多数 Viewer 插件只需要 `extensions`。
 
@@ -260,6 +260,70 @@ fn create_webview_window(
 测试时显式覆盖入口。插件包由 `plugins/archive/build.bat` 构建并安装到
 `plugins/dist/inf-dir.7z-archive/`，主 `plugins/build.bat` 会自动调用该脚本。
 未找到插件时不回退到 PowerShell 或其他压缩实现，主程序会提示用户构建插件或配置入口。
+
+### 3.7 目录打开器（openDirectory）
+
+目录打开器面向**目录**而非文件：右键目录时，主程序为每个可用的目录打开器显示一条
+「用 \<名称\> 打开」菜单项，点击后以分离进程启动解析到的可执行文件并传入目录绝对路径。
+目录打开器不参与 Quick View 关联解析，也不携带 `entrypoint`；可执行程序来自系统安装，
+插件包只含 `plugin.json`。
+
+```json
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.vscode-open",
+  "name": "Visual Studio Code",
+  "version": "1.0.0",
+  "capabilities": {
+    "openDirectory": {
+      "executables": ["code.cmd", "Code.exe"],
+      "appPaths": ["Code.exe"],
+      "installPaths": [
+        "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe",
+        "%ProgramFiles%\\Microsoft VS Code\\Code.exe"
+      ]
+    }
+  }
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `executables` | 裸可执行文件名，按序在 `PATH` 目录中扫描 |
+| `appPaths` | 按序查询注册表 `SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\<名称>`（先 HKLM 后 HKCU） |
+| `installPaths` | 常见安装位置模板，支持 `%VAR%` 环境变量展开；含未知变量的模板跳过 |
+| `arguments` | 启动参数模板（可选）。每个条目按原样传入，其中 `{dir}` 替换为被打开目录的绝对路径；省略时默认只传目录绝对路径 |
+
+解析顺序（首个存在的文件生效，结果在插件扫描时缓存）：
+
+1. 环境变量覆盖：插件 ID 大写、非字母数字替换为 `_` 后加 `_PATH`
+   （`inf-dir.vscode-open` → `INF_DIR_VSCODE_OPEN_PATH`）；
+2. `appPaths` 注册表查询；
+3. `PATH` 目录扫描 `executables`；
+4. `installPaths` 模板展开。
+
+解析失败的插件记录诊断问题且不进入右键菜单。启动协议为 `<executable> <参数模板展开结果>`，
+工作目录为被打开的目录，进程与主程序生命周期无关。菜单仅对单个目录选择显示；Quick View（F3）
+对目录的行为不变。
+
+例如 Windows 终端需要 `-d` 开关指定起始目录：
+
+```json
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.windows-terminal",
+  "name": "Windows 终端",
+  "version": "1.0.0",
+  "capabilities": {
+    "openDirectory": {
+      "executables": ["wt.exe"],
+      "appPaths": ["wt.exe"],
+      "installPaths": ["%LOCALAPPDATA%\\Microsoft\\WindowsApps\\wt.exe"],
+      "arguments": ["-d", "{dir}"]
+    }
+  }
+}
+```
 
 ## 4. 用户关联配置
 

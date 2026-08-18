@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:inf_dir/features/quick_view/directory_opener_resolver.dart';
 import 'package:inf_dir/features/quick_view/plugin_manifest.dart';
 import 'package:inf_dir/features/quick_view/quick_view_service.dart';
 import 'package:inf_dir/features/quick_view/viewer_association_config.dart';
@@ -45,11 +46,12 @@ void main() {
         },
       });
 
-      expect(manifest.quickView.extensions, ['.pdf']);
-      expect(manifest.quickView.fileNames, ['dockerfile']);
-      expect(manifest.quickView.mimeTypes, ['application/pdf', 'image/*']);
+      final quickView = manifest.quickView!;
+      expect(quickView.extensions, ['.pdf']);
+      expect(quickView.fileNames, ['dockerfile']);
+      expect(quickView.mimeTypes, ['application/pdf', 'image/*']);
       expect(
-        manifest.quickView.supports(
+        quickView.supports(
           ViewerAssociationKind.mimeType,
           'image/png',
         ),
@@ -69,6 +71,61 @@ void main() {
             'quickView': {
               'extensions': ['.txt'],
             },
+          },
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('parses openDirectory manifests without entrypoint', () {
+      final manifest = PluginManifest.fromJson({
+        'manifestVersion': 1,
+        'id': 'example.dir-open',
+        'name': 'Example Open',
+        'version': '1.0.0',
+        'capabilities': {
+          'openDirectory': {
+            'executables': ['code.cmd'],
+            'appPaths': ['Code.exe'],
+            'installPaths': ['%ProgramFiles%\\Example\\example.exe'],
+            'arguments': ['-d', '{dir}'],
+          },
+        },
+      });
+
+      expect(manifest.entrypoint, isNull);
+      expect(manifest.quickView, isNull);
+      expect(manifest.openDirectory!.executables, ['code.cmd']);
+      expect(manifest.openDirectory!.appPaths, ['Code.exe']);
+      expect(manifest.openDirectory!.arguments, ['-d', '{dir}']);
+    });
+
+    test('quickView capability still requires an entrypoint', () {
+      expect(
+        () => PluginManifest.fromJson({
+          'manifestVersion': 1,
+          'id': 'example.viewer',
+          'name': 'Example',
+          'version': '1.0.0',
+          'capabilities': {
+            'quickView': {
+              'extensions': ['.txt'],
+            },
+          },
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects manifests without a supported capability', () {
+      expect(
+        () => PluginManifest.fromJson({
+          'manifestVersion': 1,
+          'id': 'example.none',
+          'name': 'Example',
+          'version': '1.0.0',
+          'capabilities': {
+            'search': {'type': 'fileName', 'protocol': 'fd-nul-v1'},
           },
         }),
         throwsFormatException,
@@ -888,6 +945,180 @@ void main() {
       },
     );
   });
+
+  group('directory openers', () {
+    late Directory temp;
+    late Directory pluginRoot;
+
+    setUp(() {
+      temp = Directory.systemTemp.createTempSync('inf_dir_openers_');
+      pluginRoot = Directory(p.join(temp.path, 'plugins'))..createSync();
+      _writeOpenerPlugin(
+        pluginRoot,
+        id: 'test.opener',
+        name: 'Test Opener',
+        appPaths: ['Code.exe'],
+      );
+      _writeOpenerPlugin(
+        pluginRoot,
+        id: 'test.missing',
+        name: 'Missing Opener',
+        appPaths: ['NotInstalled.exe'],
+      );
+    });
+
+    tearDown(() {
+      temp.deleteSync(recursive: true);
+    });
+
+    QuickViewService createService(
+      List<(String, List<String>, String)> starts, {
+      bool failStart = false,
+    }) {
+      return QuickViewService(
+        pluginRoots: [pluginRoot],
+        associationStore: ViewerAssociationStore(
+          filePath: p.join(temp.path, 'associations.json'),
+        ),
+        mimeTypeResolver: (_) => null,
+        directoryOpenerResolver: DirectoryOpenerResolver(
+          environment: const {},
+          appPathsLookup: (name) =>
+              name == 'Code.exe' ? r'C:\fake\code.cmd' : null,
+          pathDirectories: () => const [],
+          fileExists: (path) => path == r'C:\fake\code.cmd',
+        ),
+        directoryOpenerStarter: (executable, arguments, workingDirectory) {
+          if (failStart) {
+            throw const ProcessException('opener', [], 'failed');
+          }
+          starts.add((executable, arguments, workingDirectory));
+          return Future.value(
+            ViewerProcessHandle(
+              processId: 1,
+              exitCode: Future.value(-1),
+              terminate: () => false,
+            ),
+          );
+        },
+      );
+    }
+
+    test('reload collects resolved openers and reports unresolved ones', () {
+      final service = createService(const []);
+      addTearDown(service.dispose);
+
+      expect(
+        service.directoryOpeners.map((opener) => opener.manifest.id),
+        ['test.opener'],
+      );
+      expect(
+        service.directoryOpeners.single.executablePath,
+        r'C:\fake\code.cmd',
+      );
+      expect(
+        service.issues.map((issue) => issue.message),
+        contains('未找到可执行程序：test.missing'),
+      );
+    });
+
+    test(
+      'openDirectoryWith launches detached with the directory path',
+      () async {
+        final starts = <(String, List<String>, String)>[];
+        final service = createService(starts);
+        addTearDown(service.dispose);
+        final directory = Directory(p.join(temp.path, 'project'))
+          ..createSync();
+
+        final result = await service.openDirectoryWith(
+          'test.opener',
+          directory.path,
+        );
+
+        expect(result.started, isTrue);
+        expect(result.message, '已使用 Test Opener 打开');
+        expect(starts.single.$1, r'C:\fake\code.cmd');
+        expect(starts.single.$2, [p.absolute(directory.path)]);
+        expect(starts.single.$3, p.absolute(directory.path));
+      },
+    );
+
+    test('openDirectoryWith substitutes the arguments template', () async {
+      _writeOpenerPlugin(
+        pluginRoot,
+        id: 'test.opener.args',
+        name: 'Argument Opener',
+        appPaths: ['Code.exe'],
+        arguments: ['-d', '{dir}'],
+      );
+      final starts = <(String, List<String>, String)>[];
+      final service = createService(starts);
+      addTearDown(service.dispose);
+      final directory = Directory(p.join(temp.path, 'project'))
+        ..createSync();
+
+      final result = await service.openDirectoryWith(
+        'test.opener.args',
+        directory.path,
+      );
+
+      expect(result.started, isTrue);
+      expect(starts.single.$1, r'C:\fake\code.cmd');
+      expect(starts.single.$2, ['-d', p.absolute(directory.path)]);
+      expect(starts.single.$3, p.absolute(directory.path));
+    });
+
+    test('openDirectoryWith fails for a missing directory', () async {
+      final service = createService(const []);
+      addTearDown(service.dispose);
+
+      final result = await service.openDirectoryWith(
+        'test.opener',
+        p.join(temp.path, 'nope'),
+      );
+
+      expect(result.started, isFalse);
+    });
+
+    test('openDirectoryWith reports starter failures', () async {
+      final service = createService(const [], failStart: true);
+      addTearDown(service.dispose);
+      final directory = Directory(p.join(temp.path, 'project'))..createSync();
+
+      final result = await service.openDirectoryWith(
+        'test.opener',
+        directory.path,
+      );
+
+      expect(result.started, isFalse);
+      expect(result.message, startsWith('启动失败'));
+    });
+  });
+}
+
+void _writeOpenerPlugin(
+  Directory root, {
+  required String id,
+  required String name,
+  required List<String> appPaths,
+  List<String> arguments = const [],
+}) {
+  final directory = Directory(p.join(root.path, id))..createSync();
+  File(p.join(directory.path, 'plugin.json')).writeAsStringSync(
+    jsonEncode({
+      'manifestVersion': 1,
+      'id': id,
+      'name': name,
+      'version': '1.0.0',
+      'capabilities': {
+        'openDirectory': {
+          'appPaths': appPaths,
+          if (arguments.isNotEmpty) 'arguments': arguments,
+        },
+      },
+    }),
+  );
 }
 
 class _FakeViewerWindowController implements ViewerWindowController {

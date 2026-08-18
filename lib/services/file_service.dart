@@ -298,10 +298,6 @@ class FileService {
     await Process.run('rundll32.exe', ['shell32.dll,OpenAs_RunDLL', filePath]);
   }
 
-  static Future<void> openTerminal(String dirPath) async {
-    await Process.run('wt.exe', ['-d', dirPath]);
-  }
-
   static void restoreRecycleBinEntries(
     List<String> parsingNames, {
     List<String?>? destinations,

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../../services/mime_type_service.dart';
+import 'directory_opener_resolver.dart';
 import 'plugin_manifest.dart';
 import 'viewer_association_config.dart';
 import 'viewer_file_facts.dart';
@@ -89,6 +90,32 @@ class QuickViewOpenResult {
   final ViewerPlugin? plugin;
 }
 
+class DirectoryOpenerPlugin {
+  const DirectoryOpenerPlugin({
+    required this.manifest,
+    required this.executablePath,
+  });
+
+  final PluginManifest manifest;
+  final String executablePath;
+}
+
+class DirectoryOpenResult {
+  const DirectoryOpenResult._({required this.started, required this.message});
+
+  factory DirectoryOpenResult.success(DirectoryOpenerPlugin opener) =>
+      DirectoryOpenResult._(
+        started: true,
+        message: '已使用 ${opener.manifest.name} 打开',
+      );
+
+  factory DirectoryOpenResult.failure(String message) =>
+      DirectoryOpenResult._(started: false, message: message);
+
+  final bool started;
+  final String message;
+}
+
 enum ViewerMatchKind { pathRule, fileName, suffix, mimeExact, mimeWildcard }
 
 class ViewerResolutionCandidate {
@@ -113,11 +140,15 @@ class QuickViewService extends ChangeNotifier {
     ViewerAssociationStore? associationStore,
     String? Function(String filePath)? mimeTypeResolver,
     ViewerProcessStarter? processStarter,
+    DirectoryOpenerResolver? directoryOpenerResolver,
+    ViewerProcessStarter? directoryOpenerStarter,
     ViewerWindowController? windowController,
     Duration windowDiscoveryTimeout = const Duration(seconds: 12),
     Duration processExitTimeout = const Duration(milliseconds: 250),
   }) : _pluginRoots = pluginRoots ?? defaultPluginRoots(),
        _associationStore = associationStore ?? ViewerAssociationStore(),
+       _directoryOpenerResolver =
+           directoryOpenerResolver ?? DirectoryOpenerResolver(),
        _windowController =
            windowController ??
            Win32ViewerWindowController(logger: _logViewerWindow),
@@ -125,17 +156,21 @@ class QuickViewService extends ChangeNotifier {
        _processExitTimeout = processExitTimeout {
     _mimeTypeResolver = mimeTypeResolver ?? MimeTypeService.forPath;
     _processStarter = processStarter ?? _startProcess;
+    _directoryOpenerStarter = directoryOpenerStarter ?? _startDetachedProcess;
     reload(notify: false);
   }
 
   final List<Directory> _pluginRoots;
   final ViewerAssociationStore _associationStore;
+  final DirectoryOpenerResolver _directoryOpenerResolver;
   final ViewerWindowController _windowController;
   final Duration _windowDiscoveryTimeout;
   final Duration _processExitTimeout;
   late final String? Function(String filePath) _mimeTypeResolver;
   late final ViewerProcessStarter _processStarter;
+  late final ViewerProcessStarter _directoryOpenerStarter;
   final Map<String, ViewerPlugin> _plugins = {};
+  final Map<String, DirectoryOpenerPlugin> _directoryOpeners = {};
   final List<PluginDiscoveryIssue> _issues = [];
   late ViewerAssociationConfig _associations;
   bool _associationStoreWritable = true;
@@ -148,6 +183,44 @@ class QuickViewService extends ChangeNotifier {
   List<ViewerPlugin> get plugins {
     final result = _plugins.values.toList()..sort(_comparePlugins);
     return List.unmodifiable(result);
+  }
+
+  List<DirectoryOpenerPlugin> get directoryOpeners {
+    final result = _directoryOpeners.values.toList()
+      ..sort((a, b) {
+        final byName = a.manifest.name.compareTo(b.manifest.name);
+        return byName != 0 ? byName : a.manifest.id.compareTo(b.manifest.id);
+      });
+    return List.unmodifiable(result);
+  }
+
+  /// 以分离进程启动目录打开器，传入目录绝对路径；不纳入 attached 管理。
+  Future<DirectoryOpenResult> openDirectoryWith(
+    String pluginId,
+    String directoryPath,
+  ) async {
+    final opener = _directoryOpeners[pluginId];
+    if (opener == null) {
+      return DirectoryOpenResult.failure('未找到目录打开器：$pluginId');
+    }
+    final absolute = p.absolute(directoryPath);
+    if (FileSystemEntity.typeSync(absolute) !=
+        FileSystemEntityType.directory) {
+      return DirectoryOpenResult.failure('目录不存在：$absolute');
+    }
+    try {
+      final template = opener.manifest.openDirectory?.arguments ?? const [];
+      final arguments = template.isEmpty
+          ? [absolute]
+          : [
+              for (final argument in template)
+                argument == '{dir}' ? absolute : argument,
+            ];
+      await _directoryOpenerStarter(opener.executablePath, arguments, absolute);
+    } on Object catch (error) {
+      return DirectoryOpenResult.failure('启动失败：$error');
+    }
+    return DirectoryOpenResult.success(opener);
   }
 
   List<PluginDiscoveryIssue> get issues => List.unmodifiable(_issues);
@@ -184,6 +257,7 @@ class QuickViewService extends ChangeNotifier {
 
   void reload({bool notify = true}) {
     _plugins.clear();
+    _directoryOpeners.clear();
     _issues.clear();
 
     for (final root in _pluginRoots) {
@@ -195,14 +269,34 @@ class QuickViewService extends ChangeNotifier {
         final manifestFile = File(p.join(packageDirectory.path, 'plugin.json'));
         if (!manifestFile.existsSync()) continue;
         try {
-          if (!PluginManifest.declaresQuickView(manifestFile)) continue;
+          if (!PluginManifest.declaresSupportedCapability(manifestFile)) {
+            continue;
+          }
           final manifest = PluginManifest.read(manifestFile);
-          if (_plugins.containsKey(manifest.id)) {
+          if (_plugins.containsKey(manifest.id) ||
+              _directoryOpeners.containsKey(manifest.id)) {
             _issues.add(
               PluginDiscoveryIssue(
                 manifestFile.path,
                 '插件 ID 重复：${manifest.id}',
               ),
+            );
+            continue;
+          }
+          if (manifest.openDirectory != null) {
+            final executable = _directoryOpenerResolver.resolve(manifest);
+            if (executable == null) {
+              _issues.add(
+                PluginDiscoveryIssue(
+                  manifestFile.path,
+                  '未找到可执行程序：${manifest.id}',
+                ),
+              );
+              continue;
+            }
+            _directoryOpeners[manifest.id] = DirectoryOpenerPlugin(
+              manifest: manifest,
+              executablePath: executable,
             );
             continue;
           }
@@ -368,7 +462,7 @@ class QuickViewService extends ChangeNotifier {
             .where(
               (plugin) =>
                   plugin.isAvailable &&
-                  plugin.manifest.quickView.supports(kind, key),
+                  plugin.manifest.quickView!.supports(kind, key),
             )
             .toList()
           ..sort(_comparePlugins);
@@ -874,6 +968,24 @@ class QuickViewService extends ChangeNotifier {
       processId: process.pid,
       exitCode: process.exitCode,
       terminate: process.kill,
+    );
+  }
+
+  static Future<ViewerProcessHandle> _startDetachedProcess(
+    String executable,
+    List<String> arguments,
+    String workingDirectory,
+  ) async {
+    final process = await Process.start(
+      executable,
+      arguments,
+      workingDirectory: workingDirectory,
+      mode: ProcessStartMode.detached,
+    );
+    return ViewerProcessHandle(
+      processId: process.pid,
+      exitCode: Future.value(-1),
+      terminate: () => false,
     );
   }
 }

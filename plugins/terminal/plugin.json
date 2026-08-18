@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.windows-terminal",
+  "name": "Windows 终端",
+  "version": "1.0.0",
+  "capabilities": {
+    "openDirectory": {
+      "executables": ["wt.exe"],
+      "appPaths": ["wt.exe"],
+      "installPaths": [
+        "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\wt.exe"
+      ],
+      "arguments": ["-d", "{dir}"]
+    }
+  }
+}

@@ -31,7 +31,6 @@ void main() {
       compressName: 'report',
       onCompressZip: () {},
       onCompress7z: () {},
-      onOpenInTerminal: () {},
       onProperties: () {},
       onShowMoreOptions: () => showMoreInvoked = true,
     );
@@ -51,7 +50,6 @@ void main() {
       '使用所选内容创建文件夹',
       '创建快捷方式',
       '压缩',
-      '在 Windows 终端中打开',
       '属性',
       '显示更多选项',
     ]);
@@ -76,6 +74,71 @@ void main() {
     expect(items.last.label, '显示更多选项');
     items.last.onAction!();
     expect(showMoreInvoked, isTrue);
+  });
+
+  test('directory opener items lead the open section', () {
+    var opened = false;
+    final items = buildFileItemContextMenuItems(
+      directoryOpenerItems: [
+        CommandMenuItem(
+          label: '用 Visual Studio Code 打开',
+          onAction: () => opened = true,
+        ),
+      ],
+      onOpenInNewTab: () {},
+      onCopyPath: () {},
+      onShowMoreOptions: () {},
+    );
+
+    expect(items.where((item) => !item.isDivider).map((item) => item.label), [
+      '用 Visual Studio Code 打开',
+      '在新标签页中打开',
+      '复制路径',
+      '显示更多选项',
+    ]);
+    items.first.onAction!();
+    expect(opened, isTrue);
+  });
+
+  test('folder background menu lists directory openers first', () {
+    final items = buildFolderContextMenuItems(
+      sortColumn: SortColumn.name,
+      sortAscending: true,
+      viewMode: PaneViewMode.details,
+      groupBy: FileGroupBy.none,
+      groupAscending: true,
+      canWrite: true,
+      canPaste: false,
+      canSelectAll: true,
+      onSortColumn: (_) {},
+      onSortAscending: (_) {},
+      onViewMode: (_) {},
+      onGroupBy: (_) {},
+      onGroupAscending: (_) {},
+      onRefresh: () {},
+      onCreateFolder: () {},
+      onCreateFile: () {},
+      onCreateShortcut: () {},
+      onPaste: () {},
+      onSelectAll: () {},
+      onShowMoreOptions: () {},
+      onCreateFromTemplate: (_) {},
+      directoryOpenerItems: [
+        CommandMenuItem(label: '用 Visual Studio Code 打开', onAction: () {}),
+      ],
+    );
+
+    expect(items.where((item) => !item.isDivider).map((item) => item.label), [
+      '用 Visual Studio Code 打开',
+      '查看',
+      '排序方式',
+      '分组依据',
+      '刷新',
+      '新建',
+      '粘贴',
+      '全选',
+      '显示更多选项',
+    ]);
   });
 
   test('item context menu omits unsupported operations', () {
@@ -218,7 +281,6 @@ void main() {
       onCreateShortcut: () {},
       onPaste: () {},
       onSelectAll: () {},
-      onOpenInTerminal: () {},
       onShowMoreOptions: () {},
       onCreateFromTemplate: (_) {},
     );
@@ -231,7 +293,6 @@ void main() {
       '新建',
       '粘贴',
       '全选',
-      '在 Windows 终端中打开',
       '显示更多选项',
     ]);
     expect(items.first.children, isNotEmpty);
@@ -279,7 +340,6 @@ void main() {
         .map((item) => item.label);
     expect(labels, isNot(contains('新建')));
     expect(labels, isNot(contains('粘贴')));
-    expect(labels, isNot(contains('在 Windows 终端中打开')));
     expect(items.last.label, '显示更多选项');
   });
 

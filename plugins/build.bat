@@ -367,6 +367,8 @@ for %%D in (
     inf-dir.markdown-view
     inf-dir.video-view
     inf-dir.pdf-view
+    inf-dir.vscode-open
+    inf-dir.windows-terminal
 ) do if not exist "%DIST_DIR%\%%D" mkdir "%DIST_DIR%\%%D"
 
 copy /Y "%SCRIPT_DIR%img-view\plugin.json" "%DIST_DIR%\inf-dir.image-view\" >nul
@@ -402,6 +404,10 @@ copy /Y "%MPV_DEV_DIR%\libmpv-2.dll" "%DIST_DIR%\inf-dir.video-view\" >nul
 copy /Y "%SCRIPT_DIR%pdf-view\plugin.json" "%DIST_DIR%\inf-dir.pdf-view\" >nul
 copy /Y "%SCRIPT_DIR%pdf-view\target\release\pdf-view.exe" "%DIST_DIR%\inf-dir.pdf-view\" >nul
 copy /Y "%SCRIPT_DIR%pdf-view\target\release\pdfium.dll" "%DIST_DIR%\inf-dir.pdf-view\" >nul
+
+copy /Y "%SCRIPT_DIR%vscode-open\plugin.json" "%DIST_DIR%\inf-dir.vscode-open\" >nul
+
+copy /Y "%SCRIPT_DIR%terminal\plugin.json" "%DIST_DIR%\inf-dir.windows-terminal\" >nul
 
 echo.
 echo [DONE] All plugins built and installed to: %DIST_DIR%

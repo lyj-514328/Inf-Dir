@@ -210,8 +210,10 @@ class ViewerAssociationConfig {
     final declarations =
         <(ViewerAssociationKind, String), List<PluginManifest>>{};
     for (final manifest in manifests) {
+      final quickView = manifest.quickView;
+      if (quickView == null) continue;
       for (final kind in ViewerAssociationKind.values) {
-        for (final value in manifest.quickView.valuesFor(kind)) {
+        for (final value in quickView.valuesFor(kind)) {
           declarations.putIfAbsent((kind, value), () => []).add(manifest);
         }
       }
