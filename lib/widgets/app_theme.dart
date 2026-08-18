@@ -444,6 +444,18 @@ abstract final class AppTheme {
         ),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: c.accent),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: c.surface,
+        contentTextStyle: TextStyle(
+          fontSize: AppMetrics.fontBody,
+          color: c.textPrimary,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+          side: BorderSide(color: c.borderStrong),
+        ),
+      ),
     );
   }
 }

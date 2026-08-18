@@ -50,93 +50,141 @@ class _SettingsViewState extends State<SettingsView> {
         .where((category) => _categoryMatches(category, _query))
         .toList();
 
-    return ColoredBox(
+    // 与工作区一致的页面骨架：windowBg 底 + 圆角白卡片双栏。
+    return Padding(
       key: const ValueKey('settings-view'),
-      color: c.windowBg,
+      padding: const EdgeInsets.all(AppMetrics.pagePadding),
       child: Row(
         children: [
-          SizedBox(
-            width: 236,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: c.surfaceSubtle,
-                border: Border(right: BorderSide(color: c.border)),
-              ),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: 2, bottom: 14),
-                          child: Text(
-                            '设置',
-                            style: TextStyle(
-                              color: c.textPrimary,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                            ),
+          Container(
+            width: 232,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: c.surface,
+              borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+            ),
+            foregroundDecoration: BoxDecoration(
+              border: Border.all(color: c.border),
+              borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 12),
+                        child: Text(
+                          '设置',
+                          style: TextStyle(
+                            color: c.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        TextField(
-                          key: const ValueKey('settings-search'),
-                          controller: _searchController,
-                          onChanged: (value) => setState(() {
-                            _query = value.trim().toLowerCase();
-                          }),
-                          decoration: InputDecoration(
-                            hintText: '查找设置',
-                            prefixIcon: const Icon(
-                              Icons.search,
-                              size: AppMetrics.iconMd,
-                            ),
-                            suffixIcon: _query.isEmpty
-                                ? null
-                                : IconButton(
-                                    tooltip: '清除搜索',
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => _query = '');
-                                    },
-                                    icon: const Icon(Icons.close),
+                      ),
+                      TextField(
+                        key: const ValueKey('settings-search'),
+                        controller: _searchController,
+                        onChanged: (value) => setState(() {
+                          _query = value.trim().toLowerCase();
+                        }),
+                        style: TextStyle(
+                          fontSize: AppMetrics.fontBody,
+                          color: c.textPrimary,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '查找设置',
+                          hintStyle: TextStyle(color: c.textTertiary),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            size: AppMetrics.iconMd,
+                            color: c.textTertiary,
+                          ),
+                          prefixIconConstraints: const BoxConstraints(
+                            minWidth: 30,
+                            minHeight: 0,
+                          ),
+                          suffixIcon: _query.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: '清除搜索',
+                                  iconSize: AppMetrics.iconSm,
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _query = '');
+                                  },
+                                  icon: Icon(
+                                    Icons.close,
+                                    color: c.textTertiary,
                                   ),
+                                ),
+                          suffixIconConstraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 0,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppMetrics.controlRadius,
+                            ),
+                            borderSide: BorderSide(color: c.borderStrong),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppMetrics.controlRadius,
+                            ),
+                            borderSide: BorderSide(color: c.borderStrong),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppMetrics.controlRadius,
+                            ),
+                            borderSide: BorderSide(color: c.accent),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  Expanded(
-                    child: ListView(
-                      primary: false,
-                      padding: const EdgeInsets.fromLTRB(8, 2, 8, 16),
-                      children: [
-                        for (final category in categories)
-                          _CategoryButton(
-                            category: category,
-                            selected: _query.isEmpty && _selected == category,
-                            onTap: () => setState(() {
-                              _selected = category;
-                              _searchController.clear();
-                              _query = '';
-                            }),
+                ),
+                Expanded(
+                  child: ListView(
+                    primary: false,
+                    padding: const EdgeInsets.fromLTRB(8, 2, 8, 10),
+                    children: [
+                      for (final category in categories)
+                        _CategoryButton(
+                          category: category,
+                          selected: _query.isEmpty && _selected == category,
+                          onTap: () => setState(() {
+                            _selected = category;
+                            _searchController.clear();
+                            _query = '';
+                          }),
+                        ),
+                      if (categories.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            '没有匹配的设置',
+                            style: TextStyle(color: c.textTertiary),
                           ),
-                        if (categories.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text(
-                              '没有匹配的设置',
-                              style: TextStyle(color: c.textTertiary),
-                            ),
-                          ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: AppMetrics.paneGap),
           Expanded(child: _buildContent(context)),
         ],
       ),
@@ -153,7 +201,7 @@ class _SettingsViewState extends State<SettingsView> {
         children: [
           for (final category in matches) ...[
             _SectionTitle(label: _categoryLabel(category)),
-            ..._categoryRows(context, category, _query),
+            _SettingsGroup(children: _categoryRows(context, category, _query)),
           ],
           if (matches.isEmpty) const _EmptySearchResult(),
         ],
@@ -165,7 +213,11 @@ class _SettingsViewState extends State<SettingsView> {
     }
     return _SettingsScrollPage(
       title: _categoryLabel(_selected),
-      children: _categoryRows(context, _selected, ''),
+      children: [
+        _SettingsGroup(
+          children: _categoryRows(context, _selected, ''),
+        ),
+      ],
     );
   }
 
@@ -415,34 +467,46 @@ class _SettingsScrollPageState extends State<_SettingsScrollPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scrollbar(
-      controller: _scrollController,
-      child: ListView(
+    final c = context.colors;
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+      ),
+      foregroundDecoration: BoxDecoration(
+        border: Border.all(color: c.border),
+        borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+      ),
+      child: Scrollbar(
         controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(36, 30, 36, 52),
-        children: [
-          Align(
-            alignment: Alignment.topLeft,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 860),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    widget.title,
-                    style: TextStyle(
-                      color: context.colors.textPrimary,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w600,
+        child: ListView(
+          controller: _scrollController,
+          padding: const EdgeInsets.fromLTRB(26, 22, 26, 32),
+          children: [
+            Align(
+              alignment: Alignment.topLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 860),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: TextStyle(
+                        color: c.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  ...widget.children,
-                ],
+                    const SizedBox(height: 16),
+                    ...widget.children,
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -454,47 +518,62 @@ class _ViewerSettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 26, 28, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '查看器',
-            style: TextStyle(
-              color: c.textPrimary,
-              fontSize: 28,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            '设置文件匹配规则和快速查看程序的优先顺序',
-            style: TextStyle(
-              color: c.textSecondary,
-              fontSize: AppMetrics.fontBody,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Expanded(
-            child: Container(
-              key: const ValueKey('viewer-settings-surface'),
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: c.surface,
-                border: Border.all(color: c.border),
-                borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+      ),
+      foregroundDecoration: BoxDecoration(
+        border: Border.all(color: c.border),
+        borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(26, 22, 26, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '查看器',
+              style: TextStyle(
+                color: c.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
               ),
-              child: const ViewerAssociationsView(),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              '设置文件匹配规则和快速查看程序的优先顺序',
+              style: TextStyle(
+                color: c.textSecondary,
+                fontSize: AppMetrics.fontSmall,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Expanded(
+              child: Container(
+                key: const ValueKey('viewer-settings-surface'),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: c.surface,
+                  borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+                ),
+                foregroundDecoration: BoxDecoration(
+                  border: Border.all(color: c.border),
+                  borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+                ),
+                child: const ViewerAssociationsView(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _CategoryButton extends StatelessWidget {
+/// 左侧分类项：与侧边栏一致的 pill 选中态（accentSubtle 底、accent 文字）。
+class _CategoryButton extends StatefulWidget {
   const _CategoryButton({
     required this.category,
     required this.selected,
@@ -506,42 +585,56 @@ class _CategoryButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_CategoryButton> createState() => _CategoryButtonState();
+}
+
+class _CategoryButtonState extends State<_CategoryButton> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final selected = widget.selected;
+    final radius = BorderRadius.circular(AppMetrics.controlRadius);
+    final color = selected
+        ? c.accent
+        : _hovering
+        ? c.textPrimary
+        : c.textSecondary;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 3),
-      child: Material(
-        color: selected ? c.selectedInactive : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
-        child: InkWell(
-          key: ValueKey('settings-category-${category.name}'),
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
-          child: SizedBox(
-            height: 38,
+      padding: const EdgeInsets.only(bottom: 2),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: GestureDetector(
+          key: ValueKey('settings-category-${widget.category.name}'),
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: selected
+                  ? c.accentSubtle
+                  : _hovering
+                  ? c.surfaceHover
+                  : Colors.transparent,
+              borderRadius: radius,
+            ),
             child: Row(
               children: [
-                SizedBox(
-                  width: 4,
-                  height: 18,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: selected ? c.accent : Colors.transparent,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 9),
                 Icon(
-                  _categoryIcon(category),
+                  _categoryIcon(widget.category),
                   size: AppMetrics.iconMd,
-                  color: selected ? c.textPrimary : c.textSecondary,
+                  color: color,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Text(
-                  _categoryLabel(category),
+                  _categoryLabel(widget.category),
                   style: TextStyle(
-                    color: selected ? c.textPrimary : c.textSecondary,
+                    fontSize: AppMetrics.fontBody,
+                    color: color,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
@@ -549,6 +642,38 @@ class _CategoryButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 一组设置行的外框：细描边圆角卡片，行间用分隔线。
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    if (children.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+      ),
+      foregroundDecoration: BoxDecoration(
+        border: Border.all(color: c.border),
+        borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < children.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: c.border),
+            children[i],
+          ],
+        ],
       ),
     );
   }
@@ -570,18 +695,13 @@ class _SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Container(
-      constraints: const BoxConstraints(minHeight: 72),
-      margin: const EdgeInsets.only(bottom: 5),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: c.surface,
-        border: Border.all(color: c.border),
-        borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
-      ),
+      constraints: const BoxConstraints(minHeight: 58),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final info = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
                 title,
@@ -591,7 +711,7 @@ class _SettingsRow extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               Text(
                 description,
                 style: TextStyle(
@@ -644,6 +764,7 @@ class _SettingsSwitchRow extends StatelessWidget {
   }
 }
 
+/// 搜索结果中的分组标题：与侧栏分区头同款小号加宽 tertiary 文字。
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({required this.label});
 
@@ -652,13 +773,14 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 18, left: 2, bottom: 8),
+      padding: const EdgeInsets.only(top: 16, left: 2, bottom: 8),
       child: Text(
         label,
         style: TextStyle(
-          color: context.colors.textPrimary,
-          fontSize: AppMetrics.fontBody,
+          color: context.colors.textTertiary,
+          fontSize: AppMetrics.fontSmall,
           fontWeight: FontWeight.w600,
+          letterSpacing: 0.8,
         ),
       ),
     );

@@ -105,7 +105,6 @@ class FileTaskCenterPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: c.surface,
         borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
-        border: Border.all(color: c.border),
         boxShadow: [
           BoxShadow(
             color: c.shadow,
@@ -113,6 +112,10 @@ class FileTaskCenterPanel extends StatelessWidget {
             offset: const Offset(0, 4),
           ),
         ],
+      ),
+      foregroundDecoration: BoxDecoration(
+        border: Border.all(color: c.border),
+        borderRadius: BorderRadius.circular(AppMetrics.paneRadius),
       ),
       child: ListenableBuilder(
         listenable: center,
