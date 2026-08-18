@@ -1,0 +1,1482 @@
+[
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "3g2",
+        "Name":  "3GP2 format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "3gp",
+        "Name":  "3GP format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "4xm",
+        "Name":  "4X Technologies format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "a64",
+        "Name":  "a64 - video for Commodore 64"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "aac",
+        "Name":  "raw ADTS AAC"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ac3",
+        "Name":  "raw AC-3"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "adts",
+        "Name":  "ADTS AAC"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "aea",
+        "Name":  "MD STUDIO audio"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "aiff",
+        "Name":  "Audio IFF"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "alaw",
+        "Name":  "PCM A-law format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "amr",
+        "Name":  "3GPP AMR file format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "anm",
+        "Name":  "Deluxe Paint Animation"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "apc",
+        "Name":  "CRYO APC format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ape",
+        "Name":  "Monkey\u0027s Audio"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "applehttp",
+        "Name":  "Apple HTTP Live Streaming format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "asf",
+        "Name":  "ASF format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "asf_stream",
+        "Name":  "ASF format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ass",
+        "Name":  "Advanced SubStation Alpha subtitle format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "au",
+        "Name":  "SUN AU format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "avi",
+        "Name":  "AVI format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "avm2",
+        "Name":  "Flash 9 (AVM2) format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "avs",
+        "Name":  "AVISynth"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "bethsoftvid",
+        "Name":  "Bethesda Softworks VID format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "bfi",
+        "Name":  "Brute Force \u0026 Ignorance"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "bink",
+        "Name":  "Bink"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "c93",
+        "Name":  "Interplay C93"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "caf",
+        "Name":  "Apple Core Audio Format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "cavsvideo",
+        "Name":  "raw Chinese AVS video"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "cdg",
+        "Name":  "CD Graphics Format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "crc",
+        "Name":  "CRC testing format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "daud",
+        "Name":  "D-Cinema audio format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "dirac",
+        "Name":  "raw Dirac"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "dnxhd",
+        "Name":  "raw DNxHD (SMPTE VC-3)"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "dsicin",
+        "Name":  "Delphine Software International CIN format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "dts",
+        "Name":  "raw DTS"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "dv",
+        "Name":  "DV video format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "dvd",
+        "Name":  "MPEG-2 PS format (DVD VOB)"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "dxa",
+        "Name":  "DXA"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ea",
+        "Name":  "Electronic Arts Multimedia Format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ea_cdata",
+        "Name":  "Electronic Arts cdata"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "eac3",
+        "Name":  "raw E-AC-3"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "f32be",
+        "Name":  "PCM 32 bit floating-point big-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "f32le",
+        "Name":  "PCM 32 bit floating-point little-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "f64be",
+        "Name":  "PCM 64 bit floating-point big-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "f64le",
+        "Name":  "PCM 64 bit floating-point little-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ffm",
+        "Name":  "FFM (FFserver live feed) format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ffmetadata",
+        "Name":  "FFmpeg metadata in text format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "film_cpk",
+        "Name":  "Sega FILM/CPK format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "filmstrip",
+        "Name":  "Adobe Filmstrip"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "flac",
+        "Name":  "raw FLAC"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "flic",
+        "Name":  "FLI/FLC/FLX animation format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "flv",
+        "Name":  "FLV format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "framecrc",
+        "Name":  "framecrc testing format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "framemd5",
+        "Name":  "Per-frame MD5 testing format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "g722",
+        "Name":  "raw G.722"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "gif",
+        "Name":  "GIF Animation"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "gsm",
+        "Name":  "raw GSM"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "gxf",
+        "Name":  "GXF format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "h261",
+        "Name":  "raw H.261"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "h263",
+        "Name":  "raw H.263"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "h264",
+        "Name":  "raw H.264 video format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "idcin",
+        "Name":  "id Cinematic format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "iff",
+        "Name":  "IFF format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "image2",
+        "Name":  "image2 sequence"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "image2pipe",
+        "Name":  "piped image2 sequence"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ingenient",
+        "Name":  "raw Ingenient MJPEG"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ipmovie",
+        "Name":  "Interplay MVE format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ipod",
+        "Name":  "iPod H.264 MP4 format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "iss",
+        "Name":  "Funcom ISS format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "iv8",
+        "Name":  "A format generated by IndigoVision 8000 video server"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ivf",
+        "Name":  "On2 IVF"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "lmlm4",
+        "Name":  "lmlm4 raw format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "lxf",
+        "Name":  "VR native stream format (LXF)"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "m4v",
+        "Name":  "raw MPEG-4 video format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "matroska",
+        "Name":  "Matroska file format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "md5",
+        "Name":  "MD5 testing format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mjpeg",
+        "Name":  "raw MJPEG video"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mlp",
+        "Name":  "raw MLP"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mm",
+        "Name":  "American Laser Games MM format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mmf",
+        "Name":  "Yamaha SMAF"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mov",
+        "Name":  "MOV format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mp2",
+        "Name":  "MPEG audio layer 2"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mp3",
+        "Name":  "MPEG audio layer 3"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mp3id3v1",
+        "Name":  "MPEG audio layer 3 with id3v1 only"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mp3id3v2",
+        "Name":  "MPEG audio layer 3 with id3v2 only"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mp4",
+        "Name":  "MP4 format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mpc",
+        "Name":  "Musepack"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mpc8",
+        "Name":  "Musepack SV8"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mpeg",
+        "Name":  "MPEG-1 System format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mpeg1video",
+        "Name":  "raw MPEG-1 video"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mpeg2video",
+        "Name":  "raw MPEG-2 video"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mpegts",
+        "Name":  "MPEG-2 transport stream format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mpegtsraw",
+        "Name":  "MPEG-2 raw transport stream format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mpegvideo",
+        "Name":  "raw MPEG video"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mpjpeg",
+        "Name":  "MIME multipart JPEG format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "msnwctcp",
+        "Name":  "MSN TCP Webcam stream"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mtv",
+        "Name":  "MTV format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mulaw",
+        "Name":  "PCM mu-law format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mvi",
+        "Name":  "Motion Pixels MVI format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mxf",
+        "Name":  "Material eXchange Format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mxf_d10",
+        "Name":  "Material eXchange Format, D-10 Mapping"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "mxg",
+        "Name":  "MxPEG clip file format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "nc",
+        "Name":  "NC camera feed format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "nsv",
+        "Name":  "Nullsoft Streaming Video"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "null",
+        "Name":  "raw null video format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "nut",
+        "Name":  "NUT format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "nuv",
+        "Name":  "NuppelVideo format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "ogg",
+        "Name":  "Ogg"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "oma",
+        "Name":  "Sony OpenMG audio"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "psp",
+        "Name":  "PSP MP4 format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "psxstr",
+        "Name":  "Sony Playstation STR format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "pva",
+        "Name":  "TechnoTrend PVA file and stream format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "qcp",
+        "Name":  "QCP format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "r3d",
+        "Name":  "REDCODE R3D format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "rawvideo",
+        "Name":  "raw video format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "rcv",
+        "Name":  "VC-1 test bitstream"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "rl2",
+        "Name":  "RL2 format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "rm",
+        "Name":  "RealMedia format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "roq",
+        "Name":  "raw id RoQ format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "rpl",
+        "Name":  "RPL/ARMovie format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "rso",
+        "Name":  "Lego Mindstorms RSO format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "rtp",
+        "Name":  "RTP output format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "rtsp",
+        "Name":  "RTSP output format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "s16be",
+        "Name":  "PCM signed 16 bit big-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "s16le",
+        "Name":  "PCM signed 16 bit little-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "s24be",
+        "Name":  "PCM signed 24 bit big-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "s24le",
+        "Name":  "PCM signed 24 bit little-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "s32be",
+        "Name":  "PCM signed 32 bit big-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "s32le",
+        "Name":  "PCM signed 32 bit little-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "s8",
+        "Name":  "PCM signed 8 bit format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "sap",
+        "Name":  "SAP output format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "sdp",
+        "Name":  "SDP"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "shn",
+        "Name":  "raw Shorten"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "siff",
+        "Name":  "Beam Software SIFF"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "smk",
+        "Name":  "Smacker video"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "sol",
+        "Name":  "Sierra SOL format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "sox",
+        "Name":  "SoX native format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "spdif",
+        "Name":  "IEC 61937 (used on S/PDIF - IEC958)"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "srt",
+        "Name":  "SubRip subtitle format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "svcd",
+        "Name":  "MPEG-2 PS format (VOB)"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "swf",
+        "Name":  "Flash format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "thp",
+        "Name":  "THP"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "tiertexseq",
+        "Name":  "Tiertex Limited SEQ format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "tmv",
+        "Name":  "8088flex TMV"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "truehd",
+        "Name":  "raw TrueHD"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "tta",
+        "Name":  "True Audio"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "tty",
+        "Name":  "Tele-typewriter"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "txd",
+        "Name":  "Renderware TeXture Dictionary"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "u16be",
+        "Name":  "PCM unsigned 16 bit big-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "u16le",
+        "Name":  "PCM unsigned 16 bit little-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "u24be",
+        "Name":  "PCM unsigned 24 bit big-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "u24le",
+        "Name":  "PCM unsigned 24 bit little-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "u32be",
+        "Name":  "PCM unsigned 32 bit big-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "u32le",
+        "Name":  "PCM unsigned 32 bit little-endian format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "u8",
+        "Name":  "PCM unsigned 8 bit format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "vc1",
+        "Name":  "raw VC-1"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "vc1test",
+        "Name":  "VC-1 test bitstream format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "vcd",
+        "Name":  "MPEG-1 System format (VCD)"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "vfwcap",
+        "Name":  "VFW video capture"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "vmd",
+        "Name":  "Sierra VMD format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "vob",
+        "Name":  "MPEG-2 PS format (VOB)"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "voc",
+        "Name":  "Creative Voice file format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "vqf",
+        "Name":  "Nippon Telegraph and Telephone Corporation (NTT) TwinVQ"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "w64",
+        "Name":  "Sony Wave64 format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "wav",
+        "Name":  "WAV format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "wc3movie",
+        "Name":  "Wing Commander III movie format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "webm",
+        "Name":  "WebM file format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "wsaud",
+        "Name":  "Westwood Studios audio format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "wsvqa",
+        "Name":  "Westwood Studios VQA format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "wtv",
+        "Name":  "Windows Television (WTV)"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "wv",
+        "Name":  "WavPack"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "xa",
+        "Name":  "Maxis XA File Format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "yop",
+        "Name":  "Psygnosis YOP Format"
+    },
+    {
+        "Category":  "Audio/Video",
+        "Ext":  "yuv4mpegpipe",
+        "Name":  "YUV4MPEG pipe format"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "cbr",
+        "Name":  "Comic Book archive"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "cbz",
+        "Name":  "Comic Book archive"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "chm",
+        "Name":  "Microsoft HTML Help"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "diz",
+        "Name":  "Plain text files"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "djv",
+        "Name":  "DejaVu document"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "djvu",
+        "Name":  "DejaVu document"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "doc",
+        "Name":  "Microsoft Word"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "docm",
+        "Name":  "Microsoft Word 2007/2010"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "docx",
+        "Name":  "Microsoft Word 2007/2010"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "dot",
+        "Name":  "Microsoft Word"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "dotm",
+        "Name":  "Microsoft Word 2007/2010"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "dotx",
+        "Name":  "Microsoft Word 2007/2010"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "epub",
+        "Name":  "ePub e-book"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "fb2",
+        "Name":  "FictionBook e-book"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "fb2z",
+        "Name":  "FictionBook e-book"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "fbz",
+        "Name":  "FictionBook e-book"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "mobi",
+        "Name":  "Mobipocket e-book"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "nfo",
+        "Name":  "Plain text files"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "pdf",
+        "Name":  "Adobe Portable Document Format"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "rtf",
+        "Name":  "Rich Text Format"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "tcr",
+        "Name":  "TCR e-book"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "txt",
+        "Name":  "Plain text files"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "wbk",
+        "Name":  "Microsoft Word backup"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "xls",
+        "Name":  "Microsoft Excel"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "xlsx",
+        "Name":  "Microsoft Excel 2007/2010"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "xlt",
+        "Name":  "Microsoft Excel"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "xltx",
+        "Name":  "Microsoft Excel 2007/2010"
+    },
+    {
+        "Category":  "Documents/Spreadsheets",
+        "Ext":  "xps",
+        "Name":  "Microsoft XML Paper Specification"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "ani",
+        "Name":  "Windows animated cursor"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "bmp",
+        "Name":  "Windows bitmap"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "bw",
+        "Name":  "SGI image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "cel",
+        "Name":  "Autodesk image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "cur",
+        "Name":  "Windows cursor"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "cut",
+        "Name":  "Dr. Halo image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "dib",
+        "Name":  "Windows bitmap"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "emf",
+        "Name":  "Windows enhanced metafile"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "fax",
+        "Name":  "GFI fax image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "gif",
+        "Name":  "Compuserve GIF image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "icb",
+        "Name":  "Truevision image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "icl",
+        "Name":  "Windows icon library"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "ico",
+        "Name":  "Windows icon"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "jfif",
+        "Name":  "JPEG format"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "jp2",
+        "Name":  "JPEG 2000 format"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "jpc",
+        "Name":  "JPEG 2000 format"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "jpe",
+        "Name":  "JPEG format"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "jpeg",
+        "Name":  "JPEG format"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "jpg",
+        "Name":  "JPEG format"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "pal",
+        "Name":  "Dr. Halo image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "pbm",
+        "Name":  "Portable pixmap"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "pcc",
+        "Name":  "ZSoft Paintbrush image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "pcd",
+        "Name":  "Kodak Photo-CD image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "pcx",
+        "Name":  "ZSoft Paintbrush image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "pdd",
+        "Name":  "Photoshop image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "pgm",
+        "Name":  "Portable pixmap"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "pic",
+        "Name":  "Autodesk image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "png",
+        "Name":  "Portable Network Graphic"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "pnm",
+        "Name":  "Portable pixmap"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "ppm",
+        "Name":  "Portable pixmap"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "psd",
+        "Name":  "Photoshop image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "psp",
+        "Name":  "Paintshop Pro image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "ras",
+        "Name":  "SunOS Unix raster format"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "rgb",
+        "Name":  "SGI image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "rgba",
+        "Name":  "SGI image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "rla",
+        "Name":  "SGI Wavefront image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "rle",
+        "Name":  "Windows bitmap"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "rpf",
+        "Name":  "SGI Wavefront image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "sgi",
+        "Name":  "SGI image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "tga",
+        "Name":  "TrueVision Targa"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "tif",
+        "Name":  "Tagged Image File Format"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "tiff",
+        "Name":  "Tagged Image File Format"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "vda",
+        "Name":  "Truevision image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "vst",
+        "Name":  "Truevision image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "win",
+        "Name":  "Truevision image"
+    },
+    {
+        "Category":  "Images",
+        "Ext":  "wmf",
+        "Name":  "Windows metafile"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "asp",
+        "Name":  "Active Server Page script"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "aspx",
+        "Name":  "Active Server Page script"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "css",
+        "Name":  "Cascaded stylesheet"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "htm",
+        "Name":  "HTML page"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "html",
+        "Name":  "HTML page"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "mht",
+        "Name":  "Microsoft HTML archive"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "php",
+        "Name":  "PHP source code"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "shtm",
+        "Name":  "HTML page"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "shtml",
+        "Name":  "HTML page"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "stm",
+        "Name":  "HTML page"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "xml",
+        "Name":  "XML container"
+    },
+    {
+        "Category":  "Internet",
+        "Ext":  "xsl",
+        "Name":  "XML stylesheet"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "3fr",
+        "Name":  "3fr"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "arw",
+        "Name":  "arw"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "bay",
+        "Name":  "bay"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "bmq",
+        "Name":  "bmq"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "cine",
+        "Name":  "cine"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "cr2",
+        "Name":  "cr2"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "crw",
+        "Name":  "crw"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "cs1",
+        "Name":  "cs1"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "dc2",
+        "Name":  "dc2"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "dcr",
+        "Name":  "dcr"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "dng",
+        "Name":  "dng"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "erf",
+        "Name":  "erf"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "fff",
+        "Name":  "fff"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "hdr",
+        "Name":  "hdr"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "ia",
+        "Name":  "ia"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "k25",
+        "Name":  "k25"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "kc2",
+        "Name":  "kc2"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "kdc",
+        "Name":  "kdc"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "mdc",
+        "Name":  "mdc"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "mef",
+        "Name":  "mef"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "mos",
+        "Name":  "mos"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "mrw",
+        "Name":  "mrw"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "nef",
+        "Name":  "nef"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "nrw",
+        "Name":  "nrw"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "orf",
+        "Name":  "orf"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "pef",
+        "Name":  "pef"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "pxn",
+        "Name":  "pxn"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "qtk",
+        "Name":  "qtk"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "raf",
+        "Name":  "raf"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "raw",
+        "Name":  "raw"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "rdc",
+        "Name":  "rdc"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "rw2",
+        "Name":  "rw2"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "sr2",
+        "Name":  "sr2"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "srf",
+        "Name":  "srf"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "sti",
+        "Name":  "sti"
+    },
+    {
+        "Category":  "RAW Images",
+        "Ext":  "x3f",
+        "Name":  "x3f"
+    }
+]

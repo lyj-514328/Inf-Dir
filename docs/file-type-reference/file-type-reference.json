@@ -1,0 +1,2087 @@
+[
+    {
+        "Category":  "archive",
+        "Ext":  "7z",
+        "Name":  "7-Zip Compressed File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "apk",
+        "Name":  "Android Package"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "arj",
+        "Name":  "ARJ Compressed Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "bz2",
+        "Name":  "Bzip2 Compressed Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "cab",
+        "Name":  "Windows Cabinet File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "cbr",
+        "Name":  "Comic Book RAR Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "cbz",
+        "Name":  "Comic Book Zip Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "chm",
+        "Name":  "Compiled HTML Help File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "cpio",
+        "Name":  "Unix CPIO Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "dd",
+        "Name":  "Disk Doubler Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "deb",
+        "Name":  "Debian Software Package"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "deskthemepack",
+        "Name":  "Windows Desktop Theme Pack"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "dmg",
+        "Name":  "Mac OS X Disk Image"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "gz",
+        "Name":  "Gzip Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "hfs",
+        "Name":  "HFS Disk Image"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "iso",
+        "Name":  "ISO Disc Image"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "jar",
+        "Name":  "Java Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "lha",
+        "Name":  "LHARC Compressed File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "lzh",
+        "Name":  "LZH Compressed File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "lzma",
+        "Name":  "LZMA Compressed File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "pk3",
+        "Name":  "id Tech 3 Engine Game Data File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "pk4",
+        "Name":  "id Tech 4 Engine Game Data File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "pkz",
+        "Name":  "Video Game Package"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "rar",
+        "Name":  "RAR Compressed Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "rpm",
+        "Name":  "Red Hat Package Manager File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "tar",
+        "Name":  "TAR Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "tar.lzma",
+        "Name":  "LZMA Compressed Tar Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "taz",
+        "Name":  "Z Compressed Tar File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "tbz",
+        "Name":  "Bzip2 Compressed Tar Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "tgz",
+        "Name":  "Gzipped Tar File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "txz",
+        "Name":  "XZ Compressed Tar File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "vhd",
+        "Name":  "Virtual Hard Disk File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "war",
+        "Name":  "Java Web Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "wim",
+        "Name":  "Windows Imaging Format File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "xar",
+        "Name":  "Extensible Archive Format File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "xz",
+        "Name":  "XZ Compressed Archive"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "z",
+        "Name":  "Unix Compressed File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "zip",
+        "Name":  "Zipped File"
+    },
+    {
+        "Category":  "archive",
+        "Ext":  "zipx",
+        "Name":  "Extended Zip File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "3ga",
+        "Name":  "3GP Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "8svx",
+        "Name":  "Amiga 8-Bit Sound File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "aa",
+        "Name":  "Audible Audio Book File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "aa3",
+        "Name":  "ATRAC3 Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "aac",
+        "Name":  "Advanced Audio Coding File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "ac3",
+        "Name":  "Audio Codec 3 File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "act",
+        "Name":  "S1 MP3 Player Recorded Audio"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "aea",
+        "Name":  "ATRAC1 Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "aif",
+        "Name":  "Audio Interchange File Format"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "aifc",
+        "Name":  "Compressed Audio Interchange File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "amr",
+        "Name":  "Adaptive Multi-Rate Codec File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "apc",
+        "Name":  "CRYO Interactive APC Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "ape",
+        "Name":  "Monkey\u0027s Audio Lossless Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "au",
+        "Name":  "Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "aud",
+        "Name":  "WestWood Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "caf",
+        "Name":  "Core Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "dss",
+        "Name":  "Digital Speech Standard Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "dts",
+        "Name":  "DTS Encoded Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "flac",
+        "Name":  "Free Lossless Audio Codec File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "g722",
+        "Name":  "G.722 ADPCM Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "gsm",
+        "Name":  "Global System for Mobile Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "htk",
+        "Name":  "Hidden Markov Model Toolkit Audio"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "iss",
+        "Name":  "Funcom ISS Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "m4a",
+        "Name":  "MPEG-4 Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "m4b",
+        "Name":  "MPEG-4 Audio Book File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "m4r",
+        "Name":  "iPhone Ringtone File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "mka",
+        "Name":  "Matroska Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "mlp",
+        "Name":  "Meridian Lossless Packing Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "mp1",
+        "Name":  "MPEG-1 Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "mp2",
+        "Name":  "MPEG Layer II Compressed Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "mp3",
+        "Name":  "MP3 Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "mpa",
+        "Name":  "MPEG-2 Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "mpc",
+        "Name":  "Musepack Compressed Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "ogg",
+        "Name":  "Ogg Vorbis Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "oma",
+        "Name":  "Sony OpenMG Music File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "opus",
+        "Name":  "Opus Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "paf",
+        "Name":  "PARIS Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "pvf",
+        "Name":  "Portable Voice Format Audio"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "qcp",
+        "Name":  "PureVoice Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "ra",
+        "Name":  "Real Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "rso",
+        "Name":  "NXT Brick Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "sf",
+        "Name":  "IRCAM Sound File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "shn",
+        "Name":  "Shorten Compressed Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "snd",
+        "Name":  "Sound File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "sol",
+        "Name":  "Sierra On-Line Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "son",
+        "Name":  "Beam Software SIFF Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "sph",
+        "Name":  "NIST SPHERE Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "spx",
+        "Name":  "Ogg Vorbis Speex File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "str",
+        "Name":  "PlayStation Video Stream"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "tak",
+        "Name":  "Tom\u0027s Lossless Audio Kompressor File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "tta",
+        "Name":  "True Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "voc",
+        "Name":  "Creative Labs Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "vqf",
+        "Name":  "TwinVQ Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "w64",
+        "Name":  "Sony Wave64 Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "wav",
+        "Name":  "WAVE Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "wma",
+        "Name":  "Windows Media Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "wv",
+        "Name":  "WavPack Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "xa",
+        "Name":  "PlayStation Audio File"
+    },
+    {
+        "Category":  "audio",
+        "Ext":  "xma",
+        "Name":  "Xbox Media Audio File"
+    },
+    {
+        "Category":  "cad",
+        "Ext":  "dwg",
+        "Name":  "AutoCAD Drawing"
+    },
+    {
+        "Category":  "cad",
+        "Ext":  "dxf",
+        "Name":  "Drawing Exchange Format File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "3fr",
+        "Name":  "Hasselblad 3F Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "ari",
+        "Name":  "ARRIRAW Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "arw",
+        "Name":  "Sony Digital Camera Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "bay",
+        "Name":  "Casio Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "cr2",
+        "Name":  "Canon Raw Image File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "cr3",
+        "Name":  "Canon Raw 3 Image File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "crw",
+        "Name":  "Canon Raw CIFF Image File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "dcr",
+        "Name":  "Kodak Raw Image File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "dng",
+        "Name":  "Digital Negative Image File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "erf",
+        "Name":  "Epson Raw File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "fff",
+        "Name":  "Hasselblad Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "iiq",
+        "Name":  "Phase One Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "kc2",
+        "Name":  "Kodak DCS200 Camera Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "kdc",
+        "Name":  "Kodak Digital Camera Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "mdc",
+        "Name":  "Minolta Camera Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "mef",
+        "Name":  "Mamiya Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "mos",
+        "Name":  "Leaf Camera Raw File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "mrw",
+        "Name":  "Minolta Raw Image File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "nef",
+        "Name":  "Nikon Electronic Format RAW Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "nrw",
+        "Name":  "Nikon Raw Image File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "orf",
+        "Name":  "Olympus Raw File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "pef",
+        "Name":  "Pentax Electronic File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "raf",
+        "Name":  "Fuji Raw Image File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "raw",
+        "Name":  "Raw Image Data File"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "rw2",
+        "Name":  "Panasonic Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "rwl",
+        "Name":  "Leica Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "sr2",
+        "Name":  "Sony Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "srf",
+        "Name":  "Sony Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "srw",
+        "Name":  "Samsung Raw Image"
+    },
+    {
+        "Category":  "cameraraw",
+        "Ext":  "x3f",
+        "Name":  "SIGMA X3F Camera Raw File"
+    },
+    {
+        "Category":  "email",
+        "Ext":  "dat",
+        "Name":  "Winmail.dat File"
+    },
+    {
+        "Category":  "email",
+        "Ext":  "eml",
+        "Name":  "Apple Mail Message"
+    },
+    {
+        "Category":  "email",
+        "Ext":  "emlx",
+        "Name":  "Apple Mail Message"
+    },
+    {
+        "Category":  "email",
+        "Ext":  "msg",
+        "Name":  "Outlook Mail Message"
+    },
+    {
+        "Category":  "email",
+        "Ext":  "oft",
+        "Name":  "Outlook Email Template"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "aai",
+        "Name":  "Dune HD Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "apng",
+        "Name":  "Animated PNG File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "avif",
+        "Name":  "AVIF Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "bmp",
+        "Name":  "Bitmap Image File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "bw",
+        "Name":  "BW File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "cdg",
+        "Name":  "CD Graphics File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "cin",
+        "Name":  "Kodak Cineon Bitmap File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "cur",
+        "Name":  "Windows Cursor"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "dcm",
+        "Name":  "DICOM Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "dds",
+        "Name":  "DirectDraw Surface"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "dfont",
+        "Name":  "Mac OS X Data Fork Font"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "dib",
+        "Name":  "Device Independent Bitmap File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "dpx",
+        "Name":  "Digital Picture Exchange File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "emf",
+        "Name":  "Enhanced Windows Metafile"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "emz",
+        "Name":  "Compressed Enhanced Metafile"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "exr",
+        "Name":  "OpenExr Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "gif",
+        "Name":  "Graphical Interchange Format File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "heic",
+        "Name":  "High Efficiency Image Format"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "ico",
+        "Name":  "Icon File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "jls",
+        "Name":  "JPEG-LS Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "jng",
+        "Name":  "JPEG Network Graphic"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "jp2",
+        "Name":  "JPEG 2000 Core Image File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "jpg",
+        "Name":  "JPEG Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "jxl",
+        "Name":  "JPEG XL Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "jxr",
+        "Name":  "JPEG XR Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "miff",
+        "Name":  "Magick Image File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "mvg",
+        "Name":  "Magick Vector Graphics File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "ora",
+        "Name":  "OpenRaster Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "pbm",
+        "Name":  "Portable Bitmap Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "pcd",
+        "Name":  "Kodak Photo CD Image File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "pcx",
+        "Name":  "Paintbrush Bitmap Image File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "pes",
+        "Name":  "Brother Embroidery Format"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "pgm",
+        "Name":  "Portable Gray Map Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "pic",
+        "Name":  "Pictor Paint Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "pix",
+        "Name":  "BRender PIX Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "png",
+        "Name":  "Portable Network Graphic"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "pnm",
+        "Name":  "Portable AnyMap Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "ppm",
+        "Name":  "Portable Pixmap Image File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "psb",
+        "Name":  "Adobe Photoshop Large Document Format"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "psd",
+        "Name":  "Adobe Photoshop Document"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "ptx",
+        "Name":  "V.Flash PTX Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "rgb",
+        "Name":  "RGB Bitmap"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "sfw",
+        "Name":  "Seattle FilmWorks Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "sgi",
+        "Name":  "Silicon Graphics Image File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "svg",
+        "Name":  "Scalable Vector Graphics File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "svgz",
+        "Name":  "Compressed SVG File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "tga",
+        "Name":  "Targa Graphic"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "tiff",
+        "Name":  "Tagged Image File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "ttf",
+        "Name":  "TrueType Font"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "txd",
+        "Name":  "Renderware Texture Dictionary"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "wbmp",
+        "Name":  "Wireless Bitmap Image File"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "webp",
+        "Name":  "WebP Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "wmf",
+        "Name":  "Windows Metafile"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "wmz",
+        "Name":  "Compressed Windows Metafile"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "xbm",
+        "Name":  "X11 Bitmap Graphic"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "xface",
+        "Name":  "X-Face Image"
+    },
+    {
+        "Category":  "image",
+        "Ext":  "xpm",
+        "Name":  "X11 Pixmap Graphic"
+    },
+    {
+        "Category":  "pdf",
+        "Ext":  "oxps",
+        "Name":  "Open XML Paper Specification File"
+    },
+    {
+        "Category":  "pdf",
+        "Ext":  "pdf",
+        "Name":  "Portable Document Format File"
+    },
+    {
+        "Category":  "pdf",
+        "Ext":  "xps",
+        "Name":  "XML Paper Specification File"
+    },
+    {
+        "Category":  "presentation",
+        "Ext":  "odp",
+        "Name":  "OpenDocument Presentation"
+    },
+    {
+        "Category":  "presentation",
+        "Ext":  "pot",
+        "Name":  "PowerPoint Template"
+    },
+    {
+        "Category":  "presentation",
+        "Ext":  "potm",
+        "Name":  "PowerPoint Macro-Enabled Presentation Template"
+    },
+    {
+        "Category":  "presentation",
+        "Ext":  "potx",
+        "Name":  "PowerPoint Template"
+    },
+    {
+        "Category":  "presentation",
+        "Ext":  "pps",
+        "Name":  "PowerPoint Slide Show"
+    },
+    {
+        "Category":  "presentation",
+        "Ext":  "ppsx",
+        "Name":  "PowerPoint Slide Show"
+    },
+    {
+        "Category":  "presentation",
+        "Ext":  "ppt",
+        "Name":  "PowerPoint Presentation (Legacy)"
+    },
+    {
+        "Category":  "presentation",
+        "Ext":  "pptm",
+        "Name":  "PowerPoint Macro-Enabled Presentation"
+    },
+    {
+        "Category":  "presentation",
+        "Ext":  "pptx",
+        "Name":  "PowerPoint Presentation"
+    },
+    {
+        "Category":  "project",
+        "Ext":  "mpp",
+        "Name":  "Microsoft Project File"
+    },
+    {
+        "Category":  "project",
+        "Ext":  "mpt",
+        "Name":  "Microsoft Project Template"
+    },
+    {
+        "Category":  "project",
+        "Ext":  "mpx",
+        "Name":  "Microsoft Project Exchange File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "a2l",
+        "Name":  "ASAP2 ECU Description File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "ads",
+        "Name":  "Ada Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "ahk",
+        "Name":  "AutoHotkey Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "as",
+        "Name":  "ActionScript File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "asm",
+        "Name":  "Assembly Language Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "asp",
+        "Name":  "Active Server Page"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "aspx",
+        "Name":  "Active Server Page Extended File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "au3",
+        "Name":  "AutoIt Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "bas",
+        "Name":  "Basic Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "bat",
+        "Name":  "DOS Batch File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "bpk",
+        "Name":  "Borland C++Builder Package"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "bpr",
+        "Name":  "Borland C++Builder Project File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "c",
+        "Name":  "C/C++ Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "cbl",
+        "Name":  "COBOL Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "cfg",
+        "Name":  "Configuration File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "cfm",
+        "Name":  "ColdFusion Markup File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "cgi",
+        "Name":  "CGI Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "clp",
+        "Name":  "Clipper Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "cmake",
+        "Name":  "CMake File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "cmd",
+        "Name":  "Windows Command File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "cpp",
+        "Name":  "C++ Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "cs",
+        "Name":  "C# Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "csh",
+        "Name":  "C Shell Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "css",
+        "Name":  "Cascading Style Sheet"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "dfm",
+        "Name":  "Delphi Form"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "dpk",
+        "Name":  "Delphi Package"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "dpr",
+        "Name":  "Delphi Project File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "eba",
+        "Name":  "EBasic Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "erl",
+        "Name":  "Erlang Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "ex",
+        "Name":  "Euphoria Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "f",
+        "Name":  "Fortran Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "h",
+        "Name":  "C/C++/Objective-C Header File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "haml",
+        "Name":  "Haml Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "hpp",
+        "Name":  "C++ Header File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "hs",
+        "Name":  "Haskell Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "inc",
+        "Name":  "Include File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "inf",
+        "Name":  "Setup Information File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "ini",
+        "Name":  "Windows Initialization File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "iss",
+        "Name":  "Inno Setup Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "iwb",
+        "Name":  "IWBasic Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "java",
+        "Name":  "Java Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "js",
+        "Name":  "JavaScript File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "json",
+        "Name":  "JSON File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "kix",
+        "Name":  "KiXstart Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "lhs",
+        "Name":  "Haskell Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "log",
+        "Name":  "Log File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "lua",
+        "Name":  "LUA Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "ml",
+        "Name":  "ML Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "nsh",
+        "Name":  "NSIS Header File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "nsi",
+        "Name":  "NSIS Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "ob2",
+        "Name":  "Oberon Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "pas",
+        "Name":  "Pascal Source File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "php",
+        "Name":  "PHP Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "pl",
+        "Name":  "Perl Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "pm",
+        "Name":  "Perl Module"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "pod",
+        "Name":  "Perl POD File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "prg",
+        "Name":  "FoxPro Program File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "ps1",
+        "Name":  "PowerShell Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "py",
+        "Name":  "Python Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "r",
+        "Name":  "R Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "rb",
+        "Name":  "Ruby Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "rc",
+        "Name":  "Resource Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "sas",
+        "Name":  "SAS Program File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "scm",
+        "Name":  "Scheme Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "sh",
+        "Name":  "Bash Shell Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "sql",
+        "Name":  "SQL File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "ss",
+        "Name":  "Scheme Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "st",
+        "Name":  "Smalltalk Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "sty",
+        "Name":  "LaTeX Style"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "tcl",
+        "Name":  "Tcl Script"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "tex",
+        "Name":  "LaTeX Source Document"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "v",
+        "Name":  "Verilog Source Code File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "vb",
+        "Name":  "VBScript File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "vhd",
+        "Name":  "VHDL File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "xml",
+        "Name":  "XML File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "xsd",
+        "Name":  "XML Schema Definition"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "xsl",
+        "Name":  "XML Style Sheet"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "xslt",
+        "Name":  "XSL Transformation File"
+    },
+    {
+        "Category":  "sourcecode",
+        "Ext":  "yml",
+        "Name":  "YAML Document"
+    },
+    {
+        "Category":  "spreadsheet",
+        "Ext":  "csv",
+        "Name":  "Comma Separated Values File"
+    },
+    {
+        "Category":  "spreadsheet",
+        "Ext":  "tsv",
+        "Name":  "Tab Separated Values File"
+    },
+    {
+        "Category":  "spreadsheet",
+        "Ext":  "xls",
+        "Name":  "Excel Spreadsheet (Legacy)"
+    },
+    {
+        "Category":  "spreadsheet",
+        "Ext":  "xlsm",
+        "Name":  "Excel Macro-Enabled Spreadsheet"
+    },
+    {
+        "Category":  "spreadsheet",
+        "Ext":  "xlsx",
+        "Name":  "Excel Spreadsheet"
+    },
+    {
+        "Category":  "spreadsheet",
+        "Ext":  "xlt",
+        "Name":  "Excel Spreadsheet Template"
+    },
+    {
+        "Category":  "spreadsheet",
+        "Ext":  "xltm",
+        "Name":  "Excel Macro-Enabled Spreadsheet Template"
+    },
+    {
+        "Category":  "spreadsheet",
+        "Ext":  "xltx",
+        "Name":  "Excel Spreadsheet Template"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "diz",
+        "Name":  "Description in Zip File"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "doc",
+        "Name":  "Microsoft Word Document (Legacy)"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "docm",
+        "Name":  "Microsoft Word Macro-Enabled Document"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "docx",
+        "Name":  "Microsoft Word Document"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "dot",
+        "Name":  "Microsoft Word Document Template"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "dotm",
+        "Name":  "Microsoft Word Macro-Enabled Document Template"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "dotx",
+        "Name":  "Microsoft Word Document Template"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "epub",
+        "Name":  "EPUB eBook"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "odt",
+        "Name":  "OpenDocument Text Document"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "ott",
+        "Name":  "OpenDocument Document Template"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "rtf",
+        "Name":  "Rich Text Format File"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "txt",
+        "Name":  "Plain Text File"
+    },
+    {
+        "Category":  "text",
+        "Ext":  "wps",
+        "Name":  "Microsoft Works Word Processor Document"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "3g2",
+        "Name":  "3GPP2 Multimedia File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "3gp",
+        "Name":  "3GPP Multimedia File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "4xm",
+        "Name":  "4X Movie"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "amv",
+        "Name":  "Anime Music Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "anim",
+        "Name":  "Amiga Animation File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "anm",
+        "Name":  "DeluxePaint Animation"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "asf",
+        "Name":  "Advanced Systems Format File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "avi",
+        "Name":  "Audio Video Interleave File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "bfi",
+        "Name":  "Brute Force and Ignorance Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "bik",
+        "Name":  "Bink Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "bmv",
+        "Name":  "Discworld II Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "c93",
+        "Name":  "Interplay C93 Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "cak",
+        "Name":  "SEGA FILM Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "cam",
+        "Name":  "MSN Messenger Webcam Recording"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "cdxl",
+        "Name":  "Commodore CDXL Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "cin",
+        "Name":  "Delphine Software CIN Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "cmv",
+        "Name":  "Electronic Arts CMV Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "dat",
+        "Name":  "VCD Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "dct",
+        "Name":  "Electronic Arts DCT Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "dfa",
+        "Name":  "DreamForge Intertainment Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "divx",
+        "Name":  "DivX Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "drc",
+        "Name":  "BBC Dirac Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "duk",
+        "Name":  "Duck TrueMotion 1 Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "dv",
+        "Name":  "Digital Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "dvr-ms",
+        "Name":  "Microsoft Digital Video Recording"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "dxa",
+        "Name":  "Feeble Files Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "f4v",
+        "Name":  "Flash MP4 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "flc",
+        "Name":  "FLIC Animation"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "flv",
+        "Name":  "Flash Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "gdv",
+        "Name":  "Gremlin Digital Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "gxf",
+        "Name":  "General Exchange Format Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "h263",
+        "Name":  "H.263 Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "h264",
+        "Name":  "Raw H.264 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "hevc",
+        "Name":  "High Efficiency Video Coding File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "jv",
+        "Name":  "Bitmap Brothers Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "k3g",
+        "Name":  "3GP Mobile Phone Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "lvf",
+        "Name":  "DVR LVF Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "lxf",
+        "Name":  "Harris/Leitch DVR Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "m2t",
+        "Name":  "Blu-ray BDAV Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "m2v",
+        "Name":  "MPEG-2 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "m4v",
+        "Name":  "iTunes Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mad",
+        "Name":  "Electronic Arts Madcow Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mk3d",
+        "Name":  "Matroska 3D Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mkv",
+        "Name":  "Matroska Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mmv",
+        "Name":  "Sony MicroMV Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mod",
+        "Name":  "JVC Everio Video Recording"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mov",
+        "Name":  "Apple QuickTime Movie"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mp4",
+        "Name":  "MPEG-4 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mpc",
+        "Name":  "Electronic Arts MPCh Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mpg",
+        "Name":  "MPEG Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mts",
+        "Name":  "AVCHD Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mve",
+        "Name":  "Interplay MVE Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mvi",
+        "Name":  "Motion Pixels MVI1 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "mxf",
+        "Name":  "Material Exchange Format File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "nsv",
+        "Name":  "Nullsoft Streaming Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "nut",
+        "Name":  "FFmpeg NUT Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "nuv",
+        "Name":  "NuppelVideo File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "ogm",
+        "Name":  "Ogg Media File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "ogv",
+        "Name":  "Ogg Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "p64",
+        "Name":  "H.261 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "pmf",
+        "Name":  "PSP Movie File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "pva",
+        "Name":  "PVA Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "qt",
+        "Name":  "QuickTime RLE Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "rl2",
+        "Name":  "Voyeur Game Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "rm",
+        "Name":  "Real Media File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "rmvb",
+        "Name":  "RealMedia Variable Bit Rate File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "roq",
+        "Name":  "id RoQ Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "rpl",
+        "Name":  "Escape Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "san",
+        "Name":  "LucasArts Smush Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "sfd",
+        "Name":  "Sofdec Dreamcast Movie"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "smk",
+        "Name":  "Smacker Movie File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "tgq",
+        "Name":  "Electronic Arts TGQ Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "tgv",
+        "Name":  "Electronic Arts TGV Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "thp",
+        "Name":  "Wii/GameCube Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "tmv",
+        "Name":  "8088flex Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "tp",
+        "Name":  "Beyond TV Transport Stream File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "trp",
+        "Name":  "HD Video Transport Stream"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "ts",
+        "Name":  "Video Transport Stream File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vb",
+        "Name":  "Beam Game SIFF Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vc1",
+        "Name":  "VC-1 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vid",
+        "Name":  "Bethesda Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vmd",
+        "Name":  "Sierra VMD Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vob",
+        "Name":  "DVD Video Object File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vp3",
+        "Name":  "On2 VP3 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vp5",
+        "Name":  "On2 VP5 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vp6",
+        "Name":  "On2 VP6 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vp7",
+        "Name":  "On2 VP7 Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vqa",
+        "Name":  "Westwood Studios VQA Video"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "vsr",
+        "Name":  "CPCAM CCTV Recording"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "webm",
+        "Name":  "WebM Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "wmv",
+        "Name":  "Windows Media Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "wtv",
+        "Name":  "Windows Recorded TV Show File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "wve",
+        "Name":  "Electronic Arts TQI Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "xesc",
+        "Name":  "Microsoft Expression Screen Capture Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "xmv",
+        "Name":  "Xbox Media Video File"
+    },
+    {
+        "Category":  "video",
+        "Ext":  "yop",
+        "Name":  "Psygnosis YOP Video"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vdw",
+        "Name":  "Visio Web Drawing"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vdx",
+        "Name":  "Visio Drawing XML File"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vsd",
+        "Name":  "Visio Drawing"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vsdm",
+        "Name":  "Visio Macro-Enabled Drawing"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vsdx",
+        "Name":  "Visio Drawing"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vss",
+        "Name":  "Visio Stencils File"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vssx",
+        "Name":  "Visio Stencils File"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vst",
+        "Name":  "Visio Drawing Template"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vstm",
+        "Name":  "Visio Macro-Enabled Drawing Template"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vstx",
+        "Name":  "Visio Drawing Template"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vsx",
+        "Name":  "Visio Stencil XML File"
+    },
+    {
+        "Category":  "visio",
+        "Ext":  "vtx",
+        "Name":  "Visio Template XML File"
+    },
+    {
+        "Category":  "web",
+        "Ext":  "html",
+        "Name":  "Hypertext Markup Language File"
+    },
+    {
+        "Category":  "web",
+        "Ext":  "mht",
+        "Name":  "MHTML Web Archive"
+    }
+]
