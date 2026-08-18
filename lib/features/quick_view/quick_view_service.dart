@@ -232,16 +232,15 @@ class QuickViewService extends ChangeNotifier {
         PluginDiscoveryIssue(_associationStore.filePath, '关联配置加载失败：$error'),
       );
     }
-    if (_associationStoreWritable && _associations.needsMigration) {
-      _associations.finishLegacyMigration(
-        (kind, key) =>
-            availablePluginsFor(kind, key).map((plugin) => plugin.manifest.id),
-      );
+    final associationsChanged = _associations.reconcileManifestPlugins(
+      _plugins.values.map((plugin) => plugin.manifest),
+    );
+    if (_associationStoreWritable && associationsChanged) {
       try {
         _associationStore.save(_associations);
       } catch (error) {
         _issues.add(
-          PluginDiscoveryIssue(_associationStore.filePath, '关联配置迁移保存失败：$error'),
+          PluginDiscoveryIssue(_associationStore.filePath, '关联配置更新保存失败：$error'),
         );
       }
     }
@@ -252,14 +251,10 @@ class QuickViewService extends ChangeNotifier {
 
   ViewerRuleGroup ruleGroup(String id) => _associations.group(id);
 
-  ViewerRuleGroup addRuleGroup({
-    required String name,
-    required ViewerRuleGroupType type,
-  }) {
+  ViewerRuleGroup addRuleGroup({required String name}) {
     final group = ViewerRuleGroup(
       id: _newRuleGroupId(),
       name: name,
-      type: type,
       builtIn: false,
       enabled: true,
     );
@@ -290,33 +285,78 @@ class QuickViewService extends ChangeNotifier {
     _saveAndNotify();
   }
 
-  List<String> associationKeys(ViewerAssociationKind kind) =>
-      associationKeysForRuleGroup(
-        ViewerAssociationConfig.builtInGroupIdFor(kind),
-      );
+  List<ViewerRule> rulesForGroup(String groupId) =>
+      _associations.rulesForGroup(groupId);
 
-  List<String> associationKeysForRuleGroup(String groupId) {
-    final group = ruleGroup(groupId);
-    final kind = group.associationKind;
-    if (kind == null) throw ArgumentError('路径规则组不包含普通关联：$groupId');
-    final result = <String>{..._associations.keysForGroup(groupId)};
-    if (group.builtIn) {
-      for (final plugin in _plugins.values) {
-        result.addAll(plugin.manifest.quickView.valuesFor(kind));
-      }
-    }
-    final sorted = result.toList()..sort();
-    return sorted;
+  List<ViewerRule> get rules => _associations.allRules;
+
+  ViewerRule rule(String id) => _associations.rule(id);
+
+  ViewerRule addRule({
+    required String groupId,
+    String? parentRuleId,
+    required ViewerRuleType type,
+    required String value,
+    ViewerPathMatchMode? pathMode,
+    Iterable<String> viewerIds = const [],
+  }) {
+    final valueRule = ViewerRule(
+      id: _newRuleId(type),
+      managed: false,
+      enabled: true,
+      type: type,
+      value: value,
+      pathMode: type == ViewerRuleType.path
+          ? (pathMode ?? ViewerPathMatchMode.glob)
+          : null,
+      viewers: [
+        for (final id in _validateViewerIds(viewerIds))
+          ViewerRuleViewer(id: id, managed: false, enabled: true),
+      ],
+    );
+    _associations.addRule(groupId, valueRule, parentRuleId: parentRuleId);
+    _saveAndNotify();
+    return valueRule;
   }
 
-  bool hasOverride(ViewerAssociationKind kind, String key) =>
-      hasOverrideForRuleGroup(
-        ViewerAssociationConfig.builtInGroupIdFor(kind),
-        key,
-      );
+  void updateRule(
+    String id, {
+    ViewerRuleType? type,
+    String? value,
+    ViewerPathMatchMode? pathMode,
+  }) {
+    final current = rule(id);
+    _associations.updateRule(
+      current.copyWith(type: type, value: value, pathMode: pathMode),
+    );
+    _saveAndNotify();
+  }
 
-  bool hasOverrideForRuleGroup(String groupId, String key) =>
-      _associations.hasOverrideForGroup(groupId, key);
+  void setRuleEnabled(String id, bool enabled) {
+    final current = rule(id);
+    _associations.updateRule(current.copyWith(enabled: enabled));
+    _saveAndNotify();
+  }
+
+  void removeRule(String id) {
+    _associations.removeRule(id);
+    _saveAndNotify();
+  }
+
+  void moveRuleBefore(String id, String targetId) {
+    _associations.moveRuleBefore(id, targetId);
+    _saveAndNotify();
+  }
+
+  void moveRuleInto(String id, String parentId) {
+    _associations.moveRuleInto(id, parentId);
+    _saveAndNotify();
+  }
+
+  void moveRuleToGroup(String id, String groupId) {
+    _associations.moveRuleToGroup(id, groupId);
+    _saveAndNotify();
+  }
 
   List<ViewerPlugin> availablePluginsFor(
     ViewerAssociationKind kind,
@@ -335,60 +375,100 @@ class QuickViewService extends ChangeNotifier {
     return result;
   }
 
+  List<ViewerPlugin> availablePluginsForRule(ViewerRule valueRule) {
+    final existing = valueRule.viewers.map((viewer) => viewer.id).toSet();
+    return plugins
+        .where(
+          (plugin) =>
+              plugin.isAvailable && !existing.contains(plugin.manifest.id),
+        )
+        .toList();
+  }
+
+  ViewerPlugin? pluginById(String id) => _plugins[id.trim().toLowerCase()];
+
+  List<ViewerPlugin> viewersForRule(
+    ViewerRule valueRule, {
+    bool includeDisabled = false,
+  }) => [
+    for (final viewer in valueRule.viewers)
+      if (includeDisabled || viewer.enabled) ?_plugins[viewer.id],
+  ];
+
+  void addViewerToRule(String ruleId, String pluginId) {
+    final current = rule(ruleId);
+    final normalized = ViewerRuleViewer.normalizeId(pluginId);
+    if (!_plugins.containsKey(normalized)) {
+      throw ArgumentError('Viewer 不存在：$pluginId');
+    }
+    final index = current.viewers.indexWhere(
+      (viewer) => viewer.id == normalized,
+    );
+    if (index >= 0) {
+      current.viewers[index] = current.viewers[index].copyWith(enabled: true);
+    } else {
+      current.viewers.add(
+        ViewerRuleViewer(id: normalized, managed: false, enabled: true),
+      );
+    }
+    _saveAndNotify();
+  }
+
+  void setRuleViewerEnabled(String ruleId, String pluginId, bool enabled) {
+    final current = rule(ruleId);
+    final normalized = ViewerRuleViewer.normalizeId(pluginId);
+    final index = current.viewers.indexWhere(
+      (viewer) => viewer.id == normalized,
+    );
+    if (index < 0) throw ArgumentError('规则中不存在 Viewer：$pluginId');
+    current.viewers[index] = current.viewers[index].copyWith(enabled: enabled);
+    _saveAndNotify();
+  }
+
+  void reorderRuleViewers(String ruleId, int oldIndex, int newIndex) {
+    final viewers = rule(ruleId).viewers;
+    if (oldIndex < 0 || oldIndex >= viewers.length) {
+      throw RangeError.index(oldIndex, viewers, 'oldIndex');
+    }
+    final target = newIndex.clamp(0, viewers.length - 1);
+    if (target == oldIndex) return;
+    final viewer = viewers.removeAt(oldIndex);
+    viewers.insert(target, viewer);
+    _saveAndNotify();
+  }
+
+  void removeViewerFromRule(String ruleId, String pluginId) {
+    final current = rule(ruleId);
+    final normalized = ViewerRuleViewer.normalizeId(pluginId);
+    final index = current.viewers.indexWhere(
+      (viewer) => viewer.id == normalized,
+    );
+    if (index < 0) throw ArgumentError('规则中不存在 Viewer：$pluginId');
+    if (current.viewers[index].managed) {
+      throw ArgumentError('默认 Viewer 不能删除，请改为禁用');
+    }
+    current.viewers.removeAt(index);
+    _saveAndNotify();
+  }
+
   List<ViewerPlugin> candidatesForAssociation(
     ViewerAssociationKind kind,
-    String rawKey,
-  ) => candidatesForRuleGroup(
-    ViewerAssociationConfig.builtInGroupIdFor(kind),
-    rawKey,
-  );
-
-  List<ViewerPlugin> candidatesForRuleGroup(
-    String groupId,
     String rawKey, {
     bool includeDisabled = false,
   }) {
-    final group = ruleGroup(groupId);
-    final kind = group.associationKind;
-    if (kind == null) throw ArgumentError('路径规则组不包含普通关联：$groupId');
     final key = kind.normalize(rawKey);
-    final available = availablePluginsFor(kind, key);
-    final baseline = group.builtIn
-        ? _defaultPluginsFor(kind, key)
-        : const <ViewerPlugin>[];
-    final override = _associations.overrideForGroup(groupId, key);
-    if (override == null) return baseline;
-    if (!override.enabled && !includeDisabled) return const [];
-    final byId = {for (final plugin in available) plugin.manifest.id: plugin};
-    final seen = <String>{};
-    return [
-      for (final id in override.viewerOrder)
-        if (!override.excludedViewerIds.contains(id) && seen.add(id)) ?byId[id],
-      for (final plugin in baseline)
-        if (!override.excludedViewerIds.contains(plugin.manifest.id) &&
-            seen.add(plugin.manifest.id))
-          plugin,
-    ];
+    final valueRule = _ruleForAssociation(kind, key);
+    if (valueRule == null || (!valueRule.enabled && !includeDisabled)) {
+      return const [];
+    }
+    return viewersForRule(valueRule, includeDisabled: includeDisabled);
   }
 
   void setCandidates(
     ViewerAssociationKind kind,
     String rawKey,
     Iterable<String> pluginIds,
-  ) => setCandidatesForRuleGroup(
-    ViewerAssociationConfig.builtInGroupIdFor(kind),
-    rawKey,
-    pluginIds,
-  );
-
-  void setCandidatesForRuleGroup(
-    String groupId,
-    String rawKey,
-    Iterable<String> pluginIds,
   ) {
-    final group = ruleGroup(groupId);
-    final kind = group.associationKind;
-    if (kind == null) throw ArgumentError('路径规则组不包含普通关联：$groupId');
     final key = kind.normalize(rawKey);
     final ids = pluginIds.map((id) => id.toLowerCase()).toSet().toList();
     final validIds = {
@@ -398,157 +478,62 @@ class QuickViewService extends ChangeNotifier {
     if (invalid.isNotEmpty) {
       throw ArgumentError('插件未声明支持 $key：${invalid.join(', ')}');
     }
-    final current = _associations.overrideForGroup(groupId, key);
-    final viewerOrder = _mergeRetainedUnavailableIds(
-      ids,
-      current?.viewerOrder ?? const [],
-      validIds,
-    );
-    final excludedViewerIds = <String>{
-      ...validIds.where((id) => !ids.contains(id)),
-      ...?current?.excludedViewerIds.where((id) => !validIds.contains(id)),
+    final valueRule = _ruleForAssociation(kind, key);
+    if (valueRule == null) throw ArgumentError('关联规则不存在：$key');
+    final existing = {
+      for (final viewer in valueRule.viewers) viewer.id: viewer,
     };
-    _associations.setOverrideForGroup(
-      groupId,
-      key,
-      enabled: true,
-      viewerOrder: viewerOrder,
-      excludedViewerIds: excludedViewerIds,
-    );
+    final next = <ViewerRuleViewer>[
+      for (final id in ids)
+        (existing.remove(id) ??
+                ViewerRuleViewer(id: id, managed: true, enabled: true))
+            .copyWith(enabled: true),
+      for (final viewer in existing.values)
+        if (!validIds.contains(viewer.id)) viewer,
+      for (final viewer in existing.values)
+        if (validIds.contains(viewer.id)) viewer.copyWith(enabled: false),
+    ];
+    valueRule.viewers
+      ..clear()
+      ..addAll(next);
+    if (!valueRule.enabled) {
+      _associations.updateRule(valueRule.copyWith(enabled: true));
+    }
     _saveAndNotify();
   }
 
   void disableAssociation(ViewerAssociationKind kind, String rawKey) {
-    setAssociationEnabledForRuleGroup(
-      ViewerAssociationConfig.builtInGroupIdFor(kind),
-      rawKey,
-      false,
-    );
-  }
-
-  bool associationEnabledForRuleGroup(String groupId, String rawKey) =>
-      _associations.overrideForGroup(groupId, rawKey)?.enabled ?? true;
-
-  void setAssociationEnabledForRuleGroup(
-    String groupId,
-    String rawKey,
-    bool enabled,
-  ) {
-    final current = _associations.overrideForGroup(groupId, rawKey);
-    _associations.setOverrideForGroup(
-      groupId,
-      rawKey,
-      enabled: enabled,
-      viewerOrder: current?.viewerOrder ?? const [],
-      excludedViewerIds: current?.excludedViewerIds ?? const [],
-    );
-    _saveAndNotify();
+    final valueRule = _ruleForAssociation(kind, kind.normalize(rawKey));
+    if (valueRule != null) setRuleEnabled(valueRule.id, false);
   }
 
   void resetAssociation(ViewerAssociationKind kind, String rawKey) {
-    resetAssociationForRuleGroup(
-      ViewerAssociationConfig.builtInGroupIdFor(kind),
-      rawKey,
-    );
-  }
-
-  void resetAssociationForRuleGroup(String groupId, String rawKey) {
-    _associations.resetForGroup(groupId, rawKey);
+    final valueRule = _ruleForAssociation(kind, kind.normalize(rawKey));
+    if (valueRule == null) return;
+    for (var index = 0; index < valueRule.viewers.length; index++) {
+      final viewer = valueRule.viewers[index];
+      if (viewer.managed) {
+        valueRule.viewers[index] = viewer.copyWith(enabled: true);
+      }
+    }
+    _associations.updateRule(valueRule.copyWith(enabled: true));
     _saveAndNotify();
   }
-
-  List<ViewerPathRule> get pathRules => _associations.rules;
-
-  List<ViewerPathRule> pathRulesForGroup(String groupId) =>
-      _associations.rulesForGroup(groupId);
 
   List<ViewerPlugin> get availablePathRulePlugins =>
       plugins.where((plugin) => plugin.isAvailable).toList();
 
-  List<ViewerPlugin> candidatesForPathRule(ViewerPathRule rule) {
-    final byId = {
-      for (final plugin in availablePathRulePlugins) plugin.manifest.id: plugin,
-    };
-    return [for (final id in rule.viewerIds) ?byId[id]];
-  }
-
-  ViewerPathRule addPathRule({
+  ViewerRule addPathRule({
     required String pattern,
     required ViewerPathMatchMode mode,
     required Iterable<String> viewerIds,
-  }) => addPathRuleToGroup(
-    ViewerAssociationConfig.builtInPathGroupId,
-    pattern: pattern,
-    mode: mode,
+  }) => addRule(
+    groupId: ViewerAssociationConfig.builtInPathGroupId,
+    type: ViewerRuleType.path,
+    value: pattern,
+    pathMode: mode,
     viewerIds: viewerIds,
   );
-
-  ViewerPathRule addPathRuleToGroup(
-    String groupId, {
-    required String pattern,
-    required ViewerPathMatchMode mode,
-    required Iterable<String> viewerIds,
-  }) {
-    final group = ruleGroup(groupId);
-    if (group.type != ViewerRuleGroupType.path) {
-      throw ArgumentError('规则组不是路径类型：$groupId');
-    }
-    final ids = _validatePathRuleViewerIds(viewerIds);
-    final rule = ViewerPathRule(
-      id: _newPathRuleId(),
-      enabled: true,
-      mode: mode,
-      pattern: pattern,
-      viewerIds: ids,
-    );
-    _associations.addRule(rule, groupId: groupId);
-    _saveAndNotify();
-    return rule;
-  }
-
-  void setPathRuleEnabled(String id, bool enabled) {
-    final rule = _pathRule(id);
-    _associations.updateRule(rule.copyWith(enabled: enabled));
-    _saveAndNotify();
-  }
-
-  void updatePathRule(
-    String id, {
-    required String pattern,
-    required ViewerPathMatchMode mode,
-  }) {
-    final rule = _pathRule(id);
-    _associations.updateRule(rule.copyWith(pattern: pattern, mode: mode));
-    _saveAndNotify();
-  }
-
-  void setPathRuleCandidates(String id, Iterable<String> viewerIds) {
-    final rule = _pathRule(id);
-    final availableIds = {
-      for (final plugin in availablePathRulePlugins) plugin.manifest.id,
-    };
-    final validatedIds = _validatePathRuleViewerIds(viewerIds);
-    _associations.updateRule(
-      rule.copyWith(
-        viewerIds: _mergeRetainedUnavailableIds(
-          validatedIds,
-          rule.viewerIds,
-          availableIds,
-        ),
-      ),
-    );
-    _saveAndNotify();
-  }
-
-  void movePathRule(String id, int offset) {
-    _associations.moveRule(id, offset);
-    _saveAndNotify();
-  }
-
-  void removePathRule(String id) {
-    _associations.removeRule(id);
-    _saveAndNotify();
-  }
 
   List<ViewerPlugin> resolve(String filePath, {String? mimeType}) {
     return resolveCandidates(
@@ -563,88 +548,19 @@ class QuickViewService extends ChangeNotifier {
   }) {
     final resolvedMime = mimeType ?? _mimeTypeResolver(filePath);
     final facts = ViewerFileFacts.fromPath(filePath, mimeType: resolvedMime);
-    final candidateGroups = <List<ViewerResolutionCandidate>>[];
+    final candidates = <ViewerResolutionCandidate>[];
 
     for (final group in ruleGroups) {
       if (!group.enabled) continue;
-      switch (group.type) {
-        case ViewerRuleGroupType.path:
-          for (final rule in pathRulesForGroup(group.id)) {
-            if (!rule.matches(facts)) continue;
-            candidateGroups.add([
-              for (final plugin in candidatesForPathRule(rule))
-                ViewerResolutionCandidate(
-                  plugin: plugin,
-                  groupId: group.id,
-                  matchKind: ViewerMatchKind.pathRule,
-                  matchedValue: rule.pattern,
-                  ruleId: rule.id,
-                ),
-            ]);
-          }
-        case ViewerRuleGroupType.fileName:
-          if (facts.fileName.isEmpty) continue;
-          candidateGroups.add([
-            for (final plugin in candidatesForRuleGroup(
-              group.id,
-              facts.fileName,
-            ))
-              ViewerResolutionCandidate(
-                plugin: plugin,
-                groupId: group.id,
-                matchKind: ViewerMatchKind.fileName,
-                matchedValue: facts.fileName,
-              ),
-          ]);
-        case ViewerRuleGroupType.extension:
-          for (final suffix in facts.suffixes) {
-            candidateGroups.add([
-              for (final plugin in candidatesForRuleGroup(group.id, suffix))
-                ViewerResolutionCandidate(
-                  plugin: plugin,
-                  groupId: group.id,
-                  matchKind: ViewerMatchKind.suffix,
-                  matchedValue: suffix,
-                ),
-            ]);
-          }
-        case ViewerRuleGroupType.mimeType:
-          if (facts.mimeType == null) continue;
-          try {
-            final mime = ViewerAssociationKind.mimeType.normalize(
-              facts.mimeType!,
-            );
-            candidateGroups.add([
-              for (final plugin in candidatesForRuleGroup(group.id, mime))
-                ViewerResolutionCandidate(
-                  plugin: plugin,
-                  groupId: group.id,
-                  matchKind: ViewerMatchKind.mimeExact,
-                  matchedValue: mime,
-                ),
-            ]);
-            final slash = mime.indexOf('/');
-            final wildcard = '${mime.substring(0, slash)}/*';
-            candidateGroups.add([
-              for (final plugin in candidatesForRuleGroup(group.id, wildcard))
-                ViewerResolutionCandidate(
-                  plugin: plugin,
-                  groupId: group.id,
-                  matchKind: ViewerMatchKind.mimeWildcard,
-                  matchedValue: wildcard,
-                ),
-            ]);
-          } on FormatException {
-            debugPrint('[QuickView] ignored invalid MIME: ${facts.mimeType}');
-          }
+      for (final valueRule in group.rules) {
+        _collectRuleCandidates(group.id, valueRule, facts, candidates);
       }
     }
 
     final seen = <String>{};
     return [
-      for (final group in candidateGroups)
-        for (final candidate in group)
-          if (seen.add(candidate.plugin.manifest.id)) candidate,
+      for (final candidate in candidates)
+        if (seen.add(candidate.plugin.manifest.id)) candidate,
     ];
   }
 
@@ -777,51 +693,55 @@ class QuickViewService extends ChangeNotifier {
     });
   }
 
-  List<ViewerPlugin> _defaultPluginsFor(
-    ViewerAssociationKind kind,
-    String key,
+  void _collectRuleCandidates(
+    String groupId,
+    ViewerRule valueRule,
+    ViewerFileFacts facts,
+    List<ViewerResolutionCandidate> target,
   ) {
-    final available = availablePluginsFor(kind, key);
-    if (kind != ViewerAssociationKind.mimeType || key.endsWith('/*')) {
-      return available;
+    if (!valueRule.matches(facts)) return;
+    for (final child in valueRule.rules) {
+      _collectRuleCandidates(groupId, child, facts, target);
     }
-    return available
-        .where((plugin) => plugin.manifest.quickView.mimeTypes.contains(key))
-        .toList();
+    final matchKind = switch (valueRule.type) {
+      ViewerRuleType.path => ViewerMatchKind.pathRule,
+      ViewerRuleType.fileName => ViewerMatchKind.fileName,
+      ViewerRuleType.extension => ViewerMatchKind.suffix,
+      ViewerRuleType.mimeType when valueRule.value.endsWith('/*') =>
+        ViewerMatchKind.mimeWildcard,
+      ViewerRuleType.mimeType => ViewerMatchKind.mimeExact,
+    };
+    for (final viewer in valueRule.viewers) {
+      if (!viewer.enabled) continue;
+      final plugin = _plugins[viewer.id];
+      if (plugin == null || !plugin.isAvailable) continue;
+      target.add(
+        ViewerResolutionCandidate(
+          plugin: plugin,
+          groupId: groupId,
+          matchKind: matchKind,
+          matchedValue: valueRule.value,
+          ruleId: valueRule.id,
+        ),
+      );
+    }
   }
 
-  List<String> _validatePathRuleViewerIds(Iterable<String> viewerIds) {
+  ViewerRule? _ruleForAssociation(ViewerAssociationKind kind, String value) {
+    final id = ViewerAssociationConfig.defaultRuleId(kind, value);
+    for (final valueRule in rules) {
+      if (valueRule.id == id) return valueRule;
+    }
+    return null;
+  }
+
+  List<String> _validateViewerIds(Iterable<String> viewerIds) {
     final ids = viewerIds.map((id) => id.trim().toLowerCase()).toSet().toList();
-    final availableIds = {
-      for (final plugin in availablePathRulePlugins) plugin.manifest.id,
-    };
-    final invalid = ids.where((id) => !availableIds.contains(id)).toList();
+    final invalid = ids.where((id) => !_plugins.containsKey(id)).toList();
     if (invalid.isNotEmpty) {
-      throw ArgumentError('查看器不可用：${invalid.join(', ')}');
+      throw ArgumentError('Viewer 不存在：${invalid.join(', ')}');
     }
     return ids;
-  }
-
-  List<String> _mergeRetainedUnavailableIds(
-    Iterable<String> requestedIds,
-    Iterable<String> currentIds,
-    Set<String> availableIds,
-  ) {
-    final result = requestedIds.toSet().toList();
-    final current = currentIds.toList();
-    for (var index = 0; index < current.length; index++) {
-      final id = current[index];
-      if (availableIds.contains(id) || result.contains(id)) continue;
-      result.insert(index.clamp(0, result.length), id);
-    }
-    return result;
-  }
-
-  ViewerPathRule _pathRule(String id) {
-    for (final rule in pathRules) {
-      if (rule.id == id) return rule;
-    }
-    throw ArgumentError('规则不存在：$id');
   }
 
   String _newRuleGroupId() {
@@ -836,11 +756,11 @@ class QuickViewService extends ChangeNotifier {
     return id;
   }
 
-  String _newPathRuleId() {
-    final base = 'path-${DateTime.now().microsecondsSinceEpoch}';
+  String _newRuleId(ViewerRuleType type) {
+    final base = '${type.jsonValue}-${DateTime.now().microsecondsSinceEpoch}';
     var id = base;
     var suffix = 2;
-    final existing = pathRules.map((rule) => rule.id).toSet();
+    final existing = rules.map((rule) => rule.id).toSet();
     while (existing.contains(id)) {
       id = '$base-$suffix';
       suffix++;

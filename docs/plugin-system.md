@@ -7,9 +7,9 @@
 - 插件使用独立进程运行，不把第三方 DLL 加载到 Flutter 主进程。
 - `quickView` 与 `search` 是独立能力；搜索插件不参与 Viewer 关联解析。
 - Manifest 只声明插件能力，不声明插件优先级。
-- 用户关联配置只保存候选顺序和排除项；未配置的 Manifest 候选仍可增量加入。
-- `extensions`、`fileNames`、`mimeTypes` 是三种独立的匹配方式，彼此为 OR。
-- 文件名、后缀和 MIME 关联只能选择 Manifest 已声明支持的插件。
+- 用户关联配置保存递归规则树、Viewer 顺序和启用状态；Manifest 新增声明以追加方式合并。
+- `path`、`extension`、`fileName`、`mimeType` 是四种可混合、可嵌套的规则类型。
+- Manifest 负责生成默认规则和默认 Viewer；用户规则可关联任意已安装的 Quick View Viewer。
 - 路径规则只由用户创建，插件不能在 Manifest 中声明路径规则。
 - 主程序通过参数数组传递文件路径，不拼接或重新解析命令行字符串。
 
@@ -269,153 +269,152 @@ Windows 下配置文件存储在：
 %LOCALAPPDATA%\Inf-Dir\viewer_associations.json
 ```
 
-格式如下：
+`groups` 是有序规则组，组只负责分组和优先级，不限定规则类型。每个组的 `rules` 是递归规则树；
+每条规则同时拥有有序子规则 `rules` 和有序 Viewer 列表 `viewers`。例如扩展名为 `.bar` 时，
+优先根据 MIME 选择专用 Viewer，未命中子规则再回退到父规则 Viewer：
 
 ```json
 {
   "schemaVersion": 2,
   "groups": [
     {
-      "id": "builtin-path",
-      "name": "路径",
-      "type": "path",
+      "id": "builtin-extension",
+      "name": "扩展名",
       "builtIn": true,
       "enabled": true,
       "rules": [
         {
-          "id": "path-work-pdf",
+          "id": "builtin-extension-2e626172",
+          "managed": true,
           "enabled": true,
-          "type": "path",
-          "mode": "glob",
-          "pattern": "C:\\Work\\**\\*.pdf",
-          "viewerIds": ["inf-dir.pdf-view"]
+          "type": "extension",
+          "value": ".bar",
+          "rules": [
+            {
+              "id": "rule-bar-v1",
+              "managed": false,
+              "enabled": true,
+              "type": "mimeType",
+              "value": "application/x-bar-v1",
+              "rules": [],
+              "viewers": [
+                {
+                  "id": "inf-dir.bar-v1-view",
+                  "managed": false,
+                  "enabled": true
+                }
+              ]
+            }
+          ],
+          "viewers": [
+            {
+              "id": "inf-dir.bar-view",
+              "managed": true,
+              "enabled": true
+            },
+            {
+              "id": "third-party.hex-view",
+              "managed": false,
+              "enabled": true
+            }
+          ]
         }
       ]
-    },
-    {
-      "id": "builtin-extension",
-      "name": "扩展名",
-      "type": "extension",
-      "builtIn": true,
-      "enabled": true,
-      "associations": {
-        ".pdf": {
-          "enabled": true,
-          "viewerOrder": ["inf-dir.pdf-view"],
-          "excludedViewerIds": ["third-party.browser-view"]
-        }
-      }
-    },
-    {
-      "id": "builtin-file-name",
-      "name": "文件名",
-      "type": "fileName",
-      "builtIn": true,
-      "enabled": true,
-      "associations": {
-        "dockerfile": {
-          "enabled": true,
-          "viewerOrder": ["inf-dir.text-view"],
-          "excludedViewerIds": []
-        }
-      }
-    },
-    {
-      "id": "builtin-mime",
-      "name": "MIME",
-      "type": "mimeType",
-      "builtIn": true,
-      "enabled": true,
-      "associations": {}
-    },
-    {
-      "id": "group-project-images",
-      "name": "项目图片",
-      "type": "extension",
-      "builtIn": false,
-      "enabled": true,
-      "associations": {
-        ".png": {
-          "enabled": true,
-          "viewerOrder": ["inf-dir.image-view"],
-          "excludedViewerIds": []
-        }
-      }
     }
   ]
 }
 ```
 
-`groups` 数组顺序就是规则组优先级。首次运行固定创建以下四个内置组，默认顺序为路径、扩展名、
-文件名、MIME：
+### 4.1 规则组
 
-| ID | `type` | 默认名称 |
+首次运行固定创建四个内置组，默认顺序为路径、文件名、扩展名、MIME：
+
+| ID | 默认名称 |
+| --- | --- |
+| `builtin-path` | 路径 |
+| `builtin-file-name` | 文件名 |
+| `builtin-extension` | 扩展名 |
+| `builtin-mime` | MIME |
+
+四个名称只表达默认内容，不是类型约束。任意组内都可以混合 `path`、`fileName`、
+`extension` 和 `mimeType`，用户组也是相同结构。`groups` 数组顺序决定组优先级；
+每个组内顶层 `rules` 的顺序决定同级规则优先级。
+
+### 4.2 规则与 Viewer
+
+规则字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` | 全局稳定 ID |
+| `managed` | 是否由 Manifest 管理的默认规则 |
+| `enabled` | 是否参与解析 |
+| `type` | `path`、`fileName`、`extension` 或 `mimeType` |
+| `value` | 规范化后的匹配值 |
+| `mode` | 仅路径规则使用：`exact` 或 `glob` |
+| `rules` | 有序子规则 |
+| `viewers` | 当前规则命中后贡献的有序 Viewer |
+
+Viewer 条目包含稳定插件 `id`、`managed` 和 `enabled`。配置不保存 EXE 路径。插件临时
+缺失时条目仍保留，Resolver 跳过不可用插件；插件重新安装后原有顺序和启用状态自动恢复。
+
+路径规则必须使用 Windows 绝对路径，匹配不区分大小写，`/` 会规范化为 `\`。`exact` 不允许
+`*` 或 `?`；`glob` 中 `*` 匹配单个路径段，`**` 可跨目录，`?` 匹配一个非分隔符字符。
+
+### 4.3 默认项权限与增量升级
+
+Manifest 生成的规则和 Viewer 标记为 `managed: true`：
+
+| 对象 | 允许操作 | 不允许操作 |
 | --- | --- | --- |
-| `builtin-path` | `path` | 路径 |
-| `builtin-extension` | `extension` | 扩展名 |
-| `builtin-file-name` | `fileName` | 文件名 |
-| `builtin-mime` | `mimeType` | MIME |
+| 默认规则组 | 启用/禁用、排序、改名 | 删除 |
+| 默认规则 | 启用/禁用、拖拽排序或嵌套、添加子规则、添加 Viewer | 修改匹配条件、删除 |
+| 默认 Viewer | 启用/禁用、排序 | 删除 |
+| 用户规则/Viewer | 上述操作 | 无额外限制 |
 
-内置组可改名、启用、禁用和排序，但不能删除或修改类型。用户组的 `builtIn` 固定为 `false`，类型也
-只能从上述四种类型中选择。内置普通关联组会合并 Manifest 自动候选；自定义组只包含用户显式添加的
-关联，避免同一批 Manifest 规则在多个组中自动重复。
+程序启动或重新扫描插件时执行单调增量合并：
 
-配置保存插件 ID，不保存 EXE 路径。普通关联覆盖采用增量语义：
+1. Manifest 新增匹配值时，在对应默认组末尾创建新的默认规则。
+2. 已有默认规则新增 Viewer 时，只追加新的默认 Viewer。
+3. 不重排已有 Viewer，不恢复已禁用项，不删除暂时缺失的插件 ID。
+4. Manifest 删除声明时当前版本仍保留已有配置，Resolver 只跳过不可用插件。
 
-- `enabled` 控制整条关联是否参与解析；
-- `viewerOrder` 中的 Viewer 优先于 Manifest 自动候选，数组顺序就是候选顺序；
-- `excludedViewerIds` 是用户明确排除的 Viewer；
-- 新安装且没有被明确排除的 Viewer 会自动加入 Manifest 候选；
-- 插件暂时缺失时保留其 ID，重新安装后可以恢复。
+因此不需要“用户已调整”或 tune 标记。用户意图由条目顺序和 `enabled` 本身完整表达。
 
-版本 1 的完整候选数组会在首次加载时迁移：当前已安装但不在旧数组中的 Viewer 会转换为明确排除项。
-早期 v2 使用根级 `rules + associations` 的平面结构；当前版本仍能读取，并会在加载后按上述 `groups`
-结构写回。
-
-普通文件名、后缀和 MIME 关联加载与保存时必须验证：
-
-- 插件已安装且 Manifest 有效；
-- 插件具备 `quickView` 能力；
-- 对应匹配组确实声明了该关联；
-- MIME 精确类型可由 Manifest 中相同类型或对应的 `type/*` 覆盖。
-
-失效配置可以保留在磁盘中供插件重新安装后恢复，但 Resolver 必须跳过。
+版本 1 的完整候选数组和早期 v2 的 `rules + associations` / 带类型规则组结构都能读取，
+加载后统一映射为上述内存模型。写回始终只输出最新的 `schemaVersion: 2` 树结构。高于当前支持
+版本的配置不会被覆盖。
 
 当前版本通过 Win32 `AssocQueryStringW(ASSOCSTR_CONTENTTYPE)` 获取扩展名在 Windows
-文件关联中注册的 MIME。它不读取文件内容；没有注册 MIME 时只使用文件名和扩展名。
-
-### 4.1 路径规则组
-
-每个路径类型组内的规则按 `rules` 数组顺序执行，每条规则只有启用和禁用两种状态。`viewerIds`
-是该规则命中时贡献的有序候选，可关联任意已安装且可用的 Quick View 插件。
-
-- 路径必须是 Windows 绝对路径；
-- 匹配不区分大小写，`/` 会规范化为 `\`；
-- `exact` 为精确路径，不允许 `*` 或 `?`；
-- `glob` 中 `*` 匹配单个路径段内的字符，`**` 可跨目录，`?` 匹配一个非分隔符字符。
+文件关联中注册的 MIME。它不读取文件内容；没有注册 MIME 时只使用路径、文件名和扩展名事实。
 
 ## 5. 候选解析
 
-Resolver 从前到后遍历已启用的 `groups`。每个规则组根据自己的类型贡献候选：
-
-- `path`：按组内 `rules` 顺序匹配所有已启用路径规则；
-- `extension`：按复合后缀到短后缀匹配，例如 `.tar.gz` 先于 `.gz`；
-- `fileName`：匹配精确文件名；
-- `mimeType`：先匹配精确 MIME，再匹配同组的 MIME 通配符。
-
-所有命中规则都会贡献候选。规则组顺序、组内规则顺序和组内 Viewer 顺序共同决定最终优先级，
-最后按插件 ID 去重，第一次出现的位置生效。例如默认“扩展名”组位于“文件名”组之前时：
+Resolver 从前到后遍历已启用的 `groups`，每个组按树中顺序遍历顶层规则。规则只有在自身匹配
+且启用时才进入其分支；进入分支后先递归解析子规则，再追加当前规则的 Viewer。因此子规则天然
+比父规则更具体、优先级更高，语义等价于嵌套 `if`：
 
 ```text
-extensions[".md"]      = [B, C]
-fileNames["readme.md"] = [A, B]
-最终候选                 = [B, C, A]
+if extension == ".bar":
+    if mime == "application/x-bar-v1":
+        candidates += [bar-v1-view]
+    candidates += [bar-view, hex-view]
 ```
 
-没有用户配置时，从 Manifest 自动生成候选。单候选直接使用；多候选使用稳定的名称、ID
-顺序，用户可在配置界面调整。前一个 Viewer 启动失败时继续尝试后续候选。
+对 `sample.bar` 和 `application/x-bar-v1`，候选顺序是
+`[bar-v1-view, bar-view, hex-view]`；MIME 不匹配时则是 `[bar-view, hex-view]`。
+兄弟规则、规则组和 Viewer 列表都按用户可见顺序执行。最后按插件 ID 去重，第一次出现的位置生效。
 
-Resolver 同时保留每个候选首次命中的规则组 ID、规则类型、匹配值和路径规则 ID，供后续诊断界面展示。
+四种规则使用同一套匹配事实：
+
+- `path`：匹配规范化绝对路径；
+- `fileName`：不区分大小写的完整文件名；
+- `extension`：匹配全部复合后缀，例如同一文件可依次命中 `.tar.gz` 和 `.gz`；
+- `mimeType`：匹配精确 MIME 或 `type/*` 通配符。
+
+没有用户配置时从 Manifest 生成默认规则。单候选直接使用；多候选使用稳定的名称、ID 顺序。
+前一个 Viewer 启动失败时继续尝试后续候选。Resolver 同时保留候选首次命中的规则组 ID、
+规则类型、匹配值和规则 ID，供后续诊断界面展示。
 
 例如，代码文件可以同时由 `inf-dir.code-view`（CodeMirror 只读代码查看器）和
 `inf-dir.text-view`（轻量文本查看器）声明支持。两者会作为独立候选出现，不会互相覆盖；
@@ -425,35 +424,18 @@ F3 使用当前焦点面板中最近操作的项目。文件夹、无候选、�
 
 ## 6. 配置界面
 
-插件关联界面左侧是竖向规则组导航，右侧是当前组的规则与候选 Viewer。规则组导航支持拖拽排序，
-排序结果直接写入 `groups` 数组并影响 Resolver 优先级。
+插件关联界面使用三列：
 
-路径、扩展名、文件名和 MIME 是初始内置规则组。用户可以：
+1. 规则组列：选择、启用/禁用、拖拽排序、新建用户组和删除用户组。
+2. 规则树列：显示当前组的递归规则，支持折叠、启用/禁用、新建、编辑用户规则和删除用户规则。
+3. Viewer 列：显示所选规则的有序 Viewer，支持启用/禁用、添加、拖拽排序和删除用户 Viewer。
 
-- 拖拽调整所有规则组的顺序；
-- 修改规则组名称；
-- 启用或禁用规则组；
-- 新建类型为路径、扩展名、文件名或 MIME 的自定义规则组；
-- 删除自定义规则组。
+规则拖拽有三个明确落点：
 
-内置规则组不能删除或修改类型；自定义规则组创建后也不能修改类型，避免已有规则被按另一种语义解释。
+- 拖到规则上方插入线：移动到该规则之前，保持同一层级；
+- 拖到规则行：成为该规则最后一个子规则；
+- 拖到规则组：移动为目标组最后一个顶层规则。
 
-路径类型组支持：
-
-- 新建和编辑精确路径或 Glob 规则；
-- 启用、禁用和删除规则；
-- 调整路径规则之间的优先级；
-- 添加、移除和排序该规则的候选 Viewer。
-
-扩展名、文件名和 MIME 类型组包括：
-
-- 关联项列表；
-- 当前候选插件列表；
-- 添加、禁用关联；
-- 添加、移除候选；
-- 上移、下移候选；
-- 内置组可恢复 Manifest 自动候选；
-- 自定义组可删除关联。
-
-普通关联的候选选择器只展示 Manifest 与当前关联项匹配的已安装插件；路径规则候选
-展示全部已安装且可用的 Quick View 插件。
+父规则不能拖入自己的后代。规则树与 Viewer 列都使用拖拽手柄，不再提供上移/下移按钮。
+默认项以锁图标标识受限操作，但不显示 tune 标记；默认规则及 Viewer 的顺序和启用状态就是用户
+配置，不需要额外记录“是否修改过”。

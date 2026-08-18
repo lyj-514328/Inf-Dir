@@ -77,29 +77,43 @@ void main() {
   });
 
   group('ViewerAssociationConfig', () {
-    test('round-trips incremental overrides and path rules', () {
+    test('round-trips mixed recursive rules in schema V2', () {
       final config = ViewerAssociationConfig.empty();
-      config.setOverride(
-        ViewerAssociationKind.extension,
-        '.PDF',
-        enabled: true,
-        viewerOrder: ['viewer.b', 'viewer.a'],
-        excludedViewerIds: ['viewer.c'],
-      );
-      config.setOverride(
-        ViewerAssociationKind.fileName,
-        'Dockerfile',
-        enabled: false,
-        viewerOrder: const [],
-        excludedViewerIds: const [],
+      config.addRule(
+        ViewerAssociationConfig.builtInExtensionGroupId,
+        ViewerRule(
+          id: 'extension-bar',
+          managed: false,
+          enabled: true,
+          type: ViewerRuleType.extension,
+          value: '.bar',
+          rules: [
+            ViewerRule(
+              id: 'mime-bar-v1',
+              managed: false,
+              enabled: true,
+              type: ViewerRuleType.mimeType,
+              value: 'application/x-bar-v1',
+              viewers: [
+                ViewerRuleViewer(id: 'viewer.c', managed: false, enabled: true),
+              ],
+            ),
+          ],
+          viewers: [
+            ViewerRuleViewer(id: 'viewer.a', managed: false, enabled: false),
+            ViewerRuleViewer(id: 'viewer.b', managed: false, enabled: true),
+          ],
+        ),
       );
       config.addRule(
-        ViewerPathRule(
+        ViewerAssociationConfig.builtInExtensionGroupId,
+        ViewerRule(
           id: 'path-work',
+          managed: false,
           enabled: true,
-          mode: ViewerPathMatchMode.glob,
-          pattern: r'C:\Work\**\*.pdf',
-          viewerIds: const ['viewer.a'],
+          type: ViewerRuleType.path,
+          value: r'C:\Work\**\*.pdf',
+          pathMode: ViewerPathMatchMode.glob,
         ),
       );
 
@@ -108,24 +122,23 @@ void main() {
         Map<String, Object?>.from(decoded as Map),
       );
 
-      final extensionOverride = restored.overrideFor(
-        ViewerAssociationKind.extension,
-        '.pdf',
-      );
-      expect(extensionOverride?.viewerOrder, ['viewer.b', 'viewer.a']);
-      expect(extensionOverride?.excludedViewerIds, {'viewer.c'});
-      expect(
-        restored
-            .overrideFor(ViewerAssociationKind.fileName, 'dockerfile')
-            ?.enabled,
-        isFalse,
-      );
-      expect(restored.rules.single.id, 'path-work');
+      final extensionRule = restored.rule('extension-bar');
+      expect(extensionRule.type, ViewerRuleType.extension);
+      expect(extensionRule.viewers.map((viewer) => viewer.id), [
+        'viewer.a',
+        'viewer.b',
+      ]);
+      expect(extensionRule.viewers.first.enabled, isFalse);
+      expect(extensionRule.rules.single.type, ViewerRuleType.mimeType);
+      expect(extensionRule.rules.single.viewers.single.id, 'viewer.c');
+      expect(restored.rule('path-work').type, ViewerRuleType.path);
       expect(restored.toJson()['schemaVersion'], 2);
-      expect(
-        restored.groups.map((group) => group.type),
-        ViewerRuleGroupType.values,
-      );
+      expect(restored.groups.map((group) => group.id), [
+        ViewerAssociationConfig.builtInPathGroupId,
+        ViewerAssociationConfig.builtInFileNameGroupId,
+        ViewerAssociationConfig.builtInExtensionGroupId,
+        ViewerAssociationConfig.builtInMimeTypeGroupId,
+      ]);
       expect(restored.toJson(), contains('groups'));
     });
 
@@ -156,13 +169,20 @@ void main() {
       });
 
       expect(restored.needsMigration, isTrue);
-      expect(restored.groups.map((group) => group.type), [
-        ViewerRuleGroupType.path,
-        ViewerRuleGroupType.extension,
-        ViewerRuleGroupType.fileName,
-        ViewerRuleGroupType.mimeType,
+      expect(restored.groups.map((group) => group.id), [
+        ViewerAssociationConfig.builtInPathGroupId,
+        ViewerAssociationConfig.builtInFileNameGroupId,
+        ViewerAssociationConfig.builtInExtensionGroupId,
+        ViewerAssociationConfig.builtInMimeTypeGroupId,
       ]);
-      expect(restored.rules.single.id, 'path-work');
+      expect(restored.rule('path-work').value, r'C:\Work\**\*.pdf');
+      expect(
+        restored
+            .rulesForGroup(ViewerAssociationConfig.builtInExtensionGroupId)
+            .single
+            .value,
+        '.pdf',
+      );
       expect(restored.toJson(), isNot(contains('associations')));
     });
 
@@ -172,6 +192,90 @@ void main() {
         '.gz',
       ]);
       expect(ViewerFileFacts.fromPath(r'C:\Work\.gitignore').suffixes, isEmpty);
+    });
+
+    test('invalid drag targets do not remove the source rule', () {
+      final config = ViewerAssociationConfig.empty();
+      final parent = ViewerRule(
+        id: 'parent',
+        managed: false,
+        enabled: true,
+        type: ViewerRuleType.extension,
+        value: '.bar',
+        rules: [
+          ViewerRule(
+            id: 'child',
+            managed: false,
+            enabled: true,
+            type: ViewerRuleType.mimeType,
+            value: 'application/x-bar',
+          ),
+        ],
+      );
+      config.addRule(ViewerAssociationConfig.builtInExtensionGroupId, parent);
+
+      expect(
+        () => config.moveRuleBefore('parent', 'missing'),
+        throwsArgumentError,
+      );
+      expect(() => config.moveRuleInto('parent', 'child'), throwsArgumentError);
+      expect(
+        () => config.moveRuleToGroup('parent', 'missing'),
+        throwsArgumentError,
+      );
+      expect(config.rule('parent').rules.single.id, 'child');
+    });
+
+    test('manifest reconciliation restores managed identity only', () {
+      final ruleId = ViewerAssociationConfig.defaultRuleId(
+        ViewerAssociationKind.extension,
+        '.bar',
+      );
+      final config = ViewerAssociationConfig.fromJson({
+        'schemaVersion': 2,
+        'groups': [
+          {
+            'id': ViewerAssociationConfig.builtInExtensionGroupId,
+            'name': '扩展名',
+            'builtIn': true,
+            'enabled': true,
+            'rules': [
+              {
+                'id': ruleId,
+                'managed': false,
+                'enabled': false,
+                'type': 'fileName',
+                'value': 'wrong.bar',
+                'rules': <Object?>[],
+                'viewers': [
+                  {'id': 'viewer.a', 'managed': false, 'enabled': false},
+                ],
+              },
+            ],
+          },
+        ],
+      });
+      final manifest = PluginManifest.fromJson({
+        'manifestVersion': 1,
+        'id': 'viewer.a',
+        'name': 'A Viewer',
+        'version': '1.0.0',
+        'entrypoint': 'viewer.exe',
+        'capabilities': {
+          'quickView': {
+            'extensions': ['.bar'],
+          },
+        },
+      });
+
+      expect(config.reconcileManifestPlugins([manifest]), isTrue);
+      final rule = config.rule(ruleId);
+      expect(rule.managed, isTrue);
+      expect(rule.enabled, isFalse);
+      expect(rule.type, ViewerRuleType.extension);
+      expect(rule.value, '.bar');
+      expect(rule.viewers.single.managed, isTrue);
+      expect(rule.viewers.single.enabled, isFalse);
     });
   });
 
@@ -248,7 +352,7 @@ void main() {
         service
             .resolve(r'C:\docs\README.md')
             .map((plugin) => plugin.manifest.id),
-        ['viewer.b', 'viewer.c', 'viewer.a'],
+        ['viewer.a', 'viewer.b', 'viewer.c'],
       );
     });
 
@@ -258,6 +362,71 @@ void main() {
             .resolve(r'C:\images\photo', mimeType: 'image/png')
             .map((plugin) => plugin.manifest.id),
         ['viewer.image'],
+      );
+    });
+
+    test('resolves matching child rules before parent viewers', () {
+      final group = service.addRuleGroup(name: 'Nested');
+      final parent = service.addRule(
+        groupId: group.id,
+        type: ViewerRuleType.extension,
+        value: '.bar',
+        viewerIds: ['viewer.a', 'viewer.b'],
+      );
+      service.addRule(
+        groupId: group.id,
+        parentRuleId: parent.id,
+        type: ViewerRuleType.mimeType,
+        value: 'application/x-bar-v1',
+        viewerIds: ['viewer.c'],
+      );
+      service.reorderRuleGroups(service.ruleGroups.length - 1, 0);
+
+      expect(
+        service
+            .resolve(r'C:\data\sample.bar', mimeType: 'application/x-bar-v1')
+            .map((plugin) => plugin.manifest.id),
+        ['viewer.c', 'viewer.a', 'viewer.b'],
+      );
+      expect(
+        service
+            .resolve(
+              r'C:\data\sample.bar',
+              mimeType: 'application/octet-stream',
+            )
+            .map((plugin) => plugin.manifest.id),
+        ['viewer.a', 'viewer.b'],
+      );
+    });
+
+    test('manifest refresh appends viewers without losing user tuning', () {
+      final ruleId = ViewerAssociationConfig.defaultRuleId(
+        ViewerAssociationKind.extension,
+        '.md',
+      );
+      service.reorderRuleViewers(ruleId, 1, 0);
+      service.setRuleViewerEnabled(ruleId, 'viewer.b', false);
+
+      _writePlugin(
+        pluginRoot,
+        id: 'viewer.new',
+        name: 'New Viewer',
+        extensions: ['.md'],
+      );
+      service.reload();
+
+      final viewers = service.rule(ruleId).viewers;
+      expect(viewers.map((viewer) => viewer.id), [
+        'viewer.c',
+        'viewer.b',
+        'viewer.new',
+      ]);
+      expect(viewers.map((viewer) => viewer.enabled), [true, false, true]);
+      expect(
+        service
+            .resolve(r'C:\docs\guide.md')
+            .map((plugin) => plugin.manifest.id),
+        ['viewer.c', 'viewer.new'],
       );
     });
 
@@ -287,27 +456,29 @@ void main() {
 
       expect(candidates.map((candidate) => candidate.plugin.manifest.id), [
         'viewer.c',
-        'viewer.b',
         'viewer.a',
+        'viewer.b',
       ]);
       expect(candidates.first.matchKind, ViewerMatchKind.pathRule);
       expect(candidates.first.ruleId, rule.id);
 
-      service.setPathRuleEnabled(rule.id, false);
+      service.setRuleEnabled(rule.id, false);
       expect(
         service
             .resolve(r'C:\docs\README.md')
             .map((plugin) => plugin.manifest.id),
-        ['viewer.b', 'viewer.c', 'viewer.a'],
+        ['viewer.a', 'viewer.b', 'viewer.c'],
       );
     });
 
     test('ordered custom groups change resolver priority and persist', () {
-      final group = service.addRuleGroup(
-        name: '优先 Markdown',
-        type: ViewerRuleGroupType.extension,
+      final group = service.addRuleGroup(name: '优先 Markdown');
+      service.addRule(
+        groupId: group.id,
+        type: ViewerRuleType.extension,
+        value: '.md',
+        viewerIds: ['viewer.c'],
       );
-      service.setCandidatesForRuleGroup(group.id, '.md', ['viewer.c']);
 
       final oldIndex = service.ruleGroups.indexWhere(
         (item) => item.id == group.id,
@@ -317,8 +488,8 @@ void main() {
       final candidates = service.resolveCandidates(r'C:\docs\README.md');
       expect(candidates.map((candidate) => candidate.plugin.manifest.id), [
         'viewer.c',
-        'viewer.b',
         'viewer.a',
+        'viewer.b',
       ]);
       expect(candidates.first.groupId, group.id);
 
@@ -495,18 +666,24 @@ void main() {
 
       expect(
         service
-            .candidatesForRuleGroup(
-              ViewerAssociationConfig.builtInExtensionGroupId,
-              '.md',
+            .viewersForRule(
+              service.rule(
+                ViewerAssociationConfig.defaultRuleId(
+                  ViewerAssociationKind.extension,
+                  '.md',
+                ),
+              ),
               includeDisabled: true,
             )
             .map((plugin) => plugin.manifest.id),
         ['viewer.c', 'viewer.b'],
       );
 
-      service.setAssociationEnabledForRuleGroup(
-        ViewerAssociationConfig.builtInExtensionGroupId,
-        '.md',
+      service.setRuleEnabled(
+        ViewerAssociationConfig.defaultRuleId(
+          ViewerAssociationKind.extension,
+          '.md',
+        ),
         true,
       );
       expect(
@@ -552,11 +729,16 @@ void main() {
       final extensionGroup = groups.cast<Map>().singleWhere(
         (group) => group['id'] == 'builtin-extension',
       );
-      final associations = extensionGroup['associations']! as Map;
-      expect((associations['.md'] as Map)['viewerOrder'], [
-        'viewer.c',
-        'viewer.missing',
-      ]);
+      final rules = extensionGroup['rules']! as List;
+      final markdownRule = rules.cast<Map>().singleWhere(
+        (rule) => rule['value'] == '.md',
+      );
+      expect(
+        (markdownRule['viewers'] as List).cast<Map>().map(
+          (viewer) => viewer['id'],
+        ),
+        ['viewer.c', 'viewer.missing', 'viewer.b'],
+      );
     });
 
     test(

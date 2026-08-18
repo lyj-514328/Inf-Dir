@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -20,14 +22,11 @@ class ViewerAssociationsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final viewport = MediaQuery.sizeOf(context);
-    final width = (viewport.width - 48).clamp(420.0, 820.0);
-    final height = (viewport.height - 48).clamp(360.0, 620.0);
-
     return Dialog(
       insetPadding: const EdgeInsets.all(24),
       child: SizedBox(
-        width: width,
-        height: height,
+        width: (viewport.width - 48).clamp(620.0, 1040.0),
+        height: (viewport.height - 48).clamp(420.0, 680.0),
         child: Column(
           children: [
             _DialogHeader(onClose: () => Navigator.of(context).pop()),
@@ -48,84 +47,172 @@ class ViewerAssociationsView extends StatefulWidget {
 
 class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
   String? _selectedGroupId;
-  double _ruleGroupsWidth = 210;
+  String? _selectedRuleId;
+  final Set<String> _collapsedRuleIds = {};
+  double _groupsWidth = 190;
+  double _rulesWidth = 310;
 
   @override
   Widget build(BuildContext context) {
     final service = context.watch<QuickViewService>();
     final groups = service.ruleGroups;
-    final selected = groups.where((group) => group.id == _selectedGroupId);
-    final activeGroup = selected.isEmpty ? groups.first : selected.first;
+    final activeGroup = groups.firstWhere(
+      (group) => group.id == _selectedGroupId,
+      orElse: () => groups.first,
+    );
     _selectedGroupId = activeGroup.id;
 
-    return Row(
-      children: [
-        SizedBox(
-          width: _ruleGroupsWidth,
-          child: Column(
-            children: [
-              _RuleGroupToolbar(
+    final flattened = _flattenRules(activeGroup.rules, _collapsedRuleIds);
+    final selectedRule = flattened
+        .where((entry) => entry.rule.id == _selectedRuleId)
+        .firstOrNull
+        ?.rule;
+    if (_selectedRuleId != null && selectedRule == null) {
+      _selectedRuleId = null;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final groupsMax = _columnMaxWidth(
+          constraints.maxWidth,
+          minimumTrailingWidth: 520,
+        );
+        final groupsWidth = _groupsWidth
+            .clamp(_minimumColumnWidth, groupsMax)
+            .toDouble();
+        final rulesMax = _columnMaxWidth(
+          constraints.maxWidth - groupsWidth - _columnSplitterWidth,
+          minimumTrailingWidth: 240,
+        );
+        final rulesWidth = _rulesWidth
+            .clamp(_minimumColumnWidth, rulesMax)
+            .toDouble();
+
+        return Row(
+          children: [
+            SizedBox(
+              key: const ValueKey('viewer-rule-groups-column'),
+              width: groupsWidth,
+              child: _GroupsColumn(
+                groups: groups,
+                selectedId: activeGroup.id,
                 hasIssues: service.issues.isNotEmpty,
                 issueMessage: service.issues
                     .map((issue) => '${issue.message}\n${issue.path}')
                     .join('\n\n'),
+                onSelect: (id) => setState(() {
+                  _selectedGroupId = id;
+                  _selectedRuleId = null;
+                }),
                 onAdd: () => _addGroup(context, service),
                 onEdit: () => _editGroup(context, service, activeGroup),
                 onDelete: activeGroup.builtIn
                     ? null
                     : () => _deleteGroup(context, service, activeGroup),
                 onReload: service.reload,
+                onReorder: service.reorderRuleGroups,
+                onRuleDropped: (ruleId, groupId) {
+                  service.moveRuleToGroup(ruleId, groupId);
+                  setState(() {
+                    _selectedGroupId = groupId;
+                    _selectedRuleId = ruleId;
+                  });
+                },
+                onEnabled: service.setRuleGroupEnabled,
               ),
-              Expanded(
-                child: ReorderableListView.builder(
-                  buildDefaultDragHandles: false,
-                  itemExtent: 52,
-                  itemCount: groups.length,
-                  onReorder: service.reorderRuleGroups,
-                  itemBuilder: (context, index) {
-                    final group = groups[index];
-                    return _RuleGroupRow(
-                      key: ValueKey('viewer-rule-group-${group.id}'),
-                      group: group,
-                      index: index,
-                      selected: group.id == activeGroup.id,
-                      onSelected: () =>
-                          setState(() => _selectedGroupId = group.id),
-                      onEnabled: (enabled) =>
-                          service.setRuleGroupEnabled(group.id, enabled),
-                    );
-                  },
-                ),
+            ),
+            _ColumnSplitter(
+              key: const ValueKey('viewer-rule-groups-splitter'),
+              width: groupsWidth,
+              maxWidth: groupsMax,
+              onWidthChanged: (value) => setState(() => _groupsWidth = value),
+            ),
+            SizedBox(
+              key: const ValueKey('viewer-rules-column'),
+              width: rulesWidth,
+              child: _RulesColumn(
+                entries: flattened,
+                selectedRuleId: selectedRule?.id,
+                onSelect: (id) => setState(() => _selectedRuleId = id),
+                onToggleCollapsed: (id) => setState(() {
+                  if (!_collapsedRuleIds.add(id)) {
+                    _collapsedRuleIds.remove(id);
+                  }
+                }),
+                onAdd: () => _addRule(context, service, activeGroup),
+                onAddChild: selectedRule == null
+                    ? null
+                    : () => _addRule(
+                        context,
+                        service,
+                        activeGroup,
+                        parent: selectedRule,
+                      ),
+                onEdit: selectedRule == null || selectedRule.managed
+                    ? null
+                    : () => _editRule(context, service, selectedRule),
+                onDelete: selectedRule == null || selectedRule.managed
+                    ? null
+                    : () => _deleteRule(context, service, selectedRule),
+                onEnabled: service.setRuleEnabled,
+                canDrop: (draggedId, targetId) =>
+                    _canMoveRule(service, draggedId, targetId),
+                onMoveBefore: (draggedId, targetId) {
+                  service.moveRuleBefore(draggedId, targetId);
+                  setState(() => _selectedRuleId = draggedId);
+                },
+                onMoveInto: (draggedId, targetId) {
+                  service.moveRuleInto(draggedId, targetId);
+                  setState(() {
+                    _selectedRuleId = draggedId;
+                    _collapsedRuleIds.remove(targetId);
+                  });
+                },
+                onMoveToRoot: (id) {
+                  service.moveRuleToGroup(id, activeGroup.id);
+                  setState(() => _selectedRuleId = id);
+                },
               ),
-            ],
-          ),
-        ),
-        _ColumnSplitter(
-          width: _ruleGroupsWidth,
-          onWidthChanged: (w) => setState(() => _ruleGroupsWidth = w),
-        ),
-        Expanded(
-          child: switch (activeGroup.type) {
-            ViewerRuleGroupType.path => _PathRulePage(
-              key: ValueKey('path-group-${activeGroup.id}'),
-              groupId: activeGroup.id,
             ),
-            final type => _AssociationPage(
-              key: ValueKey('association-group-${activeGroup.id}'),
-              groupId: activeGroup.id,
-              kind: type.associationKind!,
+            _ColumnSplitter(
+              key: const ValueKey('viewer-rules-splitter'),
+              width: rulesWidth,
+              maxWidth: rulesMax,
+              onWidthChanged: (value) => setState(() => _rulesWidth = value),
             ),
-          },
-        ),
-      ],
+            Expanded(
+              child: _ViewersColumn(
+                rule: selectedRule,
+                service: service,
+                onAdd: selectedRule == null
+                    ? null
+                    : () => _addViewer(context, service, selectedRule),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
+  bool _canMoveRule(
+    QuickViewService service,
+    String draggedId,
+    String targetId,
+  ) {
+    if (draggedId == targetId) return false;
+    final dragged = service.rule(draggedId);
+    return !_containsRule(dragged, targetId);
+  }
+
   Future<void> _addGroup(BuildContext context, QuickViewService service) async {
-    final draft = await _showRuleGroupDialog(context);
-    if (draft == null || !mounted) return;
-    final group = service.addRuleGroup(name: draft.name, type: draft.type);
-    setState(() => _selectedGroupId = group.id);
+    final name = await _showGroupDialog(context);
+    if (name == null || !mounted) return;
+    final group = service.addRuleGroup(name: name);
+    setState(() {
+      _selectedGroupId = group.id;
+      _selectedRuleId = null;
+    });
   }
 
   Future<void> _editGroup(
@@ -133,9 +220,8 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
     QuickViewService service,
     ViewerRuleGroup group,
   ) async {
-    final draft = await _showRuleGroupDialog(context, initialGroup: group);
-    if (draft == null || !mounted) return;
-    service.renameRuleGroup(group.id, draft.name);
+    final name = await _showGroupDialog(context, initialName: group.name);
+    if (name != null && mounted) service.renameRuleGroup(group.id, name);
   }
 
   Future<void> _deleteGroup(
@@ -143,40 +229,98 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
     QuickViewService service,
     ViewerRuleGroup group,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        final c = dialogContext.colors;
-        return AlertDialog(
-          title: const Text('删除规则组'),
-          content: Text(
-            group.name,
-            style: TextStyle(
-              fontSize: AppMetrics.fontBody,
-              color: c.textSecondary,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              style: TextButton.styleFrom(foregroundColor: c.textSecondary),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: c.danger,
-                foregroundColor: c.onAccent,
-              ),
-              child: const Text('删除'),
-            ),
-          ],
-        );
-      },
+    final confirmed = await _confirmDelete(
+      context,
+      title: '删除规则组',
+      message: '规则组“${group.name}”及其全部规则将被删除。',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     service.removeRuleGroup(group.id);
-    setState(() => _selectedGroupId = null);
+    setState(() {
+      _selectedGroupId = null;
+      _selectedRuleId = null;
+    });
+  }
+
+  Future<void> _addRule(
+    BuildContext context,
+    QuickViewService service,
+    ViewerRuleGroup group, {
+    ViewerRule? parent,
+  }) async {
+    final draft = await _showRuleDialog(context);
+    if (draft == null || !mounted) return;
+    final rule = service.addRule(
+      groupId: group.id,
+      parentRuleId: parent?.id,
+      type: draft.type,
+      value: draft.value,
+      pathMode: draft.pathMode,
+    );
+    setState(() {
+      _selectedRuleId = rule.id;
+      if (parent != null) _collapsedRuleIds.remove(parent.id);
+    });
+  }
+
+  Future<void> _editRule(
+    BuildContext context,
+    QuickViewService service,
+    ViewerRule rule,
+  ) async {
+    final draft = await _showRuleDialog(context, initialRule: rule);
+    if (draft == null || !mounted) return;
+    service.updateRule(
+      rule.id,
+      type: draft.type,
+      value: draft.value,
+      pathMode: draft.pathMode,
+    );
+  }
+
+  Future<void> _deleteRule(
+    BuildContext context,
+    QuickViewService service,
+    ViewerRule rule,
+  ) async {
+    final confirmed = await _confirmDelete(
+      context,
+      title: '删除规则',
+      message: '规则“${rule.value}”及其全部子规则将被删除。',
+    );
+    if (!confirmed || !mounted) return;
+    service.removeRule(rule.id);
+    setState(() => _selectedRuleId = null);
+  }
+
+  Future<void> _addViewer(
+    BuildContext context,
+    QuickViewService service,
+    ViewerRule rule,
+  ) async {
+    final available = service.availablePluginsForRule(rule);
+    final plugin = await showDialog<ViewerPlugin>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('添加 Viewer'),
+        children: [
+          if (available.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 8, 24, 20),
+              child: Text('没有可添加的 Viewer'),
+            ),
+          for (final item in available)
+            SimpleDialogOption(
+              key: ValueKey('available-viewer-${item.manifest.id}'),
+              onPressed: () => Navigator.of(context).pop(item),
+              child: Text(item.manifest.name),
+            ),
+        ],
+      ),
+    );
+    if (plugin != null && mounted) {
+      service.addViewerToRule(rule.id, plugin.manifest.id);
+    }
   }
 }
 
@@ -188,109 +332,121 @@ class _DialogHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final service = context.watch<QuickViewService>();
-    return SizedBox(
-      height: 42,
-      child: Padding(
-        padding: const EdgeInsets.only(left: 14, right: 6),
-        child: Row(
-          children: [
-            Icon(Icons.extension, size: AppMetrics.iconMd, color: c.accent),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '查看器关联',
-                style: Theme.of(context).dialogTheme.titleTextStyle,
-              ),
-            ),
-            Tooltip(
-              message: service.issues.isEmpty
-                  ? '所有插件均可用'
-                  : service.issues
-                        .map((issue) => '${issue.message}\n${issue.path}')
-                        .join('\n\n'),
-              child: Text(
-                '${service.plugins.where((plugin) => plugin.isAvailable).length} 个可用插件',
-                style: TextStyle(
-                  fontSize: AppMetrics.fontSmall,
-                  color: service.issues.isEmpty ? c.textSecondary : c.danger,
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            _IconAction(
-              icon: Icons.refresh,
-              tooltip: '重新扫描插件',
-              onPressed: service.reload,
-            ),
-            _IconAction(icon: Icons.close, tooltip: '关闭', onPressed: onClose),
-          ],
-        ),
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.only(left: 16, right: 8),
+      decoration: BoxDecoration(
+        color: c.surfaceSubtle,
+        border: Border(bottom: BorderSide(color: c.border)),
       ),
-    );
-  }
-}
-
-class _RuleGroupToolbar extends StatelessWidget {
-  const _RuleGroupToolbar({
-    required this.hasIssues,
-    required this.issueMessage,
-    required this.onAdd,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onReload,
-  });
-
-  final bool hasIssues;
-  final String issueMessage;
-  final VoidCallback onAdd;
-  final VoidCallback onEdit;
-  final VoidCallback? onDelete;
-  final VoidCallback onReload;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return SizedBox(
-      height: 36,
       child: Row(
         children: [
-          const SizedBox(width: 4),
-          _IconAction(icon: Icons.add, tooltip: '添加规则组', onPressed: onAdd),
-          _IconAction(icon: Icons.edit, tooltip: '编辑规则组', onPressed: onEdit),
-          _IconAction(
-            icon: Icons.delete_outline,
-            tooltip: '删除规则组',
-            onPressed: onDelete,
-          ),
-          const Spacer(),
-          if (hasIssues)
-            Tooltip(
-              message: issueMessage,
-              child: Icon(
-                Icons.error_outline,
-                size: AppMetrics.iconSm,
-                color: c.danger,
-              ),
+          Expanded(
+            child: Text(
+              'Viewer 关联',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-          _IconAction(
-            icon: Icons.refresh,
-            tooltip: '重新扫描插件',
-            onPressed: onReload,
           ),
-          const SizedBox(width: 2),
+          _IconAction(icon: Icons.close, tooltip: '关闭', onPressed: onClose),
         ],
       ),
     );
   }
 }
 
-class _RuleGroupRow extends StatelessWidget {
-  const _RuleGroupRow({
-    required super.key,
+class _GroupsColumn extends StatelessWidget {
+  const _GroupsColumn({
+    required this.groups,
+    required this.selectedId,
+    required this.hasIssues,
+    required this.issueMessage,
+    required this.onSelect,
+    required this.onAdd,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onReload,
+    required this.onReorder,
+    required this.onRuleDropped,
+    required this.onEnabled,
+  });
+
+  final List<ViewerRuleGroup> groups;
+  final String selectedId;
+  final bool hasIssues;
+  final String issueMessage;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onAdd;
+  final VoidCallback onEdit;
+  final VoidCallback? onDelete;
+  final VoidCallback onReload;
+  final ReorderCallback onReorder;
+  final void Function(String ruleId, String groupId) onRuleDropped;
+  final void Function(String id, bool enabled) onEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _ColumnToolbar(
+          title: '规则组',
+          actions: [
+            _IconAction(icon: Icons.add, tooltip: '新建规则组', onPressed: onAdd),
+            _IconAction(icon: Icons.edit, tooltip: '重命名', onPressed: onEdit),
+            _IconAction(
+              icon: Icons.delete_outline,
+              tooltip: '删除规则组',
+              onPressed: onDelete,
+            ),
+            if (hasIssues)
+              _IconAction(
+                icon: Icons.warning_amber,
+                tooltip: issueMessage,
+                onPressed: null,
+              ),
+            _IconAction(
+              icon: Icons.refresh,
+              tooltip: '重新扫描插件',
+              onPressed: onReload,
+            ),
+          ],
+        ),
+        Expanded(
+          child: ReorderableListView.builder(
+            key: const ValueKey('viewer-rule-groups-list'),
+            buildDefaultDragHandles: false,
+            itemExtent: 52,
+            itemCount: groups.length,
+            onReorderItem: onReorder,
+            itemBuilder: (context, index) {
+              final group = groups[index];
+              return DragTarget<_RuleDragData>(
+                key: ValueKey('viewer-rule-group-${group.id}'),
+                onWillAcceptWithDetails: (_) => true,
+                onAcceptWithDetails: (details) =>
+                    onRuleDropped(details.data.ruleId, group.id),
+                builder: (context, candidates, rejected) => _GroupRow(
+                  group: group,
+                  index: index,
+                  selected: group.id == selectedId,
+                  acceptingRule: candidates.isNotEmpty,
+                  onSelected: () => onSelect(group.id),
+                  onEnabled: (value) => onEnabled(group.id, value),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GroupRow extends StatelessWidget {
+  const _GroupRow({
     required this.group,
     required this.index,
     required this.selected,
+    required this.acceptingRule,
     required this.onSelected,
     required this.onEnabled,
   });
@@ -298,589 +454,409 @@ class _RuleGroupRow extends StatelessWidget {
   final ViewerRuleGroup group;
   final int index;
   final bool selected;
+  final bool acceptingRule;
   final VoidCallback onSelected;
   final ValueChanged<bool> onEnabled;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      child: Material(
-        color: selected ? c.accentSubtle : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-        child: InkWell(
-          onTap: onSelected,
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          hoverColor: c.surfaceHover,
-          child: Row(
-            children: [
-              ReorderableDragStartListener(
-                index: index,
-                child: Tooltip(
-                  message: '拖动排序',
-                  child: SizedBox(
-                    width: 28,
-                    height: 48,
-                    child: Icon(
+    final selectedColor = acceptingRule ? c.accentSubtle : c.selectedInactive;
+    return Material(
+      color: selected || acceptingRule ? selectedColor : Colors.transparent,
+      child: InkWell(
+        onTap: onSelected,
+        child: Row(
+          children: [
+            ReorderableDragStartListener(
+              index: index,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 5),
+                child: Icon(Icons.drag_indicator, size: AppMetrics.iconMd),
+              ),
+            ),
+            Checkbox(
+              value: group.enabled,
+              onChanged: (value) => onEnabled(value ?? false),
+              visualDensity: VisualDensity.compact,
+            ),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    group.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '${group.rules.length} 条顶层规则',
+                    style: TextStyle(color: c.textTertiary, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            if (group.builtIn)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Icon(
+                  Icons.lock_outline,
+                  size: AppMetrics.iconSm,
+                  color: c.textTertiary,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RulesColumn extends StatelessWidget {
+  const _RulesColumn({
+    required this.entries,
+    required this.selectedRuleId,
+    required this.onSelect,
+    required this.onToggleCollapsed,
+    required this.onAdd,
+    required this.onAddChild,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onEnabled,
+    required this.canDrop,
+    required this.onMoveBefore,
+    required this.onMoveInto,
+    required this.onMoveToRoot,
+  });
+
+  final List<_RuleTreeEntry> entries;
+  final String? selectedRuleId;
+  final ValueChanged<String> onSelect;
+  final ValueChanged<String> onToggleCollapsed;
+  final VoidCallback onAdd;
+  final VoidCallback? onAddChild;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final void Function(String id, bool enabled) onEnabled;
+  final bool Function(String draggedId, String targetId) canDrop;
+  final void Function(String draggedId, String targetId) onMoveBefore;
+  final void Function(String draggedId, String targetId) onMoveInto;
+  final ValueChanged<String> onMoveToRoot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _ColumnToolbar(
+          title: '规则',
+          actions: [
+            _IconAction(icon: Icons.add, tooltip: '新建规则', onPressed: onAdd),
+            _IconAction(
+              icon: Icons.subdirectory_arrow_right,
+              tooltip: '添加子规则',
+              onPressed: onAddChild,
+            ),
+            _IconAction(icon: Icons.edit, tooltip: '编辑规则', onPressed: onEdit),
+            _IconAction(
+              icon: Icons.delete_outline,
+              tooltip: '删除规则',
+              onPressed: onDelete,
+            ),
+          ],
+        ),
+        Expanded(
+          child: entries.isEmpty
+              ? const _EmptyState(
+                  icon: Icons.account_tree_outlined,
+                  text: '此规则组中还没有规则',
+                )
+              : ListView.builder(
+                  key: const ValueKey('viewer-rules-tree'),
+                  itemCount: entries.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == entries.length) {
+                      return _RootRuleDropTarget(onAccept: onMoveToRoot);
+                    }
+                    final entry = entries[index];
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _RuleInsertTarget(
+                          targetId: entry.rule.id,
+                          canDrop: canDrop,
+                          onAccept: onMoveBefore,
+                        ),
+                        _RuleTreeRow(
+                          key: ValueKey('viewer-rule-${entry.rule.id}'),
+                          entry: entry,
+                          selected: entry.rule.id == selectedRuleId,
+                          canDrop: canDrop,
+                          onSelected: () => onSelect(entry.rule.id),
+                          onEnabled: (value) => onEnabled(entry.rule.id, value),
+                          onToggleCollapsed: () =>
+                              onToggleCollapsed(entry.rule.id),
+                          onAcceptChild: (draggedId) =>
+                              onMoveInto(draggedId, entry.rule.id),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RuleTreeRow extends StatelessWidget {
+  const _RuleTreeRow({
+    super.key,
+    required this.entry,
+    required this.selected,
+    required this.canDrop,
+    required this.onSelected,
+    required this.onEnabled,
+    required this.onToggleCollapsed,
+    required this.onAcceptChild,
+  });
+
+  final _RuleTreeEntry entry;
+  final bool selected;
+  final bool Function(String draggedId, String targetId) canDrop;
+  final VoidCallback onSelected;
+  final ValueChanged<bool> onEnabled;
+  final VoidCallback onToggleCollapsed;
+  final ValueChanged<String> onAcceptChild;
+
+  @override
+  Widget build(BuildContext context) {
+    final rule = entry.rule;
+    final c = context.colors;
+    return DragTarget<_RuleDragData>(
+      onWillAcceptWithDetails: (details) =>
+          canDrop(details.data.ruleId, rule.id),
+      onAcceptWithDetails: (details) => onAcceptChild(details.data.ruleId),
+      builder: (context, candidates, rejected) {
+        final accepting = candidates.isNotEmpty;
+        return Material(
+          color: accepting
+              ? c.accentSubtle
+              : selected
+              ? c.selectedInactive
+              : Colors.transparent,
+          child: InkWell(
+            onTap: onSelected,
+            child: SizedBox(
+              height: 52,
+              child: Row(
+                children: [
+                  SizedBox(width: entry.depth * 16.0),
+                  Draggable<_RuleDragData>(
+                    data: _RuleDragData(rule.id),
+                    feedback: Material(
+                      color: c.surface,
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(
+                        AppMetrics.controlRadius,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 7,
+                        ),
+                        child: Text(rule.value),
+                      ),
+                    ),
+                    childWhenDragging: Icon(
                       Icons.drag_indicator,
                       size: AppMetrics.iconMd,
                       color: c.textTertiary,
                     ),
-                  ),
-                ),
-              ),
-              Icon(
-                _ruleGroupIcon(group.type),
-                size: AppMetrics.iconSm,
-                color: group.enabled ? c.textSecondary : c.textTertiary,
-              ),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      group.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontBody,
-                        fontWeight: selected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                        color: group.enabled ? c.textPrimary : c.textTertiary,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Icon(
+                        Icons.drag_indicator,
+                        size: AppMetrics.iconMd,
+                        color: c.textSecondary,
                       ),
                     ),
-                    Row(
+                  ),
+                  SizedBox(
+                    width: 24,
+                    child: rule.rules.isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: onToggleCollapsed,
+                            tooltip: entry.collapsed ? '展开' : '折叠',
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.compact,
+                            iconSize: AppMetrics.iconMd,
+                            icon: Icon(
+                              entry.collapsed
+                                  ? Icons.chevron_right
+                                  : Icons.expand_more,
+                            ),
+                          ),
+                  ),
+                  Checkbox(
+                    key: ValueKey('viewer-rule-enabled-${rule.id}'),
+                    value: rule.enabled,
+                    onChanged: (value) => onEnabled(value ?? false),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (!group.builtIn || group.name != group.type.label)
-                          Flexible(
-                            child: Text(
-                              group.type.label,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: AppMetrics.fontCaption,
-                                color: c.textTertiary,
-                              ),
-                            ),
-                          ),
-                        if (group.builtIn) ...[
-                          if (group.name != group.type.label)
-                            const SizedBox(width: 4),
-                          Tooltip(
-                            message: '内置规则组',
-                            child: Icon(
-                              Icons.lock_outline,
-                              size: 11,
-                              color: c.textTertiary,
-                            ),
-                          ),
-                        ],
+                        Text(
+                          rule.value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          _ruleSubtitle(rule),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: c.textTertiary, fontSize: 11),
+                        ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              Tooltip(
-                message: group.enabled ? '禁用规则组' : '启用规则组',
-                child: Checkbox(
-                  value: group.enabled,
-                  onChanged: (value) => onEnabled(value ?? false),
-                  activeColor: c.accent,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RuleGroupDraft {
-  const _RuleGroupDraft({required this.name, required this.type});
-
-  final String name;
-  final ViewerRuleGroupType type;
-}
-
-Future<_RuleGroupDraft?> _showRuleGroupDialog(
-  BuildContext context, {
-  ViewerRuleGroup? initialGroup,
-}) async {
-  final controller = TextEditingController(text: initialGroup?.name ?? '');
-  var type = initialGroup?.type ?? ViewerRuleGroupType.path;
-  String? error;
-  final result = await showDialog<_RuleGroupDraft>(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (context, setDialogState) {
-        final c = context.colors;
-        final inputBorder = OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          borderSide: BorderSide.none,
-        );
-
-        void submit() {
-          final name = controller.text.trim();
-          if (name.isEmpty) {
-            setDialogState(() => error = '规则组名称不能为空');
-            return;
-          }
-          Navigator.pop(dialogContext, _RuleGroupDraft(name: name, type: type));
-        }
-
-        return AlertDialog(
-          title: Text(initialGroup == null ? '添加规则组' : '编辑规则组'),
-          content: SizedBox(
-            width: 400,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    filled: true,
-                    fillColor: c.surfaceSubtle,
-                    labelText: '名称',
-                    errorText: error,
-                    border: inputBorder,
-                    enabledBorder: inputBorder,
                   ),
-                  onSubmitted: (_) => submit(),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<ViewerRuleGroupType>(
-                  initialValue: type,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    filled: true,
-                    fillColor: c.surfaceSubtle,
-                    labelText: '类型',
-                    border: inputBorder,
-                    enabledBorder: inputBorder,
-                  ),
-                  items: [
-                    for (final item in ViewerRuleGroupType.values)
-                      DropdownMenuItem(value: item, child: Text(item.label)),
-                  ],
-                  onChanged: initialGroup == null
-                      ? (value) {
-                          if (value != null) {
-                            setDialogState(() => type = value);
-                          }
-                        }
-                      : null,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              style: TextButton.styleFrom(foregroundColor: c.textSecondary),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: submit,
-              style: FilledButton.styleFrom(
-                backgroundColor: c.accent,
-                foregroundColor: c.onAccent,
-              ),
-              child: Text(initialGroup == null ? '添加' : '保存'),
-            ),
-          ],
-        );
-      },
-    ),
-  );
-  controller.dispose();
-  return result;
-}
-
-IconData _ruleGroupIcon(ViewerRuleGroupType type) => switch (type) {
-  ViewerRuleGroupType.path => Icons.account_tree_outlined,
-  ViewerRuleGroupType.extension => Icons.description_outlined,
-  ViewerRuleGroupType.fileName => Icons.text_fields,
-  ViewerRuleGroupType.mimeType => Icons.data_object,
-};
-
-class _PathRulePage extends StatefulWidget {
-  const _PathRulePage({super.key, required this.groupId});
-
-  final String groupId;
-
-  @override
-  State<_PathRulePage> createState() => _PathRulePageState();
-}
-
-class _PathRulePageState extends State<_PathRulePage>
-    with AutomaticKeepAliveClientMixin {
-  String? _selectedId;
-  double _listWidth = 280;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    final c = context.colors;
-    final service = context.watch<QuickViewService>();
-    final rules = service.pathRulesForGroup(widget.groupId);
-    final selectedIndex = rules.indexWhere((rule) => rule.id == _selectedId);
-    final selected = selectedIndex < 0 ? null : rules[selectedIndex];
-    if (selected == null && rules.isNotEmpty) {
-      _selectedId = rules.first.id;
-    }
-    final activeRule = selected ?? (rules.isEmpty ? null : rules.first);
-    final activeIndex = activeRule == null
-        ? -1
-        : rules.indexWhere((rule) => rule.id == activeRule.id);
-
-    return Row(
-      children: [
-        SizedBox(
-          width: _listWidth,
-          child: Column(
-            children: [
-              _PathRuleToolbar(
-                onAdd: () => _addRule(context, service),
-                onEdit: activeRule == null
-                    ? null
-                    : () => _editRule(context, service, activeRule),
-                onDelete: activeRule == null
-                    ? null
-                    : () => _deleteRule(context, service, activeRule),
-                onMoveUp: activeIndex > 0
-                    ? () => service.movePathRule(activeRule!.id, -1)
-                    : null,
-                onMoveDown: activeIndex >= 0 && activeIndex < rules.length - 1
-                    ? () => service.movePathRule(activeRule!.id, 1)
-                    : null,
-              ),
-              Expanded(
-                child: rules.isEmpty
-                    ? Center(
-                        child: Text(
-                          '没有路径规则',
-                          style: TextStyle(
-                            fontSize: AppMetrics.fontBody,
-                            color: c.textTertiary,
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        itemExtent: 48,
-                        itemCount: rules.length,
-                        itemBuilder: (context, index) {
-                          final rule = rules[index];
-                          return _PathRuleRow(
-                            rule: rule,
-                            candidateCount: service
-                                .candidatesForPathRule(rule)
-                                .length,
-                            selected: rule.id == activeRule?.id,
-                            onSelected: () =>
-                                setState(() => _selectedId = rule.id),
-                            onEnabled: (enabled) =>
-                                service.setPathRuleEnabled(rule.id, enabled),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-        _ColumnSplitter(
-          width: _listWidth,
-          onWidthChanged: (w) => setState(() => _listWidth = w),
-        ),
-        Expanded(
-          child: activeRule == null
-              ? const SizedBox.shrink()
-              : _PathRuleCandidateEditor(ruleId: activeRule.id),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _addRule(BuildContext context, QuickViewService service) async {
-    final draft = await _showPathRuleDialog(context, service);
-    if (draft == null || !mounted) return;
-    final rule = service.addPathRuleToGroup(
-      widget.groupId,
-      pattern: draft.pattern,
-      mode: draft.mode,
-      viewerIds: [draft.viewerId!],
-    );
-    setState(() => _selectedId = rule.id);
-  }
-
-  Future<void> _editRule(
-    BuildContext context,
-    QuickViewService service,
-    ViewerPathRule rule,
-  ) async {
-    final draft = await _showPathRuleDialog(
-      context,
-      service,
-      initialRule: rule,
-    );
-    if (draft == null || !mounted) return;
-    service.updatePathRule(rule.id, pattern: draft.pattern, mode: draft.mode);
-  }
-
-  Future<void> _deleteRule(
-    BuildContext context,
-    QuickViewService service,
-    ViewerPathRule rule,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        final c = dialogContext.colors;
-        return AlertDialog(
-          title: const Text('删除路径规则'),
-          content: Text(
-            rule.pattern,
-            style: TextStyle(
-              fontSize: AppMetrics.fontBody,
-              color: c.textSecondary,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              style: TextButton.styleFrom(foregroundColor: c.textSecondary),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: c.danger,
-                foregroundColor: c.onAccent,
-              ),
-              child: const Text('删除'),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true || !mounted) return;
-    service.removePathRule(rule.id);
-    setState(() => _selectedId = null);
-  }
-}
-
-class _PathRuleToolbar extends StatelessWidget {
-  const _PathRuleToolbar({
-    required this.onAdd,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onMoveUp,
-    required this.onMoveDown,
-  });
-
-  final VoidCallback onAdd;
-  final VoidCallback? onEdit;
-  final VoidCallback? onDelete;
-  final VoidCallback? onMoveUp;
-  final VoidCallback? onMoveDown;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: Row(
-        children: [
-          const SizedBox(width: 4),
-          _IconAction(icon: Icons.add, tooltip: '添加路径规则', onPressed: onAdd),
-          _IconAction(icon: Icons.edit, tooltip: '编辑规则', onPressed: onEdit),
-          _IconAction(
-            icon: Icons.delete_outline,
-            tooltip: '删除规则',
-            onPressed: onDelete,
-          ),
-          _IconAction(
-            icon: Icons.keyboard_arrow_up,
-            tooltip: '提高路径规则优先级',
-            onPressed: onMoveUp,
-          ),
-          _IconAction(
-            icon: Icons.keyboard_arrow_down,
-            tooltip: '降低路径规则优先级',
-            onPressed: onMoveDown,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PathRuleRow extends StatelessWidget {
-  const _PathRuleRow({
-    required this.rule,
-    required this.candidateCount,
-    required this.selected,
-    required this.onSelected,
-    required this.onEnabled,
-  });
-
-  final ViewerPathRule rule;
-  final int candidateCount;
-  final bool selected;
-  final VoidCallback onSelected;
-  final ValueChanged<bool> onEnabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Material(
-        color: selected ? c.accentSubtle : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-        child: InkWell(
-          onTap: onSelected,
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          hoverColor: c.surfaceHover,
-          child: Row(
-            children: [
-              Checkbox(
-                key: ValueKey('path-rule-enabled-${rule.id}'),
-                value: rule.enabled,
-                onChanged: (value) => onEnabled(value ?? false),
-                activeColor: c.accent,
-                visualDensity: VisualDensity.compact,
-              ),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      rule.pattern,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontBody,
-                        color: rule.enabled ? c.textPrimary : c.textTertiary,
-                      ),
-                    ),
-                    Text(
-                      rule.mode.label,
-                      style: TextStyle(
-                        fontSize: AppMetrics.fontCaption,
+                  if (rule.managed)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(
+                        Icons.lock_outline,
+                        size: AppMetrics.iconSm,
                         color: c.textTertiary,
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
-              Text(
-                '$candidateCount',
-                style: TextStyle(
-                  fontSize: AppMetrics.fontSmall,
-                  color: c.textTertiary,
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
+            ),
           ),
-        ),
+        );
+      },
+    );
+  }
+}
+
+class _RuleInsertTarget extends StatelessWidget {
+  const _RuleInsertTarget({
+    required this.targetId,
+    required this.canDrop,
+    required this.onAccept,
+  });
+
+  final String targetId;
+  final bool Function(String draggedId, String targetId) canDrop;
+  final void Function(String draggedId, String targetId) onAccept;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return DragTarget<_RuleDragData>(
+      onWillAcceptWithDetails: (details) =>
+          canDrop(details.data.ruleId, targetId),
+      onAcceptWithDetails: (details) => onAccept(details.data.ruleId, targetId),
+      builder: (context, candidates, rejected) => AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        height: candidates.isEmpty ? 2 : 6,
+        color: candidates.isEmpty ? Colors.transparent : c.accent,
       ),
     );
   }
 }
 
-class _PathRuleCandidateEditor extends StatelessWidget {
-  const _PathRuleCandidateEditor({required this.ruleId});
+class _RootRuleDropTarget extends StatelessWidget {
+  const _RootRuleDropTarget({required this.onAccept});
 
-  final String ruleId;
+  final ValueChanged<String> onAccept;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final service = context.watch<QuickViewService>();
-    final rule = service.pathRules.firstWhere((rule) => rule.id == ruleId);
-    final selected = service.candidatesForPathRule(rule);
-    final selectedIds = selected.map((plugin) => plugin.manifest.id).toList();
-    final selectedSet = selectedIds.toSet();
-    final display = [
-      ...selected,
-      ...service.availablePathRulePlugins.where(
-        (plugin) => !selectedSet.contains(plugin.manifest.id),
+    return DragTarget<_RuleDragData>(
+      onWillAcceptWithDetails: (_) => true,
+      onAcceptWithDetails: (details) => onAccept(details.data.ruleId),
+      builder: (context, candidates, rejected) => AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        height: candidates.isEmpty ? 12 : 26,
+        alignment: Alignment.center,
+        color: candidates.isEmpty ? Colors.transparent : c.accentSubtle,
+        child: candidates.isEmpty
+            ? null
+            : Text('移到组内末尾', style: TextStyle(color: c.accent, fontSize: 11)),
       ),
-    ];
+    );
+  }
+}
 
+class _ViewersColumn extends StatelessWidget {
+  const _ViewersColumn({
+    required this.rule,
+    required this.service,
+    required this.onAdd,
+  });
+
+  final ViewerRule? rule;
+  final QuickViewService service;
+  final VoidCallback? onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final valueRule = rule;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          height: 34,
-          color: c.surfaceSubtle,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.centerLeft,
-          child: Text(
-            '路径规则的候选查看器',
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: AppMetrics.fontBody,
-              fontWeight: FontWeight.w600,
-              color: c.textPrimary,
+        _ColumnToolbar(
+          title: 'Viewer',
+          actions: [
+            _IconAction(
+              icon: Icons.add,
+              tooltip: '添加 Viewer',
+              onPressed: onAdd,
             ),
-          ),
+          ],
         ),
         Expanded(
-          child: display.isEmpty
-              ? Center(
-                  child: Text(
-                    '没有可用插件',
-                    style: TextStyle(
-                      fontSize: AppMetrics.fontBody,
-                      color: c.textTertiary,
-                    ),
-                  ),
+          child: valueRule == null
+              ? const _EmptyState(
+                  icon: Icons.touch_app_outlined,
+                  text: '选择一条规则以编辑 Viewer',
                 )
-              : ListView.builder(
-                  itemExtent: 46,
-                  itemCount: display.length,
+              : valueRule.viewers.isEmpty
+              ? const _EmptyState(
+                  icon: Icons.visibility_off_outlined,
+                  text: '这条规则还没有 Viewer',
+                )
+              : ReorderableListView.builder(
+                  key: const ValueKey('viewer-candidates-list'),
+                  buildDefaultDragHandles: false,
+                  itemExtent: 52,
+                  itemCount: valueRule.viewers.length,
+                  onReorderItem: (oldIndex, newIndex) => service
+                      .reorderRuleViewers(valueRule.id, oldIndex, newIndex),
                   itemBuilder: (context, index) {
-                    final plugin = display[index];
-                    final id = plugin.manifest.id;
-                    final selectedIndex = selectedIds.indexOf(id);
-                    return _CandidateRow(
+                    final viewer = valueRule.viewers[index];
+                    final plugin = service.pluginById(viewer.id);
+                    return _ViewerRow(
+                      key: ValueKey('viewer-candidate-${viewer.id}'),
+                      viewer: viewer,
                       plugin: plugin,
-                      checked: selectedIndex >= 0,
-                      canMoveUp: selectedIndex > 0,
-                      canMoveDown:
-                          selectedIndex >= 0 &&
-                          selectedIndex < selectedIds.length - 1,
-                      onChecked: (checked) {
-                        final next = [...selectedIds];
-                        if (checked) {
-                          next.add(id);
-                        } else {
-                          next.remove(id);
-                        }
-                        service.setPathRuleCandidates(rule.id, next);
-                      },
-                      onMoveUp: () {
-                        final next = [...selectedIds];
-                        final item = next.removeAt(selectedIndex);
-                        next.insert(selectedIndex - 1, item);
-                        service.setPathRuleCandidates(rule.id, next);
-                      },
-                      onMoveDown: () {
-                        final next = [...selectedIds];
-                        final item = next.removeAt(selectedIndex);
-                        next.insert(selectedIndex + 1, item);
-                        service.setPathRuleCandidates(rule.id, next);
-                      },
+                      index: index,
+                      onEnabled: (enabled) => service.setRuleViewerEnabled(
+                        valueRule.id,
+                        viewer.id,
+                        enabled,
+                      ),
+                      onRemove: viewer.managed
+                          ? null
+                          : () => service.removeViewerFromRule(
+                              valueRule.id,
+                              viewer.id,
+                            ),
                     );
                   },
                 ),
@@ -890,687 +866,425 @@ class _PathRuleCandidateEditor extends StatelessWidget {
   }
 }
 
-class _PathRuleDraft {
-  const _PathRuleDraft({
-    required this.pattern,
-    required this.mode,
-    this.viewerId,
+class _ViewerRow extends StatelessWidget {
+  const _ViewerRow({
+    super.key,
+    required this.viewer,
+    required this.plugin,
+    required this.index,
+    required this.onEnabled,
+    required this.onRemove,
   });
 
-  final String pattern;
-  final ViewerPathMatchMode mode;
-  final String? viewerId;
-}
+  final ViewerRuleViewer viewer;
+  final ViewerPlugin? plugin;
+  final int index;
+  final ValueChanged<bool> onEnabled;
+  final VoidCallback? onRemove;
 
-Future<_PathRuleDraft?> _showPathRuleDialog(
-  BuildContext context,
-  QuickViewService service, {
-  ViewerPathRule? initialRule,
-}) async {
-  var patternText = initialRule?.pattern ?? '';
-  var mode = initialRule?.mode ?? ViewerPathMatchMode.glob;
-  final plugins = service.availablePathRulePlugins;
-  String? viewerId = plugins.isEmpty ? null : plugins.first.manifest.id;
-  String? error;
-
-  final result = await showDialog<_PathRuleDraft>(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (context, setDialogState) {
-        final c = context.colors;
-        final inputBorder = OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          borderSide: BorderSide.none,
-        );
-
-        void submit() {
-          try {
-            final pattern = ViewerPathRule.normalizePattern(
-              patternText,
-              mode: mode,
-            );
-            if (initialRule == null && viewerId == null) {
-              setDialogState(() => error = '没有可用 Viewer');
-              return;
-            }
-            Navigator.pop(
-              dialogContext,
-              _PathRuleDraft(pattern: pattern, mode: mode, viewerId: viewerId),
-            );
-          } on FormatException catch (exception) {
-            setDialogState(() => error = exception.message);
-          }
-        }
-
-        return AlertDialog(
-          title: Text(initialRule == null ? '添加路径规则' : '编辑路径规则'),
-          content: SizedBox(
-            width: 460,
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final available = plugin?.isAvailable ?? false;
+    return Material(
+      color: Colors.transparent,
+      child: Row(
+        children: [
+          ReorderableDragStartListener(
+            index: index,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6),
+              child: Icon(Icons.drag_indicator, size: AppMetrics.iconMd),
+            ),
+          ),
+          Checkbox(
+            key: ValueKey('viewer-enabled-${viewer.id}'),
+            value: viewer.enabled,
+            onChanged: (value) => onEnabled(value ?? false),
+            visualDensity: VisualDensity.compact,
+          ),
+          Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                DropdownButtonFormField<ViewerPathMatchMode>(
-                  initialValue: mode,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    filled: true,
-                    fillColor: c.surfaceSubtle,
-                    labelText: '匹配方式',
-                    border: inputBorder,
-                    enabledBorder: inputBorder,
-                  ),
-                  items: [
-                    for (final item in ViewerPathMatchMode.values)
-                      DropdownMenuItem(value: item, child: Text(item.label)),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setDialogState(() => mode = value);
-                  },
+                Text(
+                  plugin?.manifest.name ?? viewer.id,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  initialValue: patternText,
-                  autofocus: true,
+                Text(
+                  available ? viewer.id : '${viewer.id} · 不可用',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: AppMetrics.fontBody,
-                    color: c.textPrimary,
+                    color: available ? c.textTertiary : c.danger,
+                    fontSize: 11,
                   ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    filled: true,
-                    fillColor: c.surfaceSubtle,
-                    labelText: mode == ViewerPathMatchMode.glob
-                        ? r'C:\Work\**\*.pdf'
-                        : r'C:\Work\report.pdf',
-                    errorText: error,
-                    border: inputBorder,
-                    enabledBorder: inputBorder,
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppMetrics.controlRadius,
-                      ),
-                      borderSide: BorderSide(color: c.accent),
-                    ),
-                  ),
-                  onChanged: (value) => patternText = value,
-                  onFieldSubmitted: (_) => submit(),
                 ),
-                if (initialRule == null) ...[
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    initialValue: viewerId,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      filled: true,
-                      fillColor: c.surfaceSubtle,
-                      labelText: '首选 Viewer',
-                      border: inputBorder,
-                      enabledBorder: inputBorder,
-                    ),
-                    items: [
-                      for (final plugin in plugins)
-                        DropdownMenuItem(
-                          value: plugin.manifest.id,
-                          child: Text(plugin.manifest.name),
-                        ),
-                    ],
-                    onChanged: (value) =>
-                        setDialogState(() => viewerId = value),
-                  ),
-                ],
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              style: TextButton.styleFrom(foregroundColor: c.textSecondary),
-              child: const Text('取消'),
+          if (viewer.managed)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Icon(
+                Icons.lock_outline,
+                size: AppMetrics.iconSm,
+                color: c.textTertiary,
+              ),
+            )
+          else
+            _IconAction(
+              icon: Icons.close,
+              tooltip: '移除 Viewer',
+              onPressed: onRemove,
             ),
-            FilledButton(
-              onPressed: submit,
-              style: FilledButton.styleFrom(
-                backgroundColor: c.accent,
-                foregroundColor: c.onAccent,
-              ),
-              child: Text(initialRule == null ? '添加' : '保存'),
-            ),
-          ],
-        );
-      },
-    ),
-  );
-  return result;
-}
-
-class _AssociationPage extends StatefulWidget {
-  const _AssociationPage({
-    super.key,
-    required this.groupId,
-    required this.kind,
-  });
-
-  final String groupId;
-  final ViewerAssociationKind kind;
-
-  @override
-  State<_AssociationPage> createState() => _AssociationPageState();
-}
-
-class _AssociationPageState extends State<_AssociationPage>
-    with AutomaticKeepAliveClientMixin {
-  String? _selectedKey;
-  double _listWidth = 230;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    final c = context.colors;
-    final service = context.watch<QuickViewService>();
-    final group = service.ruleGroup(widget.groupId);
-    final keys = service.associationKeysForRuleGroup(widget.groupId);
-    final selected = keys.contains(_selectedKey)
-        ? _selectedKey
-        : (keys.isEmpty ? null : keys.first);
-    _selectedKey = selected;
-
-    return Row(
-      children: [
-        SizedBox(
-          width: _listWidth,
-          child: Column(
-            children: [
-              _AssociationToolbar(
-                onAdd: () => _addAssociation(context, service),
-                builtInGroup: group.builtIn,
-                enabled: selected == null
-                    ? null
-                    : service.associationEnabledForRuleGroup(
-                        widget.groupId,
-                        selected,
-                      ),
-                onToggleEnabled: selected == null
-                    ? null
-                    : () => service.setAssociationEnabledForRuleGroup(
-                        widget.groupId,
-                        selected,
-                        !service.associationEnabledForRuleGroup(
-                          widget.groupId,
-                          selected,
-                        ),
-                      ),
-                onReset:
-                    selected == null ||
-                        !service.hasOverrideForRuleGroup(
-                          widget.groupId,
-                          selected,
-                        )
-                    ? null
-                    : () => service.resetAssociationForRuleGroup(
-                        widget.groupId,
-                        selected,
-                      ),
-              ),
-              Expanded(
-                child: keys.isEmpty
-                    ? Center(
-                        child: Text(
-                          '没有关联项',
-                          style: TextStyle(
-                            fontSize: AppMetrics.fontBody,
-                            color: c.textTertiary,
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        itemExtent: 30,
-                        itemCount: keys.length,
-                        itemBuilder: (context, index) {
-                          final key = keys[index];
-                          final candidates = service.candidatesForRuleGroup(
-                            widget.groupId,
-                            key,
-                          );
-                          return _AssociationRow(
-                            value: key,
-                            candidateCount: candidates.length,
-                            enabled: service.associationEnabledForRuleGroup(
-                              widget.groupId,
-                              key,
-                            ),
-                            overridden: service.hasOverrideForRuleGroup(
-                              widget.groupId,
-                              key,
-                            ),
-                            selected: key == selected,
-                            onTap: () => setState(() => _selectedKey = key),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-        _ColumnSplitter(
-          width: _listWidth,
-          onWidthChanged: (w) => setState(() => _listWidth = w),
-        ),
-        Expanded(
-          child: selected == null
-              ? const SizedBox.shrink()
-              : _CandidateEditor(
-                  groupId: widget.groupId,
-                  kind: widget.kind,
-                  associationKey: selected,
-                ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _addAssociation(
-    BuildContext context,
-    QuickViewService service,
-  ) async {
-    final controller = TextEditingController();
-    String? error;
-    final key = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          final c = context.colors;
-          final inputBorder = OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-            borderSide: BorderSide.none,
-          );
-          return AlertDialog(
-            title: Text('添加${widget.kind.label}关联'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              style: TextStyle(
-                fontSize: AppMetrics.fontBody,
-                color: c.textPrimary,
-              ),
-              decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: c.surfaceSubtle,
-                labelText: switch (widget.kind) {
-                  ViewerAssociationKind.extension => '.pdf',
-                  ViewerAssociationKind.fileName => 'dockerfile',
-                  ViewerAssociationKind.mimeType => 'application/pdf',
-                },
-                labelStyle: TextStyle(
-                  fontSize: AppMetrics.fontBody,
-                  color: c.textTertiary,
-                ),
-                errorText: error,
-                border: inputBorder,
-                enabledBorder: inputBorder,
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-                  borderSide: BorderSide(color: c.accent),
-                ),
-              ),
-              onSubmitted: (_) => _validateAndClose(
-                dialogContext,
-                service,
-                controller.text,
-                (message) => setDialogState(() => error = message),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                style: TextButton.styleFrom(foregroundColor: c.textSecondary),
-                child: const Text('取消'),
-              ),
-              FilledButton(
-                onPressed: () => _validateAndClose(
-                  dialogContext,
-                  service,
-                  controller.text,
-                  (message) => setDialogState(() => error = message),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: c.accent,
-                  foregroundColor: c.onAccent,
-                ),
-                child: const Text('添加'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-    controller.dispose();
-    if (key == null || !mounted) return;
-    final plugins = service.availablePluginsFor(widget.kind, key);
-    service.setCandidatesForRuleGroup(
-      widget.groupId,
-      key,
-      plugins.map((plugin) => plugin.manifest.id),
-    );
-    setState(() => _selectedKey = key);
-  }
-
-  void _validateAndClose(
-    BuildContext dialogContext,
-    QuickViewService service,
-    String input,
-    ValueChanged<String?> setError,
-  ) {
-    try {
-      final key = widget.kind.normalize(input);
-      if (service.availablePluginsFor(widget.kind, key).isEmpty) {
-        setError('没有 Manifest 声明支持此关联');
-        return;
-      }
-      Navigator.pop(dialogContext, key);
-    } on FormatException catch (error) {
-      setError(error.message);
-    }
-  }
-}
-
-class _AssociationToolbar extends StatelessWidget {
-  const _AssociationToolbar({
-    required this.onAdd,
-    required this.builtInGroup,
-    required this.enabled,
-    required this.onToggleEnabled,
-    required this.onReset,
-  });
-
-  final VoidCallback onAdd;
-  final bool builtInGroup;
-  final bool? enabled;
-  final VoidCallback? onToggleEnabled;
-  final VoidCallback? onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: Row(
-        children: [
-          const SizedBox(width: 4),
-          _IconAction(icon: Icons.add, tooltip: '添加关联', onPressed: onAdd),
-          _IconAction(
-            icon: enabled == false ? Icons.link : Icons.link_off,
-            tooltip: enabled == false ? '启用关联' : '禁用关联',
-            onPressed: onToggleEnabled,
-          ),
-          _IconAction(
-            icon: builtInGroup ? Icons.restore : Icons.delete_outline,
-            tooltip: builtInGroup ? '恢复 Manifest 候选' : '删除关联',
-            onPressed: onReset,
-          ),
         ],
       ),
     );
   }
 }
 
-class _AssociationRow extends StatelessWidget {
-  const _AssociationRow({
-    required this.value,
-    required this.candidateCount,
-    required this.enabled,
-    required this.overridden,
-    required this.selected,
-    required this.onTap,
-  });
+class _ColumnToolbar extends StatelessWidget {
+  const _ColumnToolbar({required this.title, required this.actions});
 
-  final String value;
-  final int candidateCount;
-  final bool enabled;
-  final bool overridden;
-  final bool selected;
-  final VoidCallback onTap;
+  final String title;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Material(
-        color: selected ? c.accentSubtle : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          hoverColor: c.surfaceHover,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    value,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: AppMetrics.fontBody,
-                      color: !enabled || candidateCount == 0
-                          ? c.textTertiary
-                          : c.textPrimary,
-                    ),
-                  ),
-                ),
-                if (!enabled)
-                  Icon(
-                    Icons.link_off,
-                    size: AppMetrics.iconSm,
-                    color: c.textTertiary,
-                  )
-                else if (overridden)
-                  Icon(
-                    Icons.tune,
-                    size: AppMetrics.iconSm,
-                    color: c.textTertiary,
-                  ),
-                const SizedBox(width: 6),
-                Text(
-                  '$candidateCount',
-                  style: TextStyle(
-                    fontSize: AppMetrics.fontSmall,
-                    color: c.textTertiary,
-                  ),
-                ),
-              ],
-            ),
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.only(left: 12, right: 4),
+      decoration: BoxDecoration(
+        color: c.surfaceSubtle,
+        border: Border(bottom: BorderSide(color: c.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(title, style: Theme.of(context).textTheme.labelLarge),
           ),
+          ...actions,
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: c.textTertiary),
+            const SizedBox(height: 8),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: c.textTertiary),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _CandidateEditor extends StatelessWidget {
-  const _CandidateEditor({
-    required this.groupId,
-    required this.kind,
-    required this.associationKey,
+class _RuleDraft {
+  const _RuleDraft({
+    required this.type,
+    required this.value,
+    required this.pathMode,
   });
 
-  final String groupId;
-  final ViewerAssociationKind kind;
-  final String associationKey;
+  final ViewerRuleType type;
+  final String value;
+  final ViewerPathMatchMode? pathMode;
+}
+
+Future<String?> _showGroupDialog(
+  BuildContext context, {
+  String initialName = '',
+}) {
+  return showDialog<String>(
+    context: context,
+    builder: (context) => _GroupEditorDialog(initialName: initialName),
+  );
+}
+
+class _GroupEditorDialog extends StatefulWidget {
+  const _GroupEditorDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_GroupEditorDialog> createState() => _GroupEditorDialogState();
+}
+
+class _GroupEditorDialogState extends State<_GroupEditorDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialName,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
-    final service = context.watch<QuickViewService>();
-    final selected = service.candidatesForRuleGroup(
-      groupId,
-      associationKey,
-      includeDisabled: true,
-    );
-    final selectedIds = selected.map((plugin) => plugin.manifest.id).toList();
-    final selectedSet = selectedIds.toSet();
-    final available = service.availablePluginsFor(kind, associationKey);
-    final display = [
-      ...selected,
-      ...available.where((plugin) => !selectedSet.contains(plugin.manifest.id)),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          height: 34,
-          color: c.surfaceSubtle,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.centerLeft,
-          child: Text(
-            '$associationKey 的候选查看器',
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: AppMetrics.fontBody,
-              fontWeight: FontWeight.w600,
-              color: c.textPrimary,
-            ),
-          ),
+    return AlertDialog(
+      title: Text(widget.initialName.isEmpty ? '新建规则组' : '重命名规则组'),
+      content: TextField(
+        key: const ValueKey('viewer-rule-group-name'),
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: '名称'),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
         ),
-        Expanded(
-          child: display.isEmpty
-              ? Center(
-                  child: Text(
-                    '没有匹配的已安装插件',
-                    style: TextStyle(
-                      fontSize: AppMetrics.fontBody,
-                      color: c.textTertiary,
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  itemExtent: 46,
-                  itemCount: display.length,
-                  itemBuilder: (context, index) {
-                    final plugin = display[index];
-                    final id = plugin.manifest.id;
-                    final selectedIndex = selectedIds.indexOf(id);
-                    return _CandidateRow(
-                      plugin: plugin,
-                      checked: selectedIndex >= 0,
-                      canMoveUp: selectedIndex > 0,
-                      canMoveDown:
-                          selectedIndex >= 0 &&
-                          selectedIndex < selectedIds.length - 1,
-                      onChecked: (checked) {
-                        final next = [...selectedIds];
-                        if (checked) {
-                          next.add(id);
-                        } else {
-                          next.remove(id);
-                        }
-                        service.setCandidatesForRuleGroup(
-                          groupId,
-                          associationKey,
-                          next,
-                        );
-                      },
-                      onMoveUp: () {
-                        final next = [...selectedIds];
-                        final item = next.removeAt(selectedIndex);
-                        next.insert(selectedIndex - 1, item);
-                        service.setCandidatesForRuleGroup(
-                          groupId,
-                          associationKey,
-                          next,
-                        );
-                      },
-                      onMoveDown: () {
-                        final next = [...selectedIds];
-                        final item = next.removeAt(selectedIndex);
-                        next.insert(selectedIndex + 1, item);
-                        service.setCandidatesForRuleGroup(
-                          groupId,
-                          associationKey,
-                          next,
-                        );
-                      },
-                    );
-                  },
-                ),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('确定')),
       ],
     );
+  }
+
+  void _submit() {
+    final name = _controller.text.trim();
+    if (name.isNotEmpty) Navigator.of(context).pop(name);
   }
 }
 
-class _CandidateRow extends StatelessWidget {
-  const _CandidateRow({
-    required this.plugin,
-    required this.checked,
-    required this.canMoveUp,
-    required this.canMoveDown,
-    required this.onChecked,
-    required this.onMoveUp,
-    required this.onMoveDown,
-  });
+Future<_RuleDraft?> _showRuleDialog(
+  BuildContext context, {
+  ViewerRule? initialRule,
+}) {
+  return showDialog<_RuleDraft>(
+    context: context,
+    builder: (context) => _RuleEditorDialog(initialRule: initialRule),
+  );
+}
 
-  final ViewerPlugin plugin;
-  final bool checked;
-  final bool canMoveUp;
-  final bool canMoveDown;
-  final ValueChanged<bool> onChecked;
-  final VoidCallback onMoveUp;
-  final VoidCallback onMoveDown;
+class _RuleEditorDialog extends StatefulWidget {
+  const _RuleEditorDialog({this.initialRule});
+
+  final ViewerRule? initialRule;
+
+  @override
+  State<_RuleEditorDialog> createState() => _RuleEditorDialogState();
+}
+
+class _RuleEditorDialogState extends State<_RuleEditorDialog> {
+  late ViewerRuleType _type;
+  late ViewerPathMatchMode _pathMode;
+  late final TextEditingController _valueController;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _type = widget.initialRule?.type ?? ViewerRuleType.extension;
+    _pathMode = widget.initialRule?.pathMode ?? ViewerPathMatchMode.glob;
+    _valueController = TextEditingController(
+      text: widget.initialRule?.value ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _valueController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
-    return Row(
-      children: [
-        Checkbox(
-          key: ValueKey('viewer-candidate-${plugin.manifest.id}'),
-          value: checked,
-          onChanged: (value) => onChecked(value ?? false),
-          activeColor: c.accent,
-        ),
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                plugin.manifest.name,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: AppMetrics.fontBody,
-                  color: c.textPrimary,
-                ),
+    return AlertDialog(
+      title: Text(widget.initialRule == null ? '新建规则' : '编辑规则'),
+      content: SizedBox(
+        width: 380,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<ViewerRuleType>(
+              key: const ValueKey('viewer-rule-type'),
+              initialValue: _type,
+              decoration: const InputDecoration(labelText: '类型'),
+              items: [
+                for (final type in ViewerRuleType.values)
+                  DropdownMenuItem(value: type, child: Text(type.label)),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _type = value;
+                    _error = null;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            if (_type == ViewerRuleType.path) ...[
+              DropdownButtonFormField<ViewerPathMatchMode>(
+                key: const ValueKey('viewer-rule-path-mode'),
+                initialValue: _pathMode,
+                decoration: const InputDecoration(labelText: '路径匹配'),
+                items: [
+                  for (final mode in ViewerPathMatchMode.values)
+                    DropdownMenuItem(value: mode, child: Text(mode.label)),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => _pathMode = value);
+                },
               ),
-              Text(
-                '${plugin.manifest.id}  ${plugin.manifest.version}',
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: AppMetrics.fontCaption,
-                  color: c.textTertiary,
-                ),
-              ),
+              const SizedBox(height: 12),
             ],
-          ),
+            TextField(
+              key: const ValueKey('viewer-rule-value'),
+              controller: _valueController,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: _valueLabel(_type),
+                hintText: _valueHint(_type),
+                errorText: _error,
+              ),
+              onSubmitted: (_) => _submit(),
+            ),
+          ],
         ),
-        _IconAction(
-          icon: Icons.keyboard_arrow_up,
-          tooltip: '上移',
-          onPressed: canMoveUp ? onMoveUp : null,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
         ),
-        _IconAction(
-          icon: Icons.keyboard_arrow_down,
-          tooltip: '下移',
-          onPressed: canMoveDown ? onMoveDown : null,
-        ),
-        const SizedBox(width: 6),
+        FilledButton(onPressed: _submit, child: const Text('确定')),
       ],
     );
   }
+
+  void _submit() {
+    try {
+      final mode = _type == ViewerRuleType.path ? _pathMode : null;
+      final value = ViewerRule.normalizeValue(
+        _type,
+        _valueController.text,
+        pathMode: mode,
+      );
+      Navigator.of(
+        context,
+      ).pop(_RuleDraft(type: _type, value: value, pathMode: mode));
+    } on FormatException catch (error) {
+      setState(() => _error = error.message.toString());
+    }
+  }
+}
+
+Future<bool> _confirmDelete(
+  BuildContext context, {
+  required String title,
+  required String message,
+}) async {
+  return await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('删除'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+}
+
+String _ruleSubtitle(ViewerRule rule) {
+  final childText = rule.rules.isEmpty ? '' : ' · ${rule.rules.length} 个子规则';
+  final viewerText = rule.viewers.isEmpty
+      ? ''
+      : ' · ${rule.viewers.length} 个 Viewer';
+  final modeText = rule.type == ViewerRuleType.path
+      ? ' · ${rule.pathMode!.label}'
+      : '';
+  return '${rule.type.label}$modeText$childText$viewerText';
+}
+
+String _valueLabel(ViewerRuleType type) => switch (type) {
+  ViewerRuleType.path => '路径',
+  ViewerRuleType.fileName => '文件名',
+  ViewerRuleType.extension => '扩展名',
+  ViewerRuleType.mimeType => 'MIME',
+};
+
+String _valueHint(ViewerRuleType type) => switch (type) {
+  ViewerRuleType.path => r'C:\Projects\**\*.md',
+  ViewerRuleType.fileName => 'README.md',
+  ViewerRuleType.extension => '.md',
+  ViewerRuleType.mimeType => 'text/markdown',
+};
+
+List<_RuleTreeEntry> _flattenRules(
+  Iterable<ViewerRule> roots,
+  Set<String> collapsed, [
+  int depth = 0,
+]) {
+  final result = <_RuleTreeEntry>[];
+  for (final rule in roots) {
+    final isCollapsed = collapsed.contains(rule.id);
+    result.add(
+      _RuleTreeEntry(rule: rule, depth: depth, collapsed: isCollapsed),
+    );
+    if (!isCollapsed) {
+      result.addAll(_flattenRules(rule.rules, collapsed, depth + 1));
+    }
+  }
+  return result;
+}
+
+bool _containsRule(ViewerRule root, String id) {
+  if (root.id == id) return true;
+  return root.rules.any((child) => _containsRule(child, id));
+}
+
+class _RuleTreeEntry {
+  const _RuleTreeEntry({
+    required this.rule,
+    required this.depth,
+    required this.collapsed,
+  });
+
+  final ViewerRule rule;
+  final int depth;
+  final bool collapsed;
+}
+
+class _RuleDragData {
+  const _RuleDragData(this.ruleId);
+
+  final String ruleId;
 }
 
 class _IconAction extends StatelessWidget {
@@ -1593,21 +1307,41 @@ class _IconAction extends StatelessWidget {
       color: context.colors.textSecondary,
       visualDensity: VisualDensity.compact,
       constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
       padding: EdgeInsets.zero,
       icon: Icon(icon),
     );
   }
 }
 
-/// 查看器关联面板内的可拖拽分栏线，风格与 pane 间 splitter 一致：
-/// 8px 热区 + 居中 1px 线条，hover 高亮、拖动时显示 accent。
+const double _minimumColumnWidth = 140;
+const double _maximumColumnWidth = 520;
+const double _columnSplitterWidth = 8;
+
+double _columnMaxWidth(
+  double availableWidth, {
+  required double minimumTrailingWidth,
+}) {
+  if (!availableWidth.isFinite) return _maximumColumnWidth;
+  final available =
+      availableWidth - _columnSplitterWidth - minimumTrailingWidth;
+  return math
+      .max(_minimumColumnWidth, math.min(_maximumColumnWidth, available))
+      .toDouble();
+}
+
 class _ColumnSplitter extends StatefulWidget {
-  const _ColumnSplitter({required this.width, required this.onWidthChanged});
+  const _ColumnSplitter({
+    super.key,
+    required this.width,
+    required this.maxWidth,
+    required this.onWidthChanged,
+  });
 
-  /// 当前左/上侧栏宽度（拖拽起点基准）。
   final double width;
-
-  /// 拖拽过程中回调新的栏宽（已按 min/max 钳制）。
+  final double maxWidth;
   final ValueChanged<double> onWidthChanged;
 
   @override
@@ -1615,13 +1349,10 @@ class _ColumnSplitter extends StatefulWidget {
 }
 
 class _ColumnSplitterState extends State<_ColumnSplitter> {
-  static const double _minWidth = 140;
-  static const double _maxWidth = 520;
-
   bool _hovering = false;
   bool _dragging = false;
-  double _startPos = 0; // 拖拽起点（全局坐标）
-  double _startWidth = 0; // 拖拽起点时的栏宽
+  double _startPosition = 0;
+  double _startWidth = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -1634,17 +1365,20 @@ class _ColumnSplitterState extends State<_ColumnSplitter> {
         behavior: HitTestBehavior.opaque,
         onPanStart: (details) {
           setState(() => _dragging = true);
-          _startPos = details.globalPosition.dx;
+          _startPosition = details.globalPosition.dx;
           _startWidth = widget.width;
         },
         onPanUpdate: (details) {
-          final target = _startWidth + details.globalPosition.dx - _startPos;
-          widget.onWidthChanged(target.clamp(_minWidth, _maxWidth));
+          final target =
+              _startWidth + details.globalPosition.dx - _startPosition;
+          widget.onWidthChanged(
+            target.clamp(_minimumColumnWidth, widget.maxWidth).toDouble(),
+          );
         },
         onPanEnd: (_) => setState(() => _dragging = false),
         onPanCancel: () => setState(() => _dragging = false),
         child: Container(
-          width: 8,
+          width: _columnSplitterWidth,
           color: Colors.transparent,
           alignment: Alignment.center,
           child: Container(
