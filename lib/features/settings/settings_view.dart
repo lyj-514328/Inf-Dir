@@ -56,7 +56,7 @@ class _SettingsViewState extends State<SettingsView> {
       child: Row(
         children: [
           SizedBox(
-            width: 220,
+            width: 236,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: c.surfaceSubtle,
@@ -65,33 +65,52 @@ class _SettingsViewState extends State<SettingsView> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
-                    child: TextField(
-                      key: const ValueKey('settings-search'),
-                      controller: _searchController,
-                      onChanged: (value) => setState(() {
-                        _query = value.trim().toLowerCase();
-                      }),
-                      decoration: InputDecoration(
-                        hintText: '搜索设置',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _query.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: '清除搜索',
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() => _query = '');
-                                },
-                                icon: const Icon(Icons.close),
-                              ),
-                      ),
+                    padding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 2, bottom: 14),
+                          child: Text(
+                            '设置',
+                            style: TextStyle(
+                              color: c.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        TextField(
+                          key: const ValueKey('settings-search'),
+                          controller: _searchController,
+                          onChanged: (value) => setState(() {
+                            _query = value.trim().toLowerCase();
+                          }),
+                          decoration: InputDecoration(
+                            hintText: '查找设置',
+                            prefixIcon: const Icon(
+                              Icons.search,
+                              size: AppMetrics.iconMd,
+                            ),
+                            suffixIcon: _query.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: '清除搜索',
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _query = '');
+                                    },
+                                    icon: const Icon(Icons.close),
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   Expanded(
                     child: ListView(
                       primary: false,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.fromLTRB(8, 2, 8, 16),
                       children: [
                         for (final category in categories)
                           _CategoryButton(
@@ -170,29 +189,19 @@ class _SettingsViewState extends State<SettingsView> {
             key: const ValueKey('setting-new-tab-location'),
             title: '新标签页位置',
             description: '使用快捷键或菜单新建标签页时打开的位置',
-            control: _ControlSurface(
-              child: DropdownButton<NewTabLocation>(
-                value: settings.newTabLocation,
-                underline: const SizedBox.shrink(),
-                isDense: true,
-                onChanged: (value) {
-                  if (value != null) settings.setNewTabLocation(value);
-                },
-                items: const [
-                  DropdownMenuItem(
-                    value: NewTabLocation.current,
-                    child: Text('当前目录'),
-                  ),
-                  DropdownMenuItem(
-                    value: NewTabLocation.home,
-                    child: Text('主文件夹'),
-                  ),
-                  DropdownMenuItem(
-                    value: NewTabLocation.custom,
-                    child: Text('自定义目录'),
-                  ),
-                ],
-              ),
+            control: DropdownMenu<NewTabLocation>(
+              key: const ValueKey('setting-new-tab-location-menu'),
+              initialSelection: settings.newTabLocation,
+              selectOnly: true,
+              enableSearch: false,
+              onSelected: (value) {
+                if (value != null) settings.setNewTabLocation(value);
+              },
+              dropdownMenuEntries: const [
+                DropdownMenuEntry(value: NewTabLocation.current, label: '当前目录'),
+                DropdownMenuEntry(value: NewTabLocation.home, label: '主文件夹'),
+                DropdownMenuEntry(value: NewTabLocation.custom, label: '自定义目录'),
+              ],
             ),
           ),
         );
@@ -250,22 +259,18 @@ class _SettingsViewState extends State<SettingsView> {
             key: const ValueKey('setting-default-view-mode'),
             title: '默认视图',
             description: '用于新建面板；现有面板保持各自视图',
-            control: _ControlSurface(
-              child: DropdownButton<PaneViewMode>(
-                value: settings.defaultViewMode,
-                underline: const SizedBox.shrink(),
-                isDense: true,
-                onChanged: (value) {
-                  if (value != null) settings.setDefaultViewMode(value);
-                },
-                items: [
-                  for (final mode in _selectableViewModes)
-                    DropdownMenuItem(
-                      value: mode,
-                      child: Text(_viewModeLabel(mode)),
-                    ),
-                ],
-              ),
+            control: DropdownMenu<PaneViewMode>(
+              key: const ValueKey('setting-default-view-mode-menu'),
+              initialSelection: settings.defaultViewMode,
+              selectOnly: true,
+              enableSearch: false,
+              onSelected: (value) {
+                if (value != null) settings.setDefaultViewMode(value);
+              },
+              dropdownMenuEntries: [
+                for (final mode in _selectableViewModes)
+                  DropdownMenuEntry(value: mode, label: _viewModeLabel(mode)),
+              ],
             ),
           ),
         );
@@ -414,11 +419,29 @@ class _SettingsScrollPageState extends State<_SettingsScrollPage> {
       controller: _scrollController,
       child: ListView(
         controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(32, 28, 32, 48),
+        padding: const EdgeInsets.fromLTRB(36, 30, 36, 52),
         children: [
-          Text(widget.title, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 22),
-          ...widget.children,
+          Align(
+            alignment: Alignment.topLeft,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 860),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    widget.title,
+                    style: TextStyle(
+                      color: context.colors.textPrimary,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ...widget.children,
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -430,14 +453,41 @@ class _ViewerSettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
+      padding: const EdgeInsets.fromLTRB(28, 26, 28, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('查看器', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 16),
-          const Expanded(child: ViewerAssociationsView()),
+          Text(
+            '查看器',
+            style: TextStyle(
+              color: c.textPrimary,
+              fontSize: 28,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            '设置文件匹配规则和快速查看程序的优先顺序',
+            style: TextStyle(
+              color: c.textSecondary,
+              fontSize: AppMetrics.fontBody,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Expanded(
+            child: Container(
+              key: const ValueKey('viewer-settings-surface'),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: c.surface,
+                border: Border.all(color: c.border),
+                borderRadius: BorderRadius.circular(AppMetrics.cardRadius),
+              ),
+              child: const ViewerAssociationsView(),
+            ),
+          ),
         ],
       ),
     );
@@ -459,34 +509,44 @@ class _CategoryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: InkWell(
-        key: ValueKey('settings-category-${category.name}'),
-        onTap: onTap,
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Material(
+        color: selected ? c.selectedInactive : Colors.transparent,
         borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-        child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: selected ? c.accentSubtle : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                _categoryIcon(category),
-                size: AppMetrics.iconMd,
-                color: selected ? c.accent : c.textSecondary,
-              ),
-              const SizedBox(width: 9),
-              Text(
-                _categoryLabel(category),
-                style: TextStyle(
-                  color: selected ? c.textPrimary : c.textSecondary,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+        child: InkWell(
+          key: ValueKey('settings-category-${category.name}'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+          child: SizedBox(
+            height: 38,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 4,
+                  height: 18,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: selected ? c.accent : Colors.transparent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 9),
+                Icon(
+                  _categoryIcon(category),
+                  size: AppMetrics.iconMd,
+                  color: selected ? c.textPrimary : c.textSecondary,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  _categoryLabel(category),
+                  style: TextStyle(
+                    color: selected ? c.textPrimary : c.textSecondary,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -510,10 +570,13 @@ class _SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Container(
-      constraints: const BoxConstraints(minHeight: 66),
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      constraints: const BoxConstraints(minHeight: 72),
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: c.border)),
+        color: c.surface,
+        border: Border.all(color: c.border),
+        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -538,7 +601,7 @@ class _SettingsRow extends StatelessWidget {
               ),
             ],
           );
-          if (constraints.maxWidth < 560) {
+          if (constraints.maxWidth < 540) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [info, const SizedBox(height: 10), control],
@@ -581,27 +644,6 @@ class _SettingsSwitchRow extends StatelessWidget {
   }
 }
 
-class _ControlSurface extends StatelessWidget {
-  const _ControlSurface({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Container(
-      constraints: const BoxConstraints(minHeight: 34, minWidth: 150),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: c.surface,
-        border: Border.all(color: c.border),
-        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-      ),
-      child: child,
-    );
-  }
-}
-
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({required this.label});
 
@@ -610,12 +652,12 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 16, bottom: 4),
+      padding: const EdgeInsets.only(top: 18, left: 2, bottom: 8),
       child: Text(
         label,
         style: TextStyle(
-          color: context.colors.textSecondary,
-          fontSize: AppMetrics.fontSmall,
+          color: context.colors.textPrimary,
+          fontSize: AppMetrics.fontBody,
           fontWeight: FontWeight.w600,
         ),
       ),

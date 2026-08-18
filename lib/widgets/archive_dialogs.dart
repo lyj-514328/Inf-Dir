@@ -134,20 +134,20 @@ Future<CreateArchiveOptions?> showCreateArchiveDialog(
                     ],
                   ),
                   const SizedBox(height: 10),
-                  DropdownButtonFormField<ArchiveFormat>(
-                    initialValue: format,
-                    decoration: _decoration(c, label: '格式'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: ArchiveFormat.zip,
-                        child: Text('Zip'),
-                      ),
-                      DropdownMenuItem(
+                  DropdownMenu<ArchiveFormat>(
+                    initialSelection: format,
+                    label: const Text('格式'),
+                    selectOnly: true,
+                    enableSearch: false,
+                    expandedInsets: EdgeInsets.zero,
+                    dropdownMenuEntries: const [
+                      DropdownMenuEntry(value: ArchiveFormat.zip, label: 'Zip'),
+                      DropdownMenuEntry(
                         value: ArchiveFormat.sevenZip,
-                        child: Text('7z'),
+                        label: '7z',
                       ),
                     ],
-                    onChanged: (value) {
+                    onSelected: (value) {
                       setState(() {
                         format = value ?? ArchiveFormat.zip;
                         pathController.text = _withExtension(
@@ -158,14 +158,17 @@ Future<CreateArchiveOptions?> showCreateArchiveDialog(
                     },
                   ),
                   const SizedBox(height: 10),
-                  DropdownButtonFormField<int>(
-                    initialValue: compressionLevel,
-                    decoration: _decoration(c, label: '压缩级别'),
-                    items: [
+                  DropdownMenu<int>(
+                    initialSelection: compressionLevel,
+                    label: const Text('压缩级别'),
+                    selectOnly: true,
+                    enableSearch: false,
+                    expandedInsets: EdgeInsets.zero,
+                    dropdownMenuEntries: [
                       for (final (label, value) in _compressionLevels)
-                        DropdownMenuItem(value: value, child: Text(label)),
+                        DropdownMenuEntry(value: value, label: label),
                     ],
-                    onChanged: (value) {
+                    onSelected: (value) {
                       setState(() => compressionLevel = value ?? 5);
                     },
                   ),
@@ -298,24 +301,27 @@ Future<ExtractArchiveOptions?> showExtractArchiveDialog(
                     ],
                   ),
                   const SizedBox(height: 10),
-                  DropdownButtonFormField<ArchiveOverwriteMode>(
-                    initialValue: overwrite,
-                    decoration: _decoration(c, label: '已存在同名文件'),
-                    items: const [
-                      DropdownMenuItem(
+                  DropdownMenu<ArchiveOverwriteMode>(
+                    initialSelection: overwrite,
+                    label: const Text('已存在同名文件'),
+                    selectOnly: true,
+                    enableSearch: false,
+                    expandedInsets: EdgeInsets.zero,
+                    dropdownMenuEntries: const [
+                      DropdownMenuEntry(
                         value: ArchiveOverwriteMode.overwrite,
-                        child: Text('覆盖'),
+                        label: '覆盖',
                       ),
-                      DropdownMenuItem(
+                      DropdownMenuEntry(
                         value: ArchiveOverwriteMode.skip,
-                        child: Text('跳过'),
+                        label: '跳过',
                       ),
-                      DropdownMenuItem(
+                      DropdownMenuEntry(
                         value: ArchiveOverwriteMode.keepBoth,
-                        child: Text('保留两者'),
+                        label: '保留两者',
                       ),
                     ],
-                    onChanged: (value) {
+                    onSelected: (value) {
                       setState(
                         () =>
                             overwrite = value ?? ArchiveOverwriteMode.overwrite,
@@ -334,14 +340,17 @@ Future<ExtractArchiveOptions?> showExtractArchiveDialog(
                   ),
                   if (isZip) ...[
                     const SizedBox(height: 10),
-                    DropdownButtonFormField<int>(
-                      initialValue: codePage,
-                      decoration: _decoration(c, label: 'ZIP 名称编码'),
-                      items: [
+                    DropdownMenu<int>(
+                      initialSelection: codePage,
+                      label: const Text('ZIP 名称编码'),
+                      selectOnly: true,
+                      enableSearch: false,
+                      expandedInsets: EdgeInsets.zero,
+                      dropdownMenuEntries: [
                         for (final (label, value) in _zipCodePages)
-                          DropdownMenuItem(value: value, child: Text(label)),
+                          DropdownMenuEntry(value: value, label: label),
                       ],
-                      onChanged: (value) {
+                      onSelected: (value) {
                         setState(() => codePage = value ?? 0);
                       },
                     ),

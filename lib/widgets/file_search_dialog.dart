@@ -207,6 +207,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
               ],
               const SizedBox(height: 14),
               TextField(
+                key: const ValueKey('file-search-query'),
                 controller: _queryController,
                 focusNode: _queryFocusNode,
                 autofocus: true,
@@ -275,9 +276,9 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Expanded(child: _entryKindDropdown(c)),
+                  Expanded(child: _entryKindDropdown()),
                   const SizedBox(width: 10),
-                  Expanded(child: _maxResultsDropdown(c)),
+                  Expanded(child: _maxResultsDropdown()),
                 ],
               ),
               const SizedBox(height: 8),
@@ -443,73 +444,47 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
     );
   }
 
-  Widget _entryKindDropdown(AppColors c) {
-    return InputDecorator(
-      decoration: InputDecoration(
-        labelText: '范围',
-        isDense: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          borderSide: BorderSide(color: c.border),
+  Widget _entryKindDropdown() {
+    return DropdownMenu<FileSearchEntryKind>(
+      initialSelection: _entryKind,
+      label: const Text('范围'),
+      selectOnly: true,
+      enableSearch: false,
+      expandedInsets: EdgeInsets.zero,
+      dropdownMenuEntries: const [
+        DropdownMenuEntry(value: FileSearchEntryKind.all, label: '文件和文件夹'),
+        DropdownMenuEntry(value: FileSearchEntryKind.files, label: '仅文件'),
+        DropdownMenuEntry(
+          value: FileSearchEntryKind.directories,
+          label: '仅文件夹',
         ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<FileSearchEntryKind>(
-          value: _entryKind,
-          isExpanded: true,
-          isDense: true,
-          items: const [
-            DropdownMenuItem(
-              value: FileSearchEntryKind.all,
-              child: Text('文件和文件夹'),
-            ),
-            DropdownMenuItem(
-              value: FileSearchEntryKind.files,
-              child: Text('仅文件'),
-            ),
-            DropdownMenuItem(
-              value: FileSearchEntryKind.directories,
-              child: Text('仅文件夹'),
-            ),
-          ],
-          onChanged: (value) {
-            if (value == null) return;
-            setState(() => _entryKind = value);
-            _markOptionsChanged();
-          },
-        ),
-      ),
+      ],
+      onSelected: (value) {
+        if (value == null) return;
+        setState(() => _entryKind = value);
+        _markOptionsChanged();
+      },
     );
   }
 
-  Widget _maxResultsDropdown(AppColors c) {
-    return InputDecorator(
-      decoration: InputDecoration(
-        labelText: '最多结果',
-        isDense: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          borderSide: BorderSide(color: c.border),
-        ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: _maxResults,
-          isExpanded: true,
-          isDense: true,
-          items: const [
-            DropdownMenuItem(value: 200, child: Text('200')),
-            DropdownMenuItem(value: 500, child: Text('500')),
-            DropdownMenuItem(value: 1000, child: Text('1000')),
-            DropdownMenuItem(value: 2000, child: Text('2000')),
-          ],
-          onChanged: (value) {
-            if (value == null) return;
-            setState(() => _maxResults = value);
-            _markOptionsChanged();
-          },
-        ),
-      ),
+  Widget _maxResultsDropdown() {
+    return DropdownMenu<int>(
+      initialSelection: _maxResults,
+      label: const Text('最多结果'),
+      selectOnly: true,
+      enableSearch: false,
+      expandedInsets: EdgeInsets.zero,
+      dropdownMenuEntries: const [
+        DropdownMenuEntry(value: 200, label: '200'),
+        DropdownMenuEntry(value: 500, label: '500'),
+        DropdownMenuEntry(value: 1000, label: '1000'),
+        DropdownMenuEntry(value: 2000, label: '2000'),
+      ],
+      onSelected: (value) {
+        if (value == null) return;
+        setState(() => _maxResults = value);
+        _markOptionsChanged();
+      },
     );
   }
 

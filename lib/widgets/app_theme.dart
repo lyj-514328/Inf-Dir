@@ -407,6 +407,42 @@ abstract final class AppTheme {
           color: c.textPrimary,
         ),
       ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: TextStyle(
+          fontSize: AppMetrics.fontBody,
+          color: c.textPrimary,
+        ),
+        inputDecorationTheme: InputDecorationThemeData(
+          isDense: true,
+          filled: false,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            borderSide: BorderSide(color: c.borderStrong),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            borderSide: BorderSide(color: c.accent),
+          ),
+        ),
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(c.menuSurface),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+          elevation: const WidgetStatePropertyAll(8),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppMetrics.menuRadius),
+              side: BorderSide(color: c.menuBorder),
+            ),
+          ),
+        ),
+      ),
       progressIndicatorTheme: ProgressIndicatorThemeData(color: c.accent),
     );
   }

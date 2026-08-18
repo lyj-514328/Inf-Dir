@@ -265,7 +265,10 @@ void main() {
             FileSearchDialog(rootPath: root.path, searchService: service),
       );
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'report');
+      await tester.enterText(
+        find.byKey(const ValueKey('file-search-query')),
+        'report',
+      );
       await tester.tap(find.widgetWithText(FilledButton, '搜索'));
       await tester.pumpAndSettle();
 
@@ -343,10 +346,13 @@ void main() {
         find.byType(SegmentedButton<TextSearchPatternMode>),
       );
       final limitCenter = tester.getCenter(
-        find.byType(DropdownButton<int>).first,
+        find.byType(DropdownMenu<int>).first,
       );
       expect((patternCenter.dy - limitCenter.dy).abs(), lessThan(4));
-      await tester.enterText(find.byType(TextField), 'report');
+      await tester.enterText(
+        find.byKey(const ValueKey('text-search-query')),
+        'report',
+      );
       await tester.tap(find.widgetWithText(FilledButton, '搜索'));
       await tester.pumpAndSettle();
 

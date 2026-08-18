@@ -385,58 +385,63 @@ class _GroupsColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _ColumnToolbar(
-          title: '规则组',
-          actions: [
-            _IconAction(icon: Icons.add, tooltip: '新建规则组', onPressed: onAdd),
-            _IconAction(icon: Icons.edit, tooltip: '重命名', onPressed: onEdit),
-            _IconAction(
-              icon: Icons.delete_outline,
-              tooltip: '删除规则组',
-              onPressed: onDelete,
-            ),
-            if (hasIssues)
+    final c = context.colors;
+    return ColoredBox(
+      color: c.surface,
+      child: Column(
+        children: [
+          _ColumnToolbar(
+            title: '规则组',
+            actions: [
+              _IconAction(icon: Icons.add, tooltip: '新建规则组', onPressed: onAdd),
+              _IconAction(icon: Icons.edit, tooltip: '重命名', onPressed: onEdit),
               _IconAction(
-                icon: Icons.warning_amber,
-                tooltip: issueMessage,
-                onPressed: null,
+                icon: Icons.delete_outline,
+                tooltip: '删除规则组',
+                onPressed: onDelete,
               ),
-            _IconAction(
-              icon: Icons.refresh,
-              tooltip: '重新扫描插件',
-              onPressed: onReload,
-            ),
-          ],
-        ),
-        Expanded(
-          child: ReorderableListView.builder(
-            key: const ValueKey('viewer-rule-groups-list'),
-            buildDefaultDragHandles: false,
-            itemExtent: 52,
-            itemCount: groups.length,
-            onReorderItem: onReorder,
-            itemBuilder: (context, index) {
-              final group = groups[index];
-              return DragTarget<_RuleDragData>(
-                key: ValueKey('viewer-rule-group-${group.id}'),
-                onWillAcceptWithDetails: (_) => true,
-                onAcceptWithDetails: (details) =>
-                    onRuleDropped(details.data.ruleId, group.id),
-                builder: (context, candidates, rejected) => _GroupRow(
-                  group: group,
-                  index: index,
-                  selected: group.id == selectedId,
-                  acceptingRule: candidates.isNotEmpty,
-                  onSelected: () => onSelect(group.id),
-                  onEnabled: (value) => onEnabled(group.id, value),
+              if (hasIssues)
+                _IconAction(
+                  icon: Icons.warning_amber,
+                  tooltip: issueMessage,
+                  onPressed: null,
                 ),
-              );
-            },
+              _IconAction(
+                icon: Icons.refresh,
+                tooltip: '重新扫描插件',
+                onPressed: onReload,
+              ),
+            ],
           ),
-        ),
-      ],
+          Expanded(
+            child: ReorderableListView.builder(
+              key: const ValueKey('viewer-rule-groups-list'),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              buildDefaultDragHandles: false,
+              itemExtent: 52,
+              itemCount: groups.length,
+              onReorderItem: onReorder,
+              itemBuilder: (context, index) {
+                final group = groups[index];
+                return DragTarget<_RuleDragData>(
+                  key: ValueKey('viewer-rule-group-${group.id}'),
+                  onWillAcceptWithDetails: (_) => true,
+                  onAcceptWithDetails: (details) =>
+                      onRuleDropped(details.data.ruleId, group.id),
+                  builder: (context, candidates, rejected) => _GroupRow(
+                    group: group,
+                    index: index,
+                    selected: group.id == selectedId,
+                    acceptingRule: candidates.isNotEmpty,
+                    onSelected: () => onSelect(group.id),
+                    onEnabled: (value) => onEnabled(group.id, value),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -464,10 +469,22 @@ class _GroupRow extends StatelessWidget {
     final selectedColor = acceptingRule ? c.accentSubtle : c.selectedInactive;
     return Material(
       color: selected || acceptingRule ? selectedColor : Colors.transparent,
+      borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
       child: InkWell(
         onTap: onSelected,
+        borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
         child: Row(
           children: [
+            SizedBox(
+              width: 3,
+              height: 18,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: selected ? c.accent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             ReorderableDragStartListener(
               index: index,
               child: const Padding(
@@ -546,65 +563,70 @@ class _RulesColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _ColumnToolbar(
-          title: '规则',
-          actions: [
-            _IconAction(icon: Icons.add, tooltip: '新建规则', onPressed: onAdd),
-            _IconAction(
-              icon: Icons.subdirectory_arrow_right,
-              tooltip: '添加子规则',
-              onPressed: onAddChild,
-            ),
-            _IconAction(icon: Icons.edit, tooltip: '编辑规则', onPressed: onEdit),
-            _IconAction(
-              icon: Icons.delete_outline,
-              tooltip: '删除规则',
-              onPressed: onDelete,
-            ),
-          ],
-        ),
-        Expanded(
-          child: entries.isEmpty
-              ? const _EmptyState(
-                  icon: Icons.account_tree_outlined,
-                  text: '此规则组中还没有规则',
-                )
-              : ListView.builder(
-                  key: const ValueKey('viewer-rules-tree'),
-                  itemCount: entries.length + 1,
-                  itemBuilder: (context, index) {
-                    if (index == entries.length) {
-                      return _RootRuleDropTarget(onAccept: onMoveToRoot);
-                    }
-                    final entry = entries[index];
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _RuleInsertTarget(
-                          targetId: entry.rule.id,
-                          canDrop: canDrop,
-                          onAccept: onMoveBefore,
-                        ),
-                        _RuleTreeRow(
-                          key: ValueKey('viewer-rule-${entry.rule.id}'),
-                          entry: entry,
-                          selected: entry.rule.id == selectedRuleId,
-                          canDrop: canDrop,
-                          onSelected: () => onSelect(entry.rule.id),
-                          onEnabled: (value) => onEnabled(entry.rule.id, value),
-                          onToggleCollapsed: () =>
-                              onToggleCollapsed(entry.rule.id),
-                          onAcceptChild: (draggedId) =>
-                              onMoveInto(draggedId, entry.rule.id),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-        ),
-      ],
+    final c = context.colors;
+    return ColoredBox(
+      color: c.surface,
+      child: Column(
+        children: [
+          _ColumnToolbar(
+            title: '规则',
+            actions: [
+              _IconAction(icon: Icons.add, tooltip: '新建规则', onPressed: onAdd),
+              _IconAction(
+                icon: Icons.subdirectory_arrow_right,
+                tooltip: '添加子规则',
+                onPressed: onAddChild,
+              ),
+              _IconAction(icon: Icons.edit, tooltip: '编辑规则', onPressed: onEdit),
+              _IconAction(
+                icon: Icons.delete_outline,
+                tooltip: '删除规则',
+                onPressed: onDelete,
+              ),
+            ],
+          ),
+          Expanded(
+            child: entries.isEmpty
+                ? const _EmptyState(
+                    icon: Icons.account_tree_outlined,
+                    text: '此规则组中还没有规则',
+                  )
+                : ListView.builder(
+                    key: const ValueKey('viewer-rules-tree'),
+                    itemCount: entries.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == entries.length) {
+                        return _RootRuleDropTarget(onAccept: onMoveToRoot);
+                      }
+                      final entry = entries[index];
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _RuleInsertTarget(
+                            targetId: entry.rule.id,
+                            canDrop: canDrop,
+                            onAccept: onMoveBefore,
+                          ),
+                          _RuleTreeRow(
+                            key: ValueKey('viewer-rule-${entry.rule.id}'),
+                            entry: entry,
+                            selected: entry.rule.id == selectedRuleId,
+                            canDrop: canDrop,
+                            onSelected: () => onSelect(entry.rule.id),
+                            onEnabled: (value) =>
+                                onEnabled(entry.rule.id, value),
+                            onToggleCollapsed: () =>
+                                onToggleCollapsed(entry.rule.id),
+                            onAcceptChild: (draggedId) =>
+                                onMoveInto(draggedId, entry.rule.id),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -683,7 +705,7 @@ class _RuleTreeRow extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width: 24,
+                    width: rule.rules.isEmpty ? 4 : 20,
                     child: rule.rules.isEmpty
                         ? null
                         : IconButton(
@@ -808,60 +830,64 @@ class _ViewersColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final valueRule = rule;
-    return Column(
-      children: [
-        _ColumnToolbar(
-          title: 'Viewer',
-          actions: [
-            _IconAction(
-              icon: Icons.add,
-              tooltip: '添加 Viewer',
-              onPressed: onAdd,
-            ),
-          ],
-        ),
-        Expanded(
-          child: valueRule == null
-              ? const _EmptyState(
-                  icon: Icons.touch_app_outlined,
-                  text: '选择一条规则以编辑 Viewer',
-                )
-              : valueRule.viewers.isEmpty
-              ? const _EmptyState(
-                  icon: Icons.visibility_off_outlined,
-                  text: '这条规则还没有 Viewer',
-                )
-              : ReorderableListView.builder(
-                  key: const ValueKey('viewer-candidates-list'),
-                  buildDefaultDragHandles: false,
-                  itemExtent: 52,
-                  itemCount: valueRule.viewers.length,
-                  onReorderItem: (oldIndex, newIndex) => service
-                      .reorderRuleViewers(valueRule.id, oldIndex, newIndex),
-                  itemBuilder: (context, index) {
-                    final viewer = valueRule.viewers[index];
-                    final plugin = service.pluginById(viewer.id);
-                    return _ViewerRow(
-                      key: ValueKey('viewer-candidate-${viewer.id}'),
-                      viewer: viewer,
-                      plugin: plugin,
-                      index: index,
-                      onEnabled: (enabled) => service.setRuleViewerEnabled(
-                        valueRule.id,
-                        viewer.id,
-                        enabled,
-                      ),
-                      onRemove: viewer.managed
-                          ? null
-                          : () => service.removeViewerFromRule(
-                              valueRule.id,
-                              viewer.id,
-                            ),
-                    );
-                  },
-                ),
-        ),
-      ],
+    final c = context.colors;
+    return ColoredBox(
+      color: c.surface,
+      child: Column(
+        children: [
+          _ColumnToolbar(
+            title: 'Viewer',
+            actions: [
+              _IconAction(
+                icon: Icons.add,
+                tooltip: '添加 Viewer',
+                onPressed: onAdd,
+              ),
+            ],
+          ),
+          Expanded(
+            child: valueRule == null
+                ? const _EmptyState(
+                    icon: Icons.touch_app_outlined,
+                    text: '选择一条规则以编辑 Viewer',
+                  )
+                : valueRule.viewers.isEmpty
+                ? const _EmptyState(
+                    icon: Icons.visibility_off_outlined,
+                    text: '这条规则还没有 Viewer',
+                  )
+                : ReorderableListView.builder(
+                    key: const ValueKey('viewer-candidates-list'),
+                    buildDefaultDragHandles: false,
+                    itemExtent: 52,
+                    itemCount: valueRule.viewers.length,
+                    onReorderItem: (oldIndex, newIndex) => service
+                        .reorderRuleViewers(valueRule.id, oldIndex, newIndex),
+                    itemBuilder: (context, index) {
+                      final viewer = valueRule.viewers[index];
+                      final plugin = service.pluginById(viewer.id);
+                      return _ViewerRow(
+                        key: ValueKey('viewer-candidate-${viewer.id}'),
+                        viewer: viewer,
+                        plugin: plugin,
+                        index: index,
+                        onEnabled: (enabled) => service.setRuleViewerEnabled(
+                          valueRule.id,
+                          viewer.id,
+                          enabled,
+                        ),
+                        onRemove: viewer.managed
+                            ? null
+                            : () => service.removeViewerFromRule(
+                                valueRule.id,
+                                viewer.id,
+                              ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -956,16 +982,23 @@ class _ColumnToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Container(
-      height: 40,
+      height: 42,
       padding: const EdgeInsets.only(left: 12, right: 4),
       decoration: BoxDecoration(
-        color: c.surfaceSubtle,
+        color: c.surface,
         border: Border(bottom: BorderSide(color: c.border)),
       ),
       child: Row(
         children: [
           Expanded(
-            child: Text(title, style: Theme.of(context).textTheme.labelLarge),
+            child: Text(
+              title,
+              style: TextStyle(
+                color: c.textPrimary,
+                fontSize: AppMetrics.fontBody,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           ...actions,
         ],
@@ -1122,15 +1155,18 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            DropdownButtonFormField<ViewerRuleType>(
+            DropdownMenu<ViewerRuleType>(
               key: const ValueKey('viewer-rule-type'),
-              initialValue: _type,
-              decoration: const InputDecoration(labelText: '类型'),
-              items: [
+              initialSelection: _type,
+              label: const Text('类型'),
+              selectOnly: true,
+              enableSearch: false,
+              expandedInsets: EdgeInsets.zero,
+              dropdownMenuEntries: [
                 for (final type in ViewerRuleType.values)
-                  DropdownMenuItem(value: type, child: Text(type.label)),
+                  DropdownMenuEntry(value: type, label: type.label),
               ],
-              onChanged: (value) {
+              onSelected: (value) {
                 if (value != null) {
                   setState(() {
                     _type = value;
@@ -1141,15 +1177,18 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
             ),
             const SizedBox(height: 12),
             if (_type == ViewerRuleType.path) ...[
-              DropdownButtonFormField<ViewerPathMatchMode>(
+              DropdownMenu<ViewerPathMatchMode>(
                 key: const ValueKey('viewer-rule-path-mode'),
-                initialValue: _pathMode,
-                decoration: const InputDecoration(labelText: '路径匹配'),
-                items: [
+                initialSelection: _pathMode,
+                label: const Text('路径匹配'),
+                selectOnly: true,
+                enableSearch: false,
+                expandedInsets: EdgeInsets.zero,
+                dropdownMenuEntries: [
                   for (final mode in ViewerPathMatchMode.values)
-                    DropdownMenuItem(value: mode, child: Text(mode.label)),
+                    DropdownMenuEntry(value: mode, label: mode.label),
                 ],
-                onChanged: (value) {
+                onSelected: (value) {
                   if (value != null) setState(() => _pathMode = value);
                 },
               ),

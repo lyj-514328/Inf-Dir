@@ -54,6 +54,7 @@ void main() {
     expect(find.text('外观与浏览'), findsOneWidget);
     expect(find.text('文件操作'), findsOneWidget);
     expect(find.text('查看器'), findsOneWidget);
+    expect(find.text('设置'), findsOneWidget);
 
     await tester.tap(
       find.byKey(const ValueKey('settings-category-appearance')),
@@ -119,7 +120,7 @@ void main() {
       folderPicker: (_) => r'D:\Projects',
     );
 
-    await tester.tap(find.byType(DropdownButton<NewTabLocation>));
+    await tester.tap(find.byType(DropdownMenu<NewTabLocation>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('自定义目录').last);
     await tester.pumpAndSettle();
@@ -149,6 +150,10 @@ void main() {
     expect(find.byType(ReorderableListView), findsOneWidget);
     expect(
       find.byKey(const ValueKey('viewer-rule-group-builtin-path')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('viewer-settings-surface')),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);

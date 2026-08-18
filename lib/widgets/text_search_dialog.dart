@@ -209,6 +209,7 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
               ],
               const SizedBox(height: 14),
               TextField(
+                key: const ValueKey('text-search-query'),
                 controller: _queryController,
                 focusNode: _queryFocusNode,
                 autofocus: true,
@@ -492,38 +493,27 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
     );
   }
 
-  Widget _limitDropdown(
-    AppColors c, {
+  Widget _limitDropdown({
     required String label,
     required int value,
     required List<int> values,
     required ValueChanged<int> onChanged,
   }) {
-    return InputDecorator(
-      decoration: InputDecoration(
-        labelText: label,
-        isDense: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
-          borderSide: BorderSide(color: c.border),
-        ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: value,
-          isExpanded: true,
-          isDense: true,
-          items: [
-            for (final item in values)
-              DropdownMenuItem(value: item, child: Text(item.toString())),
-          ],
-          onChanged: (value) {
-            if (value == null) return;
-            setState(() => onChanged(value));
-            _invalidateSearch();
-          },
-        ),
-      ),
+    return DropdownMenu<int>(
+      initialSelection: value,
+      label: Text(label),
+      selectOnly: true,
+      enableSearch: false,
+      expandedInsets: EdgeInsets.zero,
+      dropdownMenuEntries: [
+        for (final item in values)
+          DropdownMenuEntry(value: item, label: item.toString()),
+      ],
+      onSelected: (value) {
+        if (value == null) return;
+        setState(() => onChanged(value));
+        _invalidateSearch();
+      },
     );
   }
 
@@ -550,7 +540,6 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
     );
 
     Widget maxFilesControl() => _limitDropdown(
-      c,
       label: '最大匹配文件数',
       value: _maxFiles,
       values: const [20, 50, 100, 200, 500, 1000, 2000],
@@ -558,7 +547,6 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
     );
 
     Widget maxMatchesControl() => _limitDropdown(
-      c,
       label: '文件内最大匹配行数',
       value: _maxMatchesPerFile,
       values: const [20, 50, 100, 200, 500, 1000, 2000],
