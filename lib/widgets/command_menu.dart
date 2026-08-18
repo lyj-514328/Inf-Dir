@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../services/shell_new_service.dart';
 import '../state/pane_controller.dart';
+import 'acrylic.dart';
 import 'app_theme.dart';
 
 class CommandMenuItem {
@@ -488,15 +489,17 @@ class _CommandMenuOverlayState extends State<_CommandMenuOverlay>
     required double maxHeight,
   }) {
     final c = context.colors;
-    // Win11 flyout 结构（圆角 8）+ active pane 同款描边 + macOS 略暗中性灰底。
-    return Material(
-      color: c.menuSurface,
-      elevation: 6,
-      shadowColor: c.shadow,
+    // Win11 flyout 材质：Acrylic 毛玻璃（menuSurface 色调 80% + 高斯模糊）
+    // + 圆角 8 + Figma 双层阴影 + 中性细描边。
+    return Acrylic(
+      tint: c.menuSurface,
+      tintAlpha: 0.8,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppMetrics.menuRadius),
-        side: BorderSide(color: c.accent.withValues(alpha: 0.6)),
+        side: BorderSide(color: c.menuBorder),
       ),
+      elevation: 8,
+      shadowColor: c.shadow,
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: menuWidth,
@@ -555,6 +558,12 @@ class _MenuItemRow extends StatelessWidget {
     final effectiveEnabled = item.enabled && actionable;
     final iconColor = effectiveEnabled ? c.textSecondary : c.textTertiary;
     final labelColor = effectiveEnabled ? c.textPrimary : c.textTertiary;
+    // 菜单 hover 高亮：Acrylic 半透明面板上需要比普通 surfaceHover 更强的
+    // 对比——亮色向 textTertiary 压深，暗色向 textSecondary 提亮。
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final hoverColor = isLight
+        ? Color.lerp(c.surfaceHover, c.textTertiary, 0.22)!
+        : Color.lerp(c.surfaceHover, c.textSecondary, 0.3)!;
     // Win11 菜单项：hover 是四周留边的 4px 圆角高亮块。
     return MouseRegion(
       onEnter: effectiveEnabled ? (_) => onHover(item, context) : null,
@@ -572,7 +581,11 @@ class _MenuItemRow extends StatelessWidget {
                       onAction();
                     }
                   },
-            hoverColor: c.surfaceHover,
+            hoverColor: hoverColor,
+            // 面板背景由 Acrylic 绘制（Material 为透明层），ink 波纹不可见，
+            // 显式置透明以避免 Material 的 ink 可见性断言。
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
             borderRadius: BorderRadius.circular(AppMetrics.menuItemRadius),
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 26),
