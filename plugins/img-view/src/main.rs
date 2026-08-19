@@ -17,6 +17,47 @@ fn color_image(img: &DynamicImage) -> ColorImage {
     ColorImage::from_rgba_unmultiplied(size, rgba.as_raw())
 }
 
+fn load_image(path: &str) -> Result<DynamicImage, String> {
+    let ext = Path::new(path)
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+
+    if ext == "svg" || ext == "svgz" {
+        load_svg(path)
+    } else {
+        image::open(path).map_err(|e| e.to_string())
+    }
+}
+
+fn load_svg(path: &str) -> Result<DynamicImage, String> {
+    let svg_data = std::fs::read(path).map_err(|e| e.to_string())?;
+
+    let opt = {
+        let mut opt = resvg::usvg::Options {
+            resources_dir: Path::new(path)
+                .parent()
+                .map(|p| p.to_path_buf()),
+            ..resvg::usvg::Options::default()
+        };
+        opt.fontdb_mut().load_system_fonts();
+        opt
+    };
+
+    let tree = resvg::usvg::Tree::from_data(&svg_data, &opt).map_err(|e| e.to_string())?;
+
+    let pixmap_size = tree.size().to_int_size();
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())
+        .ok_or_else(|| "invalid SVG size".to_owned())?;
+
+    resvg::render(&tree, resvg::tiny_skia::Transform::default(), &mut pixmap.as_mut());
+
+    let (w, h) = (pixmap.width(), pixmap.height());
+    let rgba = image::RgbaImage::from_raw(w, h, pixmap.data().to_vec())
+        .ok_or_else(|| "failed to convert SVG pixels".to_owned())?;
+    Ok(DynamicImage::ImageRgba8(rgba))
+}
+
 struct Viewer {
     original: DynamicImage,
     rotated: DynamicImage,
@@ -199,7 +240,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    let original = match image::open(path) {
+    let original = match load_image(path) {
         Ok(img) => img,
         Err(e) => {
             eprintln!("Error: failed to load image — {}", e);

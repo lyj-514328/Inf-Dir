@@ -8,10 +8,10 @@
     "quickView": {
       "extensions": [
         ".3ga", ".3g2", ".3gp", ".8svx", ".aa", ".aa3", ".aac",
-        ".ac3", ".aif", ".aifc", ".aiff", ".amr", ".amv", ".ape",
-        ".asf", ".au", ".avi", ".bik", ".caf", ".divx", ".dts",
+        ".ac3", ".aif", ".aifc", ".aiff", ".amr", ".amv", ".apng",
+        ".ape", ".asf", ".au", ".avi", ".bik", ".caf", ".divx", ".dts",
         ".dv", ".dvr-ms", ".f4v", ".flac", ".flc", ".fli", ".flv",
-        ".gsm", ".gxf", ".h264", ".h265", ".hevc", ".m2t", ".m2ts",
+        ".gif", ".gsm", ".gxf", ".h264", ".h265", ".hevc", ".m2t", ".m2ts",
         ".m2v", ".m4a", ".m4b", ".m4r", ".m4v", ".mk3d", ".mka",
         ".mkv", ".mlp", ".mod", ".mov", ".mp1", ".mp2", ".mp3",
         ".mp4", ".mpa", ".mpc", ".mpeg", ".mpg", ".mts", ".mxf",

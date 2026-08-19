@@ -8,7 +8,9 @@
     "quickView": {
       "extensions": [
         ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp",
-        ".avif", ".tiff", ".tif", ".ico", ".hdr"
+        ".avif", ".tiff", ".tif", ".ico", ".hdr",
+        ".pbm", ".pgm", ".ppm", ".pnm", ".tga", ".dds",
+        ".exr", ".ff", ".qoi", ".svg", ".svgz"
       ],
       "mimeTypes": ["image/*"]
     }

@@ -6,8 +6,10 @@ description = "A lightweight image viewer for Inf-Dir Quick View"
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = [
-    "png", "jpeg", "gif", "bmp", "webp", "avif", "tiff", "ico", "hdr"
+    "png", "jpeg", "gif", "bmp", "webp", "avif", "tiff", "ico", "hdr",
+    "pnm", "tga", "dds", "exr", "ff", "qoi"
 ] }
+resvg = "0.48"
 eframe = "0.29"
 egui = "0.29"
 viewer-window-placement = { path = "../viewer-window-placement" }

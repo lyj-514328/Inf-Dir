@@ -50,10 +50,10 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 | text-view | `.txt .md .log .csv .json .xml .yaml .yml .ini .conf .cfg .bat .cmd .ps1 .sh .dart .py .js .ts .rs .go .c .cpp .h .hpp .java .cs .html .css .sql .toml .gradle .properties`（+ `.env .gitignore dockerfile`） |
 | code-view | CodeMirror 语言模式约 70 项（见 `plugins/code-view/plugin.json`） |
 | markdown-view | `.md .markdown .mdown .mkd` |
-| image-view | `.png .jpg .jpeg .gif .bmp .webp .avif .tiff .tif .ico .hdr` |
+| image-view | `.png .jpg .jpeg .gif .bmp .webp .avif .tiff .tif .ico .hdr .pbm .pgm .ppm .pnm .tga .dds .exr .ff .qoi .svg .svgz` |
 | pdf-view | `.pdf` |
 | office-view | `.docx .xlsx .pptx .docm .xlsm .pptm` |
-| video-view | 97 项音视频（见 `plugins/video-view/plugin.json`） |
+| video-view | 99 项音视频 + `.gif .apng`（见 `plugins/video-view/plugin.json`） |
 | archive-view | `.zip .7z .rar .tar .gz .xz .bz2 .iso .cab .arj .lzh` |
 
 ## 5. P1：扩展现有 viewer
@@ -63,10 +63,11 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 mpv 内嵌 FFmpeg，扩展名声明几乎无需成本，只需把 manifest 的 `extensions` 扩到 FFmpeg
 真实可解码清单。目标把 FVP 的 Audio(59) + Video(96) 与 UV 的 Audio/Video(174) 全部纳入。
 
-- 已完成：`plugins/video-view/plugin.json` 扩展名由 12 → 97 项（`mimeTypes` 增加
-  `audio/*`），viewer 更名「媒体查看器」。已声明的 97 项：
+- 已完成：`plugins/video-view/plugin.json` 扩展名由 12 → 99 项（`mimeTypes` 增加
+  `audio/*`），viewer 更名「媒体查看器」。已声明的 99 项（含 `.gif .apng` 动画图片，
+  由 mpv 播放；image-view 保留 `.gif` 作静态首帧回退）：
 
-  `.3ga .3g2 .3gp .8svx .aa .aa3 .aac .ac3 .aif .aifc .aiff .amr .amv .ape .asf .au .avi .bik .caf .divx .dts .dv .dvr-ms .f4v .flac .flc .fli .flv .gsm .gxf .h264 .h265 .hevc .m2t .m2ts .m2v .m4a .m4b .m4r .m4v .mk3d .mka .mkv .mlp .mod .mov .mp1 .mp2 .mp3 .mp4 .mpa .mpc .mpeg .mpg .mts .mxf .nsv .nuv .ogg .ogm .ogv .oma .opus .pva .qcp .ra .rm .rmvb .roq .shn .smk .snd .spx .svcd .swf .tak .thp .tod .tp .trp .ts .tta .vcd .vc1 .vob .voc .vqf .w64 .wav .webm .wma .wmv .wtv .wv .xa .xma .yop`
+  `.3ga .3g2 .3gp .8svx .aa .aa3 .aac .ac3 .aif .aifc .aiff .amr .amv .apng .ape .asf .au .avi .bik .caf .divx .dts .dv .dvr-ms .f4v .flac .flc .fli .flv .gif .gsm .gxf .h264 .h265 .hevc .m2t .m2ts .m2v .m4a .m4b .m4r .m4v .mk3d .mka .mkv .mlp .mod .mov .mp1 .mp2 .mp3 .mp4 .mpa .mpc .mpeg .mpg .mts .mxf .nsv .nuv .ogg .ogm .ogv .oma .opus .pva .qcp .ra .rm .rmvb .roq .shn .smk .snd .spx .svcd .swf .tak .thp .tod .tp .trp .ts .tta .vcd .vc1 .vob .voc .vqf .w64 .wav .webm .wma .wmv .wtv .wv .xa .xma .yop`
 
 - 内嵌字幕（mpv 播放时显示）：`.srt .ass .ssa .sub .vtt`
 
@@ -74,10 +75,19 @@ mpv 内嵌 FFmpeg，扩展名声明几乎无需成本，只需把 manifest 的 `
 
 ### 5.2 image-view —— 扩展位图 + 矢量
 
-- 启用 image crate 额外解码器：`pnm`（`.pbm .pgm .ppm .pnm`）、`tga`、`exr`、`qoi`、
-  `farbfeld`（`.ff`）、`pcx`（第三方 `pcx` 解码）。
-- 新增矢量后端 resvg/usvg：`.svg .svgz`。
-- 新增 `dds`（image-dds）、`icns`。
+- 已完成：`plugins/img-view/plugin.json` 扩展名由 11 → 22 项，新增位图解码器
+  `pnm`（`.pbm .pgm .ppm .pnm`）、`tga`、`dds`、`exr`、`ff`（farbfeld）、`qoi`
+  （image crate 零额外依赖），并新增 `resvg` 矢量后端渲染 `.svg .svgz`（含系统字体加载）。
+- 未完成：`pcx`（需第三方 `pcx` 解码）、`icns`。
+
+SVG 引擎权衡：
+
+- resvg/usvg 覆盖 SVG 1.1 静态渲染的绝大部分（形状、路径、渐变、图案、蒙版、裁剪、
+  大部分滤镜、`<use>`、`<defs>`、文本与 `textPath`、marker 等），适合 Quick View 只读预览。
+- 不支持脚本（`<script>`/事件/SMIL）、SVG 字体、`foreignObject`（内嵌 HTML）、动画
+  （`<animate>` 等）及部分 CSS 高级特性；这些场景会渲染不完整或报错。
+- 结论：对图标、示意图、Illustrator/Inkscape 导出的静态矢量覆盖良好；若未来需要完整
+  SVG 2.0 与动画，改用 WebView2 内核渲染（原生浏览器支持，代价是更重）。当前采用 resvg。
 
 目标覆盖 FVP Image(57) 中除 PSD/JP2/JXL/JXR/DICOM 外的常见项，以及 UV Images(46)
 中除 `.cel .cut .icb .pal .ras .rla .rpf .sgi .vda .win .fax` 等冷门外的全部。
@@ -153,7 +163,7 @@ libarchive 已内置以下读取器，仅补 manifest：
 | XPS | 2 | xps-view | P2 |
 | Spreadsheet | 8 | office-view | P0(OXML) / P1(模板) / P2(legacy .xls) |
 | Presentation | 9 | office-view | P0 / P1 / P2(legacy .ppt) |
-| Image | 57 | image-view | P0(11) / P1(补常见) / P2(psd/jp2/jxl/dcm 等) |
+| Image | 57 | image-view | P0(11) / P1(位图+矢量已扩展) / P2(psd/jp2/jxl/dcm 等) |
 | Camera Raw / RAW | 30 / 36 | raw（并入 image-view） | P2 |
 | Audio | 59 | video-view（mpv） | P1（已完成） |
 | Video | 96 | video-view（mpv） | P0(12) / P1 补全（已完成） |
