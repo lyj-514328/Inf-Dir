@@ -72,7 +72,9 @@ function fail(err) {
 try {
   switch (ext) {
     case 'docx':
-    case 'docm': {
+    case 'docm':
+    case 'dotx':
+    case 'dotm': {
       // 连续滚动视图：虚拟化翻页、页面居中、Ctrl+滚轮缩放、窗口 resize 自动重排
       const { DocxScrollViewer } = await import('./docx.mjs');
       const viewer = new DocxScrollViewer(stage, {
@@ -89,7 +91,9 @@ try {
       break;
     }
     case 'xlsx':
-    case 'xlsm': {
+    case 'xlsm':
+    case 'xltx':
+    case 'xltm': {
       const { XlsxViewer } = await import('./xlsx.mjs');
       const viewer = new XlsxViewer(stage, {
         wasmUrl: new URL('./xlsx_parser_bg.wasm', location.href),
@@ -98,7 +102,11 @@ try {
       break;
     }
     case 'pptx':
-    case 'pptm': {
+    case 'pptm':
+    case 'potx':
+    case 'potm':
+    case 'ppsx':
+    case 'ppsm': {
       // 连续滚动视图：虚拟化翻页、幻灯片居中、Ctrl+滚轮缩放、窗口 resize 自适应
       const { PptxScrollViewer } = await import('./pptx.mjs');
       const viewer = new PptxScrollViewer(stage, {

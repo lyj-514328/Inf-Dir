@@ -6,7 +6,11 @@
   "entrypoint": "office-view.exe",
   "capabilities": {
     "quickView": {
-      "extensions": [".docx", ".xlsx", ".pptx", ".docm", ".xlsm", ".pptm"],
+      "extensions": [
+        ".docx", ".docm", ".dotx", ".dotm",
+        ".xlsx", ".xlsm", ".xltx", ".xltm",
+        ".pptx", ".pptm", ".potx", ".potm", ".ppsx", ".ppsm"
+      ],
       "mimeTypes": [
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

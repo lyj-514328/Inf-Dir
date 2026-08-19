@@ -50,9 +50,9 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 | markdown-view | `.md .markdown .mdown .mkd` |
 | image-view | `.png .jpg .jpeg .gif .bmp .webp .avif .tiff .tif .ico .hdr .pbm .pgm .ppm .pnm .tga .dds .exr .ff .qoi .svg .svgz` |
 | pdf-view | `.pdf` |
-| office-view | `.docx .xlsx .pptx .docm .xlsm .pptm` |
+| office-view | `.docx .docm .dotx .dotm .xlsx .xlsm .xltx .xltm .pptx .pptm .potx .potm .ppsx .ppsm` |
 | video-view | 99 项音视频 + `.gif .apng`（见 `plugins/video-view/plugin.json`） |
-| archive-view | `.zip .7z .rar .tar .gz .xz .bz2 .iso .cab .arj .lzh` |
+| archive-view | 38 项（见 `plugins/archive-view/plugin.json`） |
 
 ## 5. P1：扩展现有 viewer
 
@@ -101,15 +101,16 @@ SVG 引擎权衡：
 
 ### 5.4 office-view —— 补全 OOXML 模板/放映
 
-- Word：`.dotx .dotm .dot`
-- Excel：`.xltx .xltm .xlt .xlsb`
-- PowerPoint：`.potx .potm .ppsx .ppsm .pot .pps`
-
-（OOXML 全部由现有 ooxml 引擎支持，仅需补 manifest。）
+- 已完成：`plugins/office-view/plugin.json` 由 6 → 14 项，补齐 Word/Excel/PowerPoint 的
+  OOXML 模板与放映类型（OOXML 引擎已支持，仅补 manifest + index.html 分发分支）：
+  Word `.dotx .dotm`、Excel `.xltx .xltm`、PowerPoint `.potx .potm .ppsx .ppsm`。
+- 未覆盖：旧二进制 `.doc .xls .ppt`（P2）、`.xlsb`（二进制 OOXML，待评估）、
+  `.dot .xlt .pot .pps`（旧二进制模板/放映，P2）。
 
 ### 5.5 archive-view（libarchive）—— 扩读取格式
 
-libarchive 已内置以下读取器，仅补 manifest：
+- 已完成：`plugins/archive-view/plugin.json` 由 11 → 38 项，补齐 libarchive 已内置的
+  读取格式（`archive_read_support_format_all` + `support_filter_all` 已就绪，仅补 manifest）：
 
 `.cpio .xar .rpm .deb .wim .lzma .lz4 .z .lha .lzip .tgz .tbz .tbz2 .txz .tlz .tar.gz .tar.bz2 .tar.xz .ar .zipx .pk3 .pk4 .jar .war .apk .dmg .hfs`
 
@@ -159,13 +160,13 @@ libarchive 已内置以下读取器，仅补 manifest：
 | Web / Internet | 2 / 12 | code-view | P0 |
 | PDF | 1 | pdf-view | P0 |
 | XPS | 2 | xps-view | P2 |
-| Spreadsheet | 8 | office-view | P0(OXML) / P1(模板) / P2(legacy .xls) |
-| Presentation | 9 | office-view | P0 / P1 / P2(legacy .ppt) |
+| Spreadsheet | 8 | office-view | P0(OXML) / P1(模板已扩展) / P2(legacy .xls) |
+| Presentation | 9 | office-view | P0 / P1(模板放映已扩展) / P2(legacy .ppt) |
 | Image | 57 | image-view | P0(11) / P1(位图+矢量已扩展) / P2(psd/jp2/jxl/dcm 等) |
 | Camera Raw / RAW | 30 / 36 | raw（并入 image-view） | P2 |
 | Audio | 59 | video-view（mpv） | P1（已完成） |
 | Video | 96 | video-view（mpv） | P0(12) / P1 补全（已完成） |
-| Archive | 39 | archive-view | P0(11) / P1 补全 |
+| Archive | 39 | archive-view | P0(11) / P1 补全（已完成） |
 | Email | 5 | email-view | P1(eml/emlx) / P2(msg/oft) |
 | Visio | 12 | visio-view | P2 |
 | Project | 3 | project-view | P2 |

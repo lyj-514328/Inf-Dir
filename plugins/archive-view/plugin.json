@@ -8,7 +8,11 @@
     "quickView": {
       "extensions": [
         ".zip", ".7z", ".rar", ".tar", ".gz", ".xz", ".bz2",
-        ".iso", ".cab", ".arj", ".lzh"
+        ".iso", ".cab", ".arj", ".lzh",
+        ".cpio", ".xar", ".rpm", ".deb", ".wim", ".lzma", ".lz4",
+        ".z", ".lha", ".lzip", ".tgz", ".tbz", ".tbz2", ".txz",
+        ".tlz", ".tar.gz", ".tar.bz2", ".tar.xz", ".ar", ".zipx",
+        ".pk3", ".pk4", ".jar", ".war", ".apk", ".dmg", ".hfs"
       ],
       "mimeTypes": [
         "application/zip", "application/x-7z-compressed",
