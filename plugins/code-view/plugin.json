@@ -16,7 +16,9 @@
         ".properties", ".proto", ".ps1", ".py", ".r", ".rb", ".rs",
         ".sass", ".scala", ".scss", ".sh", ".sql", ".svelte", ".swift",
         ".tex", ".toml", ".ts", ".tsx", ".vb", ".vue", ".xml", ".yaml",
-        ".yml", ".zsh"
+        ".yml", ".zsh",
+        ".txt", ".log", ".csv", ".tsv", ".cfg", ".cmd",
+        ".nfo", ".diz", ".shtm", ".shtml", ".stm"
       ],
       "fileNames": [
         ".editorconfig", ".env", ".gitattributes", ".gitignore",

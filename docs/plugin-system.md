@@ -48,10 +48,10 @@ Inf-Dir/
 ```json
 {
   "manifestVersion": 1,
-  "id": "inf-dir.text-view",
-  "name": "文本查看器",
+  "id": "inf-dir.code-view",
+  "name": "代码查看器",
   "version": "1.0.0",
-  "entrypoint": "text-view.exe",
+  "entrypoint": "code-view.exe",
   "capabilities": {
     "quickView": {
       "extensions": [".txt", ".md", ".json"],
@@ -481,8 +481,8 @@ if extension == ".bar":
 规则类型、匹配值和规则 ID，供后续诊断界面展示。
 
 例如，代码文件可以同时由 `inf-dir.code-view`（CodeMirror 只读代码查看器）和
-`inf-dir.text-view`（轻量文本查看器）声明支持。两者会作为独立候选出现，不会互相覆盖；
-需要固定首选查看器时，在关联配置中调整对应扩展名或文件名的候选顺序。
+`inf-dir.markdown-view`（Markdown 渲染查看器）声明支持。两者会作为独立候选出现，不会互相
+覆盖；需要固定首选查看器时，在关联配置中调整对应扩展名或文件名的候选顺序。
 
 F3 使用当前焦点面板中最近操作的项目。文件夹、无候选、插件缺失和进程启动失败必须给用户可见反馈。
 

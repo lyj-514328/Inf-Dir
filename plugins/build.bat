@@ -290,63 +290,54 @@ if errorlevel 1 ( echo [ERROR] img-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  7. Build text-view (MSVC)
+REM  7. Build code-view (MSVC + WebView2)
 REM ============================================================
-echo [7/13] Building text-view...
-pushd "%SCRIPT_DIR%text-view"
-cargo build --release
-if errorlevel 1 ( echo [ERROR] text-view build failed. & popd & exit /b 1 )
-popd
-
-REM ============================================================
-REM  8. Build code-view (MSVC + WebView2)
-REM ============================================================
-echo [8/13] Building code-view...
+echo [7/13] Building code-view...
 pushd "%SCRIPT_DIR%code-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] code-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  9. Build archive-view (MSVC)
+REM  8. Build archive-view (MSVC)
 REM ============================================================
-echo [9/13] Building archive-view...
+echo [8/12] Building archive-view...
 pushd "%SCRIPT_DIR%archive-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] archive-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  10. Build office-view (MSVC + WebView2)
+REM  9. Build office-view (MSVC + WebView2)
 REM ============================================================
-echo [10/13] Building office-view...
+echo [9/12] Building office-view...
 pushd "%SCRIPT_DIR%office-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] office-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  11. Build markdown-view (MSVC + WebView2)
+REM  10. Build markdown-view (MSVC + WebView2)
 REM ============================================================
-echo [11/13] Building markdown-view...
+echo [10/12] Building markdown-view...
 pushd "%SCRIPT_DIR%markdown-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] markdown-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  12. Build video-view (GNU / MinGW-w64)
+REM  11. Build video-view (GNU / MinGW-w64)
 REM ============================================================
-echo [12/13] Building video-view...
+echo [11/12] Building video-view...
 pushd "%SCRIPT_DIR%video-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] video-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  13. Build pdf-view (GNU / MinGW-w64 + PDFium)
+REM  12. Build pdf-view (GNU / MinGW-w64 + PDFium)
 REM ============================================================
-echo [13/13] Building pdf-view...
+echo [12/12] Building pdf-view...
 pushd "%SCRIPT_DIR%pdf-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] pdf-view build failed. & popd & exit /b 1 )
@@ -360,7 +351,6 @@ if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
 
 for %%D in (
     inf-dir.image-view
-    inf-dir.text-view
     inf-dir.code-view
     inf-dir.archive-view
     inf-dir.office-view
@@ -373,9 +363,6 @@ for %%D in (
 
 copy /Y "%SCRIPT_DIR%img-view\plugin.json" "%DIST_DIR%\inf-dir.image-view\" >nul
 copy /Y "%SCRIPT_DIR%img-view\target\release\img-view.exe" "%DIST_DIR%\inf-dir.image-view\" >nul
-
-copy /Y "%SCRIPT_DIR%text-view\plugin.json" "%DIST_DIR%\inf-dir.text-view\" >nul
-copy /Y "%SCRIPT_DIR%text-view\target\release\text-view.exe" "%DIST_DIR%\inf-dir.text-view\" >nul
 
 copy /Y "%SCRIPT_DIR%code-view\plugin.json" "%DIST_DIR%\inf-dir.code-view\" >nul
 copy /Y "%SCRIPT_DIR%code-view\target\release\code-view.exe" "%DIST_DIR%\inf-dir.code-view\" >nul

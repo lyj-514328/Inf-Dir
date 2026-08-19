@@ -20,8 +20,7 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 
 | Viewer（plugin id） | 引擎 | 承担类别 | 定位 |
 | --- | --- | --- | --- |
-| `inf-dir.text-view` | two-face | Text / Web / 配置 / 日志 | 轻量文本，无行号，快速打开 |
-| `inf-dir.code-view` | CodeMirror（WebView2） | Source Code | 只读代码，语法高亮 + 行号 |
+| `inf-dir.code-view` | CodeMirror（WebView2） | Text / Web / Source Code / 配置 / 日志 | 只读文本与代码，语法高亮 + 行号 |
 | `inf-dir.markdown-view` | WebView2 | Markdown | 渲染预览 |
 | `inf-dir.image-view` | image crate | Image（栅格） | 常用 + 扩展位图 |
 | `inf-dir.pdf-view` | PDFium | PDF | PDF 渲染 |
@@ -47,8 +46,7 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 
 | Viewer | 已声明扩展名 |
 | --- | --- |
-| text-view | `.txt .md .log .csv .json .xml .yaml .yml .ini .conf .cfg .bat .cmd .ps1 .sh .dart .py .js .ts .rs .go .c .cpp .h .hpp .java .cs .html .css .sql .toml .gradle .properties`（+ `.env .gitignore dockerfile`） |
-| code-view | CodeMirror 语言模式约 70 项（见 `plugins/code-view/plugin.json`） |
+| code-view | CodeMirror 语言模式 76 项（含 `.txt .log .csv .tsv .cfg .cmd .nfo .diz .shtm .shtml .stm` 纯文本子集，见 `plugins/code-view/plugin.json`） |
 | markdown-view | `.md .markdown .mdown .mkd` |
 | image-view | `.png .jpg .jpeg .gif .bmp .webp .avif .tiff .tif .ico .hdr .pbm .pgm .ppm .pnm .tga .dds .exr .ff .qoi .svg .svgz` |
 | pdf-view | `.pdf` |
@@ -94,12 +92,12 @@ SVG 引擎权衡：
 
 ### 5.3 code-view —— 补齐 Source Code 全量
 
-把 FVP Source Code(79) 的扩展名映射到 CodeMirror 已有语言模式，manifest 补全：
+- 已完成：`text-view` 插件已移除（纯文本与代码统一走 code-view）。code-view 已补入
+  纯文本子集 `.txt .log .csv .tsv .cfg .cmd .nfo .diz .shtm .shtml .stm`（共 76 项），
+  `.nfo .diz` 无语法可高亮时由 CodeMirror 以 Plain text 渲染。
+- 待补全：把 FVP Source Code(79) 的其余扩展名映射到 CodeMirror 已有语言模式：
 
-`.a2l .ads .ahk .as .asm .asp .aspx .au3 .bas .bat .bpk .bpr .c .cbl .cfg .cfm .cgi .clp .cmake .cmd .cpp .cs .csh .css .dfm .dpk .dpr .eba .erl .ex .f .h .haml .hpp .hs .inc .inf .ini .iss .iwb .java .js .json .kix .lhs .log .lua .ml .nsh .nsi .ob2 .pas .php .pl .pm .pod .prg .ps1 .py .r .rb .rc .sas .scm .sh .sql .ss .st .sty .tcl .tex .v .vb .vhd .xml .xsd .xsl .xslt .yml`
-
-同时 `text-view` 增加 `.diz .nfo .tsv .shtm .shtml .stm`（纯文本子集），与 code-view
-按关联规则顺序共存（code-view 优先，text-view 回退）。
+`.a2l .ads .ahk .as .asm .asp .aspx .au3 .bas .bpk .bpr .cbl .cfm .cgi .clp .csh .dfm .dpk .dpr .eba .erl .ex .f .haml .hs .inc .inf .iss .iwb .kix .lhs .ml .nsh .nsi .ob2 .pas .pl .pm .pod .prg .rc .sas .scm .ss .st .sty .tcl .v .vhd .xsd .xsl .xslt`
 
 ### 5.4 office-view —— 补全 OOXML 模板/放映
 
@@ -156,9 +154,9 @@ libarchive 已内置以下读取器，仅补 manifest：
 
 | 类别（FVP/UV） | 总量 | 主要 viewer | 阶段 |
 | --- | ---: | --- | --- |
-| Source Code | 79 | code-view（text-view 回退） | P0 部分 / P1 补全 |
-| Text | 13 | text-view / code-view | P0 |
-| Web / Internet | 2 / 12 | text-view / code-view | P0 |
+| Source Code | 79 | code-view | P0 部分 / P1 补全 |
+| Text | 13 | code-view | P0 |
+| Web / Internet | 2 / 12 | code-view | P0 |
 | PDF | 1 | pdf-view | P0 |
 | XPS | 2 | xps-view | P2 |
 | Spreadsheet | 8 | office-view | P0(OXML) / P1(模板) / P2(legacy .xls) |
