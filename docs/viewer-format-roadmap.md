@@ -53,7 +53,7 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 | image-view | `.png .jpg .jpeg .gif .bmp .webp .avif .tiff .tif .ico .hdr` |
 | pdf-view | `.pdf` |
 | office-view | `.docx .xlsx .pptx .docm .xlsm .pptm` |
-| video-view | `.mp4 .mkv .avi .mov .webm .flv .wmv .m4v .mpg .mpeg .ts .3gp` |
+| video-view | 97 项音视频（见 `plugins/video-view/plugin.json`） |
 | archive-view | `.zip .7z .rar .tar .gz .xz .bz2 .iso .cab .arj .lzh` |
 
 ## 5. P1：扩展现有 viewer
@@ -63,8 +63,11 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 mpv 内嵌 FFmpeg，扩展名声明几乎无需成本，只需把 manifest 的 `extensions` 扩到 FFmpeg
 真实可解码清单。目标把 FVP 的 Audio(59) + Video(96) 与 UV 的 Audio/Video(174) 全部纳入。
 
-- 音频：`.mp3 .aac .ac3 .eac3 .flac .ogg .opus .wav .wma .m4a .m4b .m4r .mka .ape .wv .tta .tak .shn .aiff .aif .aifc .au .snd .voc .ra .rm .amr .qcp .dts .mlp .spx .caf .3ga .aa .aa3 .gsm .mpa .mp2 .mp1 .oma .vqf .w64 .xa .xma .dss .sph .8svx .htk .paf .pvf .rso .sf .sol .son .voc`
-- 视频：`.3g2 .3gp .asf .avi .divx .dv .f4v .flv .m2t .m2ts .m2v .m4v .mkv .mk3d .mov .mp4 .mpeg .mpg .mts .m2ts .mxf .ogm .ogv .rm .rmvb .ts .tp .trp .vob .webm .wmv .wtv .hevc .h264 .h265 .vc1 .dvr-ms .mod .tod .mvi .nsv .nuv .roq .rl2 .yop .smk .bik .thp .dxa .flic .flc .cdxl .gxf .lxf .pva .drc .svcd .vcd`
+- 已完成：`plugins/video-view/plugin.json` 扩展名由 12 → 97 项（`mimeTypes` 增加
+  `audio/*`），viewer 更名「媒体查看器」。已声明的 97 项：
+
+  `.3ga .3g2 .3gp .8svx .aa .aa3 .aac .ac3 .aif .aifc .aiff .amr .amv .ape .asf .au .avi .bik .caf .divx .dts .dv .dvr-ms .f4v .flac .flc .fli .flv .gsm .gxf .h264 .h265 .hevc .m2t .m2ts .m2v .m4a .m4b .m4r .m4v .mk3d .mka .mkv .mlp .mod .mov .mp1 .mp2 .mp3 .mp4 .mpa .mpc .mpeg .mpg .mts .mxf .nsv .nuv .ogg .ogm .ogv .oma .opus .pva .qcp .ra .rm .rmvb .roq .shn .smk .snd .spx .svcd .swf .tak .thp .tod .tp .trp .ts .tta .vcd .vc1 .vob .voc .vqf .w64 .wav .webm .wma .wmv .wtv .wv .xa .xma .yop`
+
 - 内嵌字幕（mpv 播放时显示）：`.srt .ass .ssa .sub .vtt`
 
 验收：FVP/UV 音视频两类的扩展名解析后均可通过 F3 打开并播放，失败才回退图标。
@@ -152,8 +155,8 @@ libarchive 已内置以下读取器，仅补 manifest：
 | Presentation | 9 | office-view | P0 / P1 / P2(legacy .ppt) |
 | Image | 57 | image-view | P0(11) / P1(补常见) / P2(psd/jp2/jxl/dcm 等) |
 | Camera Raw / RAW | 30 / 36 | raw（并入 image-view） | P2 |
-| Audio | 59 | video-view（mpv） | P1 |
-| Video | 96 | video-view（mpv） | P0(12) / P1 补全 |
+| Audio | 59 | video-view（mpv） | P1（已完成） |
+| Video | 96 | video-view（mpv） | P0(12) / P1 补全（已完成） |
 | Archive | 39 | archive-view | P0(11) / P1 补全 |
 | Email | 5 | email-view | P1(eml/emlx) / P2(msg/oft) |
 | Visio | 12 | visio-view | P2 |

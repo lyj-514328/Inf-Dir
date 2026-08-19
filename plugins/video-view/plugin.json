@@ -1,16 +1,28 @@
 {
   "manifestVersion": 1,
   "id": "inf-dir.video-view",
-  "name": "视频查看器",
+  "name": "媒体查看器",
   "version": "0.1.0",
   "entrypoint": "video-view.exe",
   "capabilities": {
     "quickView": {
       "extensions": [
-        ".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv", ".wmv",
-        ".m4v", ".mpg", ".mpeg", ".ts", ".3gp"
+        ".3ga", ".3g2", ".3gp", ".8svx", ".aa", ".aa3", ".aac",
+        ".ac3", ".aif", ".aifc", ".aiff", ".amr", ".amv", ".ape",
+        ".asf", ".au", ".avi", ".bik", ".caf", ".divx", ".dts",
+        ".dv", ".dvr-ms", ".f4v", ".flac", ".flc", ".fli", ".flv",
+        ".gsm", ".gxf", ".h264", ".h265", ".hevc", ".m2t", ".m2ts",
+        ".m2v", ".m4a", ".m4b", ".m4r", ".m4v", ".mk3d", ".mka",
+        ".mkv", ".mlp", ".mod", ".mov", ".mp1", ".mp2", ".mp3",
+        ".mp4", ".mpa", ".mpc", ".mpeg", ".mpg", ".mts", ".mxf",
+        ".nsv", ".nuv", ".ogg", ".ogm", ".ogv", ".oma", ".opus",
+        ".pva", ".qcp", ".ra", ".rm", ".rmvb", ".roq", ".shn",
+        ".smk", ".snd", ".spx", ".svcd", ".swf", ".tak", ".thp",
+        ".tod", ".tp", ".trp", ".ts", ".tta", ".vcd", ".vc1",
+        ".vob", ".voc", ".vqf", ".w64", ".wav", ".webm", ".wma",
+        ".wmv", ".wtv", ".wv", ".xa", ".xma", ".yop"
       ],
-      "mimeTypes": ["video/*"]
+      "mimeTypes": ["video/*", "audio/*"]
     }
   }
 }
