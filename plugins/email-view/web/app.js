@@ -6,12 +6,11 @@ import {
   ListCollapse,
   Mail,
   Paperclip,
-  ShieldCheck,
   createIcons,
 } from 'lucide';
 
 createIcons({
-  icons: {Download, FileText, FileWarning, ListCollapse, Mail, Paperclip, ShieldCheck},
+  icons: {Download, FileText, FileWarning, ListCollapse, Mail, Paperclip},
 });
 
 const elements = {
@@ -34,7 +33,6 @@ const elements = {
   htmlMode: document.getElementById('html-mode'),
   textMode: document.getElementById('text-mode'),
   bodyStatus: document.getElementById('body-status'),
-  remoteStatus: document.getElementById('remote-status'),
   bodyFrame: document.getElementById('body-frame'),
   attachments: document.getElementById('attachments'),
   attachmentCount: document.getElementById('attachment-count'),
@@ -90,7 +88,6 @@ function renderEmail(data) {
   elements.viewer.hidden = false;
   if (!data.htmlBody && !data.textBody) {
     elements.bodyStatus.textContent = '无正文';
-    elements.remoteStatus.hidden = true;
     elements.bodyFrame.srcdoc = frameDocument('<p>此邮件没有可显示的正文。</p>');
     return;
   }
@@ -110,15 +107,12 @@ function setMode(nextMode) {
 
 function renderBody() {
   if (mode === 'text') {
-    elements.remoteStatus.hidden = true;
     elements.bodyFrame.srcdoc = frameDocument(`<pre>${escapeHtml(email.textBody || '')}</pre>`);
     return;
   }
 
   const prepared = prepareHtml(email.htmlBody || '', email.attachments || []);
-  elements.remoteStatus.textContent = `已阻止 ${prepared.remoteCount} 个远程资源`;
-  elements.remoteStatus.hidden = prepared.remoteCount === 0;
-  elements.bodyFrame.srcdoc = frameDocument(prepared.html);
+  elements.bodyFrame.srcdoc = frameDocument(prepared);
   elements.bodyFrame.addEventListener('load', bindFrameLinks, {once: true});
 }
 
@@ -133,8 +127,6 @@ function prepareHtml(raw, attachments) {
       .filter(attachment => attachment.contentId)
       .map(attachment => [attachment.contentId.toLowerCase(), attachment.id]),
   );
-  let remoteCount = 0;
-
   for (const image of parsed.querySelectorAll('img[src]')) {
     const source = image.getAttribute('src')?.trim() || '';
     if (source.toLowerCase().startsWith('cid:')) {
@@ -147,23 +139,10 @@ function prepareHtml(raw, attachments) {
       }
       continue;
     }
-    if (/^https?:/i.test(source) || source.startsWith('//')) {
-      image.removeAttribute('src');
-      image.setAttribute('alt', image.getAttribute('alt') || '远程图片已阻止');
-      remoteCount++;
+    if (/^https?:/i.test(source) || source.startsWith('//') || source.startsWith('data:')) {
       continue;
     }
-    if (!source.startsWith('data:')) {
-      image.remove();
-    }
-  }
-
-  for (const node of parsed.querySelectorAll('[style]')) {
-    const style = node.getAttribute('style') || '';
-    if (/url\s*\(\s*['\"]?(?:https?:)?\/\//i.test(style)) {
-      node.removeAttribute('style');
-      remoteCount++;
-    }
+    image.remove();
   }
 
   for (const link of parsed.querySelectorAll('a[href]')) {
@@ -173,7 +152,7 @@ function prepareHtml(raw, attachments) {
     }
   }
 
-  return {html: parsed.body.innerHTML, remoteCount};
+  return parsed.body.innerHTML;
 }
 
 function frameDocument(body) {
@@ -181,7 +160,7 @@ function frameDocument(body) {
   const colors = dark
     ? {background: '#282c34', text: '#e7e9ed', muted: '#a0a7b2', link: '#65a9e6', border: '#414752'}
     : {background: '#ffffff', text: '#20242a', muted: '#69717d', link: '#1769aa', border: '#d9dde3'};
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https://email-view.local data:; style-src 'unsafe-inline'; font-src data:"><style>
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; style-src 'unsafe-inline'; font-src http: https: data:"><style>
     html { color-scheme: ${dark ? 'dark' : 'light'}; }
     body { margin: 0; padding: 24px 28px 48px; color: ${colors.text}; background: ${colors.background}; font: 14px/1.62 "Segoe UI", "Microsoft YaHei UI", sans-serif; overflow-wrap: anywhere; }
     img { max-width: 100%; height: auto; }

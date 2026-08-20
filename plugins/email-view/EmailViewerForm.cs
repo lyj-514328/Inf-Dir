@@ -95,7 +95,9 @@ internal sealed class EmailViewerForm : Form
         core.Settings.IsZoomControlEnabled = true;
         core.Settings.IsBuiltInErrorPageEnabled = false;
 
-        core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
+        core.AddWebResourceRequestedFilter(
+            $"https://{VirtualHost}/inline/*",
+            CoreWebView2WebResourceContext.All);
         core.WebResourceRequested += HandleWebResourceRequested;
         core.WebMessageReceived += HandleWebMessageReceived;
         core.NavigationStarting += HandleNavigationStarting;
@@ -116,16 +118,11 @@ internal sealed class EmailViewerForm : Form
     {
         if (!Uri.TryCreate(args.Request.Uri, UriKind.Absolute, out var uri))
         {
-            args.Response = BlockedResponse();
             return;
         }
 
         if (!uri.Host.Equals(VirtualHost, StringComparison.OrdinalIgnoreCase))
         {
-            if (uri.Scheme is "http" or "https")
-            {
-                args.Response = BlockedResponse();
-            }
             return;
         }
 
@@ -151,15 +148,6 @@ internal sealed class EmailViewerForm : Form
             200,
             "OK",
             $"Content-Type: {attachment.Info.ContentType}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff");
-    }
-
-    private CoreWebView2WebResourceResponse BlockedResponse()
-    {
-        return _webView.CoreWebView2.Environment.CreateWebResourceResponse(
-            Stream.Null,
-            403,
-            "Blocked",
-            "Content-Type: text/plain\r\nCache-Control: no-store");
     }
 
     private void HandleWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs args)

@@ -124,8 +124,9 @@ SVG 引擎权衡：
 - 实现：C# / .NET 8 `win-x64` self-contained 独立进程，WebView2 渲染邮件头、HTML/纯文本
   正文、CID 内嵌图片和附件列表。MimeKit 负责 EML/TNEF，EMLX 先剥离 Apple 包装再按 EML
   解析，MSGReader 负责 MSG/OFT；第三方 DLL 不加载进 Flutter 主进程。
-- 安全边界：默认禁用脚本和远程资源，清洗邮件 HTML；附件导出由宿主进程处理，不向
-  WebView 暴露任意文件系统访问。
+- 安全边界：清洗邮件 HTML 并禁用脚本、表单、iframe 与外部页面导航；允许正文加载
+  HTTP/HTTPS 图片、CSS 背景图和字体。附件导出由宿主进程处理，不向 WebView 暴露任意
+  文件系统访问。
 
 ## 6. P2：新增 viewer 覆盖长尾
 
