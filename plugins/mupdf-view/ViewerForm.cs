@@ -431,6 +431,7 @@ public sealed class ViewerForm : Form
         private IReadOnlyList<TextChar> _chars = Array.Empty<TextChar>();
         private PointF? _anchor;
         private PointF? _current;
+        private bool _dragging;
 
         public PageView(ViewerForm owner)
         {
@@ -477,13 +478,14 @@ public sealed class ViewerForm : Form
             }
             _anchor = ToPage(e.Location);
             _current = _anchor;
+            _dragging = true;
             Capture = true;
             Invalidate();
         }
 
         private void OnMouseMove(object? sender, MouseEventArgs e)
         {
-            if (_anchor is null || _bitmap is null)
+            if (!_dragging || _bitmap is null)
             {
                 return;
             }
@@ -493,12 +495,13 @@ public sealed class ViewerForm : Form
 
         private void OnMouseUp(object? sender, MouseEventArgs e)
         {
-            if (e.Button != MouseButtons.Left)
+            if (!_dragging || e.Button != MouseButtons.Left)
             {
                 return;
             }
+            _dragging = false;
             Capture = false;
-            if (_anchor is not null && _bitmap is not null)
+            if (_bitmap is not null)
             {
                 _current = ToPage(e.Location);
                 Invalidate();
