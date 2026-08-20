@@ -396,6 +396,15 @@ if errorlevel 1 ( echo [ERROR] pdfjs-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
+REM  14. Build mupdf-view (.NET self-contained + MuPDF.NET)
+REM ============================================================
+echo [14/14] Building mupdf-view...
+pushd "%SCRIPT_DIR%mupdf-view"
+call build.bat
+if errorlevel 1 ( echo [ERROR] mupdf-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
 REM  Install artifacts to plugins/
 REM ============================================================
 echo Installing artifacts...
@@ -411,6 +420,7 @@ for %%D in (
     inf-dir.video-view
     inf-dir.pdf-view
     inf-dir.pdfjs-view
+    inf-dir.mupdf-view
     inf-dir.vscode-open
     inf-dir.windows-terminal
 ) do if not exist "%DIST_DIR%\%%D" mkdir "%DIST_DIR%\%%D"
@@ -458,6 +468,10 @@ copy /Y "%SCRIPT_DIR%pdfjs-view\target\release\pdfjs-view.exe" "%DIST_DIR%\inf-d
 if exist "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view.exe.WebView2" rmdir /s /q "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view.exe.WebView2"
 if exist "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web"
 xcopy /E /I /Y /Q "%SCRIPT_DIR%pdfjs-view-web" "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web" >nul
+
+copy /Y "%SCRIPT_DIR%mupdf-view\plugin.json" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
+if exist "%DIST_DIR%\inf-dir.mupdf-view\publish" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\publish"
+xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\bin\Release\net10.0-windows\win-x64\publish" "%DIST_DIR%\inf-dir.mupdf-view" >nul
 
 copy /Y "%SCRIPT_DIR%vscode-open\plugin.json" "%DIST_DIR%\inf-dir.vscode-open\" >nul
 

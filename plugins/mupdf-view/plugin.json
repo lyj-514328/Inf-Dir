@@ -1,0 +1,21 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.mupdf-view",
+  "name": "MuPDF 文档查看器",
+  "version": "0.1.0",
+  "entrypoint": "mupdf-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [
+        ".xps", ".oxps",
+        ".epub", ".mobi", ".fb2",
+        ".cbz"
+      ],
+      "mimeTypes": [
+        "application/vnd.ms-xpsdocument",
+        "application/epub+zip",
+        "application/vnd.comicbook+zip"
+      ]
+    }
+  }
+}
