@@ -189,3 +189,29 @@ SVG 引擎权衡：
 - 冲突扩展名（`.dat .cin .iss .mpc .vb .vhd`）有内容嗅探或默认规则，用户可经关联配置覆盖；
 - 新增扩展名同步更新 `plugin.json`（规范化：小写、点前缀、复合后缀如 `.tar.gz`）；
 - `flutter analyze` / `flutter test` 通过，插件 `cargo build --release` 通过。
+
+## 11. Viewer 补全后处理的覆盖审计项
+
+> 记录于 2026-08-20。以下问题不阻塞当前 Viewer 补全工作；待 M1-M3 的 Viewer 与
+> manifest 补齐后统一处理，避免在格式实现阶段反复调整关联和发布逻辑。
+
+1. **区分引擎能力与关联覆盖**：当前源码 manifest 共声明 252 个唯一扩展名。按扩展名
+   与参考清单直接比对，命中 FVP 182/411（44.3%）、UV 85/294（28.9%）。mpv、libarchive
+   等引擎能够解析的格式多于 manifest 可命中的格式，因此路线图中的“全量”或“已完成”
+   需要在 Viewer 补齐后重新校准。最终验收同时检查“引擎可解析”和“F3 可命中”，并用
+   代表性样本实测，不能只统计后端库的理论格式数。
+2. **补充真实关联冲突**：除第 7 节列出的冲突外，当前 manifest 还同时声明了 `.gif`
+   （image-view / video-view）和 `.ts`（code-view / video-view）。默认 Viewer 按显示名称排序，
+   因而 `.gif` 先进入 image-view、`.ts` 先进入 code-view；这与动画 GIF 交给 mpv 的预期不完全
+   一致。后续明确默认语义、回退顺序或内容嗅探规则，并补关联解析测试。
+3. **收紧 MIME 通配边界**：`MimeTypeService` 读取 Windows 按扩展名注册的 Content Type，
+   不是内容嗅探。`image/*`、`audio/*`、`video/*` 可能让未显式声明的文件偶然命中，也可能
+   把后端无法解码的格式送入 Viewer。Viewer 补全后再定义统一的内容探测、误命中回退和
+   无扩展名文件策略。
+4. **清理构建产物漂移**：本地 `plugins/dist/` 可能残留已从源码移除的插件，例如
+   `inf-dir.text-view`。`plugins/build.bat` 当前不会清空废弃插件目录，而 Windows 发布会安装
+   整个 `plugins/dist/`。后续为构建增加受控清理或产物白名单，并增加源码 manifest 与 dist
+   插件集合一致性测试，避免旧 Viewer 被开发环境或发布包继续加载。
+5. **补充文本编码覆盖**：code-view 当前明确处理 UTF-8 与带 BOM 的 UTF-16 LE/BE；GBK、
+   Shift-JIS、Windows-1252 等旧日志和源码可能乱码。Viewer 补全后评估编码探测、手动切换
+   编码及相应测试样本。
