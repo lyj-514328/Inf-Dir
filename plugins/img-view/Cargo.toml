@@ -12,4 +12,5 @@ image = { version = "0.25", default-features = false, features = [
 resvg = "0.48"
 eframe = "0.29"
 egui = "0.29"
+rawloader = "0.37.2"
 viewer-window-placement = { path = "../viewer-window-placement" }

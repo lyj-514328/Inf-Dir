@@ -44,6 +44,21 @@ void main() {
       expect(manifest.quickView!.mimeTypes, contains('application/ms-tnef'));
     });
 
+    test('bundled image viewer claims the supported RAW formats', () {
+      final manifest = PluginManifest.read(
+        File(p.join('plugins', 'img-view', 'plugin.json')),
+      );
+
+      expect(manifest.id, 'inf-dir.image-view');
+      expect(
+        manifest.quickView!.extensions,
+        containsAll([
+          '.ari', '.arw', '.cr2', '.crw', '.dng', '.nef', '.nrw', '.orf',
+          '.pef', '.raf', '.rw2', '.srw', '.x3f',
+        ]),
+      );
+    });
+
     test('normalizes all three match groups', () {
       final manifest = PluginManifest.fromJson({
         'manifestVersion': 1,

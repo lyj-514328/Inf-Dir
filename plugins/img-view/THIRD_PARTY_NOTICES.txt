@@ -1,0 +1,9 @@
+Inf-Dir image-view third-party notices
+
+rawloader 0.37.2
+Copyright (c) the rawloader contributors
+License: LGPL-2.1
+Source: https://crates.io/crates/rawloader/0.37.2
+
+The rawloader crate is linked into the isolated image-view plugin process. Its
+license is distributed with this plugin for downstream package compliance.

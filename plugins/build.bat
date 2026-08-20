@@ -407,6 +407,7 @@ for %%D in (
 
 copy /Y "%SCRIPT_DIR%img-view\plugin.json" "%DIST_DIR%\inf-dir.image-view\" >nul
 copy /Y "%SCRIPT_DIR%img-view\target\release\img-view.exe" "%DIST_DIR%\inf-dir.image-view\" >nul
+copy /Y "%SCRIPT_DIR%img-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.image-view\" >nul
 
 copy /Y "%SCRIPT_DIR%code-view\plugin.json" "%DIST_DIR%\inf-dir.code-view\" >nul
 copy /Y "%SCRIPT_DIR%code-view\target\release\code-view.exe" "%DIST_DIR%\inf-dir.code-view\" >nul

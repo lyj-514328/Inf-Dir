@@ -71,11 +71,17 @@ mpv 内嵌 FFmpeg，扩展名声明几乎无需成本，只需把 manifest 的 `
 
 验收：FVP/UV 音视频两类的扩展名解析后均可通过 F3 打开并播放，失败才回退图标。
 
-### 5.2 image-view —— 扩展位图 + 矢量
+### 5.2 image-view —— 扩展位图、矢量与 RAW
 
-- 已完成：`plugins/img-view/plugin.json` 扩展名由 11 → 22 项，新增位图解码器
+- 已完成：`plugins/img-view/plugin.json` 扩展名由 22 → 48 项，新增位图解码器
   `pnm`（`.pbm .pgm .ppm .pnm`）、`tga`、`dds`、`exr`、`ff`（farbfeld）、`qoi`
   （image crate 零额外依赖），并新增 `resvg` 矢量后端渲染 `.svg .svgz`（含系统字体加载）。
+- 已完成：同一 `image-view` 进程接入 `rawloader 0.37.2`，支持 `.ari .arw .cr2 .crw .dcr .dcs
+  .dng .erf .iiq .k25 .kdc .mef .mos .mrw .nef .nkd .nrw .orf .pef .raf .raw .rw2 .sr2 .srf
+  .srw .x3f`。RAW 预览使用黑电平/白电平、白平衡和基础去马赛克，并遵循文件方向元数据；超大原图
+  会在预览阶段降采样到最长边 3200 像素以内。该后端是纯 Rust 依赖，仍运行在独立 viewer 进程。
+- 当前边界：rawloader 0.37.2 不含 CR3 解码器；嵌入式 JPEG、专业级色彩管理和更高级 demosaic
+  暂不在首批范围内，后续可单独评估 LibRaw 后端。
 - 未完成：`pcx`（需第三方 `pcx` 解码）、`icns`。
 
 SVG 引擎权衡：
@@ -132,7 +138,7 @@ SVG 引擎权衡：
 
 | 新 viewer | 覆盖格式 | 引擎建议 |
 | --- | --- | --- |
-| raw（并入 image-view） | `.cr2 .cr3 .nef .arw .dng .raf .orf .rw2 .pef .srw .x3f .erf .rwl .dcr .mrw .kdc .mos .mef .srf .3fr .fff .iiq .raw .nrw .orf`（FVP Camera Raw 30 + UV RAW 36 的全集） | rawloader / dcraw |
+| raw 长尾（并入 image-view） | `.cr3 .3fr .fff .rwl` 等 rawloader 当前未覆盖或需要更广设备样本的格式 | 后续评估 LibRaw / 厂商 SDK |
 | xps-view | `.xps .oxps` | 系统 XPS 或自研（WebView2 不支持，需评估） |
 | cad-view | `.dwg .dxf` | libdxfrw / ODA（商用，需授权评估） |
 | visio-view | `.vsd .vsdx .vst .vss .vdx .vdw .vsx .vtx .vstx .vssx .vstm .vsdm` | 解析 vsdx（OOXML）优先，vsd 二进制延后 |
@@ -168,7 +174,7 @@ SVG 引擎权衡：
 | Spreadsheet | 8 | office-view | P0(OXML) / P1(模板已扩展) / P2(legacy .xls) |
 | Presentation | 9 | office-view | P0 / P1(模板放映已扩展) / P2(legacy .ppt) |
 | Image | 57 | image-view | P0(11) / P1(位图+矢量已扩展) / P2(psd/jp2/jxl/dcm 等) |
-| Camera Raw / RAW | 30 / 36 | raw（并入 image-view） | P2 |
+| Camera Raw / RAW | 30 / 36 | image-view（rawloader） | P1（首批已完成；CR3 等待后端评估） |
 | Audio | 59 | video-view（mpv） | P1（已完成） |
 | Video | 96 | video-view（mpv） | P0(12) / P1 补全（已完成） |
 | Archive | 39 | archive-view | P0(11) / P1 补全（已完成） |
@@ -180,11 +186,11 @@ SVG 引擎权衡：
 ## 9. 里程碑
 
 1. **M1（P1 主体）**：video-view 全量音视频 + image-view 扩展 + code-view 源码补全 +
-   archive-view 扩展 + office-view 模板。完成后 FVP/UV 两数据源除 Image 冷门、RAW、XPS、
+   archive-view 扩展 + office-view 模板 + image-view RAW 首批。完成后 FVP/UV 两数据源除 Image 冷门、RAW 长尾、XPS、
    Email、Visio、Project、CAD 外的全部扩展名均可用 F3 打开。
 2. **M2（P1 收尾 + 长尾入口）**：email-view（eml/emlx/msg/oft/TNEF）已完成；后续补冲突
    扩展名内容嗅探和 "暂不支持"占位提示（mpp/dwg 等先给出可理解反馈）。
-3. **M3（P2 按需）**：raw 支持 → xps-view → djvu/font/ebook → visio/cad/project（按用户
+3. **M3（P2 按需）**：RAW 长尾/CR3 与专业色彩 → xps-view → djvu/font/ebook → visio/cad/project（按用户
    需求与授权评估逐个落地）。
 
 ## 10. 验收标准

@@ -10,7 +10,11 @@
         ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp",
         ".avif", ".tiff", ".tif", ".ico", ".hdr",
         ".pbm", ".pgm", ".ppm", ".pnm", ".tga", ".dds",
-        ".exr", ".ff", ".qoi", ".svg", ".svgz"
+        ".exr", ".ff", ".qoi", ".svg", ".svgz",
+        ".ari", ".arw", ".cr2", ".crw", ".dcr", ".dcs", ".dng",
+        ".erf", ".iiq", ".k25", ".kdc", ".mef", ".mos", ".mrw",
+        ".nef", ".nkd", ".nrw", ".orf", ".pef", ".raf", ".raw",
+        ".rw2", ".sr2", ".srf", ".srw", ".x3f"
       ],
       "mimeTypes": ["image/*"]
     }
