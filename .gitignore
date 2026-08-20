@@ -37,6 +37,7 @@ plugins/email-view/obj/
 plugins/email-view/publish/
 plugins/email-view/node_modules/
 plugins/email-view-web/
+plugins/pdfjs-view-web/
 plugins/office-view.exe.WebView2/
 plugins/*.log
 plugins/search/_cache/

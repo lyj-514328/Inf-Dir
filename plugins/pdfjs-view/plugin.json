@@ -1,0 +1,13 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.pdfjs-view",
+  "name": "PDF 查看器 (pdf.js)",
+  "version": "0.1.0",
+  "entrypoint": "pdfjs-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [".pdf"],
+      "mimeTypes": ["application/pdf"]
+    }
+  }
+}

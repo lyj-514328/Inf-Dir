@@ -387,6 +387,15 @@ if errorlevel 1 ( echo [ERROR] pdf-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
+REM  13. Build pdfjs-view (MSVC + WebView2 + pdf.js)
+REM ============================================================
+echo [13/13] Building pdfjs-view...
+pushd "%SCRIPT_DIR%pdfjs-view"
+call build.bat
+if errorlevel 1 ( echo [ERROR] pdfjs-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
 REM  Install artifacts to plugins/
 REM ============================================================
 echo Installing artifacts...
@@ -401,6 +410,7 @@ for %%D in (
     inf-dir.email-view
     inf-dir.video-view
     inf-dir.pdf-view
+    inf-dir.pdfjs-view
     inf-dir.vscode-open
     inf-dir.windows-terminal
 ) do if not exist "%DIST_DIR%\%%D" mkdir "%DIST_DIR%\%%D"
@@ -442,6 +452,12 @@ copy /Y "%MPV_DEV_DIR%\libmpv-2.dll" "%DIST_DIR%\inf-dir.video-view\" >nul
 copy /Y "%SCRIPT_DIR%pdf-view\plugin.json" "%DIST_DIR%\inf-dir.pdf-view\" >nul
 copy /Y "%SCRIPT_DIR%pdf-view\target\release\pdf-view.exe" "%DIST_DIR%\inf-dir.pdf-view\" >nul
 copy /Y "%SCRIPT_DIR%pdf-view\target\release\pdfium.dll" "%DIST_DIR%\inf-dir.pdf-view\" >nul
+
+copy /Y "%SCRIPT_DIR%pdfjs-view\plugin.json" "%DIST_DIR%\inf-dir.pdfjs-view\" >nul
+copy /Y "%SCRIPT_DIR%pdfjs-view\target\release\pdfjs-view.exe" "%DIST_DIR%\inf-dir.pdfjs-view\" >nul
+if exist "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view.exe.WebView2" rmdir /s /q "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view.exe.WebView2"
+if exist "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web"
+xcopy /E /I /Y /Q "%SCRIPT_DIR%pdfjs-view-web" "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web" >nul
 
 copy /Y "%SCRIPT_DIR%vscode-open\plugin.json" "%DIST_DIR%\inf-dir.vscode-open\" >nul
 
