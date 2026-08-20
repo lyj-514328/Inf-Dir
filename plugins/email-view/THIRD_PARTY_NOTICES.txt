@@ -1,0 +1,17 @@
+Inf-Dir email-view includes the following third-party software:
+
+- MimeKit 4.17.0, Copyright (C) Jeffrey Stedfast, MIT License.
+  https://github.com/jstedfast/MimeKit
+- MSGReader 6.0.7, Copyright (C) Kees van Spelde, MIT License.
+  https://github.com/Sicos1977/MSGReader
+- Microsoft.Web.WebView2 1.0.4129.50, distributed under the license
+  included with the Microsoft.Web.WebView2 NuGet package.
+  https://www.nuget.org/packages/Microsoft.Web.WebView2
+- DOMPurify 3.4.13, Copyright (C) Mario Heiderich and contributors,
+  Mozilla Public License 2.0 or Apache License 2.0.
+  https://github.com/cure53/DOMPurify
+- Lucide 1.31.0, Copyright (C) Lucide contributors, ISC License.
+  https://github.com/lucide-icons/lucide
+
+esbuild is used only while building the bundled web assets and is not included
+in the distributed plugin.

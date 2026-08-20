@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'self'; base-uri 'none'; form-action 'none'" />
+  <title>Email View</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <header class="toolbar">
+    <div class="file-identity">
+      <i data-lucide="mail" aria-hidden="true"></i>
+      <div class="file-copy">
+        <strong id="file-name">Email View</strong>
+        <span id="file-path"></span>
+      </div>
+      <span class="safe-badge"><i data-lucide="shield-check" aria-hidden="true"></i>安全预览</span>
+    </div>
+
+    <div class="toolbar-actions">
+      <div id="body-mode" class="segmented" aria-label="正文格式">
+        <button id="html-mode" type="button" aria-pressed="true">HTML</button>
+        <button id="text-mode" type="button" aria-pressed="false">文本</button>
+      </div>
+      <button id="details-button" class="icon-button" type="button" title="邮件详情" aria-label="邮件详情" aria-pressed="true">
+        <i data-lucide="list-collapse" aria-hidden="true"></i>
+      </button>
+    </div>
+  </header>
+
+  <main id="viewer" class="viewer" hidden>
+    <section id="message" class="message">
+      <header class="message-header">
+        <div class="subject-row">
+          <h1 id="subject">（无主题）</h1>
+          <time id="date"></time>
+        </div>
+        <dl id="message-details" class="message-details">
+          <dt>发件人</dt><dd id="from"></dd>
+          <dt>收件人</dt><dd id="to"></dd>
+          <dt id="cc-label" hidden>抄送</dt><dd id="cc" hidden></dd>
+          <dt id="bcc-label" hidden>密送</dt><dd id="bcc" hidden></dd>
+        </dl>
+      </header>
+
+      <div class="body-bar">
+        <span id="body-status">正文</span>
+        <span id="remote-status" class="remote-status" hidden></span>
+      </div>
+      <iframe id="body-frame" class="body-frame" title="邮件正文" sandbox="allow-same-origin"></iframe>
+    </section>
+
+    <aside id="attachments" class="attachments" hidden>
+      <div class="attachments-heading">
+        <i data-lucide="paperclip" aria-hidden="true"></i>
+        <strong>附件</strong>
+        <span id="attachment-count"></span>
+      </div>
+      <div id="attachment-list" class="attachment-list"></div>
+    </aside>
+  </main>
+
+  <section id="error" class="error-state" hidden>
+    <i data-lucide="file-warning" aria-hidden="true"></i>
+    <h1>无法预览此文件</h1>
+    <p id="error-message"></p>
+  </section>
+
+  <div id="loading" class="loading-state">
+    <span class="spinner" aria-hidden="true"></span>
+    <span>正在解析邮件...</span>
+  </div>
+
+  <script src="./app.bundle.js"></script>
+</body>
+</html>

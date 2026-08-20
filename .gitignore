@@ -32,6 +32,11 @@ plugins/markdown-view-web/
 plugins/markdown-view/_web_tmp/
 plugins/code-view/node_modules/
 plugins/code-view-web/
+plugins/email-view/bin/
+plugins/email-view/obj/
+plugins/email-view/publish/
+plugins/email-view/node_modules/
+plugins/email-view-web/
 plugins/office-view.exe.WebView2/
 plugins/*.log
 plugins/search/_cache/

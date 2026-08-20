@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.email-view",
+  "name": "邮件查看器",
+  "version": "0.1.0",
+  "entrypoint": "email-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [".eml", ".emlx", ".msg", ".oft", ".dat"],
+      "fileNames": ["winmail.dat", "win.dat"],
+      "mimeTypes": [
+        "message/rfc822",
+        "application/vnd.ms-outlook",
+        "application/ms-tnef",
+        "application/vnd.ms-tnef"
+      ]
+    }
+  }
+}

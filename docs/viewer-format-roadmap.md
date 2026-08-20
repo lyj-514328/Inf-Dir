@@ -27,7 +27,7 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 | `inf-dir.office-view` | WebView2 + ooxml | Word/Excel/PowerPoint | OOXML 文档 |
 | `inf-dir.video-view` | mpv / libmpv2（FFmpeg） | **Audio + Video** | 全量音视频播放（含字幕） |
 | `inf-dir.archive-view` | libarchive | Archive | 归档内容列表 |
-| `inf-dir.email-view`（新增） | mail-parser / WebView2 | Email | 邮件正文预览 |
+| `inf-dir.email-view` | C# / MimeKit / MSGReader / WebView2 | Email | 邮件正文预览 |
 | `inf-dir.raw-view`（并入 image-view） | rawloader | Camera Raw / RAW | 相机原始格式 |
 | `inf-dir.xps-view`（新增） | 系统 XPS / 自研 | PDF & XPS 中的 XPS | XPS/OXPS |
 | `inf-dir.cad-view` / `visio-view` / `font-view` / `djvu-view` / `ebook-view`（新增） | 见 P2 | CAD / Visio / 字体 / DjVu / 电子书 | 长尾 |
@@ -116,12 +116,16 @@ SVG 引擎权衡：
 
 （`.pk3/.pk4/.jar/.war/.apk` 本质是 zip，`.dmg/.hfs` 为磁盘镜像，libarchive 均可读。）
 
-### 5.6 新增 email-view（P1）
+### 5.6 email-view（P1，已完成）
 
-- 范围：`.eml .emlx`（纯文本 MIME，mail-parser 即可）、`.dat`（winmail，低优先级）。
-- `.msg .oft`（OLE 复合文档）依赖 COM/第三方解析，先放入 P2，P1 仅做扩展名登记与
-  "暂不支持"提示。
-- 实现：WebView2 渲染 HTML 正文 + 附件列表；不加载第三方 DLL 进主进程。
+- 已完成：支持 `.eml .emlx .msg .oft .dat`。首版直接声明 `.dat` 扩展名关联，以覆盖
+  `winmail.dat`、`win.dat` 和 `ATTxxxxx.dat` 等 TNEF 文件；这会与其他 `.dat` 语义冲突，
+  暂接受误命中，待 Viewer 补全后随内容嗅探和 MIME 关联一起修复。
+- 实现：C# / .NET 8 `win-x64` self-contained 独立进程，WebView2 渲染邮件头、HTML/纯文本
+  正文、CID 内嵌图片和附件列表。MimeKit 负责 EML/TNEF，EMLX 先剥离 Apple 包装再按 EML
+  解析，MSGReader 负责 MSG/OFT；第三方 DLL 不加载进 Flutter 主进程。
+- 安全边界：默认禁用脚本和远程资源，清洗邮件 HTML；附件导出由宿主进程处理，不向
+  WebView 暴露任意文件系统访问。
 
 ## 6. P2：新增 viewer 覆盖长尾
 
@@ -144,7 +148,7 @@ SVG 引擎权衡：
 
 | 扩展名 | 冲突语义 | 默认处理 |
 | --- | --- | --- |
-| `.dat` | VCD 视频 / Winmail.dat | 内容嗅探，视频走 video-view |
+| `.dat` | VCD 视频 / Winmail.dat | 首版直接走 email-view，后续内容嗅探区分 |
 | `.cin` | Kodak Cineon 位图 / Delphine CIN 视频 | 内容嗅探 |
 | `.iss` | Funcom 音频 / Inno Setup 脚本 | 默认 code-view（Inno Setup 更常见） |
 | `.mpc` | Musepack 音频 / EA MPCh 视频 | 均走 mpv（FFmpeg 两者都解码） |
@@ -167,7 +171,7 @@ SVG 引擎权衡：
 | Audio | 59 | video-view（mpv） | P1（已完成） |
 | Video | 96 | video-view（mpv） | P0(12) / P1 补全（已完成） |
 | Archive | 39 | archive-view | P0(11) / P1 补全（已完成） |
-| Email | 5 | email-view | P1(eml/emlx) / P2(msg/oft) |
+| Email | 5 | email-view | P1（已完成；`.dat` 临时直接关联，后续内容嗅探） |
 | Visio | 12 | visio-view | P2 |
 | Project | 3 | project-view | P2 |
 | CAD | 2 | cad-view | P2 |
@@ -177,8 +181,8 @@ SVG 引擎权衡：
 1. **M1（P1 主体）**：video-view 全量音视频 + image-view 扩展 + code-view 源码补全 +
    archive-view 扩展 + office-view 模板。完成后 FVP/UV 两数据源除 Image 冷门、RAW、XPS、
    Email、Visio、Project、CAD 外的全部扩展名均可用 F3 打开。
-2. **M2（P1 收尾 + 长尾入口）**：email-view(eml/emlx) + 冲突扩展名内容嗅探 + "暂不支持"
-   占位提示（msg/oft/mpp/dwg 等先给出可理解反馈）。
+2. **M2（P1 收尾 + 长尾入口）**：email-view（eml/emlx/msg/oft/TNEF）已完成；后续补冲突
+   扩展名内容嗅探和 "暂不支持"占位提示（mpp/dwg 等先给出可理解反馈）。
 3. **M3（P2 按需）**：raw 支持 → xps-view → djvu/font/ebook → visio/cad/project（按用户
    需求与授权评估逐个落地）。
 
@@ -188,7 +192,8 @@ SVG 引擎权衡：
 - 独立进程启动失败、插件缺失、格式不支持均给出可见反馈（toast），不回退主进程 DLL；
 - 冲突扩展名（`.dat .cin .iss .mpc .vb .vhd`）有内容嗅探或默认规则，用户可经关联配置覆盖；
 - 新增扩展名同步更新 `plugin.json`（规范化：小写、点前缀、复合后缀如 `.tar.gz`）；
-- `flutter analyze` / `flutter test` 通过，插件 `cargo build --release` 通过。
+- `flutter analyze` / `flutter test` 通过；Rust 插件 `cargo build --release`、email-view 的
+  `npm run build` / `dotnet publish` 与解析自检通过。
 
 ## 11. Viewer 补全后处理的覆盖审计项
 
@@ -206,8 +211,9 @@ SVG 引擎权衡：
    一致。后续明确默认语义、回退顺序或内容嗅探规则，并补关联解析测试。
 3. **收紧 MIME 通配边界**：`MimeTypeService` 读取 Windows 按扩展名注册的 Content Type，
    不是内容嗅探。`image/*`、`audio/*`、`video/*` 可能让未显式声明的文件偶然命中，也可能
-   把后端无法解码的格式送入 Viewer。Viewer 补全后再定义统一的内容探测、误命中回退和
-   无扩展名文件策略。
+   把后端无法解码的格式送入 Viewer。email-view 首版还会临时直接关联 `.dat`，因此普通
+   二进制或 VCD `.dat` 也可能误命中。Viewer 补全后再定义统一的内容探测、误命中回退和
+   无扩展名文件策略，并用 TNEF 文件签名替代 `.dat` 的无条件关联。
 4. **清理构建产物漂移**：本地 `plugins/dist/` 可能残留已从源码移除的插件，例如
    `inf-dir.text-view`。`plugins/build.bat` 当前不会清空废弃插件目录，而 Windows 发布会安装
    整个 `plugins/dist/`。后续为构建增加受控清理或产物白名单，并增加源码 manifest 与 dist

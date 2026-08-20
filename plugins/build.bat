@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 REM ============================================================
 REM  Inf-Dir plugins one-click build script
-REM  Prerequisites: rustup, cargo, Node.js/npm, curl, PowerShell, 7z
+REM  Prerequisites: rustup, cargo, Node.js/npm, .NET SDK, curl, PowerShell, 7z
 REM ============================================================
 
 set "SCRIPT_DIR=%~dp0"
@@ -25,6 +25,15 @@ set "GHCSS_VERSION=5.7.0"
 set "MERMAID_VERSION=11.4.1"
 set "MD_WEB=%SCRIPT_DIR%markdown-view-web"
 set "CODE_WEB=%SCRIPT_DIR%code-view-web"
+set "EMAIL_WEB=%SCRIPT_DIR%email-view-web"
+set "EMAIL_PUBLISH=%SCRIPT_DIR%email-view\publish"
+
+REM Prefer the Scoop SDK because a machine-wide dotnet host may have no SDK.
+if exist "%USERPROFILE%\scoop\apps\dotnet-sdk\current\dotnet.exe" (
+    set "DOTNET_EXE=%USERPROFILE%\scoop\apps\dotnet-sdk\current\dotnet.exe"
+) else (
+    set "DOTNET_EXE=dotnet"
+)
 
 REM --- Download and package pinned search-provider plugins ---
 call "%SCRIPT_DIR%search\build.bat" "%DIST_DIR%"
@@ -54,7 +63,7 @@ REM ============================================================
 REM  1. Prepare mpv-dev for video-view
 REM ============================================================
 if not exist "%MPV_DEV_DIR%\libmpv-2.dll" (
-    echo [1/13] Downloading mpv-dev...
+    echo [1/14] Downloading mpv-dev...
     if not exist "%MPV_DEV_7Z%" (
         curl -L -o "%MPV_DEV_7Z%" "%MPV_DEV_URL%"
         if errorlevel 1 (
@@ -62,7 +71,7 @@ if not exist "%MPV_DEV_DIR%\libmpv-2.dll" (
             exit /b 1
         )
     )
-    echo [1/13] Extracting mpv-dev...
+    echo [1/14] Extracting mpv-dev...
     if not exist "%MPV_DEV_DIR%" mkdir "%MPV_DEV_DIR%"
     7z x "%MPV_DEV_7Z%" -o"%MPV_DEV_DIR%" -y >nul
     if errorlevel 1 (
@@ -71,14 +80,14 @@ if not exist "%MPV_DEV_DIR%\libmpv-2.dll" (
     )
     del "%MPV_DEV_7Z%" 2>nul
 ) else (
-    echo [1/13] mpv-dev already present, skipping.
+    echo [1/14] mpv-dev already present, skipping.
 )
 
 REM ============================================================
 REM  2. Prepare libarchive for archive-view
 REM ============================================================
 if not exist "%LIBARCHIVE_DEPS%\lib\libarchive.lib" (
-    echo [2/13] Downloading libarchive...
+    echo [2/14] Downloading libarchive...
     if not exist "%LIBARCHIVE_ZIP%" (
         curl -L -o "%LIBARCHIVE_ZIP%" "%LIBARCHIVE_URL%"
         if errorlevel 1 (
@@ -86,7 +95,7 @@ if not exist "%LIBARCHIVE_DEPS%\lib\libarchive.lib" (
             exit /b 1
         )
     )
-    echo [2/13] Extracting libarchive...
+    echo [2/14] Extracting libarchive...
     set "LA_TMP=%SCRIPT_DIR%archive-view\_la_tmp"
     if not exist "!LA_TMP!" mkdir "!LA_TMP!"
     7z x "%LIBARCHIVE_ZIP%" -o"!LA_TMP!" -y >nul
@@ -104,14 +113,14 @@ if not exist "%LIBARCHIVE_DEPS%\lib\libarchive.lib" (
     rmdir /s /q "!LA_TMP!" 2>nul
     del "%LIBARCHIVE_ZIP%" 2>nul
 ) else (
-    echo [2/13] libarchive already present, skipping.
+    echo [2/14] libarchive already present, skipping.
 )
 
 REM ============================================================
 REM  3. Prepare @silurus/ooxml web assets for office-view
 REM ============================================================
 if not exist "%OOXML_WEB%\docx.mjs" (
-    echo [3/13] Downloading @silurus/ooxml %OOXML_VERSION%...
+    echo [3/14] Downloading @silurus/ooxml %OOXML_VERSION%...
     if not exist "%OOXML_TGZ%" (
         curl -L -o "%OOXML_TGZ%" "%OOXML_URL%"
         if errorlevel 1 (
@@ -119,7 +128,7 @@ if not exist "%OOXML_WEB%\docx.mjs" (
             exit /b 1
         )
     )
-    echo [3/13] Extracting @silurus/ooxml...
+    echo [3/14] Extracting @silurus/ooxml...
     set "OOXML_TMP=%SCRIPT_DIR%office-view\_ooxml_tmp"
     if exist "!OOXML_TMP!" rmdir /s /q "!OOXML_TMP!"
     mkdir "!OOXML_TMP!"
@@ -142,7 +151,7 @@ if not exist "%OOXML_WEB%\docx.mjs" (
     rmdir /s /q "!OOXML_TMP!" 2>nul
     del "%OOXML_TGZ%" 2>nul
 ) else (
-    echo [3/13] @silurus/ooxml assets already present, skipping.
+    echo [3/14] @silurus/ooxml assets already present, skipping.
 )
 
 REM ============================================================
@@ -150,7 +159,7 @@ REM  4. Prepare markdown-view web assets (markdown-it / KaTeX /
 REM     highlight.js / github-markdown-css / mermaid)
 REM ============================================================
 if not exist "%MD_WEB%\markdown-it.min.js" (
-    echo [4/13] Downloading markdown-view web assets...
+    echo [4/14] Downloading markdown-view web assets...
     set "MD_TMP=%SCRIPT_DIR%markdown-view\_web_tmp"
     if exist "!MD_TMP!" rmdir /s /q "!MD_TMP!"
     mkdir "!MD_TMP!"
@@ -182,7 +191,7 @@ if not exist "%MD_WEB%\markdown-it.min.js" (
         exit /b 1
     )
 
-    echo [4/13] Extracting markdown-view web assets...
+    echo [4/14] Extracting markdown-view web assets...
     7z x "!MD_TMP!\markdown-it.tgz" -o"!MD_TMP!\p-mdit" -y >nul
     if errorlevel 1 (
         echo [ERROR] Failed to extract markdown-it.
@@ -250,7 +259,7 @@ if not exist "%MD_WEB%\markdown-it.min.js" (
 
     rmdir /s /q "!MD_TMP!" 2>nul
 ) else (
-    echo [4/13] markdown-view web assets already present, skipping.
+    echo [4/14] markdown-view web assets already present, skipping.
 )
 
 REM Glue files are always refreshed so edits take effect without re-downloading.
@@ -261,7 +270,7 @@ copy /Y "%SCRIPT_DIR%markdown-view\web\app.css" "%MD_WEB%\" >nul
 REM ============================================================
 REM  5. Build code-view web assets (CodeMirror + Lucide)
 REM ============================================================
-echo [5/13] Building code-view web assets...
+echo [5/14] Building code-view web assets...
 where npm >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] npm is required to build code-view.
@@ -281,63 +290,97 @@ copy /Y "%SCRIPT_DIR%code-view\web\app.css" "%CODE_WEB%\" >nul
 copy /Y "%SCRIPT_DIR%code-view\THIRD_PARTY_NOTICES.txt" "%CODE_WEB%\" >nul
 
 REM ============================================================
-REM  6. Build img-view (MSVC)
+REM  6. Build email-view web assets (DOMPurify + Lucide)
 REM ============================================================
-echo [6/13] Building img-view...
+echo [6/14] Building email-view web assets...
+pushd "%SCRIPT_DIR%email-view"
+if not exist "node_modules\esbuild\bin\esbuild" (
+    call npm ci
+    if errorlevel 1 ( echo [ERROR] email-view npm install failed. & popd & exit /b 1 )
+)
+call npm run build
+if errorlevel 1 ( echo [ERROR] email-view web build failed. & popd & exit /b 1 )
+popd
+if not exist "%EMAIL_WEB%" mkdir "%EMAIL_WEB%"
+copy /Y "%SCRIPT_DIR%email-view\web\index.html" "%EMAIL_WEB%\" >nul
+copy /Y "%SCRIPT_DIR%email-view\web\app.css" "%EMAIL_WEB%\" >nul
+copy /Y "%SCRIPT_DIR%email-view\THIRD_PARTY_NOTICES.txt" "%EMAIL_WEB%\" >nul
+
+REM ============================================================
+REM  7. Build img-view (MSVC)
+REM ============================================================
+echo [7/14] Building img-view...
 pushd "%SCRIPT_DIR%img-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] img-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  7. Build code-view (MSVC + WebView2)
+REM  8. Build code-view (MSVC + WebView2)
 REM ============================================================
-echo [7/13] Building code-view...
+echo [8/14] Building code-view...
 pushd "%SCRIPT_DIR%code-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] code-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  8. Build archive-view (MSVC)
+REM  9. Build archive-view (MSVC)
 REM ============================================================
-echo [8/12] Building archive-view...
+echo [9/14] Building archive-view...
 pushd "%SCRIPT_DIR%archive-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] archive-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  9. Build office-view (MSVC + WebView2)
+REM  10. Build office-view (MSVC + WebView2)
 REM ============================================================
-echo [9/12] Building office-view...
+echo [10/14] Building office-view...
 pushd "%SCRIPT_DIR%office-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] office-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  10. Build markdown-view (MSVC + WebView2)
+REM  11. Build markdown-view (MSVC + WebView2)
 REM ============================================================
-echo [10/12] Building markdown-view...
+echo [11/14] Building markdown-view...
 pushd "%SCRIPT_DIR%markdown-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] markdown-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  11. Build video-view (GNU / MinGW-w64)
+REM  12. Build email-view (.NET 8 self-contained + WebView2)
 REM ============================================================
-echo [11/12] Building video-view...
+echo [12/14] Building email-view...
+"%DOTNET_EXE%" --list-sdks | findstr /r "." >nul
+if errorlevel 1 (
+    echo [ERROR] A .NET SDK is required to build email-view.
+    exit /b 1
+)
+if exist "%EMAIL_PUBLISH%" rmdir /s /q "%EMAIL_PUBLISH%"
+pushd "%SCRIPT_DIR%email-view"
+"%DOTNET_EXE%" publish EmailView.csproj -c Release -r win-x64 --self-contained true -o "%EMAIL_PUBLISH%"
+if errorlevel 1 ( echo [ERROR] email-view publish failed. & popd & exit /b 1 )
+start "" /wait "%EMAIL_PUBLISH%\email-view.exe" --self-test
+if errorlevel 1 ( echo [ERROR] email-view self-test failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
+REM  13. Build video-view (GNU / MinGW-w64)
+REM ============================================================
+echo [13/14] Building video-view...
 pushd "%SCRIPT_DIR%video-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] video-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  12. Build pdf-view (GNU / MinGW-w64 + PDFium)
+REM  14. Build pdf-view (GNU / MinGW-w64 + PDFium)
 REM ============================================================
-echo [12/12] Building pdf-view...
+echo [14/14] Building pdf-view...
 pushd "%SCRIPT_DIR%pdf-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] pdf-view build failed. & popd & exit /b 1 )
@@ -355,6 +398,7 @@ for %%D in (
     inf-dir.archive-view
     inf-dir.office-view
     inf-dir.markdown-view
+    inf-dir.email-view
     inf-dir.video-view
     inf-dir.pdf-view
     inf-dir.vscode-open
@@ -383,6 +427,12 @@ copy /Y "%SCRIPT_DIR%markdown-view\plugin.json" "%DIST_DIR%\inf-dir.markdown-vie
 copy /Y "%SCRIPT_DIR%markdown-view\target\release\markdown-view.exe" "%DIST_DIR%\inf-dir.markdown-view\" >nul
 if exist "%DIST_DIR%\inf-dir.markdown-view\markdown-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.markdown-view\markdown-view-web"
 xcopy /E /I /Y /Q "%MD_WEB%" "%DIST_DIR%\inf-dir.markdown-view\markdown-view-web" >nul
+
+if exist "%DIST_DIR%\inf-dir.email-view" rmdir /s /q "%DIST_DIR%\inf-dir.email-view"
+mkdir "%DIST_DIR%\inf-dir.email-view"
+xcopy /E /I /Y /Q "%EMAIL_PUBLISH%\*" "%DIST_DIR%\inf-dir.email-view\" >nul
+copy /Y "%SCRIPT_DIR%email-view\plugin.json" "%DIST_DIR%\inf-dir.email-view\" >nul
+xcopy /E /I /Y /Q "%EMAIL_WEB%" "%DIST_DIR%\inf-dir.email-view\email-view-web" >nul
 
 copy /Y "%SCRIPT_DIR%video-view\plugin.json" "%DIST_DIR%\inf-dir.video-view\" >nul
 copy /Y "%SCRIPT_DIR%video-view\target\x86_64-pc-windows-gnu\release\video-view.exe" "%DIST_DIR%\inf-dir.video-view\" >nul

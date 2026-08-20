@@ -30,6 +30,20 @@ void main() {
       );
     });
 
+    test('bundled email viewer claims the first-version mail formats', () {
+      final manifest = PluginManifest.read(
+        File(p.join('plugins', 'email-view', 'plugin.json')),
+      );
+
+      expect(manifest.id, 'inf-dir.email-view');
+      expect(
+        manifest.quickView!.extensions,
+        containsAll(['.eml', '.emlx', '.msg', '.oft', '.dat']),
+      );
+      expect(manifest.quickView!.fileNames, contains('winmail.dat'));
+      expect(manifest.quickView!.mimeTypes, contains('application/ms-tnef'));
+    });
+
     test('normalizes all three match groups', () {
       final manifest = PluginManifest.fromJson({
         'manifestVersion': 1,

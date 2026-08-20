@@ -10,7 +10,7 @@
 - **语言**：Dart
 - **构建**：Flutter CLI（`flutter build windows`）
 - **窗口**：无边框自定义顶栏（`window_manager` 运行时隐藏原生标题栏，自绘窗口控制按钮）
-- **Viewer 插件**：Rust（egui）与 WebView2（wry）独立进程查看器，`plugins/build.bat` 构建
+- **Viewer 插件**：Rust（egui/wry）与 C#（WinForms/WebView2）独立进程查看器，`plugins/build.bat` 构建
 
 ## 核心特性
 
@@ -60,4 +60,4 @@ Inf-Dir/
 
 - `flutter test` — 运行测试
 - `flutter analyze` — 静态检查
-- `plugins/build.bat` — 一键构建全部 viewer 插件（依赖 rustup / cargo / 7z，网络依赖见脚本内 URL）
+- `plugins/build.bat` — 一键构建全部 viewer 插件（依赖 rustup / cargo / Node.js / npm / .NET SDK / 7z，网络依赖见脚本内 URL）
