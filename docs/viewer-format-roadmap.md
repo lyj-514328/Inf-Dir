@@ -138,15 +138,15 @@ SVG 引擎权衡：
 
 | 新 viewer | 覆盖格式 | 引擎建议 |
 | --- | --- | --- |
-| raw 长尾（并入 image-view） | `.cr3 .3fr .fff .rwl` 等 rawloader 当前未覆盖或需要更广设备样本的格式 | 后续评估 LibRaw / 厂商 SDK |
-| xps-view | `.xps .oxps` | 系统 XPS 或自研（WebView2 不支持，需评估） |
-| cad-view | `.dwg .dxf` | libdxfrw / ODA（商用，需授权评估） |
-| visio-view | `.vsd .vsdx .vst .vss .vdx .vdw .vsx .vtx .vstx .vssx .vstm .vsdm` | 解析 vsdx（OOXML）优先，vsd 二进制延后 |
-| project-view | `.mpp .mpt .mpx` | 低优先级，可先登记"暂不支持" |
-| font-view | `.ttf .otf .woff .woff2 .ttc .dfont` | fontdue / freetype |
-| djvu-view | `.djvu .djv` | djvulibre |
-| ebook-view | `.epub .mobi .fb2 .fbz .fb2z .tcr`（epub 可先由 office-view/html 渲染） | epub=zip+html，mobi/fb2 独立 |
-| 图像补充 | `.psd .jp2 .j2k .jxl .jxr .dcm .dpx .cin .sgi .rgb .xpm .xbm .xface .dds(未覆盖部分) .exr` | psd-rs / openjpeg / jxl-rs / dicom / openexr |
+| raw 长尾（并入 image-view） | `.cr3 .3fr .fff .rwl` | 已由 ImageMagick 子进程补齐，rawloader 失败时自动回退 |
+| xps（并入 mupdf-view） | `.xps .oxps` | MuPDF.NET 原生处理 |
+| CAD（并入 mupdf-view） | `.dwg .dxf` | LibreDWG 转 SVG 后交给 MuPDF；DXF 先转 DWG |
+| Visio（并入 mupdf-view） | `.vsd .vsdx .vst .vss .vdx .vdw .vsx .vtx .vstx .vssx .vstm .vsdm` | LibreOffice headless 转 PDF |
+| project-view | `.mpp .mpt .mpx` | MPXJ.Net 16.7.0 独立进程读取任务与时间线 |
+| font-view | `.ttf .otf .woff .woff2 .ttc .dfont` | WebView2 预览；dfont 先解出 sfnt resource |
+| DjVu（并入 mupdf-view） | `.djvu .djv` | DjVuLibre `ddjvu` 转 PDF 后交给 MuPDF |
+| ebook（并入 mupdf-view） | `.epub .mobi .fb2 .fbz .fb2z .tcr` | MuPDF 原生；压缩 FB2 解包，TCR 字典解压为 HTML |
+| 图像补充（并入 image-view） | `.psd .jp2 .j2k .jxl .jxr .dcm .dpx .cin .sgi .rgb .xpm .xbm .xface .dds .exr` | ImageMagick；JXR 走 Windows WIC，X-Face 走 Compface |
 
 ## 7. 同名冲突扩展名
 
@@ -170,28 +170,27 @@ SVG 引擎权衡：
 | Text | 13 | code-view | P0 |
 | Web / Internet | 2 / 12 | code-view | P0 |
 | PDF | 1 | pdf-view | P0 |
-| XPS | 2 | xps-view | P2 |
+| XPS | 2 | mupdf-view | P2 已完成 |
 | Spreadsheet | 8 | office-view | P0(OXML) / P1(模板已扩展) / P2(legacy .xls) |
 | Presentation | 9 | office-view | P0 / P1(模板放映已扩展) / P2(legacy .ppt) |
-| Image | 57 | image-view | P0(11) / P1(位图+矢量已扩展) / P2(psd/jp2/jxl/dcm 等) |
-| Camera Raw / RAW | 30 / 36 | image-view（rawloader） | P1（首批已完成；CR3 等待后端评估） |
+| Image | 57 | image-view | P0(11) / P1(位图+矢量已扩展) / P2 长尾已完成 |
+| Camera Raw / RAW | 30 / 36 | image-view（rawloader + ImageMagick） | P2 长尾已完成 |
 | Audio | 59 | video-view（mpv） | P1（已完成） |
 | Video | 96 | video-view（mpv） | P0(12) / P1 补全（已完成） |
 | Archive | 39 | archive-view | P0(11) / P1 补全（已完成） |
 | Email | 5 | email-view | P1（已完成；`.dat` 临时直接关联，后续内容嗅探） |
-| Visio | 12 | visio-view | P2 |
-| Project | 3 | project-view | P2 |
-| CAD | 2 | cad-view | P2 |
+| Visio | 12 | mupdf-view + LibreOffice | P2 已完成 |
+| Project | 3 | project-view | P2 已完成 |
+| CAD | 2 | mupdf-view + LibreDWG | P2 已完成 |
 
 ## 9. 里程碑
 
 1. **M1（P1 主体）**：video-view 全量音视频 + image-view 扩展 + code-view 源码补全 +
-   archive-view 扩展 + office-view 模板 + image-view RAW 首批。完成后 FVP/UV 两数据源除 Image 冷门、RAW 长尾、XPS、
-   Email、Visio、Project、CAD 外的全部扩展名均可用 F3 打开。
-2. **M2（P1 收尾 + 长尾入口）**：email-view（eml/emlx/msg/oft/TNEF）已完成；后续补冲突
-   扩展名内容嗅探和 "暂不支持"占位提示（mpp/dwg 等先给出可理解反馈）。
-3. **M3（P2 按需）**：RAW 长尾/CR3 与专业色彩 → xps-view → djvu/font/ebook → visio/cad/project（按用户
-   需求与授权评估逐个落地）。
+   archive-view 扩展 + office-view 模板 + image-view RAW 首批，已完成。
+2. **M2（P1 收尾 + 长尾入口）**：email-view（eml/emlx/msg/oft/TNEF）已完成；冲突扩展名内容嗅探
+   和用户可覆盖的关联规则仍按第 7、11 节持续收紧。
+3. **M3（P2 长尾）**：RAW 长尾、XPS、DjVu、字体、电子书、Visio、CAD、Project 与图像补充格式已落地；
+   所有第三方解析器均保持在 viewer 独立进程内。
 
 ## 10. 验收标准
 
@@ -201,6 +200,8 @@ SVG 引擎权衡：
 - 新增扩展名同步更新 `plugin.json`（规范化：小写、点前缀、复合后缀如 `.tar.gz`）；
 - `flutter analyze` / `flutter test` 通过；Rust 插件 `cargo build --release`、email-view 的
   `npm run build` / `dotnet publish` 与解析自检通过。
+- 长尾依赖由 `plugins/img-view/build.bat` 与 `plugins/mupdf-view/build-runtime.bat` 下载并校验 SHA-256；
+  发布包需包含 ImageMagick、Compface、WIC decoder、DjVuLibre、LibreDWG 和 LibreOffice 运行时及其通知文件。
 
 ## 11. Viewer 补全后处理的覆盖审计项
 
@@ -228,3 +229,22 @@ SVG 引擎权衡：
 5. **补充文本编码覆盖**：code-view 当前明确处理 UTF-8 与带 BOM 的 UTF-16 LE/BE；GBK、
    Shift-JIS、Windows-1252 等旧日志和源码可能乱码。Viewer 补全后评估编码探测、手动切换
    编码及相应测试样本。
+
+## 12. 后续改进点
+
+本轮已将 P2 长尾格式接入可运行的独立 viewer，但仍有以下工程化改进项：
+
+1. **LibreOffice 改为可选运行时**：当前 LibreOffice 仅用于旧 Office、ODF、Visio、RTF/WPS
+   等格式的 headless 转 PDF，不是 Flutter 或 MuPDF 的基础依赖。基础安装包应默认不携带约 1.5GB
+   运行时，在用户首次打开相关格式时按需下载；已有 Office 的机器可优先评估 COM 转换。
+2. **细分文档转换后端**：评估 `antiword`/`catdoc`/`wvWare`、`xlrd`/`ssconvert`/`pyxlsb`、
+   `libwps`、`libvisio`、ODF Toolkit 和 RTF 专用解析器，逐步替换对 LibreOffice 的单一依赖。
+   轻量后端优先提供文本或页面预览，版式保真要求较高的文件保留 LibreOffice fallback。
+3. **转换质量与失败反馈**：为旧 Office、Visio、DWG/DXF、DjVu 建立代表性样本集，验证页面数量、
+   字体、图片、表格和 SVG 实体；转换失败时区分“运行时缺失”“格式损坏”和“后端不支持”。
+4. **长尾运行时按需拆包**：ImageMagick、WIC、Compface、DjVuLibre、LibreDWG 和 LibreOffice
+   目前由构建脚本统一准备。后续按 viewer 产物拆分下载、缓存和版本升级，避免用户为未使用的格式下载依赖。
+5. **关联冲突与内容嗅探**：继续处理 `.gif`、`.ts`、`.dat`、`.cin` 等多语义扩展名，增加
+   MIME、文件头和用户关联规则的优先级测试，确保命中 viewer 与真实内容一致。
+6. **发布包审计**：发布前自动检查 manifest、entrypoint、第三方通知、运行时 DLL/EXE 和 SHA-256
+   记录，清理不参与运行的开发文件，避免旧插件产物混入 `plugins/dist`。

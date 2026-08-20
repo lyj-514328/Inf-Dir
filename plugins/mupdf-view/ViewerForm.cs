@@ -33,9 +33,9 @@ public sealed class ViewerForm : Form
     private readonly record struct TextChar(
         float X0, float Y0, float X1, float Y1, char Ch);
 
-    public ViewerForm(string file, WindowPlacement? placement)
+    public ViewerForm(string file, WindowPlacement? placement, string? displayName = null)
     {
-        _fileName = Path.GetFileName(file);
+        _fileName = displayName ?? Path.GetFileName(file);
         try
         {
             _doc = new Document(file);

@@ -21,6 +21,11 @@ REM drop it to keep the package smaller.
 if exist "%OUTPUT_DIR%\MuPDF.Fonts.dll" del /q "%OUTPUT_DIR%\MuPDF.Fonts.dll"
 REM Third-party packages may ship their own PDB files.
 del /q "%OUTPUT_DIR%\*.pdb" 2>nul
+start "" /wait "%OUTPUT_DIR%\mupdf-view.exe" --self-test
+if errorlevel 1 (
+    echo [ERROR] mupdf-view self-test failed.
+    exit /b 1
+)
 
 echo.
 echo [DONE] %OUTPUT_DIR%\mupdf-view.exe

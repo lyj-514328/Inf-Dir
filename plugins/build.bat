@@ -27,6 +27,8 @@ set "MD_WEB=%SCRIPT_DIR%markdown-view-web"
 set "CODE_WEB=%SCRIPT_DIR%code-view-web"
 set "EMAIL_WEB=%SCRIPT_DIR%email-view-web"
 set "EMAIL_PUBLISH=%SCRIPT_DIR%email-view\publish"
+set "FONT_PUBLISH=%SCRIPT_DIR%font-view\bin\Release\net8.0-windows\win-x64\publish"
+set "PROJECT_PUBLISH=%SCRIPT_DIR%project-view\bin\Release\net10.0-windows\win-x64\publish"
 
 REM Prefer the Scoop SDK because a machine-wide dotnet host may have no SDK.
 if exist "%USERPROFILE%\scoop\apps\dotnet-sdk\current\dotnet.exe" (
@@ -46,6 +48,18 @@ REM --- Download and package the bundled 7-Zip archive-operation plugin ---
 call "%SCRIPT_DIR%archive\build.bat" "%DIST_DIR%"
 if errorlevel 1 (
     echo [ERROR] Archive plugin build failed.
+    exit /b 1
+)
+
+REM --- Prepare extended image and document runtimes ---
+call "%SCRIPT_DIR%img-view\build.bat"
+if errorlevel 1 (
+    echo [ERROR] ImageMagick runtime preparation failed.
+    exit /b 1
+)
+call "%SCRIPT_DIR%mupdf-view\build-runtime.bat"
+if errorlevel 1 (
+    echo [ERROR] Document conversion runtime preparation failed.
     exit /b 1
 )
 
@@ -387,21 +401,39 @@ if errorlevel 1 ( echo [ERROR] pdf-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  13. Build pdfjs-view (MSVC + WebView2 + pdf.js)
+REM  15. Build pdfjs-view (MSVC + WebView2 + pdf.js)
 REM ============================================================
-echo [13/13] Building pdfjs-view...
+echo [15/18] Building pdfjs-view...
 pushd "%SCRIPT_DIR%pdfjs-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] pdfjs-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  14. Build mupdf-view (.NET self-contained + MuPDF.NET)
+REM  16. Build mupdf-view (.NET self-contained + MuPDF.NET)
 REM ============================================================
-echo [14/14] Building mupdf-view...
+echo [16/18] Building mupdf-view...
 pushd "%SCRIPT_DIR%mupdf-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] mupdf-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
+REM  17. Build font-view (.NET self-contained + WebView2)
+REM ============================================================
+echo [17/18] Building font-view...
+pushd "%SCRIPT_DIR%font-view"
+call build.bat
+if errorlevel 1 ( echo [ERROR] font-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
+REM  18. Build project-view (.NET self-contained + MPXJ.Net)
+REM ============================================================
+echo [18/18] Building project-view...
+pushd "%SCRIPT_DIR%project-view"
+call build.bat
+if errorlevel 1 ( echo [ERROR] project-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
@@ -421,6 +453,8 @@ for %%D in (
     inf-dir.pdf-view
     inf-dir.pdfjs-view
     inf-dir.mupdf-view
+    inf-dir.font-view
+    inf-dir.project-view
     inf-dir.vscode-open
     inf-dir.windows-terminal
 ) do if not exist "%DIST_DIR%\%%D" mkdir "%DIST_DIR%\%%D"
@@ -428,6 +462,13 @@ for %%D in (
 copy /Y "%SCRIPT_DIR%img-view\plugin.json" "%DIST_DIR%\inf-dir.image-view\" >nul
 copy /Y "%SCRIPT_DIR%img-view\target\release\img-view.exe" "%DIST_DIR%\inf-dir.image-view\" >nul
 copy /Y "%SCRIPT_DIR%img-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.image-view\" >nul
+if exist "%DIST_DIR%\inf-dir.image-view\magick" rmdir /s /q "%DIST_DIR%\inf-dir.image-view\magick"
+xcopy /E /I /Y /Q "%SCRIPT_DIR%img-view\magick" "%DIST_DIR%\inf-dir.image-view\magick" >nul
+if exist "%DIST_DIR%\inf-dir.image-view\compface" rmdir /s /q "%DIST_DIR%\inf-dir.image-view\compface"
+xcopy /E /I /Y /Q "%SCRIPT_DIR%img-view\compface" "%DIST_DIR%\inf-dir.image-view\compface" >nul
+if exist "%DIST_DIR%\inf-dir.image-view\wic-decoder" rmdir /s /q "%DIST_DIR%\inf-dir.image-view\wic-decoder"
+mkdir "%DIST_DIR%\inf-dir.image-view\wic-decoder"
+copy /Y "%SCRIPT_DIR%img-view\wic-decoder\wic-decoder.exe" "%DIST_DIR%\inf-dir.image-view\wic-decoder\" >nul
 
 copy /Y "%SCRIPT_DIR%code-view\plugin.json" "%DIST_DIR%\inf-dir.code-view\" >nul
 copy /Y "%SCRIPT_DIR%code-view\target\release\code-view.exe" "%DIST_DIR%\inf-dir.code-view\" >nul
@@ -472,6 +513,21 @@ xcopy /E /I /Y /Q "%SCRIPT_DIR%pdfjs-view-web" "%DIST_DIR%\inf-dir.pdfjs-view\pd
 copy /Y "%SCRIPT_DIR%mupdf-view\plugin.json" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
 if exist "%DIST_DIR%\inf-dir.mupdf-view\publish" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\publish"
 xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\bin\Release\net10.0-windows\win-x64\publish" "%DIST_DIR%\inf-dir.mupdf-view" >nul
+if exist "%DIST_DIR%\inf-dir.mupdf-view\djvulibre" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\djvulibre"
+if exist "%DIST_DIR%\inf-dir.mupdf-view\libredwg" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\libredwg"
+if exist "%DIST_DIR%\inf-dir.mupdf-view\libreoffice" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\libreoffice"
+xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\djvulibre" "%DIST_DIR%\inf-dir.mupdf-view\djvulibre" >nul
+xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\libredwg" "%DIST_DIR%\inf-dir.mupdf-view\libredwg" >nul
+xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\libreoffice" "%DIST_DIR%\inf-dir.mupdf-view\libreoffice" >nul
+copy /Y "%SCRIPT_DIR%mupdf-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
+
+copy /Y "%SCRIPT_DIR%font-view\plugin.json" "%DIST_DIR%\inf-dir.font-view\" >nul
+xcopy /E /I /Y /Q "%FONT_PUBLISH%\*" "%DIST_DIR%\inf-dir.font-view\" >nul
+copy /Y "%SCRIPT_DIR%font-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.font-view\" >nul
+
+copy /Y "%SCRIPT_DIR%project-view\plugin.json" "%DIST_DIR%\inf-dir.project-view\" >nul
+xcopy /E /I /Y /Q "%PROJECT_PUBLISH%\*" "%DIST_DIR%\inf-dir.project-view\" >nul
+copy /Y "%SCRIPT_DIR%project-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.project-view\" >nul
 
 copy /Y "%SCRIPT_DIR%vscode-open\plugin.json" "%DIST_DIR%\inf-dir.vscode-open\" >nul
 

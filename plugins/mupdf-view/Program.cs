@@ -5,6 +5,12 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
+        if (args is ["--self-test"])
+        {
+            try { DocumentPreparation.SelfTest(); return 0; }
+            catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+        }
+
         string? file = null;
         WindowPlacement? placement = null;
         for (int i = 0; i < args.Length; i++)
@@ -60,9 +66,27 @@ static class Program
             return 1;
         }
 
-        ApplicationConfiguration.Initialize();
-        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
-        Application.Run(new ViewerForm(file, placement));
+        PreparedDocument prepared;
+        try
+        {
+            prepared = DocumentPreparation.Prepare(file);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"无法准备文档：{ex.Message}",
+                "MuPDF 查看器",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            return 2;
+        }
+
+        using (prepared)
+        {
+            ApplicationConfiguration.Initialize();
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+            Application.Run(new ViewerForm(prepared.FilePath, placement, prepared.DisplayName));
+        }
         return 0;
     }
 }

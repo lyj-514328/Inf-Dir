@@ -1,0 +1,13 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.font-view",
+  "name": "字体查看器",
+  "version": "0.1.0",
+  "entrypoint": "font-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [".ttf", ".otf", ".woff", ".woff2", ".ttc", ".dfont"],
+      "mimeTypes": ["font/ttf", "font/otf", "font/woff", "font/woff2", "application/font-sfnt"]
+    }
+  }
+}

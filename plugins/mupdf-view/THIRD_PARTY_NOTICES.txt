@@ -1,0 +1,23 @@
+MuPDF document viewer dependencies
+==================================
+
+MuPDF.NET / MuPDF
+-----------------
+MuPDF.NET is distributed under the GNU Affero General Public License v3.
+MuPDF is Copyright Artifex Software, Inc. and is available under AGPLv3
+or a commercial license. See the NuGet package and bundled license files.
+
+DjVuLibre 3.5.29
+----------------
+DjVuLibre is distributed under GNU GPL v2 or later. The isolated runtime
+contains its COPYING file. Source: https://djvu.sourceforge.net/
+
+GNU LibreDWG 0.14
+-----------------
+LibreDWG is distributed under GNU GPL v3 or later. Source and license:
+https://www.gnu.org/software/libredwg/
+
+LibreOffice 26.2.5 (optional bundled conversion runtime)
+---------------------------------------------------------
+LibreOffice is distributed under Mozilla Public License 2.0. Source and
+license information: https://www.libreoffice.org/about-us/licenses/

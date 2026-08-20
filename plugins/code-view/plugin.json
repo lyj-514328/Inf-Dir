@@ -24,7 +24,7 @@
         ".scm", ".scss", ".sh", ".shtm", ".shtml", ".sql", ".ss",
         ".st", ".stm", ".sty", ".svelte", ".swift", ".tcl", ".tex",
         ".toml", ".ts", ".tsv", ".tsx", ".v", ".vb", ".vhd",
-        ".vue",
+        ".txt", ".vue",
         ".xml", ".xsd", ".xsl", ".xslt", ".yaml", ".yml", ".zsh"
       ],
       "fileNames": [

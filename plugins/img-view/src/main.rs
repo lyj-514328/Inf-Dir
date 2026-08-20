@@ -1,5 +1,7 @@
 use std::env;
 use std::path::Path;
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use eframe::egui;
 use egui::{
@@ -12,6 +14,7 @@ use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGU
 const DEFAULT_W: usize = 960;
 const DEFAULT_H: usize = 720;
 const MAX_RAW_DIMENSION: usize = 3200;
+const MAX_MAGICK_DIMENSION: &str = "3200x3200>";
 
 const RAW_EXTENSIONS: &[&str] = &[
     "ari", "arw", "cr2", "crw", "dcr", "dcs", "dng", "erf", "iiq", "k25", "kdc", "mef", "mos",
@@ -32,11 +35,137 @@ fn load_image(path: &str) -> Result<DynamicImage, String> {
 
     if ext == "svg" || ext == "svgz" {
         load_svg(path)
+    } else if ext == "xface" {
+        load_xface(path).or_else(|xface_error| {
+            load_magick(path).map_err(|magick_error| {
+                format!(
+                    "X-Face decode failed: {xface_error}; ImageMagick fallback failed: {magick_error}"
+                )
+            })
+        })
     } else if RAW_EXTENSIONS.contains(&ext.as_str()) {
-        load_raw(path)
+        load_raw(path).or_else(|raw_error| {
+            load_magick(path).map_err(|magick_error| {
+                format!(
+                    "RAW decode failed: {raw_error}; ImageMagick fallback failed: {magick_error}"
+                )
+            })
+        })
     } else {
-        image::open(path).map_err(|e| e.to_string())
+        image::open(path).or_else(|image_error| {
+            load_magick(path).or_else(|magick_error| load_wic(path).map_err(|wic_error| {
+                format!(
+                    "native image decoder failed: {image_error}; ImageMagick fallback failed: {magick_error}; WIC fallback failed: {wic_error}"
+                )
+            }))
+        })
     }
+}
+
+fn runtime_executable(directory: &str, executable: &str) -> Result<std::path::PathBuf, String> {
+    let path = env::current_exe()
+        .map_err(|error| error.to_string())?
+        .parent()
+        .map(|parent| parent.join(directory).join(executable))
+        .ok_or_else(|| "image-view executable has no parent directory".to_owned())?;
+    if !path.is_file() {
+        return Err(format!("runtime is missing: {}", path.display()));
+    }
+    Ok(path)
+}
+
+fn load_magick(path: &str) -> Result<DynamicImage, String> {
+    let executable = runtime_executable("magick", "magick.exe")?;
+
+    let output = Command::new(&executable)
+        .arg(path)
+        .arg("-auto-orient")
+        .arg("-resize")
+        .arg(MAX_MAGICK_DIMENSION)
+        .arg("png:-")
+        .output()
+        .map_err(|error| format!("failed to start {}: {error}", executable.display()))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if detail.is_empty() {
+            format!("ImageMagick exited with {}", output.status)
+        } else {
+            detail
+        });
+    }
+    image::load_from_memory(&output.stdout)
+        .map_err(|error| format!("ImageMagick returned invalid PNG: {error}"))
+}
+
+fn load_wic(path: &str) -> Result<DynamicImage, String> {
+    let executable = runtime_executable("wic-decoder", "wic-decoder.exe")?;
+    let output = Command::new(&executable)
+        .arg(path)
+        .output()
+        .map_err(|error| format!("failed to start {}: {error}", executable.display()))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if detail.is_empty() {
+            format!("WIC decoder exited with {}", output.status)
+        } else {
+            detail
+        });
+    }
+    image::load_from_memory(&output.stdout)
+        .map_err(|error| format!("WIC decoder returned invalid PNG: {error}"))
+}
+
+fn load_xface(path: &str) -> Result<DynamicImage, String> {
+    let uncompface = runtime_executable("compface", "uncompface.exe")?;
+    let magick = runtime_executable("magick", "magick.exe")?;
+    let mut input =
+        std::fs::read(path).map_err(|error| format!("failed to read X-Face: {error}"))?;
+    if input
+        .get(..7)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"X-Face:"))
+    {
+        input = input[7..].to_vec();
+    }
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_nanos();
+    let temp = env::temp_dir()
+        .join("Inf-Dir")
+        .join("img-view")
+        .join(format!("xface-{}-{nonce}", std::process::id()));
+    std::fs::create_dir_all(&temp)
+        .map_err(|error| format!("failed to create X-Face temp directory: {error}"))?;
+
+    let result = (|| {
+        let source = temp.join("source.xface");
+        let xbm = temp.join("source.xbm");
+        std::fs::write(&source, input)
+            .map_err(|error| format!("failed to stage X-Face data: {error}"))?;
+        let expanded = Command::new(&uncompface)
+            .arg("-X")
+            .arg(&source)
+            .arg(&xbm)
+            .output()
+            .map_err(|error| format!("failed to start uncompface: {error}"))?;
+        if !expanded.status.success() {
+            return Err(String::from_utf8_lossy(&expanded.stderr).trim().to_string());
+        }
+
+        let output = Command::new(&magick)
+            .arg(&xbm)
+            .args(["-resize", MAX_MAGICK_DIMENSION, "png:-"])
+            .output()
+            .map_err(|error| format!("failed to start ImageMagick: {error}"))?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+        }
+        image::load_from_memory(&output.stdout)
+            .map_err(|error| format!("ImageMagick returned invalid X-Face PNG: {error}"))
+    })();
+    let _ = std::fs::remove_dir_all(temp);
+    result
 }
 
 fn load_raw(path: &str) -> Result<DynamicImage, String> {

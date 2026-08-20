@@ -1,0 +1,6 @@
+Inf-Dir font-view third-party notices
+
+Microsoft WebView2 SDK
+Copyright (c) Microsoft Corporation
+License: BSD-3-Clause
+Source: https://www.nuget.org/packages/Microsoft.Web.WebView2/

@@ -47,30 +47,39 @@ if exist "%TEMP_DIR%" rmdir /s /q "%TEMP_DIR%"
 mkdir "%FD_TEMP%"
 mkdir "%RG_TEMP%"
 
-set "INF_DIR_SEARCH_ARCHIVE=%FD_ZIP%"
-set "INF_DIR_SEARCH_DEST=%FD_TEMP%"
-powershell -NoProfile -Command "Expand-Archive -LiteralPath $env:INF_DIR_SEARCH_ARCHIVE -DestinationPath $env:INF_DIR_SEARCH_DEST -Force"
+7z x "%FD_ZIP%" -o"%FD_TEMP%" -y >nul
 if errorlevel 1 (
     echo [ERROR] Failed to extract %FD_ARCHIVE%.
     exit /b 1
 )
 
-set "INF_DIR_SEARCH_ARCHIVE=%RG_ZIP%"
-set "INF_DIR_SEARCH_DEST=%RG_TEMP%"
-powershell -NoProfile -Command "Expand-Archive -LiteralPath $env:INF_DIR_SEARCH_ARCHIVE -DestinationPath $env:INF_DIR_SEARCH_DEST -Force"
+7z x "%RG_ZIP%" -o"%RG_TEMP%" -y >nul
 if errorlevel 1 (
     echo [ERROR] Failed to extract %RG_ARCHIVE%.
     exit /b 1
 )
 
-if not exist "%FD_ROOT%\fd.exe" (
+set "FD_EXE=%FD_ROOT%\fd.exe"
+if not exist "%FD_EXE%" (
+    set "FD_EXE="
+    for /r "%FD_TEMP%" %%F in (fd.exe) do if not defined FD_EXE set "FD_EXE=%%~fF"
+)
+if not defined FD_EXE (
     echo [ERROR] fd.exe is missing from %FD_ARCHIVE%.
     exit /b 1
 )
-if not exist "%RG_ROOT%\rg.exe" (
+for %%D in ("%FD_EXE%") do set "FD_SRC=%%~dpD"
+
+set "RG_EXE=%RG_ROOT%\rg.exe"
+if not exist "%RG_EXE%" (
+    set "RG_EXE="
+    for /r "%RG_TEMP%" %%F in (rg.exe) do if not defined RG_EXE set "RG_EXE=%%~fF"
+)
+if not defined RG_EXE (
     echo [ERROR] rg.exe is missing from %RG_ARCHIVE%.
     exit /b 1
 )
+for %%D in ("%RG_EXE%") do set "RG_SRC=%%~dpD"
 
 if exist "%FD_DIST%" rmdir /s /q "%FD_DIST%"
 if exist "%RG_DIST%" rmdir /s /q "%RG_DIST%"
@@ -79,13 +88,13 @@ mkdir "%RG_DIST%"
 
 copy /Y "%SCRIPT_DIR%fd\plugin.json" "%FD_DIST%\" >nul
 copy /Y "%SCRIPT_DIR%fd\THIRD_PARTY_NOTICES.txt" "%FD_DIST%\" >nul
-copy /Y "%FD_ROOT%\fd.exe" "%FD_DIST%\" >nul
-for %%F in (LICENSE-APACHE LICENSE-MIT) do if exist "%FD_ROOT%\%%F" copy /Y "%FD_ROOT%\%%F" "%FD_DIST%\" >nul
+copy /Y "%FD_EXE%" "%FD_DIST%\" >nul
+for %%F in (LICENSE-APACHE LICENSE-MIT) do if exist "%FD_SRC%%%F" copy /Y "%FD_SRC%%%F" "%FD_DIST%\" >nul
 
 copy /Y "%SCRIPT_DIR%ripgrep\plugin.json" "%RG_DIST%\" >nul
 copy /Y "%SCRIPT_DIR%ripgrep\THIRD_PARTY_NOTICES.txt" "%RG_DIST%\" >nul
-copy /Y "%RG_ROOT%\rg.exe" "%RG_DIST%\" >nul
-for %%F in (COPYING LICENSE-MIT UNLICENSE) do if exist "%RG_ROOT%\%%F" copy /Y "%RG_ROOT%\%%F" "%RG_DIST%\" >nul
+copy /Y "%RG_EXE%" "%RG_DIST%\" >nul
+for %%F in (COPYING LICENSE-MIT UNLICENSE) do if exist "%RG_SRC%%%F" copy /Y "%RG_SRC%%%F" "%RG_DIST%\" >nul
 
 if not exist "%FD_DIST%\fd.exe" (
     echo [ERROR] Failed to install the fd search plugin.

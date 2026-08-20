@@ -7,3 +7,17 @@ Source: https://crates.io/crates/rawloader/0.37.2
 
 The rawloader crate is linked into the isolated image-view plugin process. Its
 license is distributed with this plugin for downstream package compliance.
+
+ImageMagick 7.1.2-29
+License: Apache-2.0
+Source: https://imagemagick.org/
+
+The optional ImageMagick runtime is invoked as a child process inside the
+isolated image-view plugin. Its own LICENSE.txt and NOTICE.txt are shipped
+alongside the runtime.
+
+Compface 1.5.2
+---------------
+Compface is Copyright (c) James Ashton and is distributed with permissive
+redistribution terms. The isolated `uncompface.exe` runtime is used only to
+decode X-Face headers. Source notice: https://gnuwin32.sourceforge.net/packages/compface.htm

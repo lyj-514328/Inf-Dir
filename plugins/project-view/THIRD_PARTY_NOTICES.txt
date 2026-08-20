@@ -1,0 +1,8 @@
+Inf-Dir project-view third-party notices
+
+MPXJ.Net 16.7.0
+Copyright (c) Jon Iles and MPXJ contributors
+License: LGPL-2.1-or-later
+Source: https://www.mpxj.org/
+
+MPXJ is loaded only by the isolated project-view plugin process.
