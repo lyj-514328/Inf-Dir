@@ -7,18 +7,25 @@
   "capabilities": {
     "quickView": {
       "extensions": [
-        ".bat", ".bash", ".c", ".cc", ".cjs", ".cmake", ".conf",
-        ".config", ".cpp", ".cs", ".css", ".cxx", ".dart",
-        ".diff", ".fish", ".fs", ".fsx", ".go", ".gradle", ".graphql",
-        ".groovy", ".gql", ".h", ".hh", ".hlsl", ".hpp", ".htm",
-        ".html", ".hxx", ".ini", ".java", ".js", ".json", ".jsonc",
-        ".jsx", ".kt", ".kts", ".less", ".lua", ".mjs", ".php",
-        ".properties", ".proto", ".ps1", ".py", ".r", ".rb", ".rs",
-        ".sass", ".scala", ".scss", ".sh", ".sql", ".svelte", ".swift",
-        ".tex", ".toml", ".ts", ".tsx", ".vb", ".vue", ".xml", ".yaml",
-        ".yml", ".zsh",
-        ".txt", ".log", ".csv", ".tsv", ".cfg", ".cmd",
-        ".nfo", ".diz", ".shtm", ".shtml", ".stm"
+        ".a2l", ".ads", ".ahk", ".as", ".asm", ".asp", ".aspx",
+        ".au3", ".bas", ".bash", ".bat", ".bpk", ".bpr", ".c",
+        ".cbl", ".cc", ".cfg", ".cfm", ".cgi", ".cjs", ".clp",
+        ".cmake", ".cmd", ".conf", ".config", ".cpp", ".cs", ".csh",
+        ".css", ".csv", ".cxx", ".dart", ".dfm", ".diff", ".diz",
+        ".dpk", ".dpr", ".eba", ".erl", ".ex", ".f", ".fish",
+        ".fs", ".fsx", ".go", ".gql", ".gradle", ".graphql", ".groovy",
+        ".h", ".haml", ".hh", ".hlsl", ".hpp", ".hs", ".htm",
+        ".html", ".hxx", ".inc", ".inf", ".ini", ".iss", ".iwb",
+        ".java", ".js", ".json", ".jsonc", ".jsx", ".kix", ".kt",
+        ".kts", ".less", ".lhs", ".log", ".lua", ".mjs", ".ml",
+        ".nfo", ".nsh", ".nsi", ".ob2", ".pas", ".php", ".pl",
+        ".pm", ".pod", ".prg", ".properties", ".proto", ".ps1", ".py",
+        ".r", ".rb", ".rc", ".rs", ".sas", ".sass", ".scala",
+        ".scm", ".scss", ".sh", ".shtm", ".shtml", ".sql", ".ss",
+        ".st", ".stm", ".sty", ".svelte", ".swift", ".tcl", ".tex",
+        ".toml", ".ts", ".tsv", ".tsx", ".v", ".vb", ".vhd",
+        ".vue",
+        ".xml", ".xsd", ".xsl", ".xslt", ".yaml", ".yml", ".zsh"
       ],
       "fileNames": [
         ".editorconfig", ".env", ".gitattributes", ".gitignore",
