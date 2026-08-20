@@ -68,6 +68,8 @@ internal sealed class EmailViewerForm : Form
             var environment = await CoreWebView2Environment.CreateAsync(null, userData);
             await _webView.EnsureCoreWebView2Async(environment);
             ConfigureWebView(_webView.CoreWebView2, webRoot);
+            await _webView.CoreWebView2.Profile.ClearBrowsingDataAsync(
+                CoreWebView2BrowsingDataKinds.DiskCache);
             _webView.CoreWebView2.Navigate($"https://{VirtualHost}/index.html");
         }
         catch (Exception exception)
