@@ -19,6 +19,9 @@ public sealed class ViewerForm : Form
     private int _pageIndex;
     private float _zoom = 1f;
     private ZoomMode _zoomMode = ZoomMode.FitWidth;
+    private Bitmap? _pageBitmap;
+    private TextPage? _pageText;
+    private readonly List<TextChar> _chars = new();
 
     private enum ZoomMode
     {
@@ -26,6 +29,9 @@ public sealed class ViewerForm : Form
         FitPage,
         Custom,
     }
+
+    private readonly record struct TextChar(
+        float X0, float Y0, float X1, float Y1, char Ch);
 
     public ViewerForm(string file, WindowPlacement? placement)
     {
@@ -124,7 +130,6 @@ public sealed class ViewerForm : Form
         });
         _toolbar.Items.Add(_zoomLabel);
 
-        _toolbar.BackColorChanged += (_, _) => { };
         return _toolbar;
     }
 
@@ -186,12 +191,14 @@ public sealed class ViewerForm : Form
         };
     }
 
-    private Bitmap? _pageBitmap;
-
     private void RenderCurrentPage()
     {
         try
         {
+            _chars.Clear();
+            _pageText?.Dispose();
+            _pageText = null;
+
             using (Page page = _doc.LoadPage(_pageIndex))
             {
                 SizeF sizePt = new(page.Rect.Width, page.Rect.Height);
@@ -210,14 +217,62 @@ public sealed class ViewerForm : Form
                 {
                     pix.Dispose();
                 }
+
+                _pageText = page.GetTextPage();
+                CollectChars(_pageText);
             }
-            _canvas.SetPage(_pageBitmap, _zoom);
+            _canvas.SetPage(_pageBitmap, _zoom, _chars);
             UpdatePageControls();
         }
         catch (Exception ex)
         {
             MessageBox.Show(this, $"渲染失败：{ex.Message}", "MuPDF 查看器",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void CollectChars(TextPage textPage)
+    {
+        PageInfo info = textPage.ExtractRAWDict();
+        foreach (Block block in info.Blocks)
+        {
+            if (block.Type != 0)
+            {
+                continue;
+            }
+            foreach (Line line in block.Lines)
+            {
+                foreach (Span span in line.Spans)
+                {
+                    foreach (MuPDF.NET.Char ch in span.Chars)
+                    {
+                        if (ch.C != '\0')
+                        {
+                            _chars.Add(new TextChar(
+                                ch.Bbox.x0, ch.Bbox.y0,
+                                ch.Bbox.x1, ch.Bbox.y1, ch.C));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    internal string? GetSelectionText(PointF a, PointF b)
+    {
+        if (_pageText is null)
+        {
+            return null;
+        }
+        try
+        {
+            return _pageText.ExtractSelection(
+                new MuPDF.NET.Point(a.X, a.Y),
+                new MuPDF.NET.Point(b.X, b.Y));
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -267,6 +322,14 @@ public sealed class ViewerForm : Form
 
     private void OnFormKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Control && e.KeyCode == Keys.C)
+        {
+            if (_canvas.CopySelection() && e is { } evt)
+            {
+                evt.Handled = true;
+            }
+            return;
+        }
         switch (e.KeyCode)
         {
             case Keys.PageDown:
@@ -288,6 +351,7 @@ public sealed class ViewerForm : Form
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         _pageBitmap?.Dispose();
+        _pageText?.Dispose();
         _doc.Close();
         base.OnFormClosed(e);
     }
@@ -303,7 +367,7 @@ public sealed class ViewerForm : Form
             BackColor = System.Drawing.Color.FromArgb(66, 67, 70);
             DoubleBuffered = true;
             AutoScroll = true;
-            _pageView = new PageView();
+            _pageView = new PageView(owner);
             Controls.Add(_pageView);
             Resize += (_, _) =>
             {
@@ -319,9 +383,11 @@ public sealed class ViewerForm : Form
             MouseWheel += OnMouseWheel;
         }
 
-        public void SetPage(Bitmap? bitmap, float zoom)
+        public bool CopySelection() => _pageView.CopySelection();
+
+        public void SetPage(Bitmap? bitmap, float zoom, List<TextChar> chars)
         {
-            _pageView.SetBitmap(bitmap);
+            _pageView.SetContent(bitmap, zoom, chars);
             if (bitmap is null)
             {
                 _pageView.Size = new Size(0, 0);
@@ -359,19 +425,108 @@ public sealed class ViewerForm : Form
 
     private sealed class PageView : Control
     {
+        private readonly ViewerForm _owner;
         private Bitmap? _bitmap;
+        private float _zoom = 1f;
+        private IReadOnlyList<TextChar> _chars = Array.Empty<TextChar>();
+        private PointF? _anchor;
+        private PointF? _current;
 
-        public PageView()
+        public PageView(ViewerForm owner)
         {
+            _owner = owner;
             BackColor = System.Drawing.Color.FromArgb(66, 67, 70);
             DoubleBuffered = true;
             SetStyle(ControlStyles.ResizeRedraw, true);
+            Cursor = Cursors.IBeam;
+            MouseDown += OnMouseDown;
+            MouseMove += OnMouseMove;
+            MouseUp += OnMouseUp;
         }
 
-        public void SetBitmap(Bitmap? bitmap)
+        public void SetContent(Bitmap? bitmap, float zoom, List<TextChar> chars)
         {
             _bitmap = bitmap;
+            _zoom = zoom;
+            _chars = chars;
+            _anchor = null;
+            _current = null;
             Invalidate();
+        }
+
+        public bool CopySelection()
+        {
+            if (_anchor is not { } a || _current is not { } c)
+            {
+                return false;
+            }
+            string? text = _owner.GetSelectionText(a, c);
+            if (string.IsNullOrEmpty(text))
+            {
+                return false;
+            }
+            System.Windows.Forms.Clipboard.SetText(text);
+            return true;
+        }
+
+        private void OnMouseDown(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left || _bitmap is null)
+            {
+                return;
+            }
+            _anchor = ToPage(e.Location);
+            _current = _anchor;
+            Capture = true;
+            Invalidate();
+        }
+
+        private void OnMouseMove(object? sender, MouseEventArgs e)
+        {
+            if (_anchor is null || _bitmap is null)
+            {
+                return;
+            }
+            _current = ToPage(e.Location);
+            Invalidate();
+        }
+
+        private void OnMouseUp(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left)
+            {
+                return;
+            }
+            Capture = false;
+            if (_anchor is not null && _bitmap is not null)
+            {
+                _current = ToPage(e.Location);
+                Invalidate();
+            }
+        }
+
+        private PointF ToPage(System.Drawing.Point screen)
+        {
+            if (_bitmap is null)
+            {
+                return default;
+            }
+            float ox = Math.Max(0, (Width - _bitmap.Width) / 2f);
+            float oy = Math.Max(0, (Height - _bitmap.Height) / 2f);
+            return new PointF((screen.X - ox) / _zoom, (screen.Y - oy) / _zoom);
+        }
+
+        private RectangleF SelectionRect()
+        {
+            if (_anchor is not { } a || _current is not { } c)
+            {
+                return RectangleF.Empty;
+            }
+            float x0 = Math.Min(a.X, c.X);
+            float y0 = Math.Min(a.Y, c.Y);
+            float x1 = Math.Max(a.X, c.X);
+            float y1 = Math.Max(a.Y, c.Y);
+            return new RectangleF(x0, y0, x1 - x0, y1 - y0);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -382,11 +537,34 @@ public sealed class ViewerForm : Form
             {
                 return;
             }
-            int x = Math.Max(0, (Width - _bitmap.Width) / 2);
-            int y = Math.Max(0, (Height - _bitmap.Height) / 2);
+            int ox = Math.Max(0, (Width - _bitmap.Width) / 2);
+            int oy = Math.Max(0, (Height - _bitmap.Height) / 2);
             e.Graphics.InterpolationMode =
                 System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-            e.Graphics.DrawImage(_bitmap, x, y);
+            e.Graphics.DrawImage(_bitmap, ox, oy);
+
+            RectangleF sel = SelectionRect();
+            if (sel.IsEmpty)
+            {
+                return;
+            }
+            using var highlight = new SolidBrush(System.Drawing.Color.FromArgb(90, 66, 133, 244));
+            using var outline = new Pen(System.Drawing.Color.FromArgb(160, 66, 133, 244));
+            foreach (TextChar tc in _chars)
+            {
+                if (tc.X1 < sel.Left || tc.X0 > sel.Right ||
+                    tc.Y1 < sel.Top || tc.Y0 > sel.Bottom)
+                {
+                    continue;
+                }
+                RectangleF r = new(
+                    tc.X0 * _zoom + ox,
+                    tc.Y0 * _zoom + oy,
+                    (tc.X1 - tc.X0) * _zoom,
+                    (tc.Y1 - tc.Y0) * _zoom);
+                e.Graphics.FillRectangle(highlight, r);
+                e.Graphics.DrawRectangle(outline, r.X, r.Y, r.Width, r.Height);
+            }
         }
     }
 }
