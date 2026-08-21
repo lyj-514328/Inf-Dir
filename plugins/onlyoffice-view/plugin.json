@@ -1,0 +1,30 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.onlyoffice-view",
+  "name": "ONLYOFFICE Office Viewer",
+  "version": "0.1.0",
+  "entrypoint": "onlyoffice-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [
+        ".doc", ".docm", ".docx", ".dot", ".dotm", ".dotx",
+        ".odt", ".ott", ".fodt", ".rtf", ".wps", ".wbk", ".mht",
+        ".ppt", ".pptm", ".pptx", ".pot", ".potm", ".potx",
+        ".pps", ".ppsm", ".ppsx", ".odp", ".otp", ".fodp",
+        ".vsd", ".vsdm", ".vsdx", ".vss", ".vssm", ".vssx",
+        ".vst", ".vstm", ".vstx", ".vdx", ".vdw", ".vsx", ".vtx"
+      ],
+      "mimeTypes": [
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-word.document.macroenabled.12",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-powerpoint.presentation.macroenabled.12",
+        "application/vnd.oasis.opendocument.text",
+        "application/vnd.oasis.opendocument.presentation",
+        "application/vnd.visio"
+      ]
+    }
+  }
+}

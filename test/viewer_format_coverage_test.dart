@@ -19,6 +19,13 @@ void main() {
       '.doc', '.xls', '.ppt', '.dot', '.xlt', '.pot', '.pps', '.xlsb',
       '.odt', '.ods', '.odp',
     },
+    'inf-dir.onlyoffice-view': {
+      '.doc', '.docm', '.docx', '.dot', '.dotm', '.dotx',
+      '.odt', '.ott', '.fodt', '.rtf', '.ppt', '.pptm', '.pptx', '.pot', '.potm',
+      '.potx', '.pps', '.ppsm', '.ppsx', '.odp', '.otp', '.fodp',
+      '.vsd', '.vsdm', '.vsdx', '.vss', '.vssm', '.vssx', '.vst', '.vstm',
+      '.vstx', '.vdx', '.vdw', '.vsx', '.vtx',
+    },
     'inf-dir.project-view': {'.mpp', '.mpt', '.mpx'},
     'inf-dir.font-view': {'.ttf', '.otf', '.woff', '.woff2', '.ttc', '.dfont'},
   };
@@ -42,6 +49,14 @@ void main() {
       expect(extensions, everyElement(matches(RegExp(r'^\.[a-z0-9][a-z0-9.+-]*$'))));
       expect(extensions.toSet().length, extensions.length, reason: entry.key);
     }
+  });
+
+  test('onlyoffice-view leaves Excel formats unassigned for now', () {
+    final manifests = _loadPluginManifests();
+    final extensions = manifests['inf-dir.onlyoffice-view']!;
+    expect(extensions, isNot(anyOf(contains('.xls'), contains('.xlsx'))));
+    expect(extensions, isNot(contains('.xlsm')));
+    expect(extensions, isNot(contains('.xlsb')));
   });
 }
 

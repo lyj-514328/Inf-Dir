@@ -394,7 +394,7 @@ popd
 REM ============================================================
 REM  14. Build pdf-view (GNU / MinGW-w64 + PDFium)
 REM ============================================================
-echo [14/14] Building pdf-view...
+echo [14/19] Building pdf-view...
 pushd "%SCRIPT_DIR%pdf-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] pdf-view build failed. & popd & exit /b 1 )
@@ -403,34 +403,43 @@ popd
 REM ============================================================
 REM  15. Build pdfjs-view (MSVC + WebView2 + pdf.js)
 REM ============================================================
-echo [15/18] Building pdfjs-view...
+echo [15/19] Building pdfjs-view...
 pushd "%SCRIPT_DIR%pdfjs-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] pdfjs-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  16. Build mupdf-view (.NET self-contained + MuPDF.NET)
+REM  16. Build onlyoffice-view (MSVC + WebView2 + ONLYOFFICE x2t)
 REM ============================================================
-echo [16/18] Building mupdf-view...
+echo [16/19] Building onlyoffice-view...
+pushd "%SCRIPT_DIR%onlyoffice-view"
+call build.bat
+if errorlevel 1 ( echo [ERROR] onlyoffice-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
+REM  17. Build mupdf-view (.NET self-contained + MuPDF.NET)
+REM ============================================================
+echo [17/19] Building mupdf-view...
 pushd "%SCRIPT_DIR%mupdf-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] mupdf-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  17. Build font-view (.NET self-contained + WebView2)
+REM  18. Build font-view (.NET self-contained + WebView2)
 REM ============================================================
-echo [17/18] Building font-view...
+echo [18/19] Building font-view...
 pushd "%SCRIPT_DIR%font-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] font-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  18. Build project-view (.NET self-contained + MPXJ.Net)
+REM  19. Build project-view (.NET self-contained + MPXJ.Net)
 REM ============================================================
-echo [18/18] Building project-view...
+echo [19/19] Building project-view...
 pushd "%SCRIPT_DIR%project-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] project-view build failed. & popd & exit /b 1 )
@@ -452,6 +461,7 @@ for %%D in (
     inf-dir.video-view
     inf-dir.pdf-view
     inf-dir.pdfjs-view
+    inf-dir.onlyoffice-view
     inf-dir.mupdf-view
     inf-dir.font-view
     inf-dir.project-view
@@ -509,6 +519,21 @@ copy /Y "%SCRIPT_DIR%pdfjs-view\target\release\pdfjs-view.exe" "%DIST_DIR%\inf-d
 if exist "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view.exe.WebView2" rmdir /s /q "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view.exe.WebView2"
 if exist "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web"
 xcopy /E /I /Y /Q "%SCRIPT_DIR%pdfjs-view-web" "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web" >nul
+
+copy /Y "%SCRIPT_DIR%onlyoffice-view\plugin.json" "%DIST_DIR%\inf-dir.onlyoffice-view\" >nul
+copy /Y "%SCRIPT_DIR%onlyoffice-view\target\release\onlyoffice-view.exe" "%DIST_DIR%\inf-dir.onlyoffice-view\" >nul
+if exist "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice-view-web"
+xcopy /E /I /Y /Q "%SCRIPT_DIR%onlyoffice-view-web" "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice-view-web" >nul
+if defined ONLYOFFICE_X2T_DIR (
+    if not exist "%ONLYOFFICE_X2T_DIR%" (
+        echo [WARN] ONLYOFFICE_X2T_DIR does not exist: %ONLYOFFICE_X2T_DIR%
+    ) else (
+        if exist "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice" rmdir /s /q "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice"
+        xcopy /E /I /Y /Q "%ONLYOFFICE_X2T_DIR%" "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice" >nul
+    )
+) else (
+    echo [WARN] ONLYOFFICE_X2T_DIR is not set; onlyoffice-view will need a runtime beside the executable.
+)
 
 copy /Y "%SCRIPT_DIR%mupdf-view\plugin.json" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
 if exist "%DIST_DIR%\inf-dir.mupdf-view\publish" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\publish"
