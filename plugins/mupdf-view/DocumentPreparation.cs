@@ -54,6 +54,14 @@ internal sealed class PreparedDocument : IDisposable
 internal static class DocumentPreparation
 {
     private const int MaxTcrOutputBytes = 256 * 1024 * 1024;
+    private const long MaxComicArchiveBytes = 512L * 1024 * 1024;
+    private const int MaxComicPages = 10_000;
+
+    private static readonly HashSet<string> ComicImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".jfif", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff",
+        ".avif", ".jxl", ".jp2", ".j2k",
+    };
 
     public static void SelfTest()
     {
@@ -112,6 +120,10 @@ internal static class DocumentPreparation
             return DecompressTcr(source);
         }
 
+        if (extension.Equals(".cbr", StringComparison.OrdinalIgnoreCase))
+        {
+            return ConvertCbr(source);
+        }
         return PreparedDocument.Direct(source);
     }
 
@@ -185,6 +197,116 @@ internal static class DocumentPreparation
             Directory.Delete(temp, recursive: true);
             throw;
         }
+    }
+
+    private static PreparedDocument ConvertCbr(string source)
+    {
+        string executable = FindComicExtractor()
+            ?? throw new InvalidOperationException(
+                "CBR preview requires the archive-view extraction runtime; run plugins\\build.bat first.");
+        string temp = CreateTempDirectory("cbr");
+        string extracted = Path.Combine(temp, "extracted");
+        Directory.CreateDirectory(extracted);
+        try
+        {
+            bool usesArchiveViewer = Path.GetFileName(executable)
+                .Equals("archive-view.exe", StringComparison.OrdinalIgnoreCase);
+            string[] arguments = usesArchiveViewer
+                ? new[] { "--extract-comic", source, extracted }
+                : new[] { "x", source, $"-o{extracted}", "-y", "-aoa" };
+            ProcessResult result = RunTool(executable, arguments, temp, timeoutMilliseconds: 120_000);
+            if (!result.Success)
+            {
+                string detail = FirstNonEmpty(result.StandardError, result.StandardOutput, "The archive extractor could not extract the CBR archive.");
+                throw new InvalidOperationException($"CBR extraction failed: {detail}");
+            }
+
+            var pages = new List<(string FilePath, string EntryName)>();
+            long totalBytes = 0;
+            foreach (string file in Directory.EnumerateFiles(extracted, "*", SearchOption.AllDirectories))
+            {
+                string relative = Path.GetRelativePath(extracted, file);
+                if (Path.IsPathRooted(relative) || relative == ".." ||
+                    relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException("CBR archive contains an unsafe path.");
+                }
+
+                if (!ComicImageExtensions.Contains(Path.GetExtension(file))) continue;
+                FileInfo info = new(file);
+                totalBytes = checked(totalBytes + info.Length);
+                if (totalBytes > MaxComicArchiveBytes)
+                {
+                    throw new InvalidOperationException("CBR image data exceeds the 512 MiB preview limit.");
+                }
+                pages.Add((file, relative.Replace(Path.DirectorySeparatorChar, '/')));
+            }
+
+            if (pages.Count == 0)
+            {
+                throw new InvalidOperationException("CBR archive contains no supported comic images.");
+            }
+            if (pages.Count > MaxComicPages)
+            {
+                throw new InvalidOperationException("CBR archive contains too many comic pages.");
+            }
+
+            pages.Sort((left, right) => CompareComicEntryNames(left.EntryName, right.EntryName));
+            string output = Path.Combine(temp, Path.GetFileNameWithoutExtension(source) + ".cbz");
+            using (ZipArchive archive = ZipFile.Open(output, ZipArchiveMode.Create))
+            {
+                foreach ((string filePath, string entryName) in pages)
+                {
+                    archive.CreateEntryFromFile(filePath, entryName, CompressionLevel.NoCompression);
+                }
+            }
+            return PreparedDocument.Temporary(output, Path.GetFileName(source), temp);
+        }
+        catch
+        {
+            CleanupTemporaryDirectory(temp);
+            throw;
+        }
+    }
+
+    private static int CompareComicEntryNames(string left, string right)
+    {
+        int leftIndex = 0;
+        int rightIndex = 0;
+        while (leftIndex < left.Length && rightIndex < right.Length)
+        {
+            char leftChar = left[leftIndex];
+            char rightChar = right[rightIndex];
+            if (char.IsDigit(leftChar) && char.IsDigit(rightChar))
+            {
+                int leftEnd = leftIndex;
+                while (leftEnd < left.Length && char.IsDigit(left[leftEnd])) leftEnd++;
+                int rightEnd = rightIndex;
+                while (rightEnd < right.Length && char.IsDigit(right[rightEnd])) rightEnd++;
+                int leftSignificant = leftIndex;
+                while (leftSignificant + 1 < leftEnd && left[leftSignificant] == '0') leftSignificant++;
+                int rightSignificant = rightIndex;
+                while (rightSignificant + 1 < rightEnd && right[rightSignificant] == '0') rightSignificant++;
+                int leftDigits = leftEnd - leftSignificant;
+                int rightDigits = rightEnd - rightSignificant;
+                if (leftDigits != rightDigits) return leftDigits.CompareTo(rightDigits);
+                int numeric = string.Compare(
+                    left, leftSignificant, right, rightSignificant, leftDigits,
+                    StringComparison.OrdinalIgnoreCase);
+                if (numeric != 0) return numeric;
+                leftIndex = leftEnd;
+                rightIndex = rightEnd;
+                continue;
+            }
+
+            int text = char.ToUpperInvariant(leftChar).CompareTo(char.ToUpperInvariant(rightChar));
+            if (text != 0) return text;
+            leftIndex++;
+            rightIndex++;
+        }
+        return left.Length - leftIndex == right.Length - rightIndex
+            ? StringComparer.OrdinalIgnoreCase.Compare(left, right)
+            : (left.Length - leftIndex).CompareTo(right.Length - rightIndex);
     }
 
     private static PreparedDocument DecompressTcr(string source)
@@ -263,12 +385,86 @@ internal static class DocumentPreparation
         return File.Exists(path) ? path : null;
     }
 
+    private static string? FindSevenZip()
+    {
+        string? configured = Environment.GetEnvironmentVariable("INF_DIR_7Z_PATH");
+        IEnumerable<string> candidates = new[]
+        {
+            configured,
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "inf-dir.7z-archive", "7za.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "7z-archive", "7za.exe"),
+        }.Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => path!);
+
+        foreach (string candidate in candidates)
+        {
+            if (File.Exists(candidate)) return Path.GetFullPath(candidate);
+            if (!Directory.Exists(candidate)) continue;
+            foreach (string executable in new[] { "7za.exe", "7z.exe" })
+            {
+                string nested = Path.Combine(candidate, executable);
+                if (File.Exists(nested)) return nested;
+            }
+        }
+
+        return FindOnPath("7za.exe") ?? FindOnPath("7z.exe");
+    }
+
+    private static string? FindComicExtractor()
+    {
+        string? configured = Environment.GetEnvironmentVariable("INF_DIR_ARCHIVE_VIEW_PATH");
+        IEnumerable<string> candidates = new[]
+        {
+            configured,
+            Path.Combine(AppContext.BaseDirectory, "archive-view.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "inf-dir.archive-view", "archive-view.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "archive-view", "archive-view.exe"),
+        }.Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => path!);
+
+        foreach (string candidate in candidates)
+        {
+            if (File.Exists(candidate)) return Path.GetFullPath(candidate);
+        }
+
+        return FindSevenZip();
+    }
+
+    private static string? FindOnPath(string executable)
+    {
+        string? pathValue = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(pathValue))
+        {
+            return null;
+        }
+        foreach (string directory in pathValue.Split(Path.PathSeparator))
+        {
+            string candidate = Path.Combine(directory.Trim(), executable);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
     private static string CreateTempDirectory(string purpose)
     {
         string directory = Path.Combine(
             Path.GetTempPath(), "Inf-Dir", "mupdf-view", $"{purpose}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         return directory;
+    }
+
+    private static void CleanupTemporaryDirectory(string directory)
+    {
+        try
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+        catch
+        {
+            // Temporary files are best-effort cleanup; the OS will reclaim the temp tree later.
+        }
     }
 
     private static void EnsureOutput(string output, string operation)

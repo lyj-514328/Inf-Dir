@@ -13,7 +13,7 @@ void main() {
     'inf-dir.mupdf-view': {
       '.xps', '.oxps', '.dwg', '.dxf',
       '.djvu', '.djv',
-      '.epub', '.mobi', '.fb2', '.fbz', '.fb2z', '.tcr',
+      '.epub', '.mobi', '.fb2', '.fbz', '.fb2z', '.tcr', '.cbr',
     },
     'inf-dir.onlyoffice-view': {
       '.doc', '.docm', '.docx', '.dot', '.dotm', '.dotx',

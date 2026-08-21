@@ -9,7 +9,7 @@
       "extensions": [
         ".xps", ".oxps",
         ".epub", ".mobi", ".fb2", ".fbz", ".fb2z", ".tcr",
-        ".cbz", ".djvu", ".djv",
+        ".cbz", ".cbr", ".djvu", ".djv",
         ".dxf", ".dwg"
       ],
       "mimeTypes": [

@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::ffi::{c_char, c_int, c_void, CStr};
+use std::fs::{self, File};
+use std::io::Write;
 use std::os::windows::ffi::OsStrExt;
-use std::path::Path;
+use std::path::{Component, Path};
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -16,6 +18,8 @@ extern "C" {
     fn archive_read_support_format_all(a: *mut c_void) -> c_int;
     fn archive_read_open_filename_w(a: *mut c_void, path: *const u16, block_size: usize) -> c_int;
     fn archive_read_next_header(a: *mut c_void, entry: *mut *mut c_void) -> c_int;
+    fn archive_read_data(a: *mut c_void, buff: *mut c_void, size: usize) -> isize;
+    fn archive_read_data_skip(a: *mut c_void) -> c_int;
     fn archive_read_free(a: *mut c_void) -> c_int;
     fn archive_error_string(a: *mut c_void) -> *const c_char;
     fn archive_entry_pathname_w(entry: *mut c_void) -> *const u16;
@@ -28,6 +32,8 @@ extern "C" {
 const ARCHIVE_OK: c_int = 0;
 const ARCHIVE_EOF: c_int = 1;
 const AE_IFDIR: u32 = 0o040000;
+const MAX_COMIC_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_COMIC_PAGES: usize = 10_000;
 
 struct ArchiveEntry {
     pathname: String,
@@ -114,6 +120,143 @@ unsafe fn error_msg(a: *mut c_void) -> String {
     } else {
         CStr::from_ptr(p).to_string_lossy().into_owned()
     }
+}
+
+fn is_comic_image(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .map(|extension| extension.to_ascii_lowercase())
+            .as_deref(),
+        Some("jpg")
+            | Some("jpeg")
+            | Some("jfif")
+            | Some("png")
+            | Some("gif")
+            | Some("bmp")
+            | Some("webp")
+            | Some("tif")
+            | Some("tiff")
+            | Some("avif")
+            | Some("jxl")
+            | Some("jp2")
+            | Some("j2k")
+    )
+}
+
+fn safe_archive_path(raw: &str) -> Option<std::path::PathBuf> {
+    let normalized = raw.replace('\\', "/");
+    let mut relative = std::path::PathBuf::new();
+    for component in Path::new(&normalized).components() {
+        match component {
+            Component::Normal(value) => {
+                if value.to_string_lossy().contains(':') {
+                    return None;
+                }
+                relative.push(value);
+            }
+            Component::CurDir => {}
+            Component::Prefix(_) | Component::RootDir | Component::ParentDir => return None,
+        }
+    }
+    (!relative.as_os_str().is_empty()).then_some(relative)
+}
+
+fn extract_comic(path: &str, output_directory: &str) -> Result<(), String> {
+    fs::create_dir_all(output_directory)
+        .map_err(|error| format!("failed to create extraction directory: {error}"))?;
+
+    let archive = unsafe { archive_read_new() };
+    if archive.is_null() {
+        return Err("failed to allocate archive reader".into());
+    }
+
+    let result = (|| unsafe {
+        archive_read_support_filter_all(archive);
+        archive_read_support_format_all(archive);
+
+        let wide_path: Vec<u16> = std::ffi::OsStr::new(path)
+            .encode_wide()
+            .chain([0])
+            .collect();
+        if archive_read_open_filename_w(archive, wide_path.as_ptr(), 10240) != ARCHIVE_OK {
+            return Err(format!("failed to open archive: {}", error_msg(archive)));
+        }
+
+        let mut entry: *mut c_void = std::ptr::null_mut();
+        let mut page_count = 0usize;
+        let mut total_bytes = 0u64;
+        loop {
+            let status = archive_read_next_header(archive, &mut entry);
+            if status == ARCHIVE_EOF {
+                break;
+            }
+            if status != ARCHIVE_OK {
+                return Err(format!("failed reading archive: {}", error_msg(archive)));
+            }
+
+            let raw_name = {
+                let name = archive_entry_pathname_w(entry);
+                if name.is_null() {
+                    String::new()
+                } else {
+                    let mut length = 0;
+                    while *name.add(length) != 0 {
+                        length += 1;
+                    }
+                    String::from_utf16_lossy(std::slice::from_raw_parts(name, length))
+                }
+            };
+            let Some(relative) = safe_archive_path(&raw_name) else {
+                archive_read_data_skip(archive);
+                continue;
+            };
+            if archive_entry_filetype(entry) == AE_IFDIR || !is_comic_image(&relative) {
+                archive_read_data_skip(archive);
+                continue;
+            }
+            page_count += 1;
+            if page_count > MAX_COMIC_PAGES {
+                return Err("CBR archive contains too many comic pages".into());
+            }
+
+            let target = Path::new(output_directory).join(relative);
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|error| format!("failed to create page directory: {error}"))?;
+            }
+            let mut output = File::create(&target)
+                .map_err(|error| format!("failed to create extracted page: {error}"))?;
+            let mut buffer = [0u8; 64 * 1024];
+            loop {
+                let size =
+                    archive_read_data(archive, buffer.as_mut_ptr().cast::<c_void>(), buffer.len());
+                if size == 0 {
+                    break;
+                }
+                if size < 0 {
+                    return Err(format!("failed reading comic page: {}", error_msg(archive)));
+                }
+                total_bytes = total_bytes
+                    .checked_add(size as u64)
+                    .ok_or_else(|| "CBR image data size overflowed".to_owned())?;
+                if total_bytes > MAX_COMIC_BYTES {
+                    return Err("CBR image data exceeds the 512 MiB preview limit".into());
+                }
+                output
+                    .write_all(&buffer[..size as usize])
+                    .map_err(|error| format!("failed writing extracted page: {error}"))?;
+            }
+        }
+
+        if page_count == 0 {
+            return Err("CBR archive contains no supported comic images".into());
+        }
+        Ok(())
+    })();
+
+    unsafe { archive_read_free(archive) };
+    result
 }
 
 fn human_size(bytes: i64) -> String {
@@ -1046,6 +1189,24 @@ fn parse_args(args: &[String]) -> Result<(String, Option<WindowPlacement>), Stri
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("--extract-comic") {
+        if args.len() != 4 {
+            eprintln!("Usage: archive-view --extract-comic <CBR_FILE> <OUTPUT_DIRECTORY>");
+            return ExitCode::from(1);
+        }
+        if !Path::new(&args[2]).exists() {
+            eprintln!("error: file not found: {}", args[2]);
+            return ExitCode::from(1);
+        }
+        return match extract_comic(&args[2], &args[3]) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("error: {error}");
+                ExitCode::from(1)
+            }
+        };
+    }
+
     let (path, window_placement) = match parse_args(&args) {
         Ok(parsed) => parsed,
         Err(error) => {
