@@ -23,6 +23,7 @@ void main() {
       '.vsd', '.vsdm', '.vsdx', '.vss', '.vssm', '.vssx', '.vst', '.vstm',
       '.vstx', '.vdx', '.vdw', '.vsx', '.vtx',
     },
+    'inf-dir.excel-view': {'.xlsx', '.xlsm', '.xltx', '.xltm'},
     'inf-dir.project-view': {'.mpp', '.mpt', '.mpx'},
     'inf-dir.font-view': {'.ttf', '.otf', '.woff', '.woff2', '.ttc', '.dfont'},
     'inf-dir.chm-view': {'.chm'},

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Excel View</title>
+  <link rel="stylesheet" href="./app.css" />
+  <link rel="stylesheet" href="./app.bundle.css" />
+</head>
+<body>
+  <header class="toolbar">
+    <div class="file-identity">
+      <span class="file-icon" aria-hidden="true">X</span>
+      <div>
+        <strong id="file-name">Excel View</strong>
+        <span id="file-state">Loading workbook...</span>
+      </div>
+      <span class="readonly-badge">Read only</span>
+    </div>
+    <div class="toolbar-actions">
+      <button id="reload-button" type="button" title="Reload workbook">Reload</button>
+      <button id="export-button" type="button" title="Export as XLSX" disabled>Export XLSX</button>
+    </div>
+  </header>
+  <main id="app" aria-label="Excel workbook"></main>
+  <div id="error" class="error" hidden></div>
+  <script src="./app.bundle.js"></script>
+</body>
+</html>

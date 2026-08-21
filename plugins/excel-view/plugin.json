@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.excel-view",
+  "name": "Fortune Excel Viewer",
+  "version": "0.1.0",
+  "entrypoint": "excel-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [
+        ".xlsx", ".xlsm", ".xltx", ".xltm"
+      ],
+      "mimeTypes": [
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
+        "application/vnd.ms-excel.sheet.macroenabled.12"
+      ]
+    }
+  }
+}

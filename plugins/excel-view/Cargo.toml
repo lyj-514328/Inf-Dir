@@ -1,0 +1,18 @@
+[package]
+name = "excel-view"
+version = "0.1.0"
+edition = "2021"
+description = "Excel viewer for Inf-Dir Quick View (WebView2 + FortuneSheet)"
+
+[dependencies]
+dpi = "0.1"
+http = "1"
+percent-encoding = "2.3"
+winit = "0.30"
+wry = "0.56"
+viewer-window-placement = { path = "../viewer-window-placement" }
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+strip = true

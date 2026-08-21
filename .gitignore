@@ -27,6 +27,8 @@ plugins/dist/
 plugins/video-view/mpv-dev/
 plugins/archive-view/libarchive/
 plugins/office-view-web/
+plugins/excel-view-web/
+plugins/excel-view/node_modules/
 plugins/office-view/_ooxml.tgz
 plugins/markdown-view-web/
 plugins/chm-view/chm-view-web/

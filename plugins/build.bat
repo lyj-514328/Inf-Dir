@@ -18,6 +18,7 @@ set "OOXML_VERSION=0.75.4"
 set "OOXML_URL=https://registry.npmjs.org/@silurus/ooxml/-/ooxml-%OOXML_VERSION%.tgz"
 set "OOXML_TGZ=%SCRIPT_DIR%office-view\_ooxml.tgz"
 set "OOXML_WEB=%SCRIPT_DIR%office-view-web"
+set "EXCEL_WEB=%SCRIPT_DIR%excel-view-web"
 set "MDIT_VERSION=14.1.0"
 set "KATEX_VERSION=0.16.11"
 set "HLJS_VERSION=11.10.0"
@@ -397,9 +398,18 @@ if errorlevel 1 ( echo [ERROR] office-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  11. Build markdown-view (MSVC + WebView2)
+REM  11. Build excel-view (MSVC + WebView2 + FortuneSheet)
 REM ============================================================
-echo [11/14] Building markdown-view...
+echo [11/20] Building excel-view...
+pushd "%SCRIPT_DIR%excel-view"
+call build.bat
+if errorlevel 1 ( echo [ERROR] excel-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
+REM  12. Build markdown-view (MSVC + WebView2)
+REM ============================================================
+echo [12/20] Building markdown-view...
 pushd "%SCRIPT_DIR%markdown-view"
 cargo build --release
 if errorlevel 1 ( echo [ERROR] markdown-view build failed. & popd & exit /b 1 )
@@ -506,6 +516,7 @@ for %%D in (
     inf-dir.archive-view
     inf-dir.web-view
     inf-dir.office-view
+    inf-dir.excel-view
     inf-dir.markdown-view
     inf-dir.email-view
     inf-dir.video-view
@@ -550,6 +561,11 @@ copy /Y "%SCRIPT_DIR%office-view\plugin.json" "%DIST_DIR%\inf-dir.office-view\" 
 copy /Y "%SCRIPT_DIR%office-view\target\release\office-view.exe" "%DIST_DIR%\inf-dir.office-view\" >nul
 if exist "%DIST_DIR%\inf-dir.office-view\office-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.office-view\office-view-web"
 xcopy /E /I /Y /Q "%OOXML_WEB%" "%DIST_DIR%\inf-dir.office-view\office-view-web" >nul
+
+copy /Y "%SCRIPT_DIR%excel-view\plugin.json" "%DIST_DIR%\inf-dir.excel-view\" >nul
+copy /Y "%SCRIPT_DIR%excel-view\target\release\excel-view.exe" "%DIST_DIR%\inf-dir.excel-view\" >nul
+if exist "%DIST_DIR%\inf-dir.excel-view\excel-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.excel-view\excel-view-web"
+xcopy /E /I /Y /Q "%EXCEL_WEB%" "%DIST_DIR%\inf-dir.excel-view\excel-view-web" >nul
 
 copy /Y "%SCRIPT_DIR%markdown-view\plugin.json" "%DIST_DIR%\inf-dir.markdown-view\" >nul
 copy /Y "%SCRIPT_DIR%markdown-view\target\release\markdown-view.exe" "%DIST_DIR%\inf-dir.markdown-view\" >nul
