@@ -11,6 +11,7 @@
         ".odt", ".ott", ".fodt", ".rtf", ".wps", ".wbk", ".mht",
         ".ppt", ".pptm", ".pptx", ".pot", ".potm", ".potx",
         ".pps", ".ppsm", ".ppsx", ".odp", ".otp", ".fodp",
+        ".xls", ".xlsb", ".xlsx", ".xlsm", ".xlt", ".xltm", ".xltx",
         ".vsd", ".vsdm", ".vsdx", ".vss", ".vssm", ".vssx",
         ".vst", ".vstm", ".vstx", ".vdx", ".vdw", ".vsx", ".vtx"
       ],
@@ -21,6 +22,11 @@
         "application/vnd.ms-powerpoint",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/vnd.ms-powerpoint.presentation.macroenabled.12",
+        "application/vnd.ms-excel",
+        "application/vnd.ms-excel.sheet.binary.macroenabled.12",
+        "application/vnd.ms-excel.sheet.macroenabled.12",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
         "application/vnd.oasis.opendocument.text",
         "application/vnd.oasis.opendocument.presentation",
         "application/vnd.visio"

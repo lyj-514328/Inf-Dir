@@ -29,8 +29,8 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const SUPPORTED_EXTENSIONS: &[&str] = &[
     "doc", "docm", "docx", "dot", "dotm", "dotx", "odt", "ott", "fodt", "rtf", "wps", "wbk", "mht",
     "ppt", "pptm", "pptx", "pot", "potm", "potx", "pps", "ppsm", "ppsx", "odp", "otp", "fodp",
-    "vsd", "vsdm", "vsdx", "vss", "vssm", "vssx", "vst", "vstm", "vstx", "vdx", "vdw", "vsx",
-    "vtx",
+    "xls", "xlsb", "xlsx", "xlsm", "xlt", "xltm", "xltx", "vsd", "vsdm", "vsdx", "vss", "vssm",
+    "vssx", "vst", "vstm", "vstx", "vdx", "vdw", "vsx", "vtx",
 ];
 
 struct Args {
@@ -570,13 +570,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn supported_formats_exclude_excel() {
+    fn supported_formats_include_excel() {
         assert!(is_supported_file(Path::new("report.docx")));
         assert!(is_supported_file(Path::new("slides.PPTX")));
         assert!(is_supported_file(Path::new("diagram.vsdx")));
         assert!(is_supported_file(Path::new("notes.odt")));
-        assert!(!is_supported_file(Path::new("book.xlsx")));
-        assert!(!is_supported_file(Path::new("book.xlsm")));
+        assert!(is_supported_file(Path::new("book.xls")));
+        assert!(is_supported_file(Path::new("book.xlsb")));
+        assert!(is_supported_file(Path::new("book.xlsx")));
+        assert!(is_supported_file(Path::new("book.xlsm")));
+        assert!(is_supported_file(Path::new("template.xltx")));
     }
 
     #[test]

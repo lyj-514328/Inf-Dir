@@ -19,6 +19,7 @@ void main() {
       '.doc', '.docm', '.docx', '.dot', '.dotm', '.dotx',
       '.odt', '.ott', '.fodt', '.rtf', '.ppt', '.pptm', '.pptx', '.pot', '.potm',
       '.potx', '.pps', '.ppsm', '.ppsx', '.odp', '.otp', '.fodp',
+      '.xls', '.xlsb', '.xlsx', '.xlsm', '.xlt', '.xltm', '.xltx',
       '.vsd', '.vsdm', '.vsdx', '.vss', '.vssm', '.vssx', '.vst', '.vstm',
       '.vstx', '.vdx', '.vdw', '.vsx', '.vtx',
     },
@@ -48,12 +49,13 @@ void main() {
     }
   });
 
-  test('onlyoffice-view leaves Excel formats unassigned for now', () {
+  test('onlyoffice-view declares Excel formats for x2t conversion', () {
     final manifests = _loadPluginManifests();
     final extensions = manifests['inf-dir.onlyoffice-view']!;
-    expect(extensions, isNot(anyOf(contains('.xls'), contains('.xlsx'))));
-    expect(extensions, isNot(contains('.xlsm')));
-    expect(extensions, isNot(contains('.xlsb')));
+    expect(
+      extensions,
+      containsAll(<String>['.xls', '.xlsb', '.xlsx', '.xlsm', '.xlt', '.xltm', '.xltx']),
+    );
   });
 
   test('mupdf-view does not claim Office conversion formats', () {

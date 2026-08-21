@@ -25,7 +25,7 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 | `inf-dir.image-view` | image crate | Image（栅格） | 常用 + 扩展位图 |
 | `inf-dir.pdf-view` | PDFium | PDF | PDF 渲染 |
 | `inf-dir.office-view` | WebView2 + ooxml | Word/Excel/PowerPoint | OOXML 文档 |
-| `inf-dir.onlyoffice-view` | WebView2 + PDF.js + ONLYOFFICE x2t | Word/PowerPoint/ODF/Visio | x2t 转 PDF 后只读预览；暂不声明 Excel |
+| `inf-dir.onlyoffice-view` | WebView2 + PDF.js + ONLYOFFICE x2t | Word/Excel/PowerPoint/ODF/Visio | x2t 转 PDF 后只读预览；与 office-view 的 Excel 声明可按优先级选择 |
 | `inf-dir.video-view` | mpv / libmpv2（FFmpeg） | **Audio + Video** | 全量音视频播放（含字幕） |
 | `inf-dir.archive-view` | libarchive | Archive | 归档内容列表 |
 | `inf-dir.email-view` | C# / MimeKit / MSGReader / WebView2 | Email | 邮件正文预览 |

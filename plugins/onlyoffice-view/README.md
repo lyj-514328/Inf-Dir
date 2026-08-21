@@ -4,8 +4,10 @@
 It converts the source document to PDF with ONLYOFFICE `x2t`, then renders the
 result with the bundled PDF.js WebView2 viewer.
 
-Excel formats are intentionally not declared by this plugin yet. The Excel
-viewer will be added separately after its rendering path is selected.
+Excel formats are also declared by this plugin. They are converted to PDF by
+`x2t` and rendered by the bundled PDF.js viewer. The existing `office-view`
+plugin may also declare OOXML Excel formats; the user's viewer priority decides
+which renderer opens an overlapping extension.
 
 ## Runtime
 
