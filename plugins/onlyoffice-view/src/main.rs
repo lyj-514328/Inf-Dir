@@ -119,9 +119,6 @@ fn resolve_x2t() -> Result<(PathBuf, PathBuf), String> {
         }
         candidates.push(path);
     }
-    if let Some(directory) = std::env::var_os("ONLYOFFICE_X2T_DIR") {
-        candidates.push(PathBuf::from(directory));
-    }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
             candidates.push(parent.join("onlyoffice"));
@@ -147,7 +144,7 @@ fn resolve_x2t() -> Result<(PathBuf, PathBuf), String> {
     }
 
     Err(format!(
-        "ONLYOFFICE x2t was not found. Set ONLYOFFICE_X2T_PATH or ONLYOFFICE_X2T_DIR. Searched: {}",
+        "ONLYOFFICE x2t was not found. Set ONLYOFFICE_X2T_PATH or provide the bundled onlyoffice runtime. Searched: {}",
         searched.join(", ")
     ))
 }

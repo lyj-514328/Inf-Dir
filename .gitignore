@@ -39,6 +39,8 @@ plugins/email-view/publish/
 plugins/email-view/node_modules/
 plugins/email-view-web/
 plugins/pdfjs-view-web/
+plugins/onlyoffice-view/_documentbuilder-runtime-v9.4.0/
+plugins/onlyoffice-view/_documentbuilder-v9.4.0-windows-x64.zip
 plugins/mupdf-view/bin/
 plugins/mupdf-view/obj/
 plugins/img-view/_cache/

@@ -27,5 +27,4 @@ if errorlevel 1 (
 echo.
 echo [DONE] target\release\onlyoffice-view.exe
 echo [DONE] %WEB_DIR%\
-echo [INFO] Set ONLYOFFICE_X2T_DIR when packaging the x2t runtime.
 endlocal

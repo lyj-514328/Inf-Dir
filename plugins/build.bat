@@ -29,6 +29,9 @@ set "EMAIL_WEB=%SCRIPT_DIR%email-view-web"
 set "EMAIL_PUBLISH=%SCRIPT_DIR%email-view\publish"
 set "FONT_PUBLISH=%SCRIPT_DIR%font-view\bin\Release\net8.0-windows\win-x64\publish"
 set "PROJECT_PUBLISH=%SCRIPT_DIR%project-view\bin\Release\net10.0-windows\win-x64\publish"
+set "ONLYOFFICE_RUNTIME_URL=https://github.com/ONLYOFFICE/DocumentBuilder/releases/download/v9.4.0/onlyoffice-documentbuilder-windows-x64.zip"
+set "ONLYOFFICE_RUNTIME_ZIP=%SCRIPT_DIR%onlyoffice-view\_documentbuilder-v9.4.0-windows-x64.zip"
+set "ONLYOFFICE_RUNTIME_DIR=%SCRIPT_DIR%onlyoffice-view\_documentbuilder-runtime-v9.4.0"
 
 REM Prefer the Scoop SDK because a machine-wide dotnet host may have no SDK.
 if exist "%USERPROFILE%\scoop\apps\dotnet-sdk\current\dotnet.exe" (
@@ -68,6 +71,34 @@ if exist "C:\msys64\ucrt64\bin" (
     set "PATH=C:\msys64\ucrt64\bin;%PATH%"
 ) else (
     echo [WARN] C:\msys64\ucrt64\bin not found, video-view ^(GNU target^) may fail.
+)
+
+REM ============================================================
+REM  0. Prepare the official ONLYOFFICE Document Builder runtime
+REM ============================================================
+if not exist "%ONLYOFFICE_RUNTIME_DIR%\x2t.exe" (
+    echo [0/19] Downloading the official ONLYOFFICE Document Builder runtime v9.4.0...
+    if not exist "%ONLYOFFICE_RUNTIME_ZIP%" (
+        curl -L --fail -o "%ONLYOFFICE_RUNTIME_ZIP%" "%ONLYOFFICE_RUNTIME_URL%"
+        if errorlevel 1 (
+            echo [ERROR] Failed to download the ONLYOFFICE Document Builder runtime.
+            exit /b 1
+        )
+    )
+    if exist "%ONLYOFFICE_RUNTIME_DIR%" rmdir /s /q "%ONLYOFFICE_RUNTIME_DIR%"
+    mkdir "%ONLYOFFICE_RUNTIME_DIR%"
+    7z x "%ONLYOFFICE_RUNTIME_ZIP%" -o"%ONLYOFFICE_RUNTIME_DIR%" -y >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to extract the ONLYOFFICE Document Builder runtime.
+        exit /b 1
+    )
+    if not exist "%ONLYOFFICE_RUNTIME_DIR%\x2t.exe" (
+        echo [ERROR] The downloaded runtime does not contain x2t.exe.
+        exit /b 1
+    )
+    del "%ONLYOFFICE_RUNTIME_ZIP%" 2>nul
+) else (
+    echo [0/19] ONLYOFFICE runtime v9.4.0 already present, skipping download.
 )
 
 REM --- Ensure rustup target ---
@@ -540,15 +571,11 @@ copy /Y "%SCRIPT_DIR%onlyoffice-view\plugin.json" "%DIST_DIR%\inf-dir.onlyoffice
 copy /Y "%SCRIPT_DIR%onlyoffice-view\target\release\onlyoffice-view.exe" "%DIST_DIR%\inf-dir.onlyoffice-view\" >nul
 if exist "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice-view-web"
 xcopy /E /I /Y /Q "%SCRIPT_DIR%onlyoffice-view-web" "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice-view-web" >nul
-if defined ONLYOFFICE_X2T_DIR (
-    if not exist "%ONLYOFFICE_X2T_DIR%" (
-        echo [WARN] ONLYOFFICE_X2T_DIR does not exist: %ONLYOFFICE_X2T_DIR%
-    ) else (
-        if exist "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice" rmdir /s /q "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice"
-        xcopy /E /I /Y /Q "%ONLYOFFICE_X2T_DIR%" "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice" >nul
-    )
-) else (
-    echo [WARN] ONLYOFFICE_X2T_DIR is not set; onlyoffice-view will need a runtime beside the executable.
+if exist "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice" rmdir /s /q "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice"
+xcopy /E /I /Y /Q "%ONLYOFFICE_RUNTIME_DIR%" "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to package the ONLYOFFICE runtime.
+    exit /b 1
 )
 
 copy /Y "%SCRIPT_DIR%mupdf-view\plugin.json" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
