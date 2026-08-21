@@ -4,20 +4,14 @@
 //! custom protocol exposes the single CHM path supplied on the command line;
 //! it does not accept arbitrary file paths from the page.
 
-use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use http::{header, Request, Response, StatusCode};
-use percent_encoding::{percent_decode_str, percent_encode, NON_ALPHANUMERIC};
+use http::{Request, StatusCode};
+use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
+use viewer_web_shell::{mime_for, response, safe_join, WebViewConfig};
 use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGUMENT};
-use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{Window, WindowId};
-use wry::WebViewBuilder;
 
 const SCHEME: &str = "http";
 const HOST: &str = "chm-view.local";
@@ -152,60 +146,11 @@ fn resolve_web_root() -> Option<PathBuf> {
         .find(|directory| directory.join("index.html").is_file())
 }
 
-fn response(status: StatusCode, mime: &str, body: Vec<u8>) -> Response<Cow<'static, [u8]>> {
-    Response::builder()
-        .status(status)
-        .header(header::CONTENT_TYPE, mime)
-        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-        .body(Cow::Owned(body))
-        .unwrap_or_default()
-}
-
-fn mime_for(path: &Path) -> &'static str {
-    let extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .map(|value| value.to_ascii_lowercase());
-    match extension.as_deref() {
-        Some("html") | Some("htm") => "text/html; charset=utf-8",
-        Some("js") | Some("mjs") => "text/javascript; charset=utf-8",
-        Some("css") => "text/css; charset=utf-8",
-        Some("json") => "application/json",
-        Some("svg") => "image/svg+xml",
-        Some("png") => "image/png",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
-        Some("gif") => "image/gif",
-        Some("webp") => "image/webp",
-        Some("avif") => "image/avif",
-        Some("woff2") => "font/woff2",
-        Some("woff") => "font/woff",
-        Some("ttf") => "font/ttf",
-        _ => "application/octet-stream",
-    }
-}
-
-fn safe_join(root: &Path, relative: &str) -> Option<PathBuf> {
-    let decoded = percent_decode_str(relative.trim_start_matches('/'))
-        .decode_utf8()
-        .ok()?;
-    let mut output = root.to_path_buf();
-    for segment in decoded.split('/') {
-        if segment.is_empty() || segment == "." {
-            continue;
-        }
-        if segment == ".." || segment.contains('\0') || segment.contains('\\') {
-            return None;
-        }
-        output.push(segment);
-    }
-    Some(output)
-}
-
 fn handle_request(
     req: Request<Vec<u8>>,
     web_root: &Path,
     source_file: &Path,
-) -> Response<Cow<'static, [u8]>> {
+) -> viewer_web_shell::WebResponse {
     let path = req.uri().path();
     if path == "/file" {
         return match std::fs::read(source_file) {
@@ -240,110 +185,6 @@ fn handle_request(
     }
 }
 
-struct App {
-    args: Args,
-    web_root: PathBuf,
-    window: Option<Window>,
-    webview: Option<wry::WebView>,
-}
-
-impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_some() {
-            return;
-        }
-
-        let name = self
-            .args
-            .file
-            .file_name()
-            .map(|value| value.to_string_lossy().into_owned())
-            .unwrap_or_else(|| self.args.file.display().to_string());
-        let mut attributes = Window::default_attributes()
-            .with_title(format!("{name} - CHM Viewer"))
-            .with_min_inner_size(LogicalSize::new(480u32, 360u32))
-            .with_visible(false);
-        let start_maximized = self
-            .args
-            .window_placement
-            .is_some_and(|placement| placement.maximized);
-        if let Some(placement) = self.args.window_placement {
-            attributes = attributes
-                .with_position(PhysicalPosition::new(placement.x, placement.y))
-                .with_inner_size(PhysicalSize::new(
-                    placement.client_width,
-                    placement.client_height,
-                ));
-        } else {
-            attributes = attributes.with_inner_size(LogicalSize::new(960u32, 720u32));
-        }
-
-        let window = match event_loop.create_window(attributes) {
-            Ok(window) => window,
-            Err(error) => {
-                eprintln!("[chm-view] failed to create window: {error}");
-                std::process::exit(1);
-            }
-        };
-
-        let root = self.web_root.clone();
-        let source_file = self.args.file.clone();
-        // Keep this relative to the rewritten WebView2 origin. An original
-        // `http://chm-view.local/file` URL would bypass Wry's protocol route.
-        let file_url = "/file";
-        let file_query = percent_encode(file_url.as_bytes(), NON_ALPHANUMERIC);
-        let name_query = percent_encode(name.as_bytes(), NON_ALPHANUMERIC);
-        let start_url = format!("{SCHEME}://{HOST}/index.html?file={file_query}&name={name_query}");
-        // WebView2 rewrites the custom `http://` protocol to
-        // `http://http.<host>/...` before navigation filtering.
-        let allowed_origin = format!("{SCHEME}://{SCHEME}.{HOST}/");
-        let webview = match WebViewBuilder::new()
-            .with_custom_protocol(SCHEME.into(), move |_id, request| {
-                handle_request(request, &root, &source_file)
-            })
-            .with_navigation_handler(move |url| url.starts_with(&allowed_origin))
-            .with_ipc_handler(handle_ipc)
-            .with_url(&start_url)
-            .build(&window)
-        {
-            Ok(webview) => webview,
-            Err(error) => {
-                eprintln!("[chm-view] failed to initialize WebView2: {error}");
-                std::process::exit(1);
-            }
-        };
-
-        if start_maximized {
-            window.set_maximized(true);
-        }
-        window.set_visible(true);
-        window.focus_window();
-        self.window = Some(window);
-        self.webview = Some(webview);
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _window_id: WindowId,
-        event: WindowEvent,
-    ) {
-        match event {
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(KeyCode::Escape),
-                        state: ElementState::Pressed,
-                        ..
-                    },
-                ..
-            }
-            | WindowEvent::CloseRequested => event_loop.exit(),
-            _ => {}
-        }
-    }
-}
-
 fn main() {
     let args = match parse_args() {
         Ok(args) => args,
@@ -359,20 +200,37 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let event_loop = match EventLoop::new() {
-        Ok(event_loop) => event_loop,
+    let source_file = match args.file.canonicalize() {
+        Ok(path) => path,
         Err(error) => {
-            eprintln!("[chm-view] failed to initialize event loop: {error}");
+            eprintln!("[chm-view] failed to resolve file: {error}");
             std::process::exit(1);
         }
     };
-    let mut app = App {
-        args,
-        web_root,
-        window: None,
-        webview: None,
+    let name = source_file
+        .file_name()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|| source_file.display().to_string());
+    let file_url = "/file";
+    let file_query = percent_encode(file_url.as_bytes(), NON_ALPHANUMERIC);
+    let name_query = percent_encode(name.as_bytes(), NON_ALPHANUMERIC);
+    let root = web_root.clone();
+    let source = source_file.clone();
+    let router = Arc::new(move |request| handle_request(request, &root, &source));
+    let ipc = Arc::new(handle_ipc);
+    let config = WebViewConfig {
+        title: format!("{name} - CHM Viewer"),
+        host: HOST.to_owned(),
+        scheme: SCHEME.to_owned(),
+        start_url: format!("{SCHEME}://{HOST}/index.html?file={file_query}&name={name_query}"),
+        window_placement: args.window_placement,
+        request_handler: router,
+        ipc_handler: Some(ipc),
     };
-    let _ = event_loop.run_app(&mut app);
+    if let Err(error) = viewer_web_shell::run(config) {
+        eprintln!("[chm-view] {error}");
+        std::process::exit(1);
+    }
 }
 
 #[cfg(test)]

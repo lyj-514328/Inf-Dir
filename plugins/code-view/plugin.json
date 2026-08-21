@@ -21,7 +21,7 @@
         ".nfo", ".nsh", ".nsi", ".ob2", ".pas", ".php", ".pl",
         ".pm", ".pod", ".prg", ".properties", ".proto", ".ps1", ".py",
         ".r", ".rb", ".rc", ".rs", ".sas", ".sass", ".scala",
-        ".scm", ".scss", ".sh", ".shtm", ".shtml", ".sql", ".ss",
+        ".scm", ".scss", ".sh", ".shtm", ".shtml", ".sql", ".ss", ".svg",
         ".st", ".stm", ".sty", ".svelte", ".swift", ".tcl", ".tex",
         ".toml", ".ts", ".tsv", ".tsx", ".v", ".vb", ".vhd",
         ".txt", ".vue",
@@ -32,7 +32,7 @@
         "cmakelists.txt", "dockerfile", "makefile"
       ],
       "mimeTypes": [
-        "application/javascript", "application/json", "application/xml",
+        "application/javascript", "application/json", "application/xml", "image/svg+xml",
         "text/css", "text/html", "text/javascript"
       ]
     }

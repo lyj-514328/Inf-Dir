@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'" />
+  <title>网页查看器</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <header class="toolbar">
+    <strong id="file-name">网页查看器</strong>
+    <span id="file-path"></span>
+    <button id="reload" type="button" title="重新加载">重新加载</button>
+  </header>
+  <main class="stage">
+    <iframe id="document" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe>
+    <pre id="error" hidden></pre>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

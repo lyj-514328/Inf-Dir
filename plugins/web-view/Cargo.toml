@@ -1,14 +1,12 @@
 [package]
-name = "markdown-view"
+name = "web-view"
 version = "0.1.0"
 edition = "2021"
-description = "Markdown viewer (GFM) for Inf-Dir Quick View (WebView2 + markdown-it)"
+description = "HTML, SVG and MHTML viewer for Inf-Dir Quick View"
 
 [dependencies]
 http = "1"
 percent-encoding = "2.3"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 viewer-web-shell = { path = "../viewer-web-shell" }
 viewer-window-placement = { path = "../viewer-window-placement" }
 

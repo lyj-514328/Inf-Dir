@@ -5,6 +5,7 @@
 ## 1. 设计原则
 
 - 插件使用独立进程运行，不把第三方 DLL 加载到 Flutter 主进程。
+- WebView2 viewer 复用 `plugins/viewer-web-shell` 的窗口定位、生命周期和本地协议基础；格式 viewer 只负责页面资源和内容解析。
 - `quickView` 与 `search` 是独立能力；搜索插件不参与 Viewer 关联解析。
 - Manifest 只声明插件能力，不声明插件优先级。
 - 用户关联配置保存递归规则树、Viewer 顺序和启用状态；Manifest 新增声明以追加方式合并。

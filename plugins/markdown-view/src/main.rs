@@ -4,20 +4,14 @@
 //! `markdown-view-web/` 静态资源（markdown-it / highlight.js / KaTeX /
 //! github-markdown-css / mermaid）。页面通过自定义协议取静态资源与目标文档字节。
 
-use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use http::{header, Request, Response, StatusCode};
+use http::{Request, StatusCode};
 use percent_encoding::{percent_decode_str, percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
+use viewer_web_shell::{mime_for, response, safe_join, WebViewConfig};
 use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGUMENT};
-use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{Window, WindowId};
-use wry::WebViewBuilder;
 
 // 自定义协议伪装成 http://markdown-view.local/：该域名无 DNS 记录，
 // WebView2 在网络层之前拦截。
@@ -148,57 +142,11 @@ fn resolve_web_root() -> Option<PathBuf> {
         .find(|dir| dir.join("index.html").is_file())
 }
 
-fn response(status: StatusCode, mime: &str, body: Vec<u8>) -> Response<Cow<'static, [u8]>> {
-    Response::builder()
-        .status(status)
-        .header(header::CONTENT_TYPE, mime)
-        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-        .body(Cow::Owned(body))
-        .unwrap_or_default()
-}
-
-fn mime_for(path: &Path) -> &'static str {
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase());
-    match ext.as_deref() {
-        Some("html") => "text/html; charset=utf-8",
-        Some("js") | Some("mjs") => "text/javascript; charset=utf-8",
-        Some("css") => "text/css; charset=utf-8",
-        Some("json") => "application/json",
-        Some("svg") => "image/svg+xml",
-        Some("png") => "image/png",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
-        Some("gif") => "image/gif",
-        Some("webp") => "image/webp",
-        Some("avif") => "image/avif",
-        Some("woff2") => "font/woff2",
-        Some("woff") => "font/woff",
-        Some("ttf") => "font/ttf",
-        _ => "application/octet-stream",
-    }
-}
-
-/// 把请求路径安全地拼到资源根目录上，拒绝 `..` 越界。
-fn safe_join(root: &Path, rel: &str) -> Option<PathBuf> {
-    let decoded = percent_decode_str(rel.trim_start_matches('/'))
-        .decode_utf8()
-        .ok()?;
-    let mut out = root.to_path_buf();
-    for seg in decoded.split('/') {
-        if seg.is_empty() || seg == "." {
-            continue;
-        }
-        if seg == ".." {
-            return None;
-        }
-        out.push(seg);
-    }
-    Some(out)
-}
-
-fn handle_request(req: Request<Vec<u8>>, web_root: &Path) -> Response<Cow<'static, [u8]>> {
+fn handle_request(
+    req: Request<Vec<u8>>,
+    web_root: &Path,
+    document_root: &Path,
+) -> viewer_web_shell::WebResponse {
     let uri = req.uri();
     let path = uri.path();
 
@@ -214,8 +162,41 @@ fn handle_request(req: Request<Vec<u8>>, web_root: &Path) -> Response<Cow<'stati
             })
             .unwrap_or("");
         let file_path = percent_decode_str(encoded).decode_utf8_lossy();
-        return match std::fs::read(file_path.as_ref()) {
-            Ok(bytes) => response(StatusCode::OK, "application/octet-stream", bytes),
+        let target = if Path::new(file_path.as_ref()).is_absolute() {
+            PathBuf::from(file_path.as_ref())
+        } else {
+            let Some(target) = safe_join(document_root, &file_path) else {
+                return response(
+                    StatusCode::FORBIDDEN,
+                    "text/plain; charset=utf-8",
+                    b"path is outside the Markdown directory".to_vec(),
+                );
+            };
+            target
+        };
+        if target.as_os_str().is_empty() {
+            return response(
+                StatusCode::NOT_FOUND,
+                "text/plain; charset=utf-8",
+                b"file path is empty".to_vec(),
+            );
+        }
+        let Ok(canonical) = target.canonicalize() else {
+            return response(
+                StatusCode::NOT_FOUND,
+                "text/plain; charset=utf-8",
+                format!("读取文件失败: {file_path}").into_bytes(),
+            );
+        };
+        if !canonical.starts_with(document_root) {
+            return response(
+                StatusCode::FORBIDDEN,
+                "text/plain; charset=utf-8",
+                b"path is outside the Markdown directory".to_vec(),
+            );
+        }
+        return match std::fs::read(&canonical) {
+            Ok(bytes) => response(StatusCode::OK, mime_for(&canonical), bytes),
             Err(e) => response(
                 StatusCode::NOT_FOUND,
                 "text/plain; charset=utf-8",
@@ -246,109 +227,6 @@ fn handle_request(req: Request<Vec<u8>>, web_root: &Path) -> Response<Cow<'stati
     }
 }
 
-struct App {
-    args: Args,
-    web_root: PathBuf,
-    window: Option<Window>,
-    webview: Option<wry::WebView>,
-}
-
-impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_some() {
-            return;
-        }
-
-        let name = self
-            .args
-            .file
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| self.args.file.display().to_string());
-
-        let mut attributes = Window::default_attributes()
-            .with_title(format!("{name} - Markdown 查看器"))
-            .with_min_inner_size(LogicalSize::new(480u32, 360u32))
-            .with_visible(false);
-        let start_maximized = self
-            .args
-            .window_placement
-            .is_some_and(|placement| placement.maximized);
-        if let Some(placement) = self.args.window_placement {
-            attributes = attributes
-                .with_position(PhysicalPosition::new(placement.x, placement.y))
-                .with_inner_size(PhysicalSize::new(
-                    placement.client_width,
-                    placement.client_height,
-                ));
-        } else {
-            attributes = attributes.with_inner_size(LogicalSize::new(960u32, 720u32));
-        }
-        let window = match event_loop.create_window(attributes) {
-            Ok(w) => w,
-            Err(e) => {
-                eprintln!("[markdown-view] 创建窗口失败: {e}");
-                std::process::exit(1);
-            }
-        };
-
-        let root = self.web_root.clone();
-        let file_display = self.args.file.to_string_lossy();
-        let file_query = percent_encode(file_display.as_bytes(), NON_ALPHANUMERIC);
-        let start_url = format!("{SCHEME}://{HOST}/index.html?path={file_query}");
-
-        let webview = match WebViewBuilder::new()
-            .with_custom_protocol(SCHEME.into(), move |_id, req| handle_request(req, &root))
-            // wry 的 WebView2 后端会把自定义协议重写成
-            // http://<scheme>.<host>/...，因此按 HOST 匹配而非完整 origin
-            .with_navigation_handler(move |url| url.contains(HOST))
-            .with_ipc_handler(handle_ipc)
-            .with_url(&start_url)
-            .build(&window)
-        {
-            Ok(wv) => wv,
-            Err(e) => {
-                eprintln!("[markdown-view] WebView 初始化失败: {e}");
-                std::process::exit(1);
-            }
-        };
-
-        if start_maximized {
-            window.set_maximized(true);
-        }
-        window.set_visible(true);
-        window.focus_window();
-
-        self.window = Some(window);
-        self.webview = Some(webview);
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _window_id: WindowId,
-        event: WindowEvent,
-    ) {
-        match event {
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(KeyCode::Escape),
-                        state: ElementState::Pressed,
-                        ..
-                    },
-                ..
-            } => {
-                event_loop.exit();
-            }
-            WindowEvent::CloseRequested => {
-                event_loop.exit();
-            }
-            _ => {}
-        }
-    }
-}
-
 fn main() {
     let args = match parse_args() {
         Ok(a) => a,
@@ -365,20 +243,33 @@ fn main() {
         }
     };
 
-    let event_loop = match EventLoop::new() {
-        Ok(el) => el,
-        Err(e) => {
-            eprintln!("[markdown-view] 事件循环初始化失败: {e}");
+    let source_file = match args.file.canonicalize() {
+        Ok(path) => path,
+        Err(error) => {
+            eprintln!("[markdown-view] 文件路径解析失败: {error}");
             std::process::exit(1);
         }
     };
-    let mut app = App {
-        args,
-        web_root,
-        window: None,
-        webview: None,
+    let document_root = source_file.parent().unwrap_or(Path::new(".")).to_path_buf();
+    let file_display = source_file.to_string_lossy();
+    let file_query = percent_encode(file_display.as_bytes(), NON_ALPHANUMERIC);
+    let router_root = web_root.clone();
+    let router_doc = document_root.clone();
+    let router = Arc::new(move |request| handle_request(request, &router_root, &router_doc));
+    let ipc = Arc::new(handle_ipc);
+    let config = WebViewConfig {
+        title: format!("{} - Markdown 查看器", source_file.display()),
+        host: HOST.to_owned(),
+        scheme: SCHEME.to_owned(),
+        start_url: format!("{SCHEME}://{HOST}/index.html?path={file_query}"),
+        window_placement: args.window_placement,
+        request_handler: router,
+        ipc_handler: Some(ipc),
     };
-    let _ = event_loop.run_app(&mut app);
+    if let Err(error) = viewer_web_shell::run(config) {
+        eprintln!("[markdown-view] {error}");
+        std::process::exit(1);
+    }
 }
 
 #[cfg(test)]

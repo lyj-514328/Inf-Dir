@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.web-view",
+  "name": "网页查看器",
+  "version": "0.1.0",
+  "entrypoint": "web-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [
+        ".svg", ".svgz", ".html", ".htm", ".xhtml",
+        ".mht", ".mhtml", ".shtml", ".shtm",
+        ".xml", ".xsl", ".xslt"
+      ],
+      "mimeTypes": [
+        "image/svg+xml", "text/html", "application/xhtml+xml",
+        "multipart/related", "application/xml", "text/xml"
+      ]
+    }
+  }
+}

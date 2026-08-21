@@ -379,6 +379,15 @@ if errorlevel 1 ( echo [ERROR] archive-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
+REM  9a. Build web-view (MSVC + WebView2)
+REM ============================================================
+echo [9a/20] Building web-view...
+pushd "%SCRIPT_DIR%web-view"
+cargo build --release
+if errorlevel 1 ( echo [ERROR] web-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
 REM  10. Build office-view (MSVC + WebView2)
 REM ============================================================
 echo [10/14] Building office-view...
@@ -495,6 +504,7 @@ for %%D in (
     inf-dir.image-view
     inf-dir.code-view
     inf-dir.archive-view
+    inf-dir.web-view
     inf-dir.office-view
     inf-dir.markdown-view
     inf-dir.email-view
@@ -526,6 +536,11 @@ copy /Y "%SCRIPT_DIR%code-view\target\release\code-view.exe" "%DIST_DIR%\inf-dir
 if exist "%DIST_DIR%\inf-dir.code-view\code-view.exe.WebView2" rmdir /s /q "%DIST_DIR%\inf-dir.code-view\code-view.exe.WebView2"
 if exist "%DIST_DIR%\inf-dir.code-view\code-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.code-view\code-view-web"
 xcopy /E /I /Y /Q "%CODE_WEB%" "%DIST_DIR%\inf-dir.code-view\code-view-web" >nul
+
+copy /Y "%SCRIPT_DIR%web-view\plugin.json" "%DIST_DIR%\inf-dir.web-view\" >nul
+copy /Y "%SCRIPT_DIR%web-view\target\release\web-view.exe" "%DIST_DIR%\inf-dir.web-view\" >nul
+if exist "%DIST_DIR%\inf-dir.web-view\web-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.web-view\web-view-web"
+xcopy /E /I /Y /Q "%SCRIPT_DIR%web-view\web" "%DIST_DIR%\inf-dir.web-view\web-view-web" >nul
 
 copy /Y "%SCRIPT_DIR%archive-view\plugin.json" "%DIST_DIR%\inf-dir.archive-view\" >nul
 copy /Y "%SCRIPT_DIR%archive-view\target\release\archive-view.exe" "%DIST_DIR%\inf-dir.archive-view\" >nul

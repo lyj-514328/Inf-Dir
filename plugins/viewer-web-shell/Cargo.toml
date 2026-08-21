@@ -1,15 +1,15 @@
 [package]
-name = "chm-view"
+name = "viewer-web-shell"
 version = "0.1.0"
 edition = "2021"
-description = "CHM viewer for Inf-Dir Quick View (WebView2 + CHMate)"
+description = "Shared WebView2 window and local protocol shell for Inf-Dir viewers"
 
 [dependencies]
+dpi = "0.1"
 http = "1"
 percent-encoding = "2.3"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-viewer-web-shell = { path = "../viewer-web-shell" }
+winit = "0.30"
+wry = "0.56"
 viewer-window-placement = { path = "../viewer-window-placement" }
 
 [profile.release]

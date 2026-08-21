@@ -7,6 +7,7 @@
 - Flutter 主进程只负责发现 manifest、解析关联、启动和管理 Viewer 进程，不加载第三方 DLL。
 - 每个 Viewer 是独立的 Rust 或 .NET Windows 进程，入口由插件目录中的 `plugin.json` 声明。
 - `plugins/build.bat` 负责准备外部运行时、构建 Viewer，并把产物安装到 `plugins/dist/<plugin-id>/`。
+- `viewer-web-shell` 提供共享的 winit/wry 窗口、窗口定位、导航限制和本地协议基础；HTML/SVG、Markdown、CHM 等 viewer 只保留自己的页面和格式路由。
 - WebView2 Viewer 使用本地静态资源和本地协议，不把文档内容交给 Flutter 主进程处理。
 - 需要原生 DLL 或大型运行时的格式，优先放在对应 Viewer 目录中隔离发布；格式声明本身只写在 manifest 中。
 
@@ -32,6 +33,9 @@
 | DjVu / DJV | `mupdf-view` | 已接入（转换） | DjVuLibre `ddjvu.exe` 转 PDF，再交给 MuPDF.NET | 内置 DjVuLibre 运行时 |
 | XPS / OXPS | `mupdf-view` | 已接入 | MuPDF.NET 直接打开 | MuPDF.NET |
 | CHM | `chm-view`（CHMate） | 已接入 | CHMate 纯 JS ITSF/ITSP/PMGL + LZX 解析和安全 HTML 渲染，接入现有 WebView2 Viewer 壳 | CHMate（MIT）；WebView2 |
+| SVG / SVGZ | `web-view`、`img-view` | 已接入，两个候选 | WebView2 浏览器语义渲染，或 image-view/resvg 静态渲染 | WebView2；resvg |
+| HTML / XHTML / SHTML | `web-view`、`code-view` | 已接入，两个候选 | WebView2 受限本地资源渲染，或 CodeMirror 源码查看 | WebView2；本地协议路由 |
+| MHTML / MHT | `web-view` | 已接入（转换） | 页面层解析 multipart/related，将 HTML、图片、CSS 和字体转换为 Blob 后渲染 | WebView2；内置 MHTML 解析器 |
 | 旧 Office：DOC/XLS/PPT 等 | `mupdf-view` | 已接入（转换） | 调用 `soffice --headless` 转 PDF，再交给 MuPDF.NET | 内置或系统 LibreOffice |
 | OOXML：DOCX/XLSX/PPTX | `office-view` | 已接入 | WebView2 加载本地 OOXML Web 渲染器 | WebView2；`@silurus/ooxml` 静态资源 |
 | 图片与 RAW | `img-view` | 已接入 | Rust 原生解码；SVG 用 resvg；RAW 用 rawloader；失败时调用侧车程序 | `image`、`resvg`、`rawloader`；可选 ImageMagick、Compface、Windows WIC |
@@ -58,6 +62,7 @@
 | `inf-dir.font-view` | .NET 8 Windows Forms + WebView2 | 自研 DFONT 提取器 | WebView2；self-contained .NET 运行时 | 字体预览 |
 | `inf-dir.project-view` | .NET 10 Windows Forms | MPXJ.Net 16.7.0 | self-contained .NET 运行时 | Microsoft Project |
 | `inf-dir.chm-view` | Rust + winit/wry/WebView2 | CHMate ES modules | WebView2；随包发布的 `chm-view-web/` 静态资源 | CHM |
+| `inf-dir.web-view` | Rust + viewer-web-shell/wry/WebView2 | 浏览器原生 HTML/SVG；内置 MHTML 解析器 | WebView2；随包发布的 `web-view-web/` 静态资源 | SVG、HTML、XHTML、MHTML |
 
 ## 4. 构建和运行时依赖清单
 

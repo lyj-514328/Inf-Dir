@@ -29,6 +29,7 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 | `inf-dir.video-view` | mpv / libmpv2（FFmpeg） | **Audio + Video** | 全量音视频播放（含字幕） |
 | `inf-dir.archive-view` | libarchive | Archive | 归档内容列表 |
 | `inf-dir.email-view` | C# / MimeKit / MSGReader / WebView2 | Email | 邮件正文预览 |
+| `inf-dir.web-view` | viewer-web-shell + WebView2 | HTML / SVG / XHTML / MHTML | 复杂样式与浏览器语义预览；受限本地资源协议 |
 | `inf-dir.raw-view`（并入 image-view） | rawloader | Camera Raw / RAW | 相机原始格式 |
 | `inf-dir.xps-view`（新增） | 系统 XPS / 自研 | PDF & XPS 中的 XPS | XPS/OXPS |
 | `inf-dir.cad-view` / `visio-view` / `font-view` / `djvu-view` / `ebook-view`（新增） | 见 P2 | CAD / Visio / 字体 / DjVu / 电子书 | 长尾 |
@@ -55,6 +56,7 @@ Image/RAW、Source Code、Archive 也有大量交集。因此**单一 viewer 往
 | onlyoffice-view | `.doc .docx .docm .dot .dotx .dotm .odt .ott .rtf .ppt .pptx .pptm .pot .potx .potm .pps .ppsx .ppsm .odp .otp .vsd .vsdx ...` |
 | video-view | 99 项音视频 + `.gif .apng`（见 `plugins/video-view/plugin.json`） |
 | archive-view | 38 项（见 `plugins/archive-view/plugin.json`） |
+| web-view | `.svg .svgz .html .htm .xhtml .mht .mhtml .shtml .shtm .xml .xsl .xslt` |
 
 ## 5. P1：扩展现有 viewer
 
@@ -136,6 +138,17 @@ SVG 引擎权衡：
   HTTP/HTTPS 图片、CSS 背景图和字体。附件导出由宿主进程处理，不向 WebView 暴露任意
   文件系统访问。
 
+### 5.7 web-view（SVG / HTML / MHTML）
+
+- 已接入：`web-view` 复用 `viewer-web-shell` 的窗口定位、WebView2 生命周期、导航限制和
+  本地静态资源路由，声明 `.svg .svgz .html .htm .xhtml .shtml .shtm .mht .mhtml .xml .xsl .xslt`。
+- HTML/SVG 使用 `/document/<relative-path>` 受限协议加载，资源只能落在目标文件所在目录树内；
+  响应带 CSP，默认阻止脚本、表单、iframe、插件和外部网络导航，同时允许 CSS、图片、字体和
+  SVG 静态/动画样式。
+- MHTML/MHT 在页面层解析 `multipart/related`，将 HTML、图片、CSS、字体和其他内容部件转换为
+  Blob URL，再放入隔离 iframe；脚本和嵌套文档不会执行。
+- `code-view` 仍保留 HTML/SVG 源码候选，`img-view` 仍保留静态 SVG 后备；候选顺序由用户关联配置决定。
+
 ## 6. P2：新增 viewer 覆盖长尾
 
 | 新 viewer | 覆盖格式 | 引擎建议 |
@@ -170,7 +183,7 @@ SVG 引擎权衡：
 | --- | ---: | --- | --- |
 | Source Code | 79 | code-view | P0 部分 / P1 补全 |
 | Text | 13 | code-view | P0 |
-| Web / Internet | 2 / 12 | code-view | P0 |
+| Web / Internet | 2 / 12 | web-view + code-view | P0（已接入） |
 | PDF | 1 | pdf-view | P0 |
 | XPS | 2 | mupdf-view | P2 已完成 |
 | Spreadsheet | 8 | office-view | P0(OXML) / P1(模板已扩展) / P2(legacy .xls) |
