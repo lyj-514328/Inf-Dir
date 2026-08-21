@@ -446,6 +446,15 @@ if errorlevel 1 ( echo [ERROR] project-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
+REM  19. Build chm-view (MSVC + WebView2 + CHMate)
+REM ============================================================
+echo [19/19] Building chm-view...
+pushd "%SCRIPT_DIR%chm-view"
+call build.bat
+if errorlevel 1 ( echo [ERROR] chm-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
 REM  Install artifacts to plugins/
 REM ============================================================
 echo Installing artifacts...
@@ -463,6 +472,7 @@ for %%D in (
     inf-dir.pdfjs-view
     inf-dir.onlyoffice-view
     inf-dir.mupdf-view
+    inf-dir.chm-view
     inf-dir.font-view
     inf-dir.project-view
     inf-dir.vscode-open
@@ -499,6 +509,12 @@ copy /Y "%SCRIPT_DIR%markdown-view\plugin.json" "%DIST_DIR%\inf-dir.markdown-vie
 copy /Y "%SCRIPT_DIR%markdown-view\target\release\markdown-view.exe" "%DIST_DIR%\inf-dir.markdown-view\" >nul
 if exist "%DIST_DIR%\inf-dir.markdown-view\markdown-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.markdown-view\markdown-view-web"
 xcopy /E /I /Y /Q "%MD_WEB%" "%DIST_DIR%\inf-dir.markdown-view\markdown-view-web" >nul
+
+copy /Y "%SCRIPT_DIR%chm-view\plugin.json" "%DIST_DIR%\inf-dir.chm-view\" >nul
+copy /Y "%SCRIPT_DIR%chm-view\target\release\chm-view.exe" "%DIST_DIR%\inf-dir.chm-view\" >nul
+copy /Y "%SCRIPT_DIR%chm-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.chm-view\" >nul
+if exist "%DIST_DIR%\inf-dir.chm-view\chm-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.chm-view\chm-view-web"
+xcopy /E /I /Y /Q "%SCRIPT_DIR%chm-view\chm-view-web" "%DIST_DIR%\inf-dir.chm-view\chm-view-web" >nul
 
 if exist "%DIST_DIR%\inf-dir.email-view" rmdir /s /q "%DIST_DIR%\inf-dir.email-view"
 mkdir "%DIST_DIR%\inf-dir.email-view"

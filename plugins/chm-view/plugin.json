@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.chm-view",
+  "name": "CHM Help Viewer",
+  "version": "0.1.0",
+  "entrypoint": "chm-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [".chm"],
+      "mimeTypes": [
+        "application/vnd.ms-htmlhelp",
+        "application/x-chm"
+      ]
+    }
+  }
+}

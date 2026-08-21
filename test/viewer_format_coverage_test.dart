@@ -24,6 +24,7 @@ void main() {
     },
     'inf-dir.project-view': {'.mpp', '.mpt', '.mpx'},
     'inf-dir.font-view': {'.ttf', '.otf', '.woff', '.woff2', '.ttc', '.dfont'},
+    'inf-dir.chm-view': {'.chm'},
   };
 
   test('P2 roadmap formats are assigned to working viewer manifests', () {

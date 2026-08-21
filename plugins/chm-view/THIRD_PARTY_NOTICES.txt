@@ -1,0 +1,10 @@
+CHM viewer dependencies
+
+CHMate
+  Copyright (c) 2026 Roman Chojnacki
+  License: MIT
+  Source: https://github.com/Alpaq92/CHMate
+
+CHMate is included as a source reference in ai_refs/CHMate and its browser
+reader is copied into the chm-view-web distribution directory. See the
+bundled CHMATE-LICENSE.txt and CHMATE-CREDITS.md files for the full notice.

@@ -31,7 +31,7 @@
 | CBR | `mupdf-view`、`archive-view` | 已接入，两个候选 | `mupdf-view` 启动旁边的 `archive-view.exe --extract-comic`，用 libarchive 解包图片，按自然序重新打包临时 CBZ 后交给 MuPDF | `archive-view.exe` + `archive.dll`；MuPDF.NET；无需新增 RAR 二进制 |
 | DjVu / DJV | `mupdf-view` | 已接入（转换） | DjVuLibre `ddjvu.exe` 转 PDF，再交给 MuPDF.NET | 内置 DjVuLibre 运行时 |
 | XPS / OXPS | `mupdf-view` | 已接入 | MuPDF.NET 直接打开 | MuPDF.NET |
-| CHM | 计划 `chm-view`（CHMate） | 未接入（方案已确定） | 复用 CHMate 的纯 JS ITSF/ITSP/PMGL + LZX 解析和安全 HTML 渲染，接入现有 WebView2 Viewer 壳 | CHMate（MIT）；WebView2 |
+| CHM | `chm-view`（CHMate） | 已接入 | CHMate 纯 JS ITSF/ITSP/PMGL + LZX 解析和安全 HTML 渲染，接入现有 WebView2 Viewer 壳 | CHMate（MIT）；WebView2 |
 | 旧 Office：DOC/XLS/PPT 等 | `mupdf-view` | 已接入（转换） | 调用 `soffice --headless` 转 PDF，再交给 MuPDF.NET | 内置或系统 LibreOffice |
 | OOXML：DOCX/XLSX/PPTX | `office-view` | 已接入 | WebView2 加载本地 OOXML Web 渲染器 | WebView2；`@silurus/ooxml` 静态资源 |
 | 图片与 RAW | `img-view` | 已接入 | Rust 原生解码；SVG 用 resvg；RAW 用 rawloader；失败时调用侧车程序 | `image`、`resvg`、`rawloader`；可选 ImageMagick、Compface、Windows WIC |
@@ -57,6 +57,7 @@
 | `inf-dir.email-view` | .NET 8 Windows Forms + WebView2 | MimeKit 4.17.0、MSGReader 6.0.7 | WebView2；本地 HTML/CSS/JS；DOMPurify | EML/EMLX/MSG/OFT/TNEF |
 | `inf-dir.font-view` | .NET 8 Windows Forms + WebView2 | 自研 DFONT 提取器 | WebView2；self-contained .NET 运行时 | 字体预览 |
 | `inf-dir.project-view` | .NET 10 Windows Forms | MPXJ.Net 16.7.0 | self-contained .NET 运行时 | Microsoft Project |
+| `inf-dir.chm-view` | Rust + winit/wry/WebView2 | CHMate ES modules | WebView2；随包发布的 `chm-view-web/` 静态资源 | CHM |
 
 ## 4. 构建和运行时依赖清单
 
@@ -77,6 +78,7 @@ Rust 原生 Viewer 的第三方 DLL 只在对应插件进程内加载，不进�
 - `markdown-view`
 - `office-view`
 - `pdfjs-view`
+- `chm-view`
 - `email-view`
 - `font-view`
 
@@ -96,6 +98,7 @@ Windows 11 通常自带，Windows 10 依赖 Edge/WebView2 Runtime 安装状态�
 | ImageMagick | `img-view` | `img-view/magick/`，作为解码失败时的子进程 |
 | Compface | `img-view` | `img-view/compface/`，用于 X-Face |
 | Windows WIC decoder | `img-view` | `img-view/wic-decoder/wic-decoder.exe` |
+| CHMate reader | `chm-view` | `chm-view-web/` 中的静态 ES modules，无额外运行时 |
 
 ### 4.4 .NET 运行时
 
@@ -129,7 +132,7 @@ CBR 解包只提取常见漫画图片扩展名，拒绝绝对路径和 `..` 路�
 
 ## 6. 当前明确缺口
 
-- `CHM` 当前尚未接入运行时；解析方案已确定为 `ai_refs/CHMate`。需要把它封装成现有 manifest 驱动的 `chm-view` WebView2 进程，并保留其安全 iframe、CSP、资源 blob 化和禁止脚本策略。
+- `CHM` 已接入 `chm-view` 首版；剩余工作是用更多真实 CHM 样本做兼容性回归，并评估旧式 ActiveX/脚本/特殊 frameset 的降级表现。
 - PDF 同时存在 PDFium 和 pdf.js 两个 Viewer，默认 Viewer 由用户关联配置决定。
 - 旧 Office 依赖 LibreOffice headless 转 PDF，启动和转换体积、耗时明显高于 OOXML Web 渲染。
 - `plugins/dist/` 是生成目录。修改源码或 manifest 后必须重新运行 `plugins/build.bat` 才能更新可运行的发布产物。
@@ -143,15 +146,15 @@ CHMate 已作为 submodule 固定在 `ai_refs/CHMate`。它是无 npm 运行时�
 - HTML 主题、CSS、图片、字体和嵌套 frame 的资源重写。
 - sandbox iframe、严格 CSP、脚本/事件属性/危险协议清理和网络阻断。
 
-预计新增一个 `plugins/chm-view`，复用 `markdown-view` 或 `office-view` 的 Rust + winit/wry/WebView2 壳：
+当前实现位于 `plugins/chm-view`，复用 `markdown-view` 的 Rust + winit/wry/WebView2 壳：
 
 1. 将 CHMate 的 `src/chm/`、`src/render.js`、`src/app.js` 和必要 CSS/图标作为静态 Web 资源发布。
-2. 增加 `/file?path=...` 本地协议路由，把启动参数中的 CHM 字节安全地提供给页面；不允许页面任意读取本地路径。
-3. 去掉文件选择、Demo 和浏览器专属逻辑，改为启动后自动打开 Inf-Dir 传入的 CHM。
+2. 增加固定 `/file` 本地协议路由，把启动参数中的 CHM 字节安全地提供给页面；不允许页面任意读取本地路径。
+3. 隐藏 Demo 入口并改为启动后自动打开 Inf-Dir 传入的 CHM；文件选择和拖放仍保留，便于独立调试。
 4. 保留目录、索引、文件列表、历史、缩放和查找；外部链接通过 Rust IPC 交给系统浏览器，并默认拒绝未知协议。
 5. 增加 `plugin.json` 的 `.chm` 声明、构建复制规则和解析器 fixture 测试。
 
-工作量估计：解析器和安全渲染部分基本可复用，约 60%--70% 不需要重写；新增代码主要是 WebView2 壳、资源路由、启动参数适配、发布复制和测试，约 1 个独立插件规模，预计 1--2 个开发日可完成首版，另需用多个真实 CHM 样本做兼容性回归。最大的风险不是 LZX，而是少数 CHM 使用的旧式 ActiveX、脚本、外部协议或特殊 frameset；按 CHMate 的安全策略，这些内容会被禁用或降级，而不是放开执行。
+工作量评估已兑现为一个独立插件规模：解析器和安全渲染部分基本复用，新增代码集中在 WebView2 壳、固定 `/file` 资源路由、启动参数适配、发布复制和测试。最大的剩余风险不是 LZX，而是少数 CHM 使用的旧式 ActiveX、脚本、外部协议或特殊 frameset；按 CHMate 的安全策略，这些内容会被禁用或降级，而不是放开执行。
 
 ## 7. 相关入口
 

@@ -29,6 +29,7 @@ plugins/archive-view/libarchive/
 plugins/office-view-web/
 plugins/office-view/_ooxml.tgz
 plugins/markdown-view-web/
+plugins/chm-view/chm-view-web/
 plugins/markdown-view/_web_tmp/
 plugins/code-view/node_modules/
 plugins/code-view-web/
