@@ -601,19 +601,23 @@ function init() {
     if (file) openFile(file);
   });
 
-  // Sample
-  $('btnSample').addEventListener('click', async (e) => {
-    e.preventDefault();
-    dropError('');
-    status('Loading sample…');
-    try {
-      const res = await fetch('samples/putty.chm');
-      if (!res.ok) throw new Error('sample not found (' + res.status + ')');
-      await openBuffer(await res.arrayBuffer(), 'putty.chm');
-    } catch (err) {
-      dropError('Could not load sample: ' + err.message + '. Open a local .chm instead.');
-    }
-  });
+  // The sample link is omitted from the packaged viewer, but keep this hook
+  // optional so the upstream debug page can still use it when present.
+  const sample = $('btnSample');
+  if (sample) {
+    sample.addEventListener('click', async (e) => {
+      e.preventDefault();
+      dropError('');
+      status('Loading sample…');
+      try {
+        const res = await fetch('samples/putty.chm');
+        if (!res.ok) throw new Error('sample not found (' + res.status + ')');
+        await openBuffer(await res.arrayBuffer(), 'putty.chm');
+      } catch (err) {
+        dropError('Could not load sample: ' + err.message + '. Open a local .chm instead.');
+      }
+    });
+  }
 
   // Keyboard shortcuts
   window.addEventListener('keydown', (e) => {

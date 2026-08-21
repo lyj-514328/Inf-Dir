@@ -139,8 +139,11 @@ fn parse_args_from(args: impl IntoIterator<Item = String>) -> Result<Args, Strin
 fn resolve_web_root() -> Option<PathBuf> {
     let mut candidates = Vec::new();
     if let Ok(executable) = std::env::current_exe() {
-        if let Some(directory) = executable.parent() {
-            candidates.push(directory.join(WEB_DIR_NAME));
+        let mut directory = executable.parent();
+        for _ in 0..4 {
+            let Some(current) = directory else { break };
+            candidates.push(current.join(WEB_DIR_NAME));
+            directory = current.parent();
         }
     }
     candidates.push(PathBuf::from(WEB_DIR_NAME));
@@ -285,11 +288,15 @@ impl ApplicationHandler for App {
 
         let root = self.web_root.clone();
         let source_file = self.args.file.clone();
-        let file_url = format!("{SCHEME}://{HOST}/file");
+        // Keep this relative to the rewritten WebView2 origin. An original
+        // `http://chm-view.local/file` URL would bypass Wry's protocol route.
+        let file_url = "/file";
         let file_query = percent_encode(file_url.as_bytes(), NON_ALPHANUMERIC);
         let name_query = percent_encode(name.as_bytes(), NON_ALPHANUMERIC);
         let start_url = format!("{SCHEME}://{HOST}/index.html?file={file_query}&name={name_query}");
-        let allowed_origin = format!("{SCHEME}://{HOST}/");
+        // WebView2 rewrites the custom `http://` protocol to
+        // `http://http.<host>/...` before navigation filtering.
+        let allowed_origin = format!("{SCHEME}://{SCHEME}.{HOST}/");
         let webview = match WebViewBuilder::new()
             .with_custom_protocol(SCHEME.into(), move |_id, request| {
                 handle_request(request, &root, &source_file)
