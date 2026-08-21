@@ -55,14 +55,6 @@ internal static class DocumentPreparation
 {
     private const int MaxTcrOutputBytes = 256 * 1024 * 1024;
 
-    private static readonly HashSet<string> LibreOfficeExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".doc", ".dot", ".docm", ".dotm", ".xls", ".xlt", ".xlsb", ".ppt", ".pot", ".pps",
-        ".odt", ".ott", ".ods", ".ots", ".odp", ".otp", ".rtf", ".wps", ".wbk",
-        ".vsd", ".vsdm", ".vsdx", ".vss", ".vssx", ".vst", ".vstm", ".vstx", ".vdx", ".vdw",
-        ".vsx", ".vtx", ".mht",
-    };
-
     public static void SelfTest()
     {
         string temp = CreateTempDirectory("self-test-source");
@@ -118,11 +110,6 @@ internal static class DocumentPreparation
         if (extension.Equals(".tcr", StringComparison.OrdinalIgnoreCase))
         {
             return DecompressTcr(source);
-        }
-
-        if (LibreOfficeExtensions.Contains(extension))
-        {
-            return ConvertWithLibreOffice(source);
         }
 
         return PreparedDocument.Direct(source);
@@ -270,99 +257,10 @@ internal static class DocumentPreparation
                trimmed.StartsWith("<head", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static PreparedDocument ConvertWithLibreOffice(string source)
-    {
-        string executable = FindLibreOffice()
-            ?? throw new InvalidOperationException(
-                "该格式需要 LibreOffice 转换运行时；请安装 LibreOffice，或设置 INF_DIR_LIBREOFFICE_PATH。");
-        string temp = CreateTempDirectory("libreoffice");
-        string profile = Path.Combine(temp, "profile");
-        string outputDirectory = Path.Combine(temp, "output");
-        Directory.CreateDirectory(profile);
-        Directory.CreateDirectory(outputDirectory);
-
-        string profileUri = new Uri(profile + Path.DirectorySeparatorChar).AbsoluteUri;
-        ProcessResult result = RunTool(
-            executable,
-            new[]
-            {
-                "--headless", "--nologo", "--nodefault", "--nofirststartwizard", "--norestore",
-                "--nolockcheck", $"-env:UserInstallation={profileUri}",
-                "--convert-to", "pdf", "--outdir", outputDirectory, source,
-            },
-            temp,
-            timeoutMilliseconds: 120_000);
-        string output = Path.Combine(outputDirectory, Path.GetFileNameWithoutExtension(source) + ".pdf");
-        if (!result.Success || !File.Exists(output))
-        {
-            string detail = FirstNonEmpty(result.StandardError, result.StandardOutput, "LibreOffice 没有生成 PDF。");
-            Directory.Delete(temp, recursive: true);
-            throw new InvalidOperationException($"LibreOffice 转换失败：{detail}");
-        }
-        return PreparedDocument.Temporary(output, Path.GetFileName(source), temp);
-    }
-
     private static string? FindBundledTool(string directory, string executable)
     {
         string path = Path.Combine(AppContext.BaseDirectory, directory, executable);
         return File.Exists(path) ? path : null;
-    }
-
-    private static string? FindLibreOffice()
-    {
-        string? configured = Environment.GetEnvironmentVariable("INF_DIR_LIBREOFFICE_PATH");
-        IEnumerable<string> candidates = new[]
-        {
-            configured,
-            Path.Combine(AppContext.BaseDirectory, "libreoffice", "program", "soffice.exe"),
-            Environment.GetEnvironmentVariable("ProgramFiles") is { Length: > 0 } programFiles
-                ? Path.Combine(programFiles, "LibreOffice", "program", "soffice.exe")
-                : null,
-            Environment.GetEnvironmentVariable("ProgramFiles(x86)") is { Length: > 0 } programFilesX86
-                ? Path.Combine(programFilesX86, "LibreOffice", "program", "soffice.exe")
-                : null,
-        }.Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => path!);
-
-        foreach (string candidate in candidates)
-        {
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-            if (Directory.Exists(candidate))
-            {
-                string direct = Path.Combine(candidate, "soffice.exe");
-                string nested = Path.Combine(candidate, "program", "soffice.exe");
-                if (File.Exists(direct))
-                {
-                    return direct;
-                }
-                if (File.Exists(nested))
-                {
-                    return nested;
-                }
-            }
-        }
-
-        return FindOnPath("soffice.exe") ?? FindOnPath("soffice.com");
-    }
-
-    private static string? FindOnPath(string executable)
-    {
-        string? pathValue = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrWhiteSpace(pathValue))
-        {
-            return null;
-        }
-        foreach (string directory in pathValue.Split(Path.PathSeparator))
-        {
-            string candidate = Path.Combine(directory.Trim(), executable);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-        return null;
     }
 
     private static string CreateTempDirectory(string purpose)
@@ -403,14 +301,6 @@ internal static class DocumentPreparation
         foreach (string argument in arguments)
         {
             process.StartInfo.ArgumentList.Add(argument);
-        }
-        if (Path.GetFileName(executable).StartsWith("soffice", StringComparison.OrdinalIgnoreCase))
-        {
-            string pythonHome = Path.Combine(Path.GetDirectoryName(executable)!, "python-core-3.12.13");
-            if (Directory.Exists(pythonHome))
-            {
-                process.StartInfo.Environment["PYTHONHOME"] = pythonHome;
-            }
         }
         if (!process.Start())
         {

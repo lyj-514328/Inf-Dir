@@ -16,8 +16,3 @@ GNU LibreDWG 0.14
 -----------------
 LibreDWG is distributed under GNU GPL v3 or later. Source and license:
 https://www.gnu.org/software/libredwg/
-
-LibreOffice 26.2.5 (optional bundled conversion runtime)
----------------------------------------------------------
-LibreOffice is distributed under Mozilla Public License 2.0. Source and
-license information: https://www.libreoffice.org/about-us/licenses/

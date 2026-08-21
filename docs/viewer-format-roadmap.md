@@ -143,7 +143,7 @@ SVG 引擎权衡：
 | raw 长尾（并入 image-view） | `.cr3 .3fr .fff .rwl` | 已由 ImageMagick 子进程补齐，rawloader 失败时自动回退 |
 | xps（并入 mupdf-view） | `.xps .oxps` | MuPDF.NET 原生处理 |
 | CAD（并入 mupdf-view） | `.dwg .dxf` | LibreDWG 转 SVG 后交给 MuPDF；DXF 先转 DWG |
-| Visio（并入 mupdf-view） | `.vsd .vsdx .vst .vss .vdx .vdw .vsx .vtx .vstx .vssx .vstm .vsdm` | LibreOffice headless 转 PDF |
+| Visio（并入 onlyoffice-view） | `.vsd .vsdx .vst .vss .vdx .vdw .vsx .vtx .vstx .vssx .vstm .vsdm` | ONLYOFFICE x2t 转 PDF |
 | project-view | `.mpp .mpt .mpx` | MPXJ.Net 16.7.0 独立进程读取任务与时间线 |
 | font-view | `.ttf .otf .woff .woff2 .ttc .dfont` | WebView2 预览；dfont 先解出 sfnt resource |
 | DjVu（并入 mupdf-view） | `.djvu .djv` | DjVuLibre `ddjvu` 转 PDF 后交给 MuPDF |
@@ -181,7 +181,7 @@ SVG 引擎权衡：
 | Video | 96 | video-view（mpv） | P0(12) / P1 补全（已完成） |
 | Archive | 39 | archive-view | P0(11) / P1 补全（已完成） |
 | Email | 5 | email-view | P1（已完成；`.dat` 临时直接关联，后续内容嗅探） |
-| Visio | 12 | mupdf-view + LibreOffice | P2 已完成 |
+| Visio | 12 | onlyoffice-view + ONLYOFFICE x2t | P2 已完成 |
 | Project | 3 | project-view | P2 已完成 |
 | CAD | 2 | mupdf-view + LibreDWG | P2 已完成 |
 
@@ -203,7 +203,7 @@ SVG 引擎权衡：
 - `flutter analyze` / `flutter test` 通过；Rust 插件 `cargo build --release`、email-view 的
   `npm run build` / `dotnet publish` 与解析自检通过。
 - 长尾依赖由 `plugins/img-view/build.bat` 与 `plugins/mupdf-view/build-runtime.bat` 下载并校验 SHA-256；
-  发布包需包含 ImageMagick、Compface、WIC decoder、DjVuLibre、LibreDWG 和 LibreOffice 运行时及其通知文件。
+  发布包需包含 ImageMagick、Compface、WIC decoder、DjVuLibre 和 LibreDWG 运行时及其通知文件。
 
 ## 11. Viewer 补全后处理的覆盖审计项
 
@@ -236,15 +236,13 @@ SVG 引擎权衡：
 
 本轮已将 P2 长尾格式接入可运行的独立 viewer，但仍有以下工程化改进项：
 
-1. **LibreOffice 改为可选运行时**：当前 LibreOffice 仅用于旧 Office、ODF、Visio、RTF/WPS
-   等格式的 headless 转 PDF，不是 Flutter 或 MuPDF 的基础依赖。基础安装包应默认不携带约 1.5GB
-   运行时，在用户首次打开相关格式时按需下载；已有 Office 的机器可优先评估 COM 转换。
+1. **Office 转换运行时统一**：Word、PPT、Visio 和 OpenDocument 由 onlyoffice-view 调用 ONLYOFFICE x2t
+   转换为 PDF，Excel 暂留给后续专用表格 viewer；转换运行时按用户配置提供，不随 MuPDF 一起打包。
 2. **细分文档转换后端**：评估 `antiword`/`catdoc`/`wvWare`、`xlrd`/`ssconvert`/`pyxlsb`、
-   `libwps`、`libvisio`、ODF Toolkit 和 RTF 专用解析器，逐步替换对 LibreOffice 的单一依赖。
-   轻量后端优先提供文本或页面预览，版式保真要求较高的文件保留 LibreOffice fallback。
+   `libwps`、`libvisio`、ODF Toolkit 和 RTF 专用解析器，为未覆盖格式提供轻量文本或页面预览。
 3. **转换质量与失败反馈**：为旧 Office、Visio、DWG/DXF、DjVu 建立代表性样本集，验证页面数量、
    字体、图片、表格和 SVG 实体；转换失败时区分“运行时缺失”“格式损坏”和“后端不支持”。
-4. **长尾运行时按需拆包**：ImageMagick、WIC、Compface、DjVuLibre、LibreDWG 和 LibreOffice
+4. **长尾运行时按需拆包**：ImageMagick、WIC、Compface、DjVuLibre 和 LibreDWG
    目前由构建脚本统一准备。后续按 viewer 产物拆分下载、缓存和版本升级，避免用户为未使用的格式下载依赖。
 5. **关联冲突与内容嗅探**：继续处理 `.gif`、`.ts`、`.dat`、`.cin` 等多语义扩展名，增加
    MIME、文件头和用户关联规则的优先级测试，确保命中 viewer 与真实内容一致。

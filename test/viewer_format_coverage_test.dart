@@ -12,12 +12,8 @@ void main() {
     },
     'inf-dir.mupdf-view': {
       '.xps', '.oxps', '.dwg', '.dxf',
-      '.vsd', '.vsdx', '.vst', '.vss', '.vdx', '.vdw', '.vsx', '.vtx',
-      '.vstx', '.vssx', '.vstm', '.vsdm',
       '.djvu', '.djv',
       '.epub', '.mobi', '.fb2', '.fbz', '.fb2z', '.tcr',
-      '.doc', '.xls', '.ppt', '.dot', '.xlt', '.pot', '.pps', '.xlsb',
-      '.odt', '.ods', '.odp',
     },
     'inf-dir.onlyoffice-view': {
       '.doc', '.docm', '.docx', '.dot', '.dotm', '.dotx',
@@ -57,6 +53,22 @@ void main() {
     expect(extensions, isNot(anyOf(contains('.xls'), contains('.xlsx'))));
     expect(extensions, isNot(contains('.xlsm')));
     expect(extensions, isNot(contains('.xlsb')));
+  });
+
+  test('mupdf-view does not claim Office conversion formats', () {
+    final manifests = _loadPluginManifests();
+    final extensions = manifests['inf-dir.mupdf-view']!;
+    expect(
+      extensions,
+      isNot(anyOf(
+        contains('.doc'),
+        contains('.dot'),
+        contains('.xls'),
+        contains('.ppt'),
+        contains('.odt'),
+        contains('.vsdx'),
+      )),
+    );
   });
 }
 
