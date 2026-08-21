@@ -25,3 +25,6 @@
 [submodule "ai_refs/github-markdown-css"]
 	path = ai_refs/github-markdown-css
 	url = https://github.com/sindresorhus/github-markdown-css.git
+[submodule "ai_refs/CHMate"]
+	path = ai_refs/CHMate
+	url = https://github.com/Alpaq92/CHMate.git
