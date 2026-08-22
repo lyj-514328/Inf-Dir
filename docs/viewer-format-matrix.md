@@ -11,39 +11,57 @@
 > - `⚠️` 后端可解但未在配置声明（待实测后补 manifest 与默认配置）；
 > - `❌` 后端无对应能力或非文件类型（伪格式、网络协议、原始采样流、字幕等）。
 >
-> 支持面判定依据：FFmpeg `libavformat/allformats.c` 的 368 个 demuxer（对应
-> shinchiro `mpv-dev` 全量构建）与 ImageMagick 实测 `magick -list format` 输出。
+> 支持面判定依据（image-view 的解码链：原生 image/rawloader → ImageMagick 子进程 →
+> Windows WIC 子进程；video-view：mpv/FFmpeg）：
+> - FFmpeg `libavformat/allformats.c` 的 368 个 demuxer（对应 shinchiro `mpv-dev`
+>   全量构建）；
+> - ImageMagick 实测 `magick -list format` 输出；
+> - Windows WIC：系统内置 codec（JXR、HEIF[+扩展]、WMF/EMF、DIB 等），仅作兜底，
+>   随 OS 版本/厂商 codec 安装情况浮动，不作为覆盖判定的确定性依据。
+>
 > 注：无扩展名规则的文件可能经 `image/*`、`video/*`、`audio/*`、`text/*`
 > MIME 兜底命中（依赖系统注册的 Content Type 与后端解码能力）；同名冲突后缀的
 > 常见语义作为默认 viewer、其余语义作为 MIME 子类表达。重新生成：
 > `node tools/gen_format_matrix.mjs`。
+>
+> 同名不同义/双语义的后缀（按参考清单分多行列出）：
+- `.vst`：Visio（Visio Drawing Template）；Image（Truevision image）
+- `.dat`：Email（Winmail.dat File）；Video（VCD Video File）
+- `.cdg`：Image（CD Graphics File）；Video（CD Graphics Format）
+- `.cin`：Image（Kodak Cineon Bitmap File）；Video（Delphine Software CIN Video）
+- `.gif`：Image（Graphical Interchange Format File / Compuserve GIF image）；Video（GIF Animation）
+- `.psp`：Image（Paintshop Pro image）；Video（PSP MP4 format）
+- `.iss`：Audio（Funcom ISS Audio File / Funcom ISS format）；Source Code（Inno Setup Script）
+- `.mpc`：Audio（Musepack Compressed Audio File）；Video（Electronic Arts MPCh Video File / Musepack）
+- `.vb`：Video（Beam Game SIFF Video）；Source Code（VBScript File）
+- `.vhd`：Archive（Virtual Hard Disk File）；Source Code（VHDL File）
 
 | 类别 | 后缀名 | 格式说明 | 是否支持，如何支持 |
 | --- | --- | --- | --- |
-| Text | .diz | Description in Zip File | ✅ code（扩展名规则） |
-| Text | .doc | Microsoft Word Document (Legacy) | ✅ onlyoffice（扩展名规则） |
-| Text | .docm | Microsoft Word Macro-Enabled Document | ✅ office、onlyoffice（扩展名规则） |
-| Text | .docx | Microsoft Word Document | ✅ office、onlyoffice（扩展名规则） |
-| Text | .dot | Microsoft Word Document Template | ✅ onlyoffice（扩展名规则） |
-| Text | .dotm | Microsoft Word Macro-Enabled Document Template | ✅ office、onlyoffice（扩展名规则） |
-| Text | .dotx | Microsoft Word Document Template | ✅ office、onlyoffice（扩展名规则） |
-| Text | .epub | EPUB eBook | ✅ mupdf（扩展名规则） |
+| Text | .diz | Description in Zip File / Plain text files | ✅ code（扩展名规则） |
+| Text | .doc | Microsoft Word Document (Legacy) / Microsoft Word | ✅ onlyoffice（扩展名规则） |
+| Text | .docm | Microsoft Word Macro-Enabled Document / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
+| Text | .docx | Microsoft Word Document / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
+| Text | .dot | Microsoft Word Document Template / Microsoft Word | ✅ onlyoffice（扩展名规则） |
+| Text | .dotm | Microsoft Word Macro-Enabled Document Template / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
+| Text | .dotx | Microsoft Word Document Template / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
+| Text | .epub | EPUB eBook / ePub e-book | ✅ mupdf（扩展名规则） |
 | Text | .odt | OpenDocument Text Document | ✅ onlyoffice（扩展名规则） |
 | Text | .ott | OpenDocument Document Template | ✅ onlyoffice（扩展名规则） |
-| Text | .rtf | Rich Text Format File | ✅ onlyoffice（扩展名规则） |
-| Text | .txt | Plain Text File | ✅ code（扩展名规则） |
+| Text | .rtf | Rich Text Format File / Rich Text Format | ✅ onlyoffice（扩展名规则） |
+| Text | .txt | Plain Text File / Plain text files | ✅ code（扩展名规则） |
 | Text | .wps | Microsoft Works Word Processor Document | ✅ onlyoffice（扩展名规则） |
 | PDF & XPS | .oxps | Open XML Paper Specification File | ✅ mupdf（扩展名规则） |
-| PDF & XPS | .pdf | Portable Document Format File | ✅ pdf、pdfjs（扩展名规则） |
-| PDF & XPS | .xps | XML Paper Specification File | ✅ mupdf（扩展名规则） |
+| PDF & XPS | .pdf | Portable Document Format File / Adobe Portable Document Format | ✅ pdf、pdfjs（扩展名规则） |
+| PDF & XPS | .xps | XML Paper Specification File / Microsoft XML Paper Specification | ✅ mupdf（扩展名规则） |
 | Spreadsheet | .csv | Comma Separated Values File | ✅ code（扩展名规则） |
 | Spreadsheet | .tsv | Tab Separated Values File | ✅ code（扩展名规则） |
-| Spreadsheet | .xls | Excel Spreadsheet (Legacy) | ✅ onlyoffice（扩展名规则） |
+| Spreadsheet | .xls | Excel Spreadsheet (Legacy) / Microsoft Excel | ✅ onlyoffice（扩展名规则） |
 | Spreadsheet | .xlsm | Excel Macro-Enabled Spreadsheet | ✅ office、onlyoffice（扩展名规则） |
-| Spreadsheet | .xlsx | Excel Spreadsheet | ✅ office、onlyoffice（扩展名规则） |
-| Spreadsheet | .xlt | Excel Spreadsheet Template | ✅ onlyoffice（扩展名规则） |
+| Spreadsheet | .xlsx | Excel Spreadsheet / Microsoft Excel 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
+| Spreadsheet | .xlt | Excel Spreadsheet Template / Microsoft Excel | ✅ onlyoffice（扩展名规则） |
 | Spreadsheet | .xltm | Excel Macro-Enabled Spreadsheet Template | ✅ office、onlyoffice（扩展名规则） |
-| Spreadsheet | .xltx | Excel Spreadsheet Template | ✅ office、onlyoffice（扩展名规则） |
+| Spreadsheet | .xltx | Excel Spreadsheet Template / Microsoft Excel 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
 | Presentation | .odp | OpenDocument Presentation | ✅ onlyoffice（扩展名规则） |
 | Presentation | .pot | PowerPoint Template | ✅ onlyoffice（扩展名规则） |
 | Presentation | .potm | PowerPoint Macro-Enabled Presentation Template | ✅ office、onlyoffice（扩展名规则） |
@@ -76,7 +94,7 @@
 | Email | .msg | Outlook Mail Message | ✅ email（扩展名规则） |
 | Email | .oft | Outlook Email Template | ✅ email（扩展名规则） |
 | Image | .aai | Dune HD Image | ✅ image（扩展名规则） |
-| Image | .ani | Windows animated cursor | ❌ ImageMagick 无对应 decoder |
+| Image | .ani | Windows animated cursor | ❌ WIC/ImageMagick 无对应 codec；Windows 光标 API（GDI）可读，image-view 未接入（待评估） |
 | Image | .apng | Animated PNG File | ✅ video（扩展名规则） |
 | Image | .avif | AVIF Image | ✅ image（扩展名规则） |
 | Image | .bmp | Bitmap Image File / Windows bitmap | ✅ image（扩展名规则） |
@@ -92,13 +110,13 @@
 | Image | .dib | Device Independent Bitmap File / Windows bitmap | ✅ image（扩展名规则） |
 | Image | .dpx | Digital Picture Exchange File | ✅ image（扩展名规则） |
 | Image | .emf | Enhanced Windows Metafile / Windows enhanced metafile | ✅ image（扩展名规则） |
-| Image | .emz | Compressed Enhanced Metafile | ❌ ImageMagick 无对应 decoder |
+| Image | .emz | Compressed Enhanced Metafile | ⚠️ gzip 压缩的 EMF；ImageMagick EMF 渲染器已就绪，image-view 未做解压包装（低成本可支持） |
 | Image | .exr | OpenExr Image | ✅ image（扩展名规则） |
 | Image | .fax | GFI fax image | ✅ image（扩展名规则） |
 | Image | .gif | Graphical Interchange Format File / Compuserve GIF image | ✅ image、video（扩展名规则） |
 | Image | .heic | High Efficiency Image Format | ✅ image（扩展名规则） |
 | Image | .icb | Truevision image | ⚠️ ImageMagick 可解，未在配置声明（待实测） |
-| Image | .icl | Windows icon library | ❌ ImageMagick 无对应 decoder |
+| Image | .icl | Windows icon library | ❌ WIC/ImageMagick 无对应 codec；Windows 图标资源 API（GDI）可读，image-view 未接入（待评估） |
 | Image | .ico | Icon File / Windows icon | ✅ image（扩展名规则） |
 | Image | .jfif | JPEG format | ✅ image（扩展名规则） |
 | Image | .jls | JPEG-LS Image | ❌ ImageMagick 无对应 decoder |
@@ -144,14 +162,14 @@
 | Image | .tif | Tagged Image File Format | ✅ image（扩展名规则） |
 | Image | .tiff | Tagged Image File / Tagged Image File Format | ✅ image（扩展名规则） |
 | Image | .ttf | TrueType Font | ✅ font（扩展名规则） |
-| Image | .txd | Renderware Texture Dictionary | ❌ ImageMagick 无对应 decoder |
+| Image | .txd | Renderware Texture Dictionary / Renderware TeXture Dictionary | ❌ ImageMagick 无对应 decoder |
 | Image | .vda | Truevision image | ⚠️ ImageMagick 可解，未在配置声明（待实测） |
-| Image | .vst | Truevision image | ✅ onlyoffice（扩展名规则） |
+| Image | .vst | Truevision image | 🔮 默认 .vst 规则为 Visio 模板（onlyoffice）；Truevision 图像属 MIME/内容嗅探子类，待嗅探器 |
 | Image | .wbmp | Wireless Bitmap Image File | ✅ image（扩展名规则） |
 | Image | .webp | WebP Image | ✅ image（扩展名规则） |
 | Image | .win | Truevision image | ❌ ImageMagick 无对应 decoder |
 | Image | .wmf | Windows Metafile / Windows metafile | ✅ image（扩展名规则） |
-| Image | .wmz | Compressed Windows Metafile | ❌ ImageMagick 无对应 decoder |
+| Image | .wmz | Compressed Windows Metafile | ⚠️ gzip 压缩的 WMF；ImageMagick WMF 渲染器已就绪，image-view 未做解压包装（低成本可支持） |
 | Image | .xbm | X11 Bitmap Graphic | ✅ image（扩展名规则） |
 | Image | .xface | X-Face Image | ✅ image（扩展名规则） |
 | Image | .xpm | X11 Pixmap Graphic | ✅ image（扩展名规则） |
@@ -200,164 +218,215 @@
 | Audio | .8svx | Amiga 8-Bit Sound File | ✅ video（扩展名规则） |
 | Audio | .aa | Audible Audio Book File | ✅ video（扩展名规则） |
 | Audio | .aa3 | ATRAC3 Audio File | ✅ video（扩展名规则） |
-| Audio | .aac | Advanced Audio Coding File | ✅ video（扩展名规则） |
-| Audio | .ac3 | Audio Codec 3 File | ✅ video（扩展名规则） |
+| Audio | .aac | Advanced Audio Coding File / raw ADTS AAC | ✅ video（扩展名规则） |
+| Audio | .ac3 | Audio Codec 3 File / raw AC-3 | ✅ video（扩展名规则） |
 | Audio | .act | S1 MP3 Player Recorded Audio | ✅ video（扩展名规则） |
-| Audio | .aea | ATRAC1 Audio File | ✅ video（扩展名规则） |
+| Audio | .adts | ADTS AAC | ✅ video（扩展名规则） |
+| Audio | .aea | ATRAC1 Audio File / MD STUDIO audio | ✅ video（扩展名规则） |
 | Audio | .aif | Audio Interchange File Format | ✅ video（扩展名规则） |
 | Audio | .aifc | Compressed Audio Interchange File | ✅ video（扩展名规则） |
-| Audio | .amr | Adaptive Multi-Rate Codec File | ✅ video（扩展名规则） |
-| Audio | .apc | CRYO Interactive APC Audio File | ✅ video（扩展名规则） |
-| Audio | .ape | Monkey's Audio Lossless Audio File | ✅ video（扩展名规则） |
-| Audio | .au | Audio File | ✅ video（扩展名规则） |
+| Audio | .aiff | Audio IFF | ✅ video（扩展名规则） |
+| Audio | .amr | Adaptive Multi-Rate Codec File / 3GPP AMR file format | ✅ video（扩展名规则） |
+| Audio | .apc | CRYO Interactive APC Audio File / CRYO APC format | ✅ video（扩展名规则） |
+| Audio | .ape | Monkey's Audio Lossless Audio File / Monkey's Audio | ✅ video（扩展名规则） |
+| Audio | .au | Audio File / SUN AU format | ✅ video（扩展名规则） |
 | Audio | .aud | WestWood Audio File | ❌ FFmpeg 无对应 demuxer |
-| Audio | .caf | Core Audio File | ✅ video（扩展名规则） |
+| Audio | .caf | Core Audio File / Apple Core Audio Format | ✅ video（扩展名规则） |
+| Audio | .daud | D-Cinema audio format | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
 | Audio | .dss | Digital Speech Standard Audio File | ✅ video（扩展名规则） |
-| Audio | .dts | DTS Encoded Audio File | ✅ video（扩展名规则） |
-| Audio | .flac | Free Lossless Audio Codec File | ✅ video（扩展名规则） |
-| Audio | .g722 | G.722 ADPCM Audio File | ✅ video（扩展名规则） |
-| Audio | .gsm | Global System for Mobile Audio File | ✅ video（扩展名规则） |
+| Audio | .dts | DTS Encoded Audio File / raw DTS | ✅ video（扩展名规则） |
+| Audio | .eac3 | raw E-AC-3 | ✅ video（扩展名规则） |
+| Audio | .flac | Free Lossless Audio Codec File / raw FLAC | ✅ video（扩展名规则） |
+| Audio | .g722 | G.722 ADPCM Audio File / raw G.722 | ✅ video（扩展名规则） |
+| Audio | .gsm | Global System for Mobile Audio File / raw GSM | ✅ video（扩展名规则） |
 | Audio | .htk | Hidden Markov Model Toolkit Audio | ❌ FFmpeg 无对应 demuxer |
-| Audio | .iss | Funcom ISS Audio File | ✅ code（扩展名规则） |
+| Audio | .iss | Funcom ISS Audio File / Funcom ISS format | 🔮 默认 .iss 规则为 Inno Setup（code）；Funcom ISS 音频属 MIME/内容嗅探子类，待嗅探器 |
 | Audio | .m4a | MPEG-4 Audio File | ✅ video（扩展名规则） |
 | Audio | .m4b | MPEG-4 Audio Book File | ✅ video（扩展名规则） |
 | Audio | .m4r | iPhone Ringtone File | ✅ video（扩展名规则） |
 | Audio | .mka | Matroska Audio File | ✅ video（扩展名规则） |
-| Audio | .mlp | Meridian Lossless Packing Audio File | ✅ video（扩展名规则） |
+| Audio | .mlp | Meridian Lossless Packing Audio File / raw MLP | ✅ video（扩展名规则） |
+| Audio | .mmf | Yamaha SMAF | ✅ video（扩展名规则） |
 | Audio | .mp1 | MPEG-1 Audio File | ✅ video（扩展名规则） |
-| Audio | .mp2 | MPEG Layer II Compressed Audio File | ✅ video（扩展名规则） |
-| Audio | .mp3 | MP3 Audio File | ✅ video（扩展名规则） |
+| Audio | .mp2 | MPEG Layer II Compressed Audio File / MPEG audio layer 2 | ✅ video（扩展名规则） |
+| Audio | .mp3 | MP3 Audio File / MPEG audio layer 3 | ✅ video（扩展名规则） |
 | Audio | .mpa | MPEG-2 Audio File | ✅ video（扩展名规则） |
 | Audio | .mpc | Musepack Compressed Audio File | ✅ video（扩展名规则） |
-| Audio | .ogg | Ogg Vorbis Audio File | ✅ video（扩展名规则） |
-| Audio | .oma | Sony OpenMG Music File | ✅ video（扩展名规则） |
+| Audio | .mpc8 | Musepack SV8 | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
+| Audio | .ogg | Ogg Vorbis Audio File / Ogg | ✅ video（扩展名规则） |
+| Audio | .oma | Sony OpenMG Music File / Sony OpenMG audio | ✅ video（扩展名规则） |
 | Audio | .opus | Opus Audio File | ✅ video（扩展名规则） |
 | Audio | .paf | PARIS Audio File | ✅ video（扩展名规则） |
 | Audio | .pvf | Portable Voice Format Audio | ✅ video（扩展名规则） |
-| Audio | .qcp | PureVoice Audio File | ✅ video（扩展名规则） |
+| Audio | .qcp | PureVoice Audio File / QCP format | ✅ video（扩展名规则） |
 | Audio | .ra | Real Audio File | ✅ video（扩展名规则） |
-| Audio | .rso | NXT Brick Audio File | ✅ video（扩展名规则） |
+| Audio | .rso | NXT Brick Audio File / Lego Mindstorms RSO format | ✅ video（扩展名规则） |
 | Audio | .sf | IRCAM Sound File | ❌ FFmpeg 无对应 demuxer |
-| Audio | .shn | Shorten Compressed Audio File | ✅ video（扩展名规则） |
+| Audio | .shn | Shorten Compressed Audio File / raw Shorten | ✅ video（扩展名规则） |
 | Audio | .snd | Sound File | ✅ video（扩展名规则） |
-| Audio | .sol | Sierra On-Line Audio File | ✅ video（扩展名规则） |
+| Audio | .sol | Sierra On-Line Audio File / Sierra SOL format | ✅ video（扩展名规则） |
 | Audio | .son | Beam Software SIFF Audio File | ❌ FFmpeg 无对应 demuxer |
+| Audio | .sox | SoX native format | ✅ video（扩展名规则） |
+| Audio | .spdif | IEC 61937 (used on S/PDIF - IEC958) | ✅ video（扩展名规则） |
 | Audio | .sph | NIST SPHERE Audio File | ✅ video（扩展名规则） |
 | Audio | .spx | Ogg Vorbis Speex File | ✅ video（扩展名规则） |
 | Audio | .str | PlayStation Video Stream | ✅ video（扩展名规则） |
 | Audio | .tak | Tom's Lossless Audio Kompressor File | ✅ video（扩展名规则） |
-| Audio | .tta | True Audio File | ✅ video（扩展名规则） |
-| Audio | .voc | Creative Labs Audio File | ✅ video（扩展名规则） |
-| Audio | .vqf | TwinVQ Audio File | ✅ video（扩展名规则） |
-| Audio | .w64 | Sony Wave64 Audio File | ✅ video（扩展名规则） |
-| Audio | .wav | WAVE Audio File | ✅ video（扩展名规则） |
+| Audio | .tta | True Audio File / True Audio | ✅ video（扩展名规则） |
+| Audio | .voc | Creative Labs Audio File / Creative Voice file format | ✅ video（扩展名规则） |
+| Audio | .vqf | TwinVQ Audio File / Nippon Telegraph and Telephone Corporation (NTT) TwinVQ | ✅ video（扩展名规则） |
+| Audio | .w64 | Sony Wave64 Audio File / Sony Wave64 format | ✅ video（扩展名规则） |
+| Audio | .wav | WAVE Audio File / WAV format | ✅ video（扩展名规则） |
 | Audio | .wma | Windows Media Audio File | ✅ video（扩展名规则） |
-| Audio | .wv | WavPack Audio File | ✅ video（扩展名规则） |
-| Audio | .xa | PlayStation Audio File | ✅ video（扩展名规则） |
+| Audio | .wsaud | Westwood Studios audio format | ✅ video（扩展名规则） |
+| Audio | .wv | WavPack Audio File / WavPack | ✅ video（扩展名规则） |
+| Audio | .xa | PlayStation Audio File / Maxis XA File Format | ✅ video（扩展名规则） |
 | Audio | .xma | Xbox Media Audio File | ✅ video（扩展名规则） |
-| Video | .3g2 | 3GPP2 Multimedia File | ✅ video（扩展名规则） |
-| Video | .3gp | 3GPP Multimedia File | ✅ video（扩展名规则） |
-| Video | .4xm | 4X Movie | ✅ video（扩展名规则） |
+| Video | .3g2 | 3GPP2 Multimedia File / 3GP2 format | ✅ video（扩展名规则） |
+| Video | .3gp | 3GPP Multimedia File / 3GP format | ✅ video（扩展名规则） |
+| Video | .4xm | 4X Movie / 4X Technologies format | ✅ video（扩展名规则） |
+| Video | .a64 | a64 - video for Commodore 64 | ❌ FFmpeg 无对应 demuxer |
 | Video | .amv | Anime Music Video File | ✅ video（扩展名规则） |
 | Video | .anim | Amiga Animation File | ❌ FFmpeg 无对应 demuxer |
-| Video | .anm | DeluxePaint Animation | ✅ video（扩展名规则） |
-| Video | .asf | Advanced Systems Format File | ✅ video（扩展名规则） |
-| Video | .avi | Audio Video Interleave File | ✅ video（扩展名规则） |
-| Video | .bfi | Brute Force and Ignorance Video | ✅ video（扩展名规则） |
+| Video | .anm | DeluxePaint Animation / Deluxe Paint Animation | ✅ video（扩展名规则） |
+| Video | .asf | Advanced Systems Format File / ASF format | ✅ video（扩展名规则） |
+| Video | .avi | Audio Video Interleave File / AVI format | ✅ video（扩展名规则） |
+| Video | .avs | AVISynth | ✅ video（扩展名规则） |
+| Video | .bethsoftvid | Bethesda Softworks VID format | ✅ video（扩展名规则） |
+| Video | .bfi | Brute Force and Ignorance Video / Brute Force & Ignorance | ✅ video（扩展名规则） |
 | Video | .bik | Bink Video File | ✅ video（扩展名规则） |
+| Video | .bink | Bink | ✅ video（扩展名规则） |
 | Video | .bmv | Discworld II Video File | ✅ video（扩展名规则） |
-| Video | .c93 | Interplay C93 Video | ✅ video（扩展名规则） |
+| Video | .c93 | Interplay C93 Video / Interplay C93 | ✅ video（扩展名规则） |
 | Video | .cak | SEGA FILM Video | ❌ FFmpeg 无对应 demuxer |
 | Video | .cam | MSN Messenger Webcam Recording | ❌ FFmpeg 无对应 demuxer |
+| Video | .cdg | CD Graphics Format | ✅ video（扩展名规则） |
 | Video | .cdxl | Commodore CDXL Video | ✅ video（扩展名规则） |
-| Video | .cin | Delphine Software CIN Video | ✅ image（扩展名规则） |
+| Video | .cin | Delphine Software CIN Video | ⚠️ 默认 .cin 规则为 Cineon 位图（image）；Delphine CIN 视频可由 FFmpeg（cine）解码，待实测/嗅探 |
 | Video | .cmv | Electronic Arts CMV Video | ❌ FFmpeg 无对应 demuxer |
 | Video | .dat | VCD Video File | ✅ email（扩展名规则） |
 | Video | .dct | Electronic Arts DCT Video | ❌ FFmpeg 无对应 demuxer |
 | Video | .dfa | DreamForge Intertainment Video | ✅ video（扩展名规则） |
+| Video | .dirac | raw Dirac | ✅ video（扩展名规则） |
 | Video | .divx | DivX Video File | ✅ video（扩展名规则） |
+| Video | .dnxhd | raw DNxHD (SMPTE VC-3) | ✅ video（扩展名规则） |
 | Video | .drc | BBC Dirac Video | ❌ FFmpeg 无对应 demuxer |
+| Video | .dsicin | Delphine Software International CIN format | ✅ video（扩展名规则） |
 | Video | .duk | Duck TrueMotion 1 Video | ❌ FFmpeg 无对应 demuxer |
-| Video | .dv | Digital Video File | ✅ video（扩展名规则） |
-| Video | .dxa | Feeble Files Video | ✅ video（扩展名规则） |
+| Video | .dv | Digital Video File / DV video format | ✅ video（扩展名规则） |
+| Video | .dvd | MPEG-2 PS format (DVD VOB) | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
+| Video | .dxa | Feeble Files Video / DXA | ✅ video（扩展名规则） |
+| Video | .ea | Electronic Arts Multimedia Format | ✅ video（扩展名规则） |
 | Video | .f4v | Flash MP4 Video File | ✅ video（扩展名规则） |
 | Video | .flc | FLIC Animation | ✅ video（扩展名规则） |
-| Video | .flv | Flash Video File | ✅ video（扩展名规则） |
+| Video | .flic | FLI/FLC/FLX animation format | ✅ video（扩展名规则） |
+| Video | .flv | Flash Video File / FLV format | ✅ video（扩展名规则） |
 | Video | .gdv | Gremlin Digital Video File | ✅ video（扩展名规则） |
-| Video | .gxf | General Exchange Format Video File | ✅ video（扩展名规则） |
-| Video | .h263 | H.263 Video | ✅ video（扩展名规则） |
-| Video | .h264 | Raw H.264 Video File | ✅ video（扩展名规则） |
+| Video | .gif | GIF Animation | ✅ image、video（扩展名规则） |
+| Video | .gxf | General Exchange Format Video File / GXF format | ✅ video（扩展名规则） |
+| Video | .h261 | raw H.261 | ✅ video（扩展名规则） |
+| Video | .h263 | H.263 Video / raw H.263 | ✅ video（扩展名规则） |
+| Video | .h264 | Raw H.264 Video File / raw H.264 video format | ✅ video（扩展名规则） |
 | Video | .hevc | High Efficiency Video Coding File | ✅ video（扩展名规则） |
+| Video | .idcin | id Cinematic format | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
+| Video | .iff | IFF format | ✅ video（扩展名规则） |
+| Video | .ingenient | raw Ingenient MJPEG | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
+| Video | .ipmovie | Interplay MVE format | ✅ video（扩展名规则） |
+| Video | .ipod | iPod H.264 MP4 format | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
+| Video | .iv8 | A format generated by IndigoVision 8000 video server | ✅ video（扩展名规则） |
+| Video | .ivf | On2 IVF | ✅ video（扩展名规则） |
 | Video | .jv | Bitmap Brothers Video File | ✅ video（扩展名规则） |
 | Video | .k3g | 3GP Mobile Phone Video File | ❌ FFmpeg 无对应 demuxer |
+| Video | .lmlm4 | lmlm4 raw format | ✅ video（扩展名规则） |
 | Video | .lvf | DVR LVF Video File | ✅ video（扩展名规则） |
-| Video | .lxf | Harris/Leitch DVR Video File | ✅ video（扩展名规则） |
+| Video | .lxf | Harris/Leitch DVR Video File / VR native stream format (LXF) | ✅ video（扩展名规则） |
 | Video | .m2t | Blu-ray BDAV Video File | ✅ video（扩展名规则） |
 | Video | .m2v | MPEG-2 Video File | ✅ video（扩展名规则） |
-| Video | .m4v | iTunes Video File | ✅ video（扩展名规则） |
+| Video | .m4v | iTunes Video File / raw MPEG-4 video format | ✅ video（扩展名规则） |
 | Video | .mad | Electronic Arts Madcow Video | ❌ FFmpeg 无对应 demuxer |
+| Video | .mjpeg | raw MJPEG video | ✅ video（扩展名规则） |
 | Video | .mk3d | Matroska 3D Video File | ✅ video（扩展名规则） |
 | Video | .mkv | Matroska Video File | ✅ video（扩展名规则） |
+| Video | .mm | American Laser Games MM format | ✅ video（扩展名规则） |
 | Video | .mmv | Sony MicroMV Video | ❌ FFmpeg 无对应 demuxer |
 | Video | .mod | JVC Everio Video Recording | ✅ video（扩展名规则） |
-| Video | .mov | Apple QuickTime Movie | ✅ video（扩展名规则） |
-| Video | .mp4 | MPEG-4 Video File | ✅ video（扩展名规则） |
-| Video | .mpc | Electronic Arts MPCh Video File | ✅ video（扩展名规则） |
+| Video | .mov | Apple QuickTime Movie / MOV format | ✅ video（扩展名规则） |
+| Video | .mp3id3v1 | MPEG audio layer 3 with id3v1 only | ❌ FFmpeg 无对应 demuxer |
+| Video | .mp3id3v2 | MPEG audio layer 3 with id3v2 only | ❌ FFmpeg 无对应 demuxer |
+| Video | .mp4 | MPEG-4 Video File / MP4 format | ✅ video（扩展名规则） |
+| Video | .mpc | Electronic Arts MPCh Video File / Musepack | ✅ video（扩展名规则） |
+| Video | .mpeg | MPEG-1 System format | ✅ video（扩展名规则） |
 | Video | .mpg | MPEG Video File | ✅ video（扩展名规则） |
 | Video | .mts | AVCHD Video File | ✅ video（扩展名规则） |
+| Video | .mtv | MTV format | ✅ video（扩展名规则） |
 | Video | .mve | Interplay MVE Video File | ❌ FFmpeg 无对应 demuxer |
-| Video | .mvi | Motion Pixels MVI1 Video File | ✅ video（扩展名规则） |
-| Video | .mxf | Material Exchange Format File | ✅ video（扩展名规则） |
-| Video | .nsv | Nullsoft Streaming Video File | ✅ video（扩展名规则） |
-| Video | .nut | FFmpeg NUT Video File | ✅ video（扩展名规则） |
-| Video | .nuv | NuppelVideo File | ✅ video（扩展名规则） |
+| Video | .mvi | Motion Pixels MVI1 Video File / Motion Pixels MVI format | ✅ video（扩展名规则） |
+| Video | .mxf | Material Exchange Format File / Material eXchange Format | ✅ video（扩展名规则） |
+| Video | .mxg | MxPEG clip file format | ✅ video（扩展名规则） |
+| Video | .nc | NC camera feed format | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
+| Video | .nsv | Nullsoft Streaming Video File / Nullsoft Streaming Video | ✅ video（扩展名规则） |
+| Video | .nut | FFmpeg NUT Video File / NUT format | ✅ video（扩展名规则） |
+| Video | .nuv | NuppelVideo File / NuppelVideo format | ✅ video（扩展名规则） |
 | Video | .ogm | Ogg Media File | ✅ video（扩展名规则） |
 | Video | .ogv | Ogg Video File | ✅ video（扩展名规则） |
 | Video | .p64 | H.261 Video File | ❌ FFmpeg 无对应 demuxer |
 | Video | .pmf | PSP Movie File | ❌ FFmpeg 无对应 demuxer |
-| Video | .pva | PVA Video File | ✅ video（扩展名规则） |
+| Video | .psp | PSP MP4 format | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
+| Video | .psxstr | Sony Playstation STR format | ❌ FFmpeg 无对应 demuxer |
+| Video | .pva | PVA Video File / TechnoTrend PVA file and stream format | ✅ video（扩展名规则） |
 | Video | .qt | QuickTime RLE Video File | ✅ video（扩展名规则） |
-| Video | .rl2 | Voyeur Game Video File | ✅ video（扩展名规则） |
-| Video | .rm | Real Media File | ✅ video（扩展名规则） |
+| Video | .r3d | REDCODE R3D format | ✅ video（扩展名规则） |
+| Video | .rcv | VC-1 test bitstream | ✅ video（扩展名规则） |
+| Video | .rl2 | Voyeur Game Video File / RL2 format | ✅ video（扩展名规则） |
+| Video | .rm | Real Media File / RealMedia format | ✅ video（扩展名规则） |
 | Video | .rmvb | RealMedia Variable Bit Rate File | ✅ video（扩展名规则） |
-| Video | .roq | id RoQ Video | ✅ video（扩展名规则） |
-| Video | .rpl | Escape Video File | ✅ video（扩展名规则） |
+| Video | .roq | id RoQ Video / raw id RoQ format | ✅ video（扩展名规则） |
+| Video | .rpl | Escape Video File / RPL/ARMovie format | ✅ video（扩展名规则） |
 | Video | .san | LucasArts Smush Video | ❌ FFmpeg 无对应 demuxer |
 | Video | .sfd | Sofdec Dreamcast Movie | ❌ FFmpeg 无对应 demuxer |
-| Video | .smk | Smacker Movie File | ✅ video（扩展名规则） |
+| Video | .siff | Beam Software SIFF | ✅ video（扩展名规则） |
+| Video | .smk | Smacker Movie File / Smacker video | ✅ video（扩展名规则） |
+| Video | .svcd | MPEG-2 PS format (VOB) | ✅ video（扩展名规则） |
+| Video | .swf | Flash format | ✅ video（扩展名规则） |
 | Video | .tgq | Electronic Arts TGQ Video | ❌ FFmpeg 无对应 demuxer |
 | Video | .tgv | Electronic Arts TGV Video | ❌ FFmpeg 无对应 demuxer |
-| Video | .thp | Wii/GameCube Video File | ✅ video（扩展名规则） |
-| Video | .tmv | 8088flex Video File | ✅ video（扩展名规则） |
+| Video | .thp | Wii/GameCube Video File / THP | ✅ video（扩展名规则） |
+| Video | .tiertexseq | Tiertex Limited SEQ format | ✅ video（扩展名规则） |
+| Video | .tmv | 8088flex Video File / 8088flex TMV | ✅ video（扩展名规则） |
 | Video | .tp | Beyond TV Transport Stream File | ✅ video（扩展名规则） |
 | Video | .trp | HD Video Transport Stream | ✅ video（扩展名规则） |
+| Video | .truehd | raw TrueHD | ✅ video（扩展名规则） |
 | Video | .ts | Video Transport Stream File | ✅ code、video（扩展名规则） |
-| Video | .vb | Beam Game SIFF Video | ✅ code（扩展名规则） |
-| Video | .vc1 | VC-1 Video File | ✅ video（扩展名规则） |
+| Video | .tty | Tele-typewriter | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
+| Video | .vb | Beam Game SIFF Video | ❌ 默认 .vb 规则为 VBScript（code）；Beam SIFF 视频无对应 demuxer |
+| Video | .vc1 | VC-1 Video File / raw VC-1 | ✅ video（扩展名规则） |
+| Video | .vcd | MPEG-1 System format (VCD) | ✅ video（扩展名规则） |
 | Video | .vid | Bethesda Video File | ❌ FFmpeg 无对应 demuxer |
-| Video | .vmd | Sierra VMD Video File | ✅ video（扩展名规则） |
-| Video | .vob | DVD Video Object File | ✅ video（扩展名规则） |
+| Video | .vmd | Sierra VMD Video File / Sierra VMD format | ✅ video（扩展名规则） |
+| Video | .vob | DVD Video Object File / MPEG-2 PS format (VOB) | ✅ video（扩展名规则） |
 | Video | .vp3 | On2 VP3 Video File | ❌ FFmpeg 无对应 demuxer |
 | Video | .vp5 | On2 VP5 Video File | ❌ FFmpeg 无对应 demuxer |
 | Video | .vp6 | On2 VP6 Video File | ❌ FFmpeg 无对应 demuxer |
 | Video | .vp7 | On2 VP7 Video File | ❌ FFmpeg 无对应 demuxer |
 | Video | .vqa | Westwood Studios VQA Video | ❌ FFmpeg 无对应 demuxer |
 | Video | .vsr | CPCAM CCTV Recording | ❌ FFmpeg 无对应 demuxer |
-| Video | .webm | WebM Video File | ✅ video（扩展名规则） |
+| Video | .wc3movie | Wing Commander III movie format | ✅ video（扩展名规则） |
+| Video | .webm | WebM Video File / WebM file format | ✅ video（扩展名规则） |
 | Video | .wmv | Windows Media Video File | ✅ video（扩展名规则） |
-| Video | .wtv | Windows Recorded TV Show File | ✅ video（扩展名规则） |
+| Video | .wsvqa | Westwood Studios VQA format | ✅ video（扩展名规则） |
+| Video | .wtv | Windows Recorded TV Show File / Windows Television (WTV) | ✅ video（扩展名规则） |
 | Video | .wve | Electronic Arts TQI Video File | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
 | Video | .xesc | Microsoft Expression Screen Capture Video File | ❌ FFmpeg 无对应 demuxer |
 | Video | .xmv | Xbox Media Video File | ✅ video（扩展名规则） |
-| Video | .yop | Psygnosis YOP Video | ✅ video（扩展名规则） |
+| Video | .yop | Psygnosis YOP Video / Psygnosis YOP Format | ✅ video（扩展名规则） |
 | Archive | .7z | 7-Zip Compressed File | ✅ archive（扩展名规则） |
 | Archive | .apk | Android Package | ✅ archive（扩展名规则） |
 | Archive | .arj | ARJ Compressed Archive | ✅ archive（扩展名规则） |
 | Archive | .bz2 | Bzip2 Compressed Archive | ✅ archive（扩展名规则） |
 | Archive | .cab | Windows Cabinet File | ✅ archive（扩展名规则） |
-| Archive | .cbr | Comic Book RAR Archive | ✅ mupdf、archive（扩展名规则） |
-| Archive | .cbz | Comic Book Zip Archive | ✅ mupdf、archive（扩展名规则） |
-| Archive | .chm | Compiled HTML Help File | ✅ chm（扩展名规则） |
+| Archive | .cbr | Comic Book RAR Archive / Comic Book archive | ✅ mupdf、archive（扩展名规则） |
+| Archive | .cbz | Comic Book Zip Archive / Comic Book archive | ✅ mupdf、archive（扩展名规则） |
+| Archive | .chm | Compiled HTML Help File / Microsoft HTML Help | ✅ chm（扩展名规则） |
 | Archive | .cpio | Unix CPIO Archive | ✅ archive（扩展名规则） |
 | Archive | .dd | Disk Doubler Archive | ❌ 非压缩包（原始磁盘镜像），libarchive 不处理 |
 | Archive | .deb | Debian Software Package | ✅ archive（扩展名规则） |
@@ -381,7 +450,7 @@
 | Archive | .tbz | Bzip2 Compressed Tar Archive | ✅ archive（扩展名规则） |
 | Archive | .tgz | Gzipped Tar File | ✅ archive（扩展名规则） |
 | Archive | .txz | XZ Compressed Tar File | ✅ archive（扩展名规则） |
-| Archive | .vhd | Virtual Hard Disk File | ✅ code（扩展名规则） |
+| Archive | .vhd | Virtual Hard Disk File | 🔮 默认 .vhd 规则为 VHDL（code）；虚拟硬盘属 MIME/内容嗅探子类，待嗅探器 |
 | Archive | .war | Java Web Archive | ✅ archive（扩展名规则） |
 | Archive | .wim | Windows Imaging Format File | ✅ archive（扩展名规则） |
 | Archive | .xar | Extensible Archive Format File | ✅ archive（扩展名规则） |
@@ -394,8 +463,6 @@
 | Source Code | .ahk | AutoHotkey Script | ✅ code（扩展名规则） |
 | Source Code | .as | ActionScript File | ✅ code（扩展名规则） |
 | Source Code | .asm | Assembly Language Source Code File | ✅ code（扩展名规则） |
-| Source Code | .asp | Active Server Page | ✅ code（扩展名规则） |
-| Source Code | .aspx | Active Server Page Extended File | ✅ code（扩展名规则） |
 | Source Code | .au3 | AutoIt Script | ✅ code（扩展名规则） |
 | Source Code | .bas | Basic Source Code File | ✅ code（扩展名规则） |
 | Source Code | .bat | DOS Batch File | ✅ code（扩展名规则） |
@@ -412,7 +479,6 @@
 | Source Code | .cpp | C++ Source Code File | ✅ code（扩展名规则） |
 | Source Code | .cs | C# Source Code File | ✅ code（扩展名规则） |
 | Source Code | .csh | C Shell Script | ✅ code（扩展名规则） |
-| Source Code | .css | Cascading Style Sheet | ✅ code（扩展名规则） |
 | Source Code | .dfm | Delphi Form | ✅ code（扩展名规则） |
 | Source Code | .dpk | Delphi Package | ✅ code（扩展名规则） |
 | Source Code | .dpr | Delphi Project File | ✅ code（扩展名规则） |
@@ -441,7 +507,6 @@
 | Source Code | .nsi | NSIS Script | ✅ code（扩展名规则） |
 | Source Code | .ob2 | Oberon Source Code File | ✅ code（扩展名规则） |
 | Source Code | .pas | Pascal Source File | ✅ code（扩展名规则） |
-| Source Code | .php | PHP Source Code File | ✅ code（扩展名规则） |
 | Source Code | .pl | Perl Script | ✅ code（扩展名规则） |
 | Source Code | .pm | Perl Module | ✅ code（扩展名规则） |
 | Source Code | .pod | Perl POD File | ✅ code（扩展名规则） |
@@ -463,218 +528,87 @@
 | Source Code | .v | Verilog Source Code File | ✅ code（扩展名规则） |
 | Source Code | .vb | VBScript File | ✅ code（扩展名规则） |
 | Source Code | .vhd | VHDL File | ✅ code（扩展名规则） |
-| Source Code | .xml | XML File | ✅ code、web（扩展名规则） |
 | Source Code | .xsd | XML Schema Definition | ✅ code（扩展名规则） |
-| Source Code | .xsl | XML Style Sheet | ✅ code、web（扩展名规则） |
 | Source Code | .xslt | XSL Transformation File | ✅ code、web（扩展名规则） |
 | Source Code | .yml | YAML Document | ✅ code（扩展名规则） |
-| Web | .asp | Active Server Page script | ✅ code（扩展名规则） |
-| Web | .aspx | Active Server Page script | ✅ code（扩展名规则） |
-| Web | .css | Cascaded stylesheet | ✅ code（扩展名规则） |
 | Web | .htm | HTML page | ✅ web、code（扩展名规则） |
 | Web | .html | Hypertext Markup Language File / HTML page | ✅ web、code（扩展名规则） |
 | Web | .mht | MHTML Web Archive / Microsoft HTML archive | ✅ web、onlyoffice（扩展名规则） |
-| Web | .php | PHP source code | ✅ code（扩展名规则） |
 | Web | .shtm | HTML page | ✅ web、code（扩展名规则） |
 | Web | .shtml | HTML page | ✅ web、code（扩展名规则） |
 | Web | .stm | HTML page | ✅ code（扩展名规则） |
-| Web | .xml | XML container | ✅ code、web（扩展名规则） |
-| Web | .xsl | XML stylesheet | ✅ code、web（扩展名规则） |
-| Documents/Spreadsheets | .cbr | Comic Book archive | ✅ mupdf、archive（扩展名规则） |
-| Documents/Spreadsheets | .cbz | Comic Book archive | ✅ mupdf、archive（扩展名规则） |
-| Documents/Spreadsheets | .chm | Microsoft HTML Help | ✅ chm（扩展名规则） |
-| Documents/Spreadsheets | .diz | Plain text files | ✅ code（扩展名规则） |
+| Source Code / Web | .asp | Active Server Page / Active Server Page script | ✅ code（扩展名规则） |
+| Source Code / Web | .aspx | Active Server Page Extended File / Active Server Page script | ✅ code（扩展名规则） |
+| Source Code / Web | .css | Cascading Style Sheet / Cascaded stylesheet | ✅ code（扩展名规则） |
+| Source Code / Web | .php | PHP Source Code File / PHP source code | ✅ code（扩展名规则） |
+| Source Code / Web | .xml | XML File / XML container | ✅ code、web（扩展名规则） |
+| Source Code / Web | .xsl | XML Style Sheet / XML stylesheet | ✅ code、web（扩展名规则） |
 | Documents/Spreadsheets | .djv | DejaVu document | ✅ mupdf（扩展名规则） |
 | Documents/Spreadsheets | .djvu | DejaVu document | ✅ mupdf（扩展名规则） |
-| Documents/Spreadsheets | .doc | Microsoft Word | ✅ onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .docm | Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .docx | Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .dot | Microsoft Word | ✅ onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .dotm | Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .dotx | Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .epub | ePub e-book | ✅ mupdf（扩展名规则） |
 | Documents/Spreadsheets | .fb2 | FictionBook e-book | ✅ mupdf（扩展名规则） |
 | Documents/Spreadsheets | .fb2z | FictionBook e-book | ✅ mupdf（扩展名规则） |
 | Documents/Spreadsheets | .fbz | FictionBook e-book | ✅ mupdf（扩展名规则） |
 | Documents/Spreadsheets | .mobi | Mobipocket e-book | ✅ mupdf（扩展名规则） |
 | Documents/Spreadsheets | .nfo | Plain text files | ✅ code（扩展名规则） |
-| Documents/Spreadsheets | .pdf | Adobe Portable Document Format | ✅ pdf、pdfjs（扩展名规则） |
-| Documents/Spreadsheets | .rtf | Rich Text Format | ✅ onlyoffice（扩展名规则） |
 | Documents/Spreadsheets | .tcr | TCR e-book | ✅ mupdf（扩展名规则） |
-| Documents/Spreadsheets | .txt | Plain text files | ✅ code（扩展名规则） |
 | Documents/Spreadsheets | .wbk | Microsoft Word backup | ✅ onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .xls | Microsoft Excel | ✅ onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .xlsx | Microsoft Excel 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .xlt | Microsoft Excel | ✅ onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .xltx | Microsoft Excel 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Documents/Spreadsheets | .xps | Microsoft XML Paper Specification | ✅ mupdf（扩展名规则） |
-| Audio/Video | .3g2 | 3GP2 format | ✅ video（扩展名规则） |
-| Audio/Video | .3gp | 3GP format | ✅ video（扩展名规则） |
-| Audio/Video | .4xm | 4X Technologies format | ✅ video（扩展名规则） |
-| Audio/Video | .a64 | a64 - video for Commodore 64 | ❌ FFmpeg 无对应 demuxer |
-| Audio/Video | .aac | raw ADTS AAC | ✅ video（扩展名规则） |
-| Audio/Video | .ac3 | raw AC-3 | ✅ video（扩展名规则） |
-| Audio/Video | .adts | ADTS AAC | ✅ video（扩展名规则） |
-| Audio/Video | .aea | MD STUDIO audio | ✅ video（扩展名规则） |
-| Audio/Video | .aiff | Audio IFF | ✅ video（扩展名规则） |
-| Audio/Video | .alaw | PCM A-law format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .amr | 3GPP AMR file format | ✅ video（扩展名规则） |
-| Audio/Video | .anm | Deluxe Paint Animation | ✅ video（扩展名规则） |
-| Audio/Video | .apc | CRYO APC format | ✅ video（扩展名规则） |
-| Audio/Video | .ape | Monkey's Audio | ✅ video（扩展名规则） |
-| Audio/Video | .applehttp | Apple HTTP Live Streaming format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .asf | ASF format | ✅ video（扩展名规则） |
-| Audio/Video | .ass | Advanced SubStation Alpha subtitle format | ❌ 字幕文件（播放时内嵌显示） |
-| Audio/Video | .au | SUN AU format | ✅ video（扩展名规则） |
-| Audio/Video | .avi | AVI format | ✅ video（扩展名规则） |
-| Audio/Video | .avm2 | Flash 9 (AVM2) format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .avs | AVISynth | ✅ video（扩展名规则） |
-| Audio/Video | .bethsoftvid | Bethesda Softworks VID format | ✅ video（扩展名规则） |
-| Audio/Video | .bfi | Brute Force & Ignorance | ✅ video（扩展名规则） |
-| Audio/Video | .bink | Bink | ✅ video（扩展名规则） |
-| Audio/Video | .c93 | Interplay C93 | ✅ video（扩展名规则） |
-| Audio/Video | .caf | Apple Core Audio Format | ✅ video（扩展名规则） |
-| Audio/Video | .cavsvideo | raw Chinese AVS video | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .cdg | CD Graphics Format | ✅ video（扩展名规则） |
-| Audio/Video | .crc | CRC testing format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .daud | D-Cinema audio format | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
-| Audio/Video | .dirac | raw Dirac | ✅ video（扩展名规则） |
-| Audio/Video | .dnxhd | raw DNxHD (SMPTE VC-3) | ✅ video（扩展名规则） |
-| Audio/Video | .dsicin | Delphine Software International CIN format | ✅ video（扩展名规则） |
-| Audio/Video | .dts | raw DTS | ✅ video（扩展名规则） |
-| Audio/Video | .dv | DV video format | ✅ video（扩展名规则） |
-| Audio/Video | .dvd | MPEG-2 PS format (DVD VOB) | ❌ FFmpeg 无对应 demuxer |
-| Audio/Video | .dxa | DXA | ✅ video（扩展名规则） |
-| Audio/Video | .ea | Electronic Arts Multimedia Format | ✅ video（扩展名规则） |
-| Audio/Video | .eac3 | raw E-AC-3 | ✅ video（扩展名规则） |
-| Audio/Video | .f32be | PCM 32 bit floating-point big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .f32le | PCM 32 bit floating-point little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .f64be | PCM 64 bit floating-point big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .f64le | PCM 64 bit floating-point little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .ffm | FFM (FFserver live feed) format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .ffmetadata | FFmpeg metadata in text format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .filmstrip | Adobe Filmstrip | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .flac | raw FLAC | ✅ video（扩展名规则） |
-| Audio/Video | .flic | FLI/FLC/FLX animation format | ✅ video（扩展名规则） |
-| Audio/Video | .flv | FLV format | ✅ video（扩展名规则） |
-| Audio/Video | .framecrc | framecrc testing format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .framemd5 | Per-frame MD5 testing format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .g722 | raw G.722 | ✅ video（扩展名规则） |
-| Audio/Video | .gif | GIF Animation | ✅ image、video（扩展名规则） |
-| Audio/Video | .gsm | raw GSM | ✅ video（扩展名规则） |
-| Audio/Video | .gxf | GXF format | ✅ video（扩展名规则） |
-| Audio/Video | .h261 | raw H.261 | ✅ video（扩展名规则） |
-| Audio/Video | .h263 | raw H.263 | ✅ video（扩展名规则） |
-| Audio/Video | .h264 | raw H.264 video format | ✅ video（扩展名规则） |
-| Audio/Video | .idcin | id Cinematic format | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
-| Audio/Video | .iff | IFF format | ✅ video（扩展名规则） |
-| Audio/Video | .image2 | image2 sequence | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .image2pipe | piped image2 sequence | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .ingenient | raw Ingenient MJPEG | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
-| Audio/Video | .ipmovie | Interplay MVE format | ✅ video（扩展名规则） |
-| Audio/Video | .ipod | iPod H.264 MP4 format | ❌ FFmpeg 无对应 demuxer |
-| Audio/Video | .iss | Funcom ISS format | ✅ code（扩展名规则） |
-| Audio/Video | .iv8 | A format generated by IndigoVision 8000 video server | ✅ video（扩展名规则） |
-| Audio/Video | .ivf | On2 IVF | ✅ video（扩展名规则） |
-| Audio/Video | .lmlm4 | lmlm4 raw format | ✅ video（扩展名规则） |
-| Audio/Video | .lxf | VR native stream format (LXF) | ✅ video（扩展名规则） |
-| Audio/Video | .m4v | raw MPEG-4 video format | ✅ video（扩展名规则） |
-| Audio/Video | .matroska | Matroska file format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .md5 | MD5 testing format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .mjpeg | raw MJPEG video | ✅ video（扩展名规则） |
-| Audio/Video | .mlp | raw MLP | ✅ video（扩展名规则） |
-| Audio/Video | .mm | American Laser Games MM format | ✅ video（扩展名规则） |
-| Audio/Video | .mmf | Yamaha SMAF | ✅ video（扩展名规则） |
-| Audio/Video | .mov | MOV format | ✅ video（扩展名规则） |
-| Audio/Video | .mp2 | MPEG audio layer 2 | ✅ video（扩展名规则） |
-| Audio/Video | .mp3 | MPEG audio layer 3 | ✅ video（扩展名规则） |
-| Audio/Video | .mp3id3v1 | MPEG audio layer 3 with id3v1 only | ❌ FFmpeg 无对应 demuxer |
-| Audio/Video | .mp3id3v2 | MPEG audio layer 3 with id3v2 only | ❌ FFmpeg 无对应 demuxer |
-| Audio/Video | .mp4 | MP4 format | ✅ video（扩展名规则） |
-| Audio/Video | .mpc | Musepack | ✅ video（扩展名规则） |
-| Audio/Video | .mpc8 | Musepack SV8 | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
-| Audio/Video | .mpeg | MPEG-1 System format | ✅ video（扩展名规则） |
-| Audio/Video | .mpeg1video | raw MPEG-1 video | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .mpeg2video | raw MPEG-2 video | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .mpegts | MPEG-2 transport stream format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .mpegtsraw | MPEG-2 raw transport stream format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .mpegvideo | raw MPEG video | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .mpjpeg | MIME multipart JPEG format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .msnwctcp | MSN TCP Webcam stream | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .mtv | MTV format | ✅ video（扩展名规则） |
-| Audio/Video | .mulaw | PCM mu-law format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .mvi | Motion Pixels MVI format | ✅ video（扩展名规则） |
-| Audio/Video | .mxf | Material eXchange Format | ✅ video（扩展名规则） |
-| Audio/Video | .mxg | MxPEG clip file format | ✅ video（扩展名规则） |
-| Audio/Video | .nc | NC camera feed format | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
-| Audio/Video | .nsv | Nullsoft Streaming Video | ✅ video（扩展名规则） |
-| Audio/Video | .null | raw null video format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .nut | NUT format | ✅ video（扩展名规则） |
-| Audio/Video | .nuv | NuppelVideo format | ✅ video（扩展名规则） |
-| Audio/Video | .ogg | Ogg | ✅ video（扩展名规则） |
-| Audio/Video | .oma | Sony OpenMG audio | ✅ video（扩展名规则） |
-| Audio/Video | .psp | PSP MP4 format | ❌ FFmpeg 无对应 demuxer |
-| Audio/Video | .psxstr | Sony Playstation STR format | ❌ FFmpeg 无对应 demuxer |
-| Audio/Video | .pva | TechnoTrend PVA file and stream format | ✅ video（扩展名规则） |
-| Audio/Video | .qcp | QCP format | ✅ video（扩展名规则） |
-| Audio/Video | .r3d | REDCODE R3D format | ✅ video（扩展名规则） |
-| Audio/Video | .rawvideo | raw video format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .rcv | VC-1 test bitstream | ✅ video（扩展名规则） |
-| Audio/Video | .rl2 | RL2 format | ✅ video（扩展名规则） |
-| Audio/Video | .rm | RealMedia format | ✅ video（扩展名规则） |
-| Audio/Video | .roq | raw id RoQ format | ✅ video（扩展名规则） |
-| Audio/Video | .rpl | RPL/ARMovie format | ✅ video（扩展名规则） |
-| Audio/Video | .rso | Lego Mindstorms RSO format | ✅ video（扩展名规则） |
-| Audio/Video | .rtp | RTP output format | ❌ 网络协议，非文件 |
-| Audio/Video | .rtsp | RTSP output format | ❌ 网络协议，非文件 |
-| Audio/Video | .s16be | PCM signed 16 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .s16le | PCM signed 16 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .s24be | PCM signed 24 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .s24le | PCM signed 24 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .s32be | PCM signed 32 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .s32le | PCM signed 32 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .s8 | PCM signed 8 bit format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .sap | SAP output format | ❌ 网络协议，非文件 |
-| Audio/Video | .sdp | SDP | ❌ 网络协议，非文件 |
-| Audio/Video | .shn | raw Shorten | ✅ video（扩展名规则） |
-| Audio/Video | .siff | Beam Software SIFF | ✅ video（扩展名规则） |
-| Audio/Video | .smk | Smacker video | ✅ video（扩展名规则） |
-| Audio/Video | .sol | Sierra SOL format | ✅ video（扩展名规则） |
-| Audio/Video | .sox | SoX native format | ✅ video（扩展名规则） |
-| Audio/Video | .spdif | IEC 61937 (used on S/PDIF - IEC958) | ✅ video（扩展名规则） |
-| Audio/Video | .srt | SubRip subtitle format | ❌ 字幕文件（播放时内嵌显示） |
-| Audio/Video | .svcd | MPEG-2 PS format (VOB) | ✅ video（扩展名规则） |
-| Audio/Video | .swf | Flash format | ✅ video（扩展名规则） |
-| Audio/Video | .thp | THP | ✅ video（扩展名规则） |
-| Audio/Video | .tiertexseq | Tiertex Limited SEQ format | ✅ video（扩展名规则） |
-| Audio/Video | .tmv | 8088flex TMV | ✅ video（扩展名规则） |
-| Audio/Video | .truehd | raw TrueHD | ✅ video（扩展名规则） |
-| Audio/Video | .tta | True Audio | ✅ video（扩展名规则） |
-| Audio/Video | .tty | Tele-typewriter | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
-| Audio/Video | .txd | Renderware TeXture Dictionary | ⚠️ FFmpeg 可解，未在配置声明（待实测） |
-| Audio/Video | .u16be | PCM unsigned 16 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .u16le | PCM unsigned 16 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .u24be | PCM unsigned 24 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .u24le | PCM unsigned 24 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .u32be | PCM unsigned 32 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .u32le | PCM unsigned 32 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .u8 | PCM unsigned 8 bit format | ❌ 原始采样流（扩展名不含编码参数） |
-| Audio/Video | .vc1 | raw VC-1 | ✅ video（扩展名规则） |
-| Audio/Video | .vc1test | VC-1 test bitstream format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .vcd | MPEG-1 System format (VCD) | ✅ video（扩展名规则） |
-| Audio/Video | .vfwcap | VFW video capture | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
-| Audio/Video | .vmd | Sierra VMD format | ✅ video（扩展名规则） |
-| Audio/Video | .vob | MPEG-2 PS format (VOB) | ✅ video（扩展名规则） |
-| Audio/Video | .voc | Creative Voice file format | ✅ video（扩展名规则） |
-| Audio/Video | .vqf | Nippon Telegraph and Telephone Corporation (NTT) TwinVQ | ✅ video（扩展名规则） |
-| Audio/Video | .w64 | Sony Wave64 format | ✅ video（扩展名规则） |
-| Audio/Video | .wav | WAV format | ✅ video（扩展名规则） |
-| Audio/Video | .wc3movie | Wing Commander III movie format | ✅ video（扩展名规则） |
-| Audio/Video | .webm | WebM file format | ✅ video（扩展名规则） |
-| Audio/Video | .wsaud | Westwood Studios audio format | ✅ video（扩展名规则） |
-| Audio/Video | .wsvqa | Westwood Studios VQA format | ✅ video（扩展名规则） |
-| Audio/Video | .wtv | Windows Television (WTV) | ✅ video（扩展名规则） |
-| Audio/Video | .wv | WavPack | ✅ video（扩展名规则） |
-| Audio/Video | .xa | Maxis XA File Format | ✅ video（扩展名规则） |
-| Audio/Video | .yop | Psygnosis YOP Format | ✅ video（扩展名规则） |
-| Audio/Video | .yuv4mpegpipe | YUV4MPEG pipe format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+
+## 附录：非文件类型项（不追踪）
+
+> UV 参考清单照搬了 FFmpeg 的 demuxer/muxer 清单，包含非文件的格式名：伪格式（流/管线/
+> 调试输出）、网络协议、无编码参数的原始采样流、字幕。它们不是文件类型，不参与关联，
+> 仅留档备查。
+
+| 类别 | 后缀名 | 格式说明 | 是否支持，如何支持 |
+| --- | --- | --- | --- |
+| 原始 PCM 流 | .alaw | PCM A-law format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .applehttp | Apple HTTP Live Streaming format | ❌ 未支持（待评估） |
+| 字幕 | .ass | Advanced SubStation Alpha subtitle format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .avm2 | Flash 9 (AVM2) format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .cavsvideo | raw Chinese AVS video | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .crc | CRC testing format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .f32be | PCM 32 bit floating-point big-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .f32le | PCM 32 bit floating-point little-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .f64be | PCM 64 bit floating-point big-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .f64le | PCM 64 bit floating-point little-endian format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .ffm | FFM (FFserver live feed) format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .ffmetadata | FFmpeg metadata in text format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .filmstrip | Adobe Filmstrip | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .framecrc | framecrc testing format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .framemd5 | Per-frame MD5 testing format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .image2 | image2 sequence | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .image2pipe | piped image2 sequence | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .matroska | Matroska file format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .md5 | MD5 testing format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .mpeg1video | raw MPEG-1 video | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .mpeg2video | raw MPEG-2 video | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .mpegts | MPEG-2 transport stream format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .mpegtsraw | MPEG-2 raw transport stream format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .mpegvideo | raw MPEG video | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .mpjpeg | MIME multipart JPEG format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .msnwctcp | MSN TCP Webcam stream | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .mulaw | PCM mu-law format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .null | raw null video format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .rawvideo | raw video format | ❌ 未支持（待评估） |
+| 网络协议 | .rtp | RTP output format | ❌ 未支持（待评估） |
+| 网络协议 | .rtsp | RTSP output format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .s16be | PCM signed 16 bit big-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .s16le | PCM signed 16 bit little-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .s24be | PCM signed 24 bit big-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .s24le | PCM signed 24 bit little-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .s32be | PCM signed 32 bit big-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .s32le | PCM signed 32 bit little-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .s8 | PCM signed 8 bit format | ❌ 未支持（待评估） |
+| 网络协议 | .sap | SAP output format | ❌ 未支持（待评估） |
+| 网络协议 | .sdp | SDP | ❌ 未支持（待评估） |
+| 字幕 | .srt | SubRip subtitle format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .u16be | PCM unsigned 16 bit big-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .u16le | PCM unsigned 16 bit little-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .u24be | PCM unsigned 24 bit big-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .u24le | PCM unsigned 24 bit little-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .u32be | PCM unsigned 32 bit big-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .u32le | PCM unsigned 32 bit little-endian format | ❌ 未支持（待评估） |
+| 原始 PCM 流 | .u8 | PCM unsigned 8 bit format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .vc1test | VC-1 test bitstream format | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .vfwcap | VFW video capture | ❌ 未支持（待评估） |
+| FFmpeg 伪格式 | .yuv4mpegpipe | YUV4MPEG pipe format | ❌ 未支持（待评估） |
