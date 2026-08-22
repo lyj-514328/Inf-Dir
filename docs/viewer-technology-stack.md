@@ -165,6 +165,6 @@ CHMate 已作为 submodule 固定在 `ai_refs/CHMate`。它是无 npm 运行时�
 
 - Viewer manifest：`plugins/*/plugin.json`
 - 总构建脚本：`plugins/build.bat`
-- 格式覆盖路线图：`docs/viewer-format-roadmap.md`
+- 格式覆盖追踪：`docs/viewer-format-matrix.md`
 - 插件协议：`docs/plugin-system.md`
 - Flutter manifest 覆盖测试：`test/viewer_format_coverage_test.dart`

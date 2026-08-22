@@ -6817,6 +6817,19 @@
       ]
     },
     {
+      "id": "ext-dat",
+      "enabled": true,
+      "type": "extension",
+      "value": ".dat",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.email-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
       "id": "mime-text-x-markdown-476",
       "enabled": true,
       "type": "mimeType",
