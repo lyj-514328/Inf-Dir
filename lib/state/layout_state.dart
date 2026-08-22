@@ -544,6 +544,8 @@ class LayoutState extends ChangeNotifier {
           index: sourceIndex,
           backStack: List.of(tab.backStack),
           forwardStack: List.of(tab.forwardStack),
+          searchQuery: tab.searchQuery,
+          searchRootPath: tab.searchRootPath,
         ),
       );
       return true;

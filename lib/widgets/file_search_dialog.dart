@@ -10,6 +10,9 @@ class FileSearchDialog extends StatefulWidget {
   final FileSearchService searchService;
   final Widget? modeSelector;
   final ValueChanged<FileSearchResult>? onResult;
+  final String? initialQuery;
+  final ValueChanged<String>? onQueryChanged;
+  final VoidCallback? onPickRoot;
 
   FileSearchDialog({
     super.key,
@@ -17,6 +20,9 @@ class FileSearchDialog extends StatefulWidget {
     FileSearchService? searchService,
     this.modeSelector,
     this.onResult,
+    this.initialQuery,
+    this.onQueryChanged,
+    this.onPickRoot,
   }) : searchService = searchService ?? FileSearchService();
 
   @override
@@ -44,8 +50,22 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
   @override
   void initState() {
     super.initState();
-    _queryController = TextEditingController();
+    _queryController = TextEditingController(text: widget.initialQuery ?? '');
     _queryFocusNode = FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant FileSearchDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.rootPath != widget.rootPath) _invalidateSearch();
+    if (oldWidget.initialQuery != widget.initialQuery &&
+        widget.initialQuery != _queryController.text) {
+      final value = widget.initialQuery ?? '';
+      _queryController.value = TextEditingValue(
+        text: value,
+        selection: TextSelection.collapsed(offset: value.length),
+      );
+    }
   }
 
   @override
@@ -190,6 +210,15 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                     ),
                   ),
                   Tooltip(
+                    message: '选择搜索目录',
+                    child: IconButton(
+                      onPressed: widget.onPickRoot,
+                      icon: const Icon(Icons.more_horiz),
+                      color: c.textSecondary,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  Tooltip(
                     message: '关闭',
                     child: IconButton(
                       onPressed: () => Navigator.of(context).pop(),
@@ -225,6 +254,7 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                       : IconButton(
                           onPressed: () {
                             _queryController.clear();
+                            widget.onQueryChanged?.call('');
                             _invalidateSearch();
                             _queryFocusNode.requestFocus();
                           },
@@ -245,7 +275,10 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                     borderSide: BorderSide(color: c.accent),
                   ),
                 ),
-                onChanged: (_) => _invalidateSearch(),
+                onChanged: (value) {
+                  widget.onQueryChanged?.call(value);
+                  _invalidateSearch();
+                },
               ),
               const SizedBox(height: 12),
               SegmentedButton<FileSearchPatternMode>(

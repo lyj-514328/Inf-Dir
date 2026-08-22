@@ -44,14 +44,19 @@ class TabInfo {
   final String label;
   final List<String> backStack;
   final List<String> forwardStack;
+  final String searchQuery;
+  final String searchRootPath;
 
   TabInfo({
     required this.path,
     required this.label,
     List<String>? backStack,
     List<String>? forwardStack,
+    this.searchQuery = '',
+    String? searchRootPath,
   }) : backStack = backStack ?? <String>[],
-       forwardStack = forwardStack ?? <String>[];
+       forwardStack = forwardStack ?? <String>[],
+       searchRootPath = searchRootPath ?? path;
 
   @override
   bool operator ==(Object other) =>
@@ -68,12 +73,16 @@ class TabRecord {
   final int index;
   final List<String> backStack;
   final List<String> forwardStack;
+  final String searchQuery;
+  final String searchRootPath;
 
   const TabRecord({
     required this.path,
     required this.index,
     required this.backStack,
     required this.forwardStack,
+    this.searchQuery = '',
+    this.searchRootPath = '',
   });
 }
 
@@ -155,6 +164,8 @@ class PaneController extends ChangeNotifier {
           label: _pathLabel(tab.path),
           backStack: List.of(tab.backStack),
           forwardStack: List.of(tab.forwardStack),
+          searchQuery: tab.searchQuery,
+          searchRootPath: tab.searchRootPath,
         ),
       ),
     );
@@ -232,6 +243,8 @@ class PaneController extends ChangeNotifier {
   FileGroupBy get groupBy => _groupBy;
   bool get groupAscending => _groupAscending;
   String get filterQuery => _filterQuery;
+  String get searchQuery => _tabs[_activeTabIndex].searchQuery;
+  String get searchRootPath => _tabs[_activeTabIndex].searchRootPath;
   EntryFilter get entryFilter => _entryFilter;
   PaneViewMode get viewMode => _viewMode;
   bool get showDetailsPane => _showDetailsPane;
@@ -248,6 +261,8 @@ class PaneController extends ChangeNotifier {
             path: tab.path,
             backStack: List.unmodifiable(tab.backStack),
             forwardStack: List.unmodifiable(tab.forwardStack),
+            searchQuery: tab.searchQuery,
+            searchRootPath: tab.searchRootPath,
           ),
       ],
       activeTabIndex: _activeTabIndex,
@@ -434,6 +449,8 @@ class PaneController extends ChangeNotifier {
         label: _pathLabel(path),
         backStack: tab.backStack,
         forwardStack: tab.forwardStack,
+        searchQuery: tab.searchQuery,
+        searchRootPath: tab.searchRootPath,
       );
     }
   }
@@ -455,6 +472,8 @@ class PaneController extends ChangeNotifier {
         label: _pathLabel(_currentPath),
         backStack: tab.backStack,
         forwardStack: tab.forwardStack,
+        searchQuery: tab.searchQuery,
+        searchRootPath: tab.searchRootPath,
       );
     }
   }
@@ -469,6 +488,34 @@ class PaneController extends ChangeNotifier {
     _forwardStack
       ..clear()
       ..addAll(tab.forwardStack);
+  }
+
+  void setSearchQuery(String query) {
+    if (searchQuery == query) return;
+    final tab = _tabs[_activeTabIndex];
+    _tabs[_activeTabIndex] = TabInfo(
+      path: tab.path,
+      label: tab.label,
+      backStack: tab.backStack,
+      forwardStack: tab.forwardStack,
+      searchQuery: query,
+      searchRootPath: tab.searchRootPath,
+    );
+    notifyListeners();
+  }
+
+  void setSearchRootPath(String path) {
+    if (searchRootPath == path) return;
+    final tab = _tabs[_activeTabIndex];
+    _tabs[_activeTabIndex] = TabInfo(
+      path: tab.path,
+      label: tab.label,
+      backStack: tab.backStack,
+      forwardStack: tab.forwardStack,
+      searchQuery: tab.searchQuery,
+      searchRootPath: path,
+    );
+    notifyListeners();
   }
 
   void _cancelActiveRequest() {
@@ -836,6 +883,8 @@ class PaneController extends ChangeNotifier {
       label: tab.label,
       backStack: List.of(tab.backStack),
       forwardStack: List.of(tab.forwardStack),
+      searchQuery: tab.searchQuery,
+      searchRootPath: tab.searchRootPath,
     );
     _tabs.insert(source + 1, clone);
     if (_activeTabIndex > source) _activeTabIndex++;
@@ -853,6 +902,10 @@ class PaneController extends ChangeNotifier {
         label: _pathLabel(record.path),
         backStack: List.of(record.backStack),
         forwardStack: List.of(record.forwardStack),
+        searchQuery: record.searchQuery,
+        searchRootPath: record.searchRootPath.isEmpty
+            ? record.path
+            : record.searchRootPath,
       ),
     );
     if (_activeTabIndex >= at) _activeTabIndex++;
@@ -869,6 +922,8 @@ class PaneController extends ChangeNotifier {
       index: index,
       backStack: removed.backStack,
       forwardStack: removed.forwardStack,
+      searchQuery: removed.searchQuery,
+      searchRootPath: removed.searchRootPath,
     );
     if (_activeTabIndex > index) {
       _activeTabIndex--;
@@ -916,6 +971,8 @@ class PaneController extends ChangeNotifier {
           index: i,
           backStack: List.unmodifiable(_tabs[i].backStack),
           forwardStack: List.unmodifiable(_tabs[i].forwardStack),
+          searchQuery: _tabs[i].searchQuery,
+          searchRootPath: _tabs[i].searchRootPath,
         ),
     ];
   }
@@ -949,6 +1006,8 @@ class PaneController extends ChangeNotifier {
         index: index,
         backStack: List.unmodifiable(tab.backStack),
         forwardStack: List.unmodifiable(tab.forwardStack),
+        searchQuery: tab.searchQuery,
+        searchRootPath: tab.searchRootPath,
       ),
     );
   }

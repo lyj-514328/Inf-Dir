@@ -11,6 +11,9 @@ class TextSearchDialog extends StatefulWidget {
   final TextSearchService searchService;
   final Widget? modeSelector;
   final ValueChanged<TextSearchMatch>? onResult;
+  final String? initialQuery;
+  final ValueChanged<String>? onQueryChanged;
+  final VoidCallback? onPickRoot;
 
   TextSearchDialog({
     super.key,
@@ -18,6 +21,9 @@ class TextSearchDialog extends StatefulWidget {
     TextSearchService? searchService,
     this.modeSelector,
     this.onResult,
+    this.initialQuery,
+    this.onQueryChanged,
+    this.onPickRoot,
   }) : searchService = searchService ?? TextSearchService();
 
   @override
@@ -47,8 +53,22 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
   @override
   void initState() {
     super.initState();
-    _queryController = TextEditingController();
+    _queryController = TextEditingController(text: widget.initialQuery ?? '');
     _queryFocusNode = FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant TextSearchDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.rootPath != widget.rootPath) _invalidateSearch();
+    if (oldWidget.initialQuery != widget.initialQuery &&
+        widget.initialQuery != _queryController.text) {
+      final value = widget.initialQuery ?? '';
+      _queryController.value = TextEditingValue(
+        text: value,
+        selection: TextSelection.collapsed(offset: value.length),
+      );
+    }
   }
 
   @override
@@ -193,6 +213,15 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
                     ),
                   ),
                   Tooltip(
+                    message: '选择搜索目录',
+                    child: IconButton(
+                      onPressed: widget.onPickRoot,
+                      icon: const Icon(Icons.more_horiz),
+                      color: c.textSecondary,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  Tooltip(
                     message: '关闭',
                     child: IconButton(
                       onPressed: () => Navigator.of(context).pop(),
@@ -227,6 +256,7 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
                       : IconButton(
                           onPressed: () {
                             _queryController.clear();
+                            widget.onQueryChanged?.call('');
                             _invalidateSearch();
                             _queryFocusNode.requestFocus();
                           },
@@ -247,7 +277,10 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
                     borderSide: BorderSide(color: c.accent),
                   ),
                 ),
-                onChanged: (_) => _invalidateSearch(),
+                onChanged: (value) {
+                  widget.onQueryChanged?.call(value);
+                  _invalidateSearch();
+                },
               ),
               const SizedBox(height: 12),
               _modeAndLimitControls(c),

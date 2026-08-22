@@ -6,7 +6,9 @@ class TabSnapshot {
     required this.path,
     this.backStack = const [],
     this.forwardStack = const [],
-  });
+    this.searchQuery = '',
+    String? searchRootPath,
+  }) : searchRootPath = searchRootPath ?? path;
 
   factory TabSnapshot.fromJson(Object? value, String name) {
     final json = _mapValue(value, name);
@@ -17,17 +19,30 @@ class TabSnapshot {
         json['forwardStack'] ?? [],
         '$name.forwardStack',
       ),
+      searchQuery: _stringValue(
+        json['searchQuery'] ?? '',
+        '$name.searchQuery',
+        allowEmpty: true,
+      ),
+      searchRootPath: _stringValue(
+        json['searchRootPath'] ?? json['path'],
+        '$name.searchRootPath',
+      ),
     );
   }
 
   final String path;
   final List<String> backStack;
   final List<String> forwardStack;
+  final String searchQuery;
+  final String searchRootPath;
 
   Map<String, Object?> toJson() => {
     'path': path,
     'backStack': backStack,
     'forwardStack': forwardStack,
+    'searchQuery': searchQuery,
+    'searchRootPath': searchRootPath,
   };
 }
 

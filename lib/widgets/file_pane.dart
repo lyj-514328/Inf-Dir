@@ -862,14 +862,23 @@ class _PaneContent extends StatelessWidget {
   ) async {
     final result = await showDialog<SearchDialogResult>(
       context: context,
-      builder: (_) => SearchDialog(rootPath: controller.currentPath),
+      builder: (_) => SearchDialog(
+        rootPath: controller.currentPath,
+        initialRootPath: controller.searchRootPath,
+        initialQuery: controller.searchQuery,
+        onQueryChanged: controller.setSearchQuery,
+        onRootChanged: controller.setSearchRootPath,
+        folderPicker: (initialPath) =>
+            FileService.pickFolder(initialPath: initialPath),
+      ),
     );
     if (!context.mounted || result == null) return;
 
     if (result.isDirectory) {
       await controller.navigateTo(result.path);
     } else {
-      await FileService.openFile(result.path);
+      await controller.navigateTo(p.dirname(result.path));
+      if (context.mounted) controller.selectSingle(result.path);
     }
   }
 

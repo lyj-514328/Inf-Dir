@@ -7,6 +7,8 @@ import 'text_search_dialog.dart';
 
 enum SearchMode { files, text }
 
+typedef SearchFolderPicker = String? Function(String? initialPath);
+
 class SearchDialogResult {
   final String path;
   final bool isDirectory;
@@ -19,6 +21,11 @@ class SearchDialog extends StatefulWidget {
   final SearchMode initialMode;
   final FileSearchService? fileSearchService;
   final TextSearchService? textSearchService;
+  final String? initialQuery;
+  final String? initialRootPath;
+  final ValueChanged<String>? onQueryChanged;
+  final ValueChanged<String>? onRootChanged;
+  final SearchFolderPicker? folderPicker;
 
   const SearchDialog({
     super.key,
@@ -26,6 +33,11 @@ class SearchDialog extends StatefulWidget {
     this.initialMode = SearchMode.files,
     this.fileSearchService,
     this.textSearchService,
+    this.initialQuery,
+    this.initialRootPath,
+    this.onQueryChanged,
+    this.onRootChanged,
+    this.folderPicker,
   });
 
   @override
@@ -34,11 +46,20 @@ class SearchDialog extends StatefulWidget {
 
 class _SearchDialogState extends State<SearchDialog> {
   late SearchMode _mode;
+  late String _rootPath;
 
   @override
   void initState() {
     super.initState();
     _mode = widget.initialMode;
+    _rootPath = widget.initialRootPath ?? widget.rootPath;
+  }
+
+  void _pickRoot() {
+    final picked = widget.folderPicker?.call(_rootPath);
+    if (picked == null || !mounted) return;
+    setState(() => _rootPath = picked);
+    widget.onRootChanged?.call(picked);
   }
 
   @override
@@ -65,9 +86,12 @@ class _SearchDialogState extends State<SearchDialog> {
 
     return switch (_mode) {
       SearchMode.files => FileSearchDialog(
-        rootPath: widget.rootPath,
+        rootPath: _rootPath,
         searchService: widget.fileSearchService,
         modeSelector: selector,
+        initialQuery: widget.initialQuery,
+        onQueryChanged: widget.onQueryChanged,
+        onPickRoot: _pickRoot,
         onResult: (result) => Navigator.of(context).pop(
           SearchDialogResult(
             path: result.path,
@@ -76,9 +100,12 @@ class _SearchDialogState extends State<SearchDialog> {
         ),
       ),
       SearchMode.text => TextSearchDialog(
-        rootPath: widget.rootPath,
+        rootPath: _rootPath,
         searchService: widget.textSearchService,
         modeSelector: selector,
+        initialQuery: widget.initialQuery,
+        onQueryChanged: widget.onQueryChanged,
+        onPickRoot: _pickRoot,
         onResult: (result) => Navigator.of(
           context,
         ).pop(SearchDialogResult(path: result.path, isDirectory: false)),
