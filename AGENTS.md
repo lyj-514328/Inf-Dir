@@ -55,6 +55,7 @@ Inf-Dir/
 - 样式统一走 `lib/widgets/app_theme.dart` 的设计 token（`context.colors` / `AppMetrics`），widget 中禁止新增 `Color(0x...)` / `Colors.xxx` 字面量（`Colors.transparent` 除外）；设置由 `lib/state/settings_controller.dart` 统一管理，并通过 `lib/services/settings_store.dart` 持久化与迁移
 - 界面风格为现代极简：一体化无边框顶栏（`app_shell.dart` 的 `_TopBar` + `window_controls.dart`）、胶囊式标签/选中态、面包屑地址栏（`address_bar.dart`）、ghost 按钮命令栏
 - Viewer 插件运行于独立进程，不把第三方 DLL 加载进 Flutter 主进程；Manifest、用户关联与解析规则见 `docs/plugin-system.md`
+- 文件/内容搜索统一使用 `fd` 与 `rg`：按文件名找文件用 `fd`（如 `fd .dart lib`），按内容检索用 `rg`（如 `rg "LayoutTree" lib`），不使用 `find` / `grep`
 
 ## 常用命令
 
