@@ -38,7 +38,7 @@
 | MHTML / MHT | `web-view` | 已接入（转换） | 页面层解析 multipart/related，将 HTML、图片、CSS 和字体转换为 Blob 后渲染 | WebView2；内置 MHTML 解析器 |
 | 旧 Office：DOC/XLS/PPT 等 | `mupdf-view` | 已接入（转换） | 调用 `soffice --headless` 转 PDF，再交给 MuPDF.NET | 内置或系统 LibreOffice |
 | OOXML：DOCX/XLSX/PPTX | `office-view` | 已接入 | WebView2 加载本地 OOXML Web 渲染器 | WebView2；`@silurus/ooxml` 静态资源 |
-| 图片与 RAW | `img-view` | 已接入 | Rust 原生解码；SVG 用 resvg；RAW 用 rawloader；失败时按 ImageMagick → WIC decoder 顺序回退；manifest 扩展名已与系统 WIC 注册格式对齐（HEIF/AVIF、JPEG XL、WebP、Raw 相机格式及 `.icon` `.jfif` `.dib` 等别名） | `image`、`resvg`、`rawloader`；可选 ImageMagick、Compface、Windows WIC |
+| 图片与 RAW | `img-view` | 已接入 | Rust 原生解码；SVG 用 resvg；RAW 用 rawloader；失败时按 WIC decoder → ImageMagick 顺序回退；manifest 扩展名已与系统 WIC 注册格式对齐（HEIF/AVIF、JPEG XL、WebP、Raw 相机格式及 `.icon` `.jfif` `.dib` 等别名） | `image`、`resvg`、`rawloader`；可选 ImageMagick、Compface、Windows WIC |
 | 音频/视频 | `video-view` | 已接入 | libmpv2 渲染和播放 | `libmpv2`；发布时附带 `libmpv-2.dll` |
 | 压缩包 | `archive-view` | 已接入 | libarchive 枚举并显示归档内容 | `archive.dll`（libarchive） |
 | 邮件：EML/EMLX/MSG/OFT/TNEF | `email-view` | 已接入 | .NET 解析邮件，WebView2 渲染正文 | MimeKit；MSGReader；WebView2；DOMPurify |
@@ -102,7 +102,7 @@ Windows 11 通常自带，Windows 10 依赖 Edge/WebView2 Runtime 安装状态�
 | LibreOffice | `mupdf-view` | `mupdf-view/libreoffice/`，调用 `program/soffice.exe` |
 | ImageMagick | `img-view` | `img-view/magick/`，作为解码失败时的子进程 |
 | Compface | `img-view` | `img-view/compface/`，用于 X-Face |
-| Windows WIC decoder | `img-view` | `img-view/wic-decoder/wic-decoder.exe`；image crate 与 ImageMagick 之后的第三级解码回退，覆盖系统注册的 HEIF/AVIF、JPEG XL、WebP 与 Raw 相机格式；`--list` 可枚举本机解码器 |
+| Windows WIC decoder | `img-view` | `img-view/wic-decoder/wic-decoder.exe`；image crate 之后的第二级解码回退（优先于 ImageMagick），覆盖系统注册的 HEIF/AVIF、JPEG XL、WebP 与 Raw 相机格式；`--list` 可枚举本机解码器 |
 | CHMate reader | `chm-view` | `chm-view-web/` 中的静态 ES modules，无额外运行时 |
 
 ### 4.4 .NET 运行时

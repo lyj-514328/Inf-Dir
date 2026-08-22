@@ -45,17 +45,17 @@ fn load_image(path: &str) -> Result<DynamicImage, String> {
         })
     } else if RAW_EXTENSIONS.contains(&ext.as_str()) {
         load_raw(path).or_else(|raw_error| {
-            load_magick(path).map_err(|magick_error| {
+            load_wic(path).or_else(|wic_error| load_magick(path).map_err(|magick_error| {
                 format!(
-                    "RAW decode failed: {raw_error}; ImageMagick fallback failed: {magick_error}"
+                    "RAW decode failed: {raw_error}; WIC fallback failed: {wic_error}; ImageMagick fallback failed: {magick_error}"
                 )
-            })
+            }))
         })
     } else {
         image::open(path).or_else(|image_error| {
-            load_magick(path).or_else(|magick_error| load_wic(path).map_err(|wic_error| {
+            load_wic(path).or_else(|wic_error| load_magick(path).map_err(|magick_error| {
                 format!(
-                    "native image decoder failed: {image_error}; ImageMagick fallback failed: {magick_error}; WIC fallback failed: {wic_error}"
+                    "native image decoder failed: {image_error}; WIC fallback failed: {wic_error}; ImageMagick fallback failed: {magick_error}"
                 )
             }))
         })
