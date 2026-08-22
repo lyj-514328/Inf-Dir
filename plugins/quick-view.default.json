@@ -125,35 +125,12 @@
       "enabled": true,
       "type": "extension",
       "value": ".markdown",
-      "rules": [
-        {
-          "id": "mime-text-markdown",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/markdown",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.markdown-view",
-              "enabled": true
-            }
-          ]
-        },
-        {
-          "id": "mime-text-x-markdown",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/x-markdown",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.markdown-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.markdown-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.code-view",
           "enabled": true
@@ -165,35 +142,12 @@
       "enabled": true,
       "type": "extension",
       "value": ".mdown",
-      "rules": [
-        {
-          "id": "mime-text-markdown-16",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/markdown",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.markdown-view",
-              "enabled": true
-            }
-          ]
-        },
-        {
-          "id": "mime-text-x-markdown-17",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/x-markdown",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.markdown-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.markdown-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.code-view",
           "enabled": true
@@ -205,21 +159,7 @@
       "enabled": true,
       "type": "extension",
       "value": ".xhtml",
-      "rules": [
-        {
-          "id": "mime-application-xhtml-xml",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "application/xhtml+xml",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
         {
           "id": "inf-dir.web-view",
@@ -236,21 +176,7 @@
       "enabled": true,
       "type": "extension",
       "value": ".shtml",
-      "rules": [
-        {
-          "id": "mime-text-html",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/html",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
         {
           "id": "inf-dir.web-view",
@@ -284,21 +210,7 @@
       "enabled": true,
       "type": "extension",
       "value": ".html",
-      "rules": [
-        {
-          "id": "mime-text-html-25",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/html",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
         {
           "id": "inf-dir.web-view",
@@ -315,21 +227,7 @@
       "enabled": true,
       "type": "extension",
       "value": ".shtm",
-      "rules": [
-        {
-          "id": "mime-text-html-28",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/html",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
         {
           "id": "inf-dir.web-view",
@@ -346,34 +244,7 @@
       "enabled": true,
       "type": "extension",
       "value": ".xslt",
-      "rules": [
-        {
-          "id": "mime-application-xml",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "application/xml",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        },
-        {
-          "id": "mime-text-xml",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/xml",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
         {
           "id": "inf-dir.code-view",
@@ -390,32 +261,14 @@
       "enabled": true,
       "type": "extension",
       "value": ".svgz",
-      "rules": [
-        {
-          "id": "mime-image-svg-xml",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "image/svg+xml",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.image-view",
-              "enabled": true
-            },
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.web-view",
+          "id": "inf-dir.image-view",
           "enabled": true
         },
         {
-          "id": "inf-dir.code-view",
+          "id": "inf-dir.web-view",
           "enabled": true
         }
       ]
@@ -425,35 +278,12 @@
       "enabled": true,
       "type": "extension",
       "value": ".mkd",
-      "rules": [
-        {
-          "id": "mime-text-markdown-37",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/markdown",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.markdown-view",
-              "enabled": true
-            }
-          ]
-        },
-        {
-          "id": "mime-text-x-markdown-38",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/x-markdown",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.markdown-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.markdown-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.code-view",
           "enabled": true
@@ -465,21 +295,7 @@
       "enabled": true,
       "type": "extension",
       "value": ".htm",
-      "rules": [
-        {
-          "id": "mime-text-html-41",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/html",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
         {
           "id": "inf-dir.web-view",
@@ -496,34 +312,7 @@
       "enabled": true,
       "type": "extension",
       "value": ".xml",
-      "rules": [
-        {
-          "id": "mime-application-xml-45",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "application/xml",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        },
-        {
-          "id": "mime-text-xml-46",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/xml",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
         {
           "id": "inf-dir.code-view",
@@ -540,34 +329,7 @@
       "enabled": true,
       "type": "extension",
       "value": ".xsl",
-      "rules": [
-        {
-          "id": "mime-application-xml-50",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "application/xml",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        },
-        {
-          "id": "mime-text-xml-51",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/xml",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
         {
           "id": "inf-dir.code-view",
@@ -584,26 +346,12 @@
       "enabled": true,
       "type": "extension",
       "value": ".svg",
-      "rules": [
-        {
-          "id": "mime-image-svg-xml-54",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "image/svg+xml",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.image-view",
-              "enabled": true
-            },
-            {
-              "id": "inf-dir.web-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.web-view",
           "enabled": true
@@ -619,32 +367,14 @@
       "enabled": true,
       "type": "extension",
       "value": ".gif",
-      "rules": [
-        {
-          "id": "mime-image-gif",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "image/gif",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.image-view",
-              "enabled": true
-            },
-            {
-              "id": "inf-dir.video-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.video-view",
+          "id": "inf-dir.image-view",
           "enabled": true
         },
         {
-          "id": "inf-dir.image-view",
+          "id": "inf-dir.video-view",
           "enabled": true
         }
       ]
@@ -654,22 +384,12 @@
       "enabled": true,
       "type": "extension",
       "value": ".cbz",
-      "rules": [
-        {
-          "id": "mime-application-vnd-comicbook-zip",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "application/vnd.comicbook+zip",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.mupdf-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.mupdf-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.archive-view",
           "enabled": true
@@ -681,22 +401,12 @@
       "enabled": true,
       "type": "extension",
       "value": ".cbr",
-      "rules": [
-        {
-          "id": "mime-application-vnd-comicbook-zip-61",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "application/vnd.comicbook+zip",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.mupdf-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.mupdf-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.archive-view",
           "enabled": true
@@ -721,52 +431,16 @@
       ]
     },
     {
-      "id": "ext-dat",
-      "enabled": true,
-      "type": "extension",
-      "value": ".dat",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.email-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
       "id": "ext-md",
       "enabled": true,
       "type": "extension",
       "value": ".md",
-      "rules": [
-        {
-          "id": "mime-text-markdown-67",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/markdown",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.markdown-view",
-              "enabled": true
-            }
-          ]
-        },
-        {
-          "id": "mime-text-x-markdown-68",
-          "enabled": true,
-          "type": "mimeType",
-          "value": "text/x-markdown",
-          "rules": [],
-          "viewers": [
-            {
-              "id": "inf-dir.markdown-view",
-              "enabled": true
-            }
-          ]
-        }
-      ],
+      "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.markdown-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.code-view",
           "enabled": true
@@ -6111,6 +5785,1033 @@
       "viewers": [
         {
           "id": "inf-dir.archive-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-tiertexseq",
+      "enabled": true,
+      "type": "extension",
+      "value": ".tiertexseq",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-wc3movie",
+      "enabled": true,
+      "type": "extension",
+      "value": ".wc3movie",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-truehd",
+      "enabled": true,
+      "type": "extension",
+      "value": ".truehd",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-dirac",
+      "enabled": true,
+      "type": "extension",
+      "value": ".dirac",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-dnxhd",
+      "enabled": true,
+      "type": "extension",
+      "value": ".dnxhd",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mjpeg",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mjpeg",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-wsaud",
+      "enabled": true,
+      "type": "extension",
+      "value": ".wsaud",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-wsvqa",
+      "enabled": true,
+      "type": "extension",
+      "value": ".wsvqa",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-adts",
+      "enabled": true,
+      "type": "extension",
+      "value": ".adts",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-bink",
+      "enabled": true,
+      "type": "extension",
+      "value": ".bink",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-cdxl",
+      "enabled": true,
+      "type": "extension",
+      "value": ".cdxl",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-cine",
+      "enabled": true,
+      "type": "extension",
+      "value": ".cine",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-eac3",
+      "enabled": true,
+      "type": "extension",
+      "value": ".eac3",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-g722",
+      "enabled": true,
+      "type": "extension",
+      "value": ".g722",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-h263",
+      "enabled": true,
+      "type": "extension",
+      "value": ".h263",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-jfif",
+      "enabled": true,
+      "type": "extension",
+      "value": ".jfif",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-siff",
+      "enabled": true,
+      "type": "extension",
+      "value": ".siff",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-wbmp",
+      "enabled": true,
+      "type": "extension",
+      "value": ".wbmp",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-4xm",
+      "enabled": true,
+      "type": "extension",
+      "value": ".4xm",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-act",
+      "enabled": true,
+      "type": "extension",
+      "value": ".act",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-aea",
+      "enabled": true,
+      "type": "extension",
+      "value": ".aea",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-anm",
+      "enabled": true,
+      "type": "extension",
+      "value": ".anm",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-apc",
+      "enabled": true,
+      "type": "extension",
+      "value": ".apc",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-bfi",
+      "enabled": true,
+      "type": "extension",
+      "value": ".bfi",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-bmv",
+      "enabled": true,
+      "type": "extension",
+      "value": ".bmv",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-c93",
+      "enabled": true,
+      "type": "extension",
+      "value": ".c93",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-dfa",
+      "enabled": true,
+      "type": "extension",
+      "value": ".dfa",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-dib",
+      "enabled": true,
+      "type": "extension",
+      "value": ".dib",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-dss",
+      "enabled": true,
+      "type": "extension",
+      "value": ".dss",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-dxa",
+      "enabled": true,
+      "type": "extension",
+      "value": ".dxa",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-gdv",
+      "enabled": true,
+      "type": "extension",
+      "value": ".gdv",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-ivf",
+      "enabled": true,
+      "type": "extension",
+      "value": ".ivf",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-jng",
+      "enabled": true,
+      "type": "extension",
+      "value": ".jng",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-jpc",
+      "enabled": true,
+      "type": "extension",
+      "value": ".jpc",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-jpe",
+      "enabled": true,
+      "type": "extension",
+      "value": ".jpe",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-lvf",
+      "enabled": true,
+      "type": "extension",
+      "value": ".lvf",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-lxf",
+      "enabled": true,
+      "type": "extension",
+      "value": ".lxf",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mdc",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mdc",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mmf",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mmf",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mvi",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mvi",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-nut",
+      "enabled": true,
+      "type": "extension",
+      "value": ".nut",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-paf",
+      "enabled": true,
+      "type": "extension",
+      "value": ".paf",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-pix",
+      "enabled": true,
+      "type": "extension",
+      "value": ".pix",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-pvf",
+      "enabled": true,
+      "type": "extension",
+      "value": ".pvf",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-pwp",
+      "enabled": true,
+      "type": "extension",
+      "value": ".pwp",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-r3d",
+      "enabled": true,
+      "type": "extension",
+      "value": ".r3d",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-ras",
+      "enabled": true,
+      "type": "extension",
+      "value": ".ras",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-rl2",
+      "enabled": true,
+      "type": "extension",
+      "value": ".rl2",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-rpl",
+      "enabled": true,
+      "type": "extension",
+      "value": ".rpl",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-rso",
+      "enabled": true,
+      "type": "extension",
+      "value": ".rso",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-sfw",
+      "enabled": true,
+      "type": "extension",
+      "value": ".sfw",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-sol",
+      "enabled": true,
+      "type": "extension",
+      "value": ".sol",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-sph",
+      "enabled": true,
+      "type": "extension",
+      "value": ".sph",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-str",
+      "enabled": true,
+      "type": "extension",
+      "value": ".str",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-tmv",
+      "enabled": true,
+      "type": "extension",
+      "value": ".tmv",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-vmd",
+      "enabled": true,
+      "type": "extension",
+      "value": ".vmd",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-xmv",
+      "enabled": true,
+      "type": "extension",
+      "value": ".xmv",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-ea",
+      "enabled": true,
+      "type": "extension",
+      "value": ".ea",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-jv",
+      "enabled": true,
+      "type": "extension",
+      "value": ".jv",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mm",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mm",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-qt",
+      "enabled": true,
+      "type": "extension",
+      "value": ".qt",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-bethsoftvid",
+      "enabled": true,
+      "type": "extension",
+      "value": ".bethsoftvid",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-ipmovie",
+      "enabled": true,
+      "type": "extension",
+      "value": ".ipmovie",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-dsicin",
+      "enabled": true,
+      "type": "extension",
+      "value": ".dsicin",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-lmlm4",
+      "enabled": true,
+      "type": "extension",
+      "value": ".lmlm4",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-spdif",
+      "enabled": true,
+      "type": "extension",
+      "value": ".spdif",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-flic",
+      "enabled": true,
+      "type": "extension",
+      "value": ".flic",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-h261",
+      "enabled": true,
+      "type": "extension",
+      "value": ".h261",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-avs",
+      "enabled": true,
+      "type": "extension",
+      "value": ".avs",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-cdg",
+      "enabled": true,
+      "type": "extension",
+      "value": ".cdg",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-fax",
+      "enabled": true,
+      "type": "extension",
+      "value": ".fax",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-iff",
+      "enabled": true,
+      "type": "extension",
+      "value": ".iff",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-iv8",
+      "enabled": true,
+      "type": "extension",
+      "value": ".iv8",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mtv",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mtv",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mxg",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mxg",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-rcv",
+      "enabled": true,
+      "type": "extension",
+      "value": ".rcv",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-rla",
+      "enabled": true,
+      "type": "extension",
+      "value": ".rla",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-rle",
+      "enabled": true,
+      "type": "extension",
+      "value": ".rle",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.image-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-sox",
+      "enabled": true,
+      "type": "extension",
+      "value": ".sox",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
           "enabled": true
         }
       ]

@@ -128,9 +128,10 @@ SVG 引擎权衡：
 
 ### 5.6 email-view（P1，已完成）
 
-- 已完成：支持 `.eml .emlx .msg .oft .dat`。首版直接声明 `.dat` 扩展名关联，以覆盖
-  `winmail.dat`、`win.dat` 和 `ATTxxxxx.dat` 等 TNEF 文件；这会与其他 `.dat` 语义冲突，
-  暂接受误命中，待 Viewer 补全后随内容嗅探和 MIME 关联一起修复。
+- 已完成：支持 `.eml .emlx .msg .oft`，并新增 `winmail.dat`/`win.dat` 文件名规则；
+  `.dat` 后缀不再无条件关联（避免所有数据文件误命中邮件查看器），改为 MIME 兜底
+  （message/rfc822、application/ms-tnef、application/vnd.ms-outlook），VCD `.dat`
+  待内容嗅探器上线后经 `video/*` 覆盖。
 - 实现：C# / .NET 8 `win-x64` self-contained 独立进程，WebView2 渲染邮件头、HTML/纯文本
   正文、CID 内嵌图片和附件列表。MimeKit 负责 EML/TNEF，EMLX 先剥离 Apple 包装再按 EML
   解析，MSGReader 负责 MSG/OFT；第三方 DLL 不加载进 Flutter 主进程。
@@ -170,7 +171,7 @@ SVG 引擎权衡：
 
 | 扩展名 | 冲突语义 | 默认处理 |
 | --- | --- | --- |
-| `.dat` | VCD 视频 / Winmail.dat | 首版直接走 email-view，后续内容嗅探区分 |
+| `.dat` | VCD 视频 / Winmail.dat | 已改策略：不做后缀关联；`winmail.dat`/`win.dat` 走文件名规则，其余 `.dat` 靠 MIME 兜底（message/rfc822、TNEF），VCD 待内容嗅探器 |
 | `.cin` | Kodak Cineon 位图 / Delphine CIN 视频 | 内容嗅探 |
 | `.iss` | Funcom 音频 / Inno Setup 脚本 | 默认 code-view（Inno Setup 更常见） |
 | `.mpc` | Musepack 音频 / EA MPCh 视频 | 均走 mpv（FFmpeg 两者都解码） |
@@ -245,6 +246,9 @@ SVG 引擎权衡：
    Shift-JIS、Windows-1252 等旧日志和源码可能乱码。Viewer 补全后评估编码探测、手动切换
    编码及相应测试样本。
 
+> 2026-08-29 复测：覆盖率已重算，FVP 370/410（90.2%）、UV 202/290（69.7%），
+> 缺失明细见 §13。
+
 ## 12. 后续改进点
 
 本轮已将 P2 长尾格式接入可运行的独立 viewer，但仍有以下工程化改进项：
@@ -261,3 +265,57 @@ SVG 引擎权衡：
    MIME、文件头和用户关联规则的优先级测试，确保命中 viewer 与真实内容一致。
 6. **发布包审计**：发布前自动检查 manifest、entrypoint、第三方通知、运行时 DLL/EXE 和 SHA-256
    记录，清理不参与运行的开发文件，避免旧插件产物混入 `plugins/dist`。
+
+## 13. 缺失格式清单（2026-08-29 复测）
+
+> 复测方法：以 `plugins/quick-view.default.json`（schema v3 静态默认规则，当前 513 个
+> 扩展名/文件名规则）为覆盖口径，与两份参考清单逐一比对。音视频按 FFmpeg 源码
+> `libavformat/allformats.c`（368 个 demuxer，对应 shinchiro `mpv-dev` 全量构建）判定
+> 后端是否可解；图像/RAW 用 ImageMagick 实测输出（`magick -list format`）判定。
+> 本轮已把"后端支持但未声明"的扩展名补进 manifest 与默认配置：
+> `image-view` +15、`video-view` +64（默认配置 +79 条规则）。复测脚本：
+> `tools/coverage_diff.mjs`。
+
+### 13.1 FVP（410 唯一扩展名）：覆盖 370（90.2%），缺 40
+
+| 分类 | 缺失 | 扩展名 | 缺失原因 |
+| --- | ---: | --- | --- |
+| Email | 1 | `.dat` | 策略：不做后缀关联，靠 `winmail.dat`/`win.dat` 文件名规则 + MIME 兜底（message/rfc822、TNEF 系列），见 §7 |
+| Video | 26 | `.anim .cak .cam .cmv .dct .drc .duk .k3g .mad .mmv .mve .p64 .pmf .san .sfd .tgq .tgv .vid .vp3 .vp5 .vp6 .vp7 .vqa .vsr .wve .xesc` | FFmpeg 无对应 demuxer（多为 FVP 私有编解码/游戏容器） |
+| Image | 6 | `.emz .jls .pic .ptx .txd .wmz` | ImageMagick 无对应 decoder；`.emz/.wmz` 为压缩 EMF/WMF，`.txd` 为游戏贴图 |
+| Camera Raw | 2 | `.bay .kc2` | ImageMagick/rawloader 无对应 coder |
+| Audio | 4 | `.aud .htk .sf .son` | FFmpeg 无对应 demuxer |
+| Archive | 1 | `.dd` | 原始磁盘镜像，libarchive 不处理 |
+
+> 表格未计入第 7 节同名冲突的 `.dat`（VCD 语义，亦在 Video 分类出现）；该行统计已含。
+
+### 13.2 UV（290 唯一扩展名）：覆盖 202（69.7%），缺 88
+
+| 分类 | 缺失 | 扩展名 | 缺失原因 |
+| --- | ---: | --- | --- |
+| Images | 14 | `.ani .cel .cut .icb .icl .pal .pcc .pdd .pic .psp .rgba .rpf .vda .win` | ImageMagick 无对应 decoder 或为 Targa/PaintShop 变体，待评估 |
+| RAW Images | 10 | `.bay .bmq .cs1 .dc2 .ia .kc2 .pxn .qtk .rdc .sti` | ImageMagick/rawloader 无对应 coder |
+| Audio/Video | 64 | 见下 | 大部分为 FFmpeg 伪格式/非文件类型 |
+
+Audio/Video 剩余的 64 个按性质拆分：
+
+- **FFmpeg 伪格式（非文件扩展名，无需覆盖）**：`.mpeg1video .mpeg2video .mpegts
+  .mpegtsraw .mpegvideo .mpjpeg .cavsvideo .vc1test .rawvideo .yuv4mpegpipe .image2
+  .image2pipe .ffm .ffmetadata .framecrc .framemd5 .md5 .crc .null .matroska .avm2
+  .applehttp .msnwctcp .vfwcap` 等容器/管线/调试输出名；
+- **网络协议/流（非文件）**：`.rtp .rtsp .sap .sdp .hls`；
+- **原始 PCM 样本流（扩展名不含编码参数）**：`.alaw .mulaw .s8 .u8 .s16be .s16le
+  .s24be .s24le .s32be .s32le .f32be .f32le .f64be .f64le .u16be .u16le .u24be .u24le
+  .u32be .u32le`；
+- **字幕（非媒体文件，视频查看器播放视频时内嵌显示）**：`.ass .srt`；
+- **真实格式但当前未声明/待实测**：`.a64 .daud .dvd .idcin .ingenient .ipod .mp3id3v1
+  .mp3id3v2 .mpc8 .psp .psxstr .tty .txd`（多数有 demuxer，纳入需实测行为后决定）。
+
+### 13.3 后续动作
+
+1. **更强的 MIME 嗅探器落地后**：`.dat`（VCD）、无扩展名文件、同名冲突（`.cin`/`.iss`/
+   `.mpc`/`.vb`/`.vhd`）随之自然命中——规则体系已就绪（`video/*`、`audio/*`、
+   `image/*` 及各项 MIME 兜底），只需嗅探器把真实 MIME 喂给 `resolveCandidates`。
+2. **`.bay .kc2 .jls .txd .pic` 等**：若有需求，按 P2 引入对应解码器（raw 图像、
+   JPEG-LS、游戏贴图等第三方库）。
+3. **复查**：任何 manifest/默认配置变更后运行 `node tools/coverage_diff.mjs` 重跑对比。
