@@ -1,19 +1,16 @@
-{
-  "manifestVersion": 1,
-  "id": "inf-dir.image-view",
-  "name": "图片查看器",
-  "version": "0.1.0",
-  "entrypoint": "img-view.exe",
-  "capabilities": {
-    "quickView": {
-      "extensions": [
+{   "manifestVersion": 1,   "id": "inf-dir.image-view",   "name": "图片查看器",   "version": "0.1.0",   "entrypoint": "img-view.exe",   "capabilities": {     "quickView": {           "extensions": [
         ".3fr",
         ".aai",
         ".ari",
         ".arw",
+        ".avci",
+        ".avcs",
         ".avif",
+        ".avifs",
+        ".bay",
         ".bmp",
         ".bw",
+        ".cap",
         ".cin",
         ".cine",
         ".cr2",
@@ -27,8 +24,11 @@
         ".dib",
         ".dng",
         ".dpx",
+        ".drf",
+        ".eip",
         ".emf",
         ".erf",
+        ".exif",
         ".exr",
         ".fax",
         ".ff",
@@ -36,7 +36,12 @@
         ".gif",
         ".hdr",
         ".heic",
+        ".heics",
+        ".heif",
+        ".heifs",
+        ".hif",
         ".ico",
+        ".icon",
         ".iiq",
         ".j2k",
         ".jfif",
@@ -61,6 +66,7 @@
         ".nrw",
         ".ora",
         ".orf",
+        ".ori",
         ".pbm",
         ".pcd",
         ".pcx",
@@ -73,7 +79,9 @@
         ".ppm",
         ".psb",
         ".psd",
+        ".ptx",
         ".pwp",
+        ".pxn",
         ".qoi",
         ".raf",
         ".ras",
@@ -94,6 +102,7 @@
         ".tif",
         ".tiff",
         ".wbmp",
+        ".wdp",
         ".webp",
         ".wmf",
         ".x3f",
@@ -101,9 +110,4 @@
         ".xface",
         ".xpm"
       ],
-      "mimeTypes": [
-        "image/*"
-      ]
-    }
-  }
-}
+      "mimeTypes": [         "image/*"       ]     }   } }

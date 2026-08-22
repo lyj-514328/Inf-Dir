@@ -11,13 +11,13 @@
 > - `⚠️` 后端可解但未在配置声明（待实测后补 manifest 与默认配置）；
 > - `❌` 后端无对应能力或非文件类型（伪格式、网络协议、原始采样流、字幕等）。
 >
-> 支持面判定依据（image-view 的解码链：原生 image/rawloader → ImageMagick 子进程 →
-> Windows WIC 子进程；video-view：mpv/FFmpeg）：
+> 支持面判定依据（image-view 的解码链：原生 image/rawloader → Windows WIC 子进程 →
+> ImageMagick 子进程；video-view：mpv/FFmpeg）：
 > - FFmpeg `libavformat/allformats.c` 的 368 个 demuxer（对应 shinchiro `mpv-dev`
 >   全量构建）；
 > - ImageMagick 实测 `magick -list format` 输出；
-> - Windows WIC：系统内置 codec（JXR、HEIF[+扩展]、WMF/EMF、DIB 等），仅作兜底，
->   随 OS 版本/厂商 codec 安装情况浮动，不作为覆盖判定的确定性依据。
+> - Windows WIC：系统内置 codec（JXR、HEIF[+扩展]、WMF/EMF、DIB 等），优先于
+>   ImageMagick 兜底，随 OS 版本/厂商 codec 安装情况浮动，不作为覆盖判定的确定性依据。
 >
 > 注：无扩展名规则的文件可能经 `image/*`、`video/*`、`audio/*`、`text/*`
 > MIME 兜底命中（依赖系统注册的 Content Type 与后端解码能力）；同名冲突后缀的
