@@ -290,14 +290,15 @@ void main() {
         ),
       );
 
-      expect(find.text('搜索文件'), findsOneWidget);
+      expect(find.text('文件'), findsOneWidget);
       expect(find.text('输入文件名'), findsOneWidget);
 
       await tester.tap(find.text('文本'));
       await tester.pumpAndSettle();
 
-      expect(find.text('搜索文本'), findsOneWidget);
+      // 切换到文本模式后，查询框换成文本内容匹配
       expect(find.text('输入要匹配的文本'), findsOneWidget);
+      expect(find.text('输入文件名'), findsNothing);
     });
 
     testWidgets('text search dialog shows and opens a matching file', (

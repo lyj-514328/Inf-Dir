@@ -15,6 +15,7 @@ import '../services/icon_service.dart';
 import '../state/app_state.dart';
 import '../state/pane_controller.dart';
 import 'app_theme.dart';
+import 'cloud_status_icon.dart';
 
 /// 云同步"状态"列的固定宽度（不参与列宽拖拽）。
 const double _statusColWidth = 48;
@@ -1566,7 +1567,11 @@ class _FileRowState extends State<_FileRow> {
                           if (widget.showStatusColumn)
                             SizedBox(
                               width: _statusColWidth,
-                              child: _CloudStatusCell(path: widget.entry.identity),
+                              child: Center(
+                                child: CloudStatusIcon(
+                                  path: widget.entry.identity,
+                                ),
+                              ),
                             ),
                           SizedBox(
                             width: widget.columnWidths[1],
@@ -1793,44 +1798,5 @@ class _FileIconState extends State<_FileIcon> {
 
 // ── Cloud sync status column ───────────────────────────────────────
 
-/// 云同步状态语义编码（见 IconService.getCloudStatus）：
-/// 0 仅联机 / 1 本地可用 / 2 固定保留 / 3 同步中 / 4 已排除。
-(IconData, Color) _cloudStatusVisual(int status, AppColors c) =>
-    switch (status) {
-      2 => (Icons.check_circle, c.success), // pinned / always available
-      1 => (Icons.cloud_done, c.success), // locally available
-      3 => (Icons.sync, c.textTertiary), // syncing
-      0 => (Icons.cloud, c.textTertiary), // online only
-      4 => (Icons.remove_circle_outline, c.textTertiary), // excluded
-      _ => (Icons.cloud, c.textTertiary),
-    };
-
-String _cloudStatusText(int status) => switch (status) {
-  2 => '始终保留在此设备上',
-  1 => '本地可用',
-  3 => '正在同步',
-  0 => '仅联机可用',
-  4 => '已排除（不同步）',
-  _ => '云文件',
-};
-
-/// 详情视图"状态"列单元：按云同步状态渲染图标（带 tooltip）。
-/// 非云条目（-1）留空，与资源管理器一致。
-class _CloudStatusCell extends StatelessWidget {
-  final String path;
-
-  const _CloudStatusCell({required this.path});
-
-  @override
-  Widget build(BuildContext context) {
-    final status = IconService.getCloudStatus(path);
-    if (status < 0) return const SizedBox.shrink();
-    final (icon, color) = _cloudStatusVisual(status, context.colors);
-    return Center(
-      child: Tooltip(
-        message: _cloudStatusText(status),
-        child: Icon(icon, size: AppMetrics.iconSm, color: color),
-      ),
-    );
-  }
-}
+/// 云同步"状态"列单元：按云同步状态渲染图标（带 tooltip），见
+/// [CloudStatusIcon]。非云条目（-1）留空，与资源管理器一致。

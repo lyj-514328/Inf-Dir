@@ -15,6 +15,7 @@ import '../state/app_state.dart';
 import '../state/pane_controller.dart';
 import '../state/sidebar_controller.dart';
 import 'app_theme.dart';
+import 'cloud_status_icon.dart';
 
 enum _HomeSection { quickAccess, recent, favorites }
 
@@ -626,6 +627,11 @@ class _HomeDetailsRowState extends State<_HomeDetailsRow> {
                   flex: 4,
                   child: Row(
                     children: [
+                      // 云盘条目的状态图标（仅云盘显示，位于文件图标前，
+                      // 与资源管理器主文件夹一致）
+                      CloudStatusIcon(path: widget.item.path, size: 12, reserveSpace: true),
+                      // 状态图标与文件图标之间留出间距（资源管理器主文件夹样式）
+                      const SizedBox(width: 6),
                       _HomeIcon(
                         path: widget.item.path,
                         isDirectory: widget.item.isDirectory,
@@ -739,6 +745,10 @@ class _HomeListRowState extends State<_HomeListRow> {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
                 children: [
+                  // 云盘条目的状态图标（仅云盘显示，位于文件图标前，
+                  // 与资源管理器主文件夹一致）
+                  CloudStatusIcon(path: widget.item.path, size: 12, reserveSpace: true),
+                  const SizedBox(width: 6),
                   _HomeIcon(
                     path: widget.item.path,
                     isDirectory: widget.item.isDirectory,
@@ -834,6 +844,10 @@ class _HomeContentRowState extends State<_HomeContentRow> {
               ),
               child: Row(
                 children: [
+                  // 云盘条目的状态图标（仅云盘显示，位于文件图标前，
+                  // 与资源管理器主文件夹一致）
+                  CloudStatusIcon(path: widget.item.path, size: 12, reserveSpace: true),
+                  const SizedBox(width: 6),
                   _HomeIcon(
                     path: widget.item.path,
                     isDirectory: widget.item.isDirectory,
@@ -956,6 +970,10 @@ class _HomeIconTileState extends State<_HomeIconTile> {
       child: widget.horizontal
           ? Row(
               children: [
+                // 云盘条目的状态图标（仅云盘显示，位于文件图标前，
+                // 与资源管理器主文件夹一致）
+                CloudStatusIcon(path: widget.item.path, size: 12, reserveSpace: true),
+                const SizedBox(width: 6),
                 _HomeIcon(
                   path: widget.item.path,
                   isDirectory: widget.item.isDirectory,
@@ -973,14 +991,29 @@ class _HomeIconTileState extends State<_HomeIconTile> {
               children: [
                 Expanded(
                   child: Center(
-                    child: _HomeIcon(
-                      path: widget.item.path,
-                      isDirectory: widget.item.isDirectory,
-                      fallback: widget.item.isDirectory
-                          ? Icons.folder_outlined
-                          : Icons.insert_drive_file_outlined,
-                      size: widget.iconSize,
-                      modified: widget.item.date,
+                    // 竖向网格：状态图标以角标形式叠在文件图标左下角
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        _HomeIcon(
+                          path: widget.item.path,
+                          isDirectory: widget.item.isDirectory,
+                          fallback: widget.item.isDirectory
+                              ? Icons.folder_outlined
+                              : Icons.insert_drive_file_outlined,
+                          size: widget.iconSize,
+                          modified: widget.item.date,
+                        ),
+                        Positioned(
+                          left: -2,
+                          bottom: -2,
+                          child: CloudStatusIcon(
+                            path: widget.item.path,
+                            size: 12,
+                            reserveSpace: true,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
