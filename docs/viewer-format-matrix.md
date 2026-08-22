@@ -21,8 +21,14 @@
 >
 > 注：无扩展名规则的文件可能经 `image/*`、`video/*`、`audio/*`、`text/*`
 > MIME 兜底命中（依赖系统注册的 Content Type 与后端解码能力）；同名冲突后缀的
-> 常见语义作为默认 viewer、其余语义作为 MIME 子类表达。重新生成：
-> `node tools/gen_format_matrix.mjs`。
+> 常见语义作为默认 viewer、其余语义作为 MIME 子类表达。
+>
+> **本表手工维护**：格式说明沿用两份参考清单的命名，同义重复（如
+> "Plain Text File / Plain text files"）已酌情精简；后续修正直接编辑本文件。
+> 类别按使用语义整理：**Text**（纯文本，已并入 Source Code，由 code-view 统一处理）、
+> **Documents**（编辑型/字处理文档）、
+> **Page Documents**（页面式文档：PDF/XPS/DjVu，固定排版或扫描件）、
+> **eBooks**（可重排电子书：EPUB/MOBI/FB2 系）。
 >
 > 同名不同义/双语义的后缀（按参考清单分多行列出）：
 - `.vst`：Visio（Visio Drawing Template）；Image（Truevision image）
@@ -38,22 +44,29 @@
 
 | 类别 | 后缀名 | 格式说明 | 是否支持，如何支持 |
 | --- | --- | --- | --- |
-| Text | .diz | Description in Zip File / Plain text files | ✅ code（扩展名规则） |
-| Text | .doc | Microsoft Word Document (Legacy) / Microsoft Word | ✅ onlyoffice（扩展名规则） |
-| Text | .docm | Microsoft Word Macro-Enabled Document / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Text | .docx | Microsoft Word Document / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Text | .dot | Microsoft Word Document Template / Microsoft Word | ✅ onlyoffice（扩展名规则） |
-| Text | .dotm | Microsoft Word Macro-Enabled Document Template / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Text | .dotx | Microsoft Word Document Template / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Text | .epub | EPUB eBook / ePub e-book | ✅ mupdf（扩展名规则） |
-| Text | .odt | OpenDocument Text Document | ✅ onlyoffice（扩展名规则） |
-| Text | .ott | OpenDocument Document Template | ✅ onlyoffice（扩展名规则） |
-| Text | .rtf | Rich Text Format File / Rich Text Format | ✅ onlyoffice（扩展名规则） |
-| Text | .txt | Plain Text File / Plain text files | ✅ code（扩展名规则） |
-| Text | .wps | Microsoft Works Word Processor Document | ✅ onlyoffice（扩展名规则） |
-| PDF & XPS | .oxps | Open XML Paper Specification File | ✅ mupdf（扩展名规则） |
-| PDF & XPS | .pdf | Portable Document Format File / Adobe Portable Document Format | ✅ pdf、pdfjs（扩展名规则） |
-| PDF & XPS | .xps | XML Paper Specification File / Microsoft XML Paper Specification | ✅ mupdf（扩展名规则） |
+| Documents | .chm | Compiled HTML Help File / Microsoft HTML Help | ✅ chm（扩展名规则） |
+| Documents | .doc | Microsoft Word Document (Legacy) / Microsoft Word | ✅ onlyoffice（扩展名规则） |
+| Documents | .docm | Microsoft Word Macro-Enabled Document / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
+| Documents | .docx | Microsoft Word Document / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
+| Documents | .dot | Microsoft Word Document Template / Microsoft Word | ✅ onlyoffice（扩展名规则） |
+| Documents | .dotm | Microsoft Word Macro-Enabled Document Template / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
+| Documents | .dotx | Microsoft Word Document Template / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
+| Documents | .odt | OpenDocument Text Document | ✅ onlyoffice（扩展名规则） |
+| Documents | .ott | OpenDocument Document Template | ✅ onlyoffice（扩展名规则） |
+| Documents | .rtf | Rich Text Format File / Rich Text Format | ✅ onlyoffice（扩展名规则） |
+| Documents | .wbk | Microsoft Word backup | ✅ onlyoffice（扩展名规则） |
+| Documents | .wps | Microsoft Works Word Processor Document | ✅ onlyoffice（扩展名规则） |
+| eBooks | .epub | EPUB eBook | ✅ mupdf（扩展名规则） |
+| eBooks | .fb2 | FictionBook e-book | ✅ mupdf（扩展名规则） |
+| eBooks | .fb2z | FictionBook e-book | ✅ mupdf（扩展名规则） |
+| eBooks | .fbz | FictionBook e-book | ✅ mupdf（扩展名规则） |
+| eBooks | .mobi | Mobipocket e-book | ✅ mupdf（扩展名规则） |
+| eBooks | .tcr | TCR e-book | ✅ mupdf（扩展名规则） |
+| Page Documents | .oxps | Open XML Paper Specification File | ✅ mupdf（扩展名规则） |
+| Page Documents | .pdf | Portable Document Format File / Adobe Portable Document Format | ✅ pdf、pdfjs（扩展名规则） |
+| Page Documents | .xps | XML Paper Specification File / Microsoft XML Paper Specification | ✅ mupdf（扩展名规则） |
+| Page Documents | .djvu | DejaVu document | ✅ mupdf（扩展名规则） |
+| Page Documents | .djv | DejaVu document | ✅ mupdf（扩展名规则） |
 | Spreadsheet | .csv | Comma Separated Values File | ✅ code（扩展名规则） |
 | Spreadsheet | .tsv | Tab Separated Values File | ✅ code（扩展名规则） |
 | Spreadsheet | .xls | Excel Spreadsheet (Legacy) / Microsoft Excel | ✅ onlyoffice（扩展名规则） |
@@ -426,7 +439,6 @@
 | Archive | .cab | Windows Cabinet File | ✅ archive（扩展名规则） |
 | Archive | .cbr | Comic Book RAR Archive / Comic Book archive | ✅ mupdf、archive（扩展名规则） |
 | Archive | .cbz | Comic Book Zip Archive / Comic Book archive | ✅ mupdf、archive（扩展名规则） |
-| Archive | .chm | Compiled HTML Help File / Microsoft HTML Help | ✅ chm（扩展名规则） |
 | Archive | .cpio | Unix CPIO Archive | ✅ archive（扩展名规则） |
 | Archive | .dd | Disk Doubler Archive | ❌ 非压缩包（原始磁盘镜像），libarchive 不处理 |
 | Archive | .deb | Debian Software Package | ✅ archive（扩展名规则） |
@@ -480,6 +492,7 @@
 | Source Code | .cs | C# Source Code File | ✅ code（扩展名规则） |
 | Source Code | .csh | C Shell Script | ✅ code（扩展名规则） |
 | Source Code | .dfm | Delphi Form | ✅ code（扩展名规则） |
+| Source Code | .diz | Description in Zip File | ✅ code（扩展名规则） |
 | Source Code | .dpk | Delphi Package | ✅ code（扩展名规则） |
 | Source Code | .dpr | Delphi Project File | ✅ code（扩展名规则） |
 | Source Code | .eba | EBasic Source Code File | ✅ code（扩展名规则） |
@@ -503,6 +516,7 @@
 | Source Code | .log | Log File | ✅ code（扩展名规则） |
 | Source Code | .lua | LUA Source Code File | ✅ code（扩展名规则） |
 | Source Code | .ml | ML Script | ✅ code（扩展名规则） |
+| Source Code | .nfo | Plain text files | ✅ code（扩展名规则） |
 | Source Code | .nsh | NSIS Header File | ✅ code（扩展名规则） |
 | Source Code | .nsi | NSIS Script | ✅ code（扩展名规则） |
 | Source Code | .ob2 | Oberon Source Code File | ✅ code（扩展名规则） |
@@ -525,6 +539,7 @@
 | Source Code | .sty | LaTeX Style | ✅ code（扩展名规则） |
 | Source Code | .tcl | Tcl Script | ✅ code（扩展名规则） |
 | Source Code | .tex | LaTeX Source Document | ✅ code（扩展名规则） |
+| Source Code | .txt | Plain Text File | ✅ code（扩展名规则） |
 | Source Code | .v | Verilog Source Code File | ✅ code（扩展名规则） |
 | Source Code | .vb | VBScript File | ✅ code（扩展名规则） |
 | Source Code | .vhd | VHDL File | ✅ code（扩展名规则） |
@@ -543,15 +558,6 @@
 | Source Code / Web | .php | PHP Source Code File / PHP source code | ✅ code（扩展名规则） |
 | Source Code / Web | .xml | XML File / XML container | ✅ code、web（扩展名规则） |
 | Source Code / Web | .xsl | XML Style Sheet / XML stylesheet | ✅ code、web（扩展名规则） |
-| Documents/Spreadsheets | .djv | DejaVu document | ✅ mupdf（扩展名规则） |
-| Documents/Spreadsheets | .djvu | DejaVu document | ✅ mupdf（扩展名规则） |
-| Documents/Spreadsheets | .fb2 | FictionBook e-book | ✅ mupdf（扩展名规则） |
-| Documents/Spreadsheets | .fb2z | FictionBook e-book | ✅ mupdf（扩展名规则） |
-| Documents/Spreadsheets | .fbz | FictionBook e-book | ✅ mupdf（扩展名规则） |
-| Documents/Spreadsheets | .mobi | Mobipocket e-book | ✅ mupdf（扩展名规则） |
-| Documents/Spreadsheets | .nfo | Plain text files | ✅ code（扩展名规则） |
-| Documents/Spreadsheets | .tcr | TCR e-book | ✅ mupdf（扩展名规则） |
-| Documents/Spreadsheets | .wbk | Microsoft Word backup | ✅ onlyoffice（扩展名规则） |
 
 ## 附录：非文件类型项（不追踪）
 
@@ -561,54 +567,54 @@
 
 | 类别 | 后缀名 | 格式说明 | 是否支持，如何支持 |
 | --- | --- | --- | --- |
-| 原始 PCM 流 | .alaw | PCM A-law format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .applehttp | Apple HTTP Live Streaming format | ❌ 未支持（待评估） |
-| 字幕 | .ass | Advanced SubStation Alpha subtitle format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .avm2 | Flash 9 (AVM2) format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .cavsvideo | raw Chinese AVS video | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .crc | CRC testing format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .f32be | PCM 32 bit floating-point big-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .f32le | PCM 32 bit floating-point little-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .f64be | PCM 64 bit floating-point big-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .f64le | PCM 64 bit floating-point little-endian format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .ffm | FFM (FFserver live feed) format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .ffmetadata | FFmpeg metadata in text format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .filmstrip | Adobe Filmstrip | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .framecrc | framecrc testing format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .framemd5 | Per-frame MD5 testing format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .image2 | image2 sequence | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .image2pipe | piped image2 sequence | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .matroska | Matroska file format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .md5 | MD5 testing format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .mpeg1video | raw MPEG-1 video | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .mpeg2video | raw MPEG-2 video | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .mpegts | MPEG-2 transport stream format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .mpegtsraw | MPEG-2 raw transport stream format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .mpegvideo | raw MPEG video | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .mpjpeg | MIME multipart JPEG format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .msnwctcp | MSN TCP Webcam stream | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .mulaw | PCM mu-law format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .null | raw null video format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .rawvideo | raw video format | ❌ 未支持（待评估） |
-| 网络协议 | .rtp | RTP output format | ❌ 未支持（待评估） |
-| 网络协议 | .rtsp | RTSP output format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .s16be | PCM signed 16 bit big-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .s16le | PCM signed 16 bit little-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .s24be | PCM signed 24 bit big-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .s24le | PCM signed 24 bit little-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .s32be | PCM signed 32 bit big-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .s32le | PCM signed 32 bit little-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .s8 | PCM signed 8 bit format | ❌ 未支持（待评估） |
-| 网络协议 | .sap | SAP output format | ❌ 未支持（待评估） |
-| 网络协议 | .sdp | SDP | ❌ 未支持（待评估） |
-| 字幕 | .srt | SubRip subtitle format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .u16be | PCM unsigned 16 bit big-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .u16le | PCM unsigned 16 bit little-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .u24be | PCM unsigned 24 bit big-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .u24le | PCM unsigned 24 bit little-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .u32be | PCM unsigned 32 bit big-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .u32le | PCM unsigned 32 bit little-endian format | ❌ 未支持（待评估） |
-| 原始 PCM 流 | .u8 | PCM unsigned 8 bit format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .vc1test | VC-1 test bitstream format | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .vfwcap | VFW video capture | ❌ 未支持（待评估） |
-| FFmpeg 伪格式 | .yuv4mpegpipe | YUV4MPEG pipe format | ❌ 未支持（待评估） |
+| FFmpeg Pseudo Formats | .applehttp | Apple HTTP Live Streaming format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .avm2 | Flash 9 (AVM2) format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .cavsvideo | raw Chinese AVS video | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .crc | CRC testing format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .ffm | FFM (FFserver live feed) format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .ffmetadata | FFmpeg metadata in text format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .filmstrip | Adobe Filmstrip | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .framecrc | framecrc testing format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .framemd5 | Per-frame MD5 testing format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .image2 | image2 sequence | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .image2pipe | piped image2 sequence | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .matroska | Matroska file format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .md5 | MD5 testing format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .mpeg1video | raw MPEG-1 video | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .mpeg2video | raw MPEG-2 video | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .mpegts | MPEG-2 transport stream format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .mpegtsraw | MPEG-2 raw transport stream format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .mpegvideo | raw MPEG video | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .mpjpeg | MIME multipart JPEG format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .msnwctcp | MSN TCP Webcam stream | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .null | raw null video format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .rawvideo | raw video format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .vc1test | VC-1 test bitstream format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .vfwcap | VFW video capture | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| FFmpeg Pseudo Formats | .yuv4mpegpipe | YUV4MPEG pipe format | ❌ 非文件类型（FFmpeg 流/管线名），无需覆盖 |
+| Raw PCM Streams | .alaw | PCM A-law format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .f32be | PCM 32 bit floating-point big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .f32le | PCM 32 bit floating-point little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .f64be | PCM 64 bit floating-point big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .f64le | PCM 64 bit floating-point little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .mulaw | PCM mu-law format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .s16be | PCM signed 16 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .s16le | PCM signed 16 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .s24be | PCM signed 24 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .s24le | PCM signed 24 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .s32be | PCM signed 32 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .s32le | PCM signed 32 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .s8 | PCM signed 8 bit format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .u16be | PCM unsigned 16 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .u16le | PCM unsigned 16 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .u24be | PCM unsigned 24 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .u24le | PCM unsigned 24 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .u32be | PCM unsigned 32 bit big-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .u32le | PCM unsigned 32 bit little-endian format | ❌ 原始采样流（扩展名不含编码参数） |
+| Raw PCM Streams | .u8 | PCM unsigned 8 bit format | ❌ 原始采样流（扩展名不含编码参数） |
+| Network Protocols | .rtp | RTP output format | ❌ 网络协议，非文件 |
+| Network Protocols | .rtsp | RTSP output format | ❌ 网络协议，非文件 |
+| Network Protocols | .sap | SAP output format | ❌ 网络协议，非文件 |
+| Network Protocols | .sdp | SDP | ❌ 网络协议，非文件 |
+| Subtitles | .ass | Advanced SubStation Alpha subtitle format | ❌ 字幕文件（播放时内嵌显示） |
+| Subtitles | .srt | SubRip subtitle format | ❌ 字幕文件（播放时内嵌显示） |
