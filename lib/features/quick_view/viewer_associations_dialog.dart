@@ -49,8 +49,16 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
   String? _selectedGroupId;
   String? _selectedRuleId;
   final Set<String> _collapsedRuleIds = {};
+  final TextEditingController _ruleFilterController = TextEditingController();
+  String _ruleFilter = '';
   double _groupsWidth = 190;
   double _rulesWidth = 310;
+
+  @override
+  void dispose() {
+    _ruleFilterController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +70,12 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
     );
     _selectedGroupId = activeGroup.id;
 
-    final flattened = _flattenRules(activeGroup.rules, _collapsedRuleIds);
+    final flattened = _ruleFilter.trim().isEmpty
+        ? _flattenRules(activeGroup.rules, _collapsedRuleIds)
+        : _filteredRules(
+            activeGroup.rules,
+            _ruleFilter.trim().toLowerCase(),
+          );
     final selectedRule = flattened
         .where((entry) => entry.rule.id == _selectedRuleId)
         .firstOrNull
@@ -132,6 +145,10 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
               width: rulesWidth,
               child: _RulesColumn(
                 entries: flattened,
+                filterController: _ruleFilterController,
+                filterQuery: _ruleFilter,
+                onFilterChanged: (value) =>
+                    setState(() => _ruleFilter = value),
                 selectedRuleId: selectedRule?.id,
                 onSelect: (id) => setState(() => _selectedRuleId = id),
                 onToggleCollapsed: (id) => setState(() {
@@ -533,6 +550,9 @@ class _GroupRow extends StatelessWidget {
 class _RulesColumn extends StatelessWidget {
   const _RulesColumn({
     required this.entries,
+    required this.filterController,
+    required this.filterQuery,
+    required this.onFilterChanged,
     required this.selectedRuleId,
     required this.onSelect,
     required this.onToggleCollapsed,
@@ -548,6 +568,9 @@ class _RulesColumn extends StatelessWidget {
   });
 
   final List<_RuleTreeEntry> entries;
+  final TextEditingController filterController;
+  final String filterQuery;
+  final ValueChanged<String> onFilterChanged;
   final String? selectedRuleId;
   final ValueChanged<String> onSelect;
   final ValueChanged<String> onToggleCollapsed;
@@ -570,6 +593,11 @@ class _RulesColumn extends StatelessWidget {
         children: [
           _ColumnToolbar(
             title: '规则',
+            afterTitle: _RuleFilterField(
+              controller: filterController,
+              query: filterQuery,
+              onChanged: onFilterChanged,
+            ),
             actions: [
               _IconAction(icon: Icons.add, tooltip: '新建规则', onPressed: onAdd),
               _IconAction(
@@ -587,9 +615,11 @@ class _RulesColumn extends StatelessWidget {
           ),
           Expanded(
             child: entries.isEmpty
-                ? const _EmptyState(
+                ? _EmptyState(
                     icon: Icons.account_tree_outlined,
-                    text: '此规则组中还没有规则',
+                    text: filterQuery.trim().isEmpty
+                        ? '此规则组中还没有规则'
+                        : '没有匹配的规则',
                   )
                 : ListView.builder(
                     key: const ValueKey('viewer-rules-tree'),
@@ -973,10 +1003,17 @@ class _ViewerRow extends StatelessWidget {
 }
 
 class _ColumnToolbar extends StatelessWidget {
-  const _ColumnToolbar({required this.title, required this.actions});
+  const _ColumnToolbar({
+    required this.title,
+    required this.actions,
+    this.afterTitle,
+  });
 
   final String title;
   final List<Widget> actions;
+
+  /// 标题右侧、操作按钮左侧的可选内容（如规则列的关键字过滤框）。
+  final Widget? afterTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -991,17 +1028,92 @@ class _ColumnToolbar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: c.textPrimary,
-                fontSize: AppMetrics.fontBody,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Row(
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: c.textPrimary,
+                    fontSize: AppMetrics.fontBody,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (afterTitle != null) ...[
+                  const SizedBox(width: 10),
+                  Expanded(child: afterTitle!),
+                ],
+              ],
             ),
           ),
           ...actions,
         ],
+      ),
+    );
+  }
+}
+
+/// 规则列的关键字过滤框：按规则的"名称"过滤下方规则树。
+class _RuleFilterField extends StatelessWidget {
+  const _RuleFilterField({
+    required this.controller,
+    required this.query,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String query;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return SizedBox(
+      height: 30,
+      child: TextField(
+        key: const ValueKey('viewer-rule-filter'),
+        controller: controller,
+        onChanged: onChanged,
+        style: TextStyle(fontSize: AppMetrics.fontSmall, color: c.textPrimary),
+        decoration: InputDecoration(
+          hintText: '过滤规则',
+          hintStyle: TextStyle(fontSize: AppMetrics.fontSmall, color: c.textTertiary),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          prefixIcon: Icon(
+            Icons.search,
+            size: AppMetrics.iconSm,
+            color: c.textTertiary,
+          ),
+          prefixIconConstraints: const BoxConstraints.tightFor(
+            width: 26,
+            height: 26,
+          ),
+          suffixIcon: query.isEmpty
+              ? null
+              : IconButton(
+                  key: const ValueKey('viewer-rule-filter-clear'),
+                  onPressed: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                  tooltip: '清除',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 24,
+                    height: 24,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.close, size: AppMetrics.iconSm),
+                ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            borderSide: BorderSide(color: c.borderStrong),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppMetrics.controlRadius),
+            borderSide: BorderSide(color: c.accent),
+          ),
+        ),
       ),
     );
   }
@@ -1302,6 +1414,44 @@ List<_RuleTreeEntry> _flattenRules(
   }
   return result;
 }
+
+/// 按关键字过滤规则树（只匹配规则的名称，见 [_ruleMatches]）。
+/// 仅保留"自身匹配或含匹配后代"的规则：匹配节点的祖先链作为上下文
+/// 一并保留，未匹配的旁支被剔除。
+List<_RuleTreeEntry> _filteredRules(
+  Iterable<ViewerRule> roots,
+  String query,
+) {
+  final result = <_RuleTreeEntry>[];
+  for (final rule in roots) {
+    _addFilteredRule(result, rule, 0, query);
+  }
+  return result;
+}
+
+void _addFilteredRule(
+  List<_RuleTreeEntry> out,
+  ViewerRule rule,
+  int depth,
+  String query,
+) {
+  final matchingChildren = rule.rules
+      .where((child) => _subtreeMatches(child, query))
+      .toList(growable: false);
+  if (!_ruleMatches(rule, query) && matchingChildren.isEmpty) return;
+  out.add(_RuleTreeEntry(rule: rule, depth: depth, collapsed: false));
+  for (final child in matchingChildren) {
+    _addFilteredRule(out, child, depth + 1, query);
+  }
+}
+
+bool _subtreeMatches(ViewerRule rule, String query) =>
+    _ruleMatches(rule, query) ||
+    rule.rules.any((child) => _subtreeMatches(child, query));
+
+/// 只按规则的"名称"（匹配值 [ViewerRule.value]）过滤，不匹配说明。
+bool _ruleMatches(ViewerRule rule, String query) =>
+    rule.value.toLowerCase().contains(query);
 
 bool _containsRule(ViewerRule root, String id) {
   if (root.id == id) return true;

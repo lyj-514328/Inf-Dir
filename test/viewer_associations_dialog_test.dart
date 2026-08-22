@@ -212,6 +212,42 @@ void main() {
     await tester.pump();
     expect(service.rule(rule.id).enabled, isFalse);
   });
+
+  testWidgets('rule filter matches the rule name only', (tester) async {
+    await _openDialog(tester, service);
+    await tester.tap(find.text('扩展名'));
+    await tester.pumpAndSettle();
+
+    // 默认显示 .txt 规则
+    expect(find.text('.txt'), findsOneWidget);
+
+    // 按名称（匹配值）过滤
+    await tester.enterText(
+      find.byKey(const ValueKey('viewer-rule-filter')),
+      'txt',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('.txt'), findsOneWidget);
+
+    // 说明（副标题"扩展名"）不参与过滤：只匹配名称时无结果
+    await tester.enterText(
+      find.byKey(const ValueKey('viewer-rule-filter')),
+      '扩展名',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('.txt'), findsNothing);
+    expect(find.text('没有匹配的规则'), findsOneWidget);
+
+    // 无匹配时显示空状态
+    await tester.enterText(
+      find.byKey(const ValueKey('viewer-rule-filter')),
+      '不存在的关键字',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('.txt'), findsNothing);
+    expect(find.text('没有匹配的规则'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<void> _openDialog(WidgetTester tester, QuickViewService service) async {
