@@ -17,7 +17,9 @@
 >   全量构建）；
 > - ImageMagick 实测 `magick -list format` 输出；
 > - Windows WIC：系统内置 codec（JXR、HEIF[+扩展]、WMF/EMF、DIB 等），优先于
->   ImageMagick 兜底，随 OS 版本/厂商 codec 安装情况浮动，不作为覆盖判定的确定性依据。
+>   ImageMagick 兜底；其中 Raw Image Decoder 注册了 `.BAY` `.PXN` `.PTX` 等相机 RAW
+>   后缀（`wic-decoder --list` 实测），超出 rawloader/ImageMagick 能力评估范围，
+>   随 OS 版本/厂商 codec 安装情况浮动，不作为覆盖判定的确定性依据。
 >
 > 注：无扩展名规则的文件可能经 `image/*`、`video/*`、`audio/*`、`text/*`
 > MIME 兜底命中（依赖系统注册的 Content Type 与后端解码能力）；同名冲突后缀的
@@ -160,7 +162,7 @@
 | Image | .psb | Adobe Photoshop Large Document Format | ✅ image（扩展名规则） |
 | Image | .psd | Adobe Photoshop Document / Photoshop image | ✅ image（扩展名规则） |
 | Image | .psp | Paintshop Pro image | ❌ ImageMagick 无对应 decoder |
-| Image | .ptx | V.Flash PTX Image | ❌ ImageMagick 无对应 decoder |
+| Image | .ptx | V.Flash PTX Image | ❌ ImageMagick 无对应 decoder（同名 `.ptx` 的 Pentax RAW 语义已支持，见 RAW 段） |
 | Image | .ras | SunOS Unix raster format | ✅ image（扩展名规则） |
 | Image | .rgb | RGB Bitmap / SGI image | ✅ image（扩展名规则） |
 | Image | .rgba | SGI image | ⚠️ ImageMagick 可解，未在配置声明（待实测） |
@@ -189,7 +191,7 @@
 | RAW | .3fr | Hasselblad 3F Raw Image / 3fr | ✅ image（扩展名规则） |
 | RAW | .ari | ARRIRAW Image | ✅ image（扩展名规则） |
 | RAW | .arw | Sony Digital Camera Image / arw | ✅ image（扩展名规则） |
-| RAW | .bay | Casio Raw Image / bay | ❌ rawloader/ImageMagick 无对应 coder |
+| RAW | .bay | Casio Raw Image / bay | ✅ image（扩展名规则；系统 WIC Raw Image Decoder，`wic-decoder --list` 实测注册 `.BAY`） |
 | RAW | .bmq | bmq | ❌ rawloader/ImageMagick 无对应 coder |
 | RAW | .cine | cine | ✅ image（扩展名规则） |
 | RAW | .cr2 | Canon Raw Image File / cr2 | ✅ image（扩展名规则） |
@@ -215,7 +217,8 @@
 | RAW | .nrw | Nikon Raw Image File / nrw | ✅ image（扩展名规则） |
 | RAW | .orf | Olympus Raw File / orf | ✅ image（扩展名规则） |
 | RAW | .pef | Pentax Electronic File / pef | ✅ image（扩展名规则） |
-| RAW | .pxn | pxn | ❌ rawloader/ImageMagick 无对应 coder |
+| RAW | .ptx | Pentax RAW / ptx | ✅ image（扩展名规则；系统 WIC Raw Image Decoder，`wic-decoder --list` 实测注册 `.PTX`；同名 V.Flash 图像语义见 Image 段） |
+| RAW | .pxn | pxn | ✅ image（扩展名规则；系统 WIC Raw Image Decoder，`wic-decoder --list` 实测注册 `.PXN`） |
 | RAW | .qtk | qtk | ❌ rawloader/ImageMagick 无对应 coder |
 | RAW | .raf | Fuji Raw Image File / raf | ✅ image（扩展名规则） |
 | RAW | .raw | Raw Image Data File / raw | ✅ image（扩展名规则） |
