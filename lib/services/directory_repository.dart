@@ -147,13 +147,13 @@ class DirectoryRepository {
 
     final removed = removedPaths.map(normPath).toSet();
     final next = cached
-        .where((entry) => !removed.contains(normPath(entry.path)))
+        .where((entry) => !removed.contains(normPath(entry.identity)))
         .toList();
     var changed = next.length != cached.length;
-    final existing = next.map((entry) => normPath(entry.path)).toSet();
+    final existing = next.map((entry) => normPath(entry.identity)).toSet();
     for (final entry in added) {
       if (!entry.isDirectory) continue; // 缓存只存目录（§7.1）
-      if (!existing.add(normPath(entry.path))) continue;
+      if (!existing.add(normPath(entry.identity))) continue;
       next.add(entry);
       changed = true;
     }
@@ -277,7 +277,7 @@ class DirectoryRepository {
 
         final dirs = page.where((e) => e.isDirectory).toList();
         for (final d in dirs) {
-          _hasChildrenCache[normPath(d.path)] = d.hasChildren;
+          _hasChildrenCache[normPath(d.identity)] = d.hasChildren;
         }
 
         // 不可变 List 替换，不在原地修改 Widget 正在读取的 List。

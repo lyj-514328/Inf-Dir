@@ -8,6 +8,9 @@
 #include <propvarutil.h>
 #include <string>
 
+#include "shell_debug.h"
+#include "shell_pidl.h"
+
 // -- GDI+ lazy init ---------------------------------------------------
 
 static bool g_gdiplusReady = false;
@@ -122,15 +125,16 @@ static unsigned char* GetShellImagePng(
     if (FAILED(hr)) return nullptr;
     comInitialized = (hr == S_OK);
 
-    std::wstring parsingPath = path;
-    if (parsingPath.substr(0, 3) == L"::{") {
-        parsingPath = L"shell:" + parsingPath;
-    }
-
     IShellItemImageFactory* factory = nullptr;
-    hr = SHCreateItemFromParsingName(
-        parsingPath.c_str(), nullptr, IID_IShellItemImageFactory, (void**)&factory);
+    IShellItem* shellItem = nullptr;
+    hr = InfDirCreateShellItemFromPath(path, &shellItem);
+    if (SUCCEEDED(hr) && shellItem) {
+        hr = shellItem->QueryInterface(IID_PPV_ARGS(&factory));
+        shellItem->Release();
+    }
     if (FAILED(hr) || !factory) {
+        InfDirShellLog(L"icon resolve failed path=" + std::wstring(path) + L" hr=0x" +
+                       std::to_wstring(static_cast<unsigned long>(hr)));
         if (comInitialized) CoUninitialize();
         return nullptr;
     }
@@ -139,6 +143,8 @@ static unsigned char* GetShellImagePng(
     hr = factory->GetImage({size, size}, siigbfFlags, &hBitmap);
     factory->Release();
     if (FAILED(hr) || !hBitmap) {
+        InfDirShellLog(L"icon image failed path=" + std::wstring(path) + L" hr=0x" +
+                       std::to_wstring(static_cast<unsigned long>(hr)));
         if (comInitialized) CoUninitialize();
         return nullptr;
     }
@@ -151,7 +157,14 @@ static unsigned char* GetShellImagePng(
 
 extern "C" __declspec(dllexport)
 unsigned char* GetFileIconPngW(const wchar_t* path, int size, int* outSize) {
-    return GetShellImagePng(path, size, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK, outSize);
+    auto* result = GetShellImagePng(
+        path, size, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK, outSize);
+    if (path) {
+        InfDirShellLog(L"icon request path=" + std::wstring(path) +
+                       L" size=" + std::to_wstring(size) + L" resultBytes=" +
+                       std::to_wstring(result && outSize ? *outSize : 0));
+    }
+    return result;
 }
 
 extern "C" __declspec(dllexport)

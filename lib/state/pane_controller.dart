@@ -791,7 +791,7 @@ class PaneController extends ChangeNotifier {
 
     for (final path in addedPaths) {
       if (p.dirname(path) != _currentPath ||
-          _entries.any((entry) => entry.path == path)) {
+          _entries.any((entry) => entry.identity == path)) {
         continue;
       }
       final entry = FileService.inspectEntry(path);
@@ -799,10 +799,10 @@ class PaneController extends ChangeNotifier {
     }
 
     final next = _entries
-        .where((entry) => !removed.contains(entry.path))
+        .where((entry) => !removed.contains(entry.identity))
         .toList();
-    final existing = next.map((entry) => entry.path).toSet();
-    next.addAll(added.where((entry) => existing.add(entry.path)));
+    final existing = next.map((entry) => entry.identity).toSet();
+    next.addAll(added.where((entry) => existing.add(entry.identity)));
     _entries = _sortedEntries(next);
 
     _selectedPaths.removeAll(removed);
@@ -1065,7 +1065,7 @@ class PaneController extends ChangeNotifier {
 
     _selectedPaths.clear();
     for (int i = start; i <= end; i++) {
-      _selectedPaths.add(visible[i].path);
+      _selectedPaths.add(visible[i].identity);
     }
     notifyListeners();
   }
@@ -1074,7 +1074,7 @@ class PaneController extends ChangeNotifier {
     _selectedPaths.clear();
     final visible = visibleEntries;
     for (final e in visible) {
-      _selectedPaths.add(e.path);
+      _selectedPaths.add(e.identity);
     }
     _focusedPath ??= visible.isEmpty ? null : visible.first.path;
     notifyListeners();
@@ -1083,8 +1083,8 @@ class PaneController extends ChangeNotifier {
   void invertSelection() {
     final visible = visibleEntries;
     for (final entry in visible) {
-      if (!_selectedPaths.remove(entry.path)) {
-        _selectedPaths.add(entry.path);
+      if (!_selectedPaths.remove(entry.identity)) {
+        _selectedPaths.add(entry.identity);
       }
     }
     _focusedPath ??= visible.isEmpty ? null : visible.first.path;

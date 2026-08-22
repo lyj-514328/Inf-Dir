@@ -6,10 +6,10 @@ import 'enumeration_worker.dart';
 
 // Native function signatures
 
-typedef _ListDirectoryNative = Pointer<Uint8> Function(
-    Pointer<Utf16> path, Pointer<Int32> outSize);
-typedef _ListDirectoryDart = Pointer<Uint8> Function(
-    Pointer<Utf16> path, Pointer<Int32> outSize);
+typedef _ListDirectoryNative =
+    Pointer<Uint8> Function(Pointer<Utf16> path, Pointer<Int32> outSize);
+typedef _ListDirectoryDart =
+    Pointer<Uint8> Function(Pointer<Utf16> path, Pointer<Int32> outSize);
 
 typedef _FreeDirEntriesNative = Void Function(Pointer<Uint8> ptr);
 typedef _FreeDirEntriesDart = void Function(Pointer<Uint8> ptr);
@@ -18,15 +18,19 @@ typedef _GetDisplayNameNative = Pointer<Utf16> Function(Pointer<Utf16> path);
 typedef _GetDisplayNameDart = Pointer<Utf16> Function(Pointer<Utf16> path);
 
 // Session-based paged enumeration
-typedef _BeginShellEnumNative = Int32 Function(
-    Pointer<Utf16> path, Int32 directoriesOnly);
-typedef _BeginShellEnumDart = int Function(
-    Pointer<Utf16> path, int directoriesOnly);
+typedef _BeginShellEnumNative =
+    Int32 Function(Pointer<Utf16> path, Int32 directoriesOnly);
+typedef _BeginShellEnumDart =
+    int Function(Pointer<Utf16> path, int directoriesOnly);
 
-typedef _GetNextEnumPageNative = Pointer<Uint8> Function(
-    Int32 sessionId, Int32 count, Pointer<Int32> outSize);
-typedef _GetNextEnumPageDart = Pointer<Uint8> Function(
-    int sessionId, int count, Pointer<Int32> outSize);
+typedef _GetNextEnumPageNative =
+    Pointer<Uint8> Function(
+      Int32 sessionId,
+      Int32 count,
+      Pointer<Int32> outSize,
+    );
+typedef _GetNextEnumPageDart =
+    Pointer<Uint8> Function(int sessionId, int count, Pointer<Int32> outSize);
 
 typedef _EndShellEnumNative = Void Function(Int32 sessionId);
 typedef _EndShellEnumDart = void Function(int sessionId);
@@ -37,34 +41,40 @@ typedef _SetShowHiddenFilesDart = void Function(int show);
 class DirectoryService {
   static final _list = DynamicLibrary.process()
       .lookupFunction<_ListDirectoryNative, _ListDirectoryDart>(
-          'ListDirectoryEntries');
+        'ListDirectoryEntries',
+      );
 
   static final _free = DynamicLibrary.process()
       .lookupFunction<_FreeDirEntriesNative, _FreeDirEntriesDart>(
-          'FreeDirectoryEntries');
+        'FreeDirectoryEntries',
+      );
 
   static final _getDisplayName = DynamicLibrary.process()
       .lookupFunction<_GetDisplayNameNative, _GetDisplayNameDart>(
-          'GetShellDisplayName');
+        'GetShellDisplayName',
+      );
 
   static final _beginEnum = DynamicLibrary.process()
       .lookupFunction<_BeginShellEnumNative, _BeginShellEnumDart>(
-          'BeginShellEnum');
+        'BeginShellEnum',
+      );
 
   static final _nextPage = DynamicLibrary.process()
       .lookupFunction<_GetNextEnumPageNative, _GetNextEnumPageDart>(
-          'GetNextEnumPage');
+        'GetNextEnumPage',
+      );
 
   static final _endEnum = DynamicLibrary.process()
-      .lookupFunction<_EndShellEnumNative, _EndShellEnumDart>(
-          'EndShellEnum');
+      .lookupFunction<_EndShellEnumNative, _EndShellEnumDart>('EndShellEnum');
 
   static final _setShowHiddenFiles = DynamicLibrary.process()
       .lookupFunction<_SetShowHiddenFilesNative, _SetShowHiddenFilesDart>(
-          'SetShowHiddenFiles');
+        'SetShowHiddenFiles',
+      );
 
   /// Toggle hidden/system file filtering at the native layer.
-  static void setShowHiddenFiles(bool show) => _setShowHiddenFiles(show ? 1 : 0);
+  static void setShowHiddenFiles(bool show) =>
+      _setShowHiddenFiles(show ? 1 : 0);
 
   /// Cache for shell display names to avoid repeated FFI calls.
   static final Map<String, String> _displayNameCache = {};
@@ -93,8 +103,10 @@ class DirectoryService {
   /// folders (Recycle Bin, This PC), and drive roots.
   ///
   /// Returns an empty list on error.
-  static List<FileEntry> listDirectory(String path,
-      {void Function(int ffiMs, int parseMs, int sortMs, int count)? onPerf}) {
+  static List<FileEntry> listDirectory(
+    String path, {
+    void Function(int ffiMs, int parseMs, int sortMs, int count)? onPerf,
+  }) {
     final pathPtr = path.toNativeUtf16();
     final outSize = calloc<Int32>();
 
@@ -144,6 +156,7 @@ class DirectoryService {
   ///     [nameLen: int32] [nameChars: wchar_t[]]
   ///     [nameSortKeyLen: int32] [nameSortKey: byte[]]
   ///     [pathLen: int32] [pathChars: wchar_t[]]
+  ///     [shellIdLen: int32] [shellIdChars: wchar_t[]]
   ///     [isDirectory: int32]
   ///     [hasChildren: int32]
   ///     [sizeBytes: int64]
@@ -166,6 +179,8 @@ class DirectoryService {
       offset = o2;
       final (filePath, o3) = _readWStr(buf, offset);
       offset = o3;
+      final (shellId, oShellId) = _readWStr(buf, offset);
+      offset = oShellId;
 
       int isDir = 0;
       if (offset + 4 <= totalSize) {
@@ -188,8 +203,9 @@ class DirectoryService {
       final (modifiedDateStr, o4) = _readWStr(buf, offset);
       offset = o4;
 
+      var isRecycleBinItem = false;
       if (offset + 4 <= totalSize) {
-        // isRecycleBinItem; parsingName below carries the same signal.
+        isRecycleBinItem = (buf + offset).cast<Int32>().value != 0;
         offset += 4;
       }
 
@@ -200,22 +216,22 @@ class DirectoryService {
       final (parsingName, o7) = _readWStr(buf, offset);
       offset = o7;
 
-      // Drive roots show "Windows (C:)" as name but we want path to be C:\
-      // isRecycleBinItem check tells us whether this is a recycle bin entry
-      final itemPath = parsingName.isNotEmpty ? parsingName : filePath;
-
-      items.add(FileEntry(
-        name: name.isNotEmpty ? name : '(unknown)',
-        nameSortKey: nameSortKey.isEmpty ? null : nameSortKey,
-        path: itemPath,
-        isDirectory: isDir != 0,
-        hasChildren: hasChildren != 0,
-        size: sizeBytes,
-        modified: _parseDate(modifiedDateStr),
-        originalPath: originalPath.isNotEmpty ? originalPath : null,
-        recycleDate: recycleDateStr.isNotEmpty ? recycleDateStr : null,
-        parsingName: parsingName.isNotEmpty ? parsingName : null,
-      ));
+      items.add(
+        FileEntry(
+          name: name.isNotEmpty ? name : '(unknown)',
+          nameSortKey: nameSortKey.isEmpty ? null : nameSortKey,
+          path: filePath.isNotEmpty ? filePath : null,
+          shellId: shellId.isNotEmpty ? shellId : null,
+          isDirectory: isDir != 0,
+          hasChildren: hasChildren != 0,
+          size: sizeBytes,
+          modified: _parseDate(modifiedDateStr),
+          originalPath: originalPath.isNotEmpty ? originalPath : null,
+          recycleDate: recycleDateStr.isNotEmpty ? recycleDateStr : null,
+          parsingName: parsingName.isNotEmpty ? parsingName : null,
+          isRecycleBinEntry: isRecycleBinItem,
+        ),
+      );
     }
 
     return items;
@@ -256,8 +272,12 @@ class DirectoryService {
       final tp = parts[1].split(':');
       if (dp.length != 3 || tp.length != 3) return DateTime.now();
       return DateTime(
-        int.parse(dp[0]), int.parse(dp[1]), int.parse(dp[2]),
-        int.parse(tp[0]), int.parse(tp[1]), int.parse(tp[2]),
+        int.parse(dp[0]),
+        int.parse(dp[1]),
+        int.parse(dp[2]),
+        int.parse(tp[0]),
+        int.parse(tp[1]),
+        int.parse(tp[2]),
       );
     } catch (_) {
       return DateTime.now();
@@ -277,8 +297,7 @@ class DirectoryService {
 
   /// Get the next page of items. Returns null when no more items.
   /// [count] is the maximum number of items to fetch.
-  static List<FileEntry>? getNextEnumPage(int sessionId,
-      {int count = 100}) {
+  static List<FileEntry>? getNextEnumPage(int sessionId, {int count = 100}) {
     final outSize = calloc<Int32>();
     final ptr = _nextPage(sessionId, count, outSize);
 
@@ -305,8 +324,10 @@ class DirectoryService {
   ///
   /// 枚举 session 在常驻 worker isolate 的线程上创建与翻页（COM 线程
   /// 亲和性），不再阻塞 UI isolate。
-  static Future<DirectoryCursor?> openCursor(String path,
-      {bool directoriesOnly = false}) async {
+  static Future<DirectoryCursor?> openCursor(
+    String path, {
+    bool directoriesOnly = false,
+  }) async {
     final id = await EnumerationWorker.instance.begin(
       path,
       directoriesOnly: directoriesOnly,

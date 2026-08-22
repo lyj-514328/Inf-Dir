@@ -238,11 +238,11 @@ class _SidebarTreeState extends State<SidebarTree> {
     required String parentPath,
   }) {
     for (final dir in dirs) {
-      final expanded = sidebar.isExpanded(dir.path);
+      final expanded = sidebar.isExpanded(dir.identity);
       out.add(
         _TreeRow(
           type: _RowType.directory,
-          path: dir.path,
+          path: dir.identity,
           name: dir.name,
           depth: depth,
           isExpanded: expanded,
@@ -251,9 +251,9 @@ class _SidebarTreeState extends State<SidebarTree> {
         ),
       );
       if (expanded) {
-        final children = sidebar.childrenFor(dir.path);
+        final children = sidebar.childrenFor(dir.identity);
         if (children.isNotEmpty) {
-          _flattenDir(sidebar, children, depth + 1, out, parentPath: dir.path);
+          _flattenDir(sidebar, children, depth + 1, out, parentPath: dir.identity);
         }
       }
     }

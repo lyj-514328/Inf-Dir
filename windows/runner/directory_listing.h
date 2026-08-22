@@ -18,7 +18,8 @@ extern "C" {
 //   for each item:
 //     [nameLen: int32] [nameChars: wchar_t[]]          -- display name
 //     [nameSortKeyLen: int32] [nameSortKey: byte[]]    -- Windows natural sort key
-//     [pathLen: int32] [pathChars: wchar_t[]]          -- full path / parsing name
+//     [pathLen: int32] [pathChars: wchar_t[]]          -- filesystem path, empty for Shell-only items
+//     [shellIdLen: int32] [shellIdChars: wchar_t[]]    -- opaque Shell identity, if any
 //     [isDirectory: int32]
 //     [hasChildren: int32]                              -- 1 if directory has sub-items
 //     [sizeBytes: int64]
@@ -26,7 +27,7 @@ extern "C" {
 //     [isRecycleBinItem: int32]                        -- 1 if from recycle bin
 //     [originalPathLen: int32] [originalPathChars: wchar_t[]]  -- recycle bin only
 //     [recycleDateLen: int32] [recycleDateChars: wchar_t[]]    -- recycle bin only
-//     [parsingNameLen: int32] [parsingNameChars: wchar_t[]]    -- recycle bin shell parsing name
+//     [parsingNameLen: int32] [parsingNameChars: wchar_t[]]    -- Recycle Bin parsing name
 //
 // The caller must call FreeDirectoryEntries() to release the buffer.
 __declspec(dllexport)

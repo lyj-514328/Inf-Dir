@@ -7,6 +7,21 @@ import 'shell_context_menu.dart';
 import 'shell_file_operation.dart';
 
 class FileService {
+  static void _shellDebugLog(String message) {
+    try {
+      final logFile = File(
+        p.join(Directory.systemTemp.path, 'inf-dir-shell.log'),
+      );
+      logFile.writeAsStringSync(
+        '${DateTime.now().toIso8601String()} dart $message\n',
+        mode: FileMode.append,
+        flush: true,
+      );
+    } on Object {
+      // Diagnostics must never affect normal file opening.
+    }
+  }
+
   /// Virtual path used by the Files home page. It is not a filesystem path.
   static const String homeViewPath = 'shell:InfDirHome';
 
@@ -37,7 +52,9 @@ class FileService {
   /// Returns true if [path] is a virtual shell path (Recycle Bin, etc.)
   /// rather than a regular filesystem path.
   static bool isSpecialPath(String path) {
-    return path.startsWith('shell:') || path.startsWith('::');
+    return path.startsWith('shell:') ||
+        path.startsWith('::') ||
+        path.startsWith(r'\\SHELL\');
   }
 
   static bool isHomePath(String path) => path == homeViewPath;
@@ -66,6 +83,16 @@ class FileService {
 
   static Future<void> openFile(String filePath) async {
     await Process.run('cmd', ['/c', 'start', '', filePath]);
+  }
+
+  static Future<void> openShellItem(String path) async {
+    final opened = ShellFileOperation.openShellItem(path);
+    _shellDebugLog('open path=${path.replaceAll('\n', ' ')} result=$opened');
+    if (!opened) {
+      // Keep the existing fallback for non-Windows test environments.
+      await openFile(path);
+      _shellDebugLog('fallback cmd-start path=${path.replaceAll('\n', ' ')}');
+    }
   }
 
   static Future<void> openContainingFolder(String filePath) async {
@@ -338,14 +365,13 @@ class FileService {
   /// Returns the missing entries (for UI prompting) and the per-entry
   /// targets, aligned with [entries].
   static ({List<FileEntry> missing, List<String?> destinations})
-      planRestoreDestinations(List<FileEntry> entries, {String? fallback}) {
+  planRestoreDestinations(List<FileEntry> entries, {String? fallback}) {
     final missing = <FileEntry>[];
     final destinations = <String?>[];
     for (final entry in entries) {
       final original = entry.originalPath?.trim();
-      final originalExists = original != null &&
-          original.isNotEmpty &&
-          _directoryExists(original);
+      final originalExists =
+          original != null && original.isNotEmpty && _directoryExists(original);
       if (!originalExists) missing.add(entry);
       destinations.add(originalExists ? null : fallback);
     }

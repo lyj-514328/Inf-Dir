@@ -135,6 +135,26 @@ typedef _PickFolderDart =
     );
 typedef _FreeCoTaskMemNative = Void Function(Pointer<Utf16> ptr);
 typedef _FreeCoTaskMemDart = void Function(Pointer<Utf16> ptr);
+typedef _ShellExecuteNative =
+    IntPtr Function(
+      Pointer<Void> hwnd,
+      Pointer<Utf16> verb,
+      Pointer<Utf16> file,
+      Pointer<Utf16> parameters,
+      Pointer<Utf16> directory,
+      Int32 show,
+    );
+typedef _ShellExecuteDart =
+    int Function(
+      Pointer<Void> hwnd,
+      Pointer<Utf16> verb,
+      Pointer<Utf16> file,
+      Pointer<Utf16> parameters,
+      Pointer<Utf16> directory,
+      int show,
+    );
+typedef _OpenShellItemNative = Int32 Function(Pointer<Utf16> path);
+typedef _OpenShellItemDart = int Function(Pointer<Utf16> path);
 
 /// Windows Shell `IFileOperation` wrapper: copy/move/delete go through the
 /// shell so they participate in the undo stack (FOF_ALLOWUNDO) and the shared
@@ -159,8 +179,60 @@ class ShellFileOperation {
   static _RestoreRecycleBinDart? _restoreRecycleBin;
   static _PickFolderDart? _pickFolder;
   static _FreeCoTaskMemDart? _freeCoTaskMem;
+  static _ShellExecuteDart? _shellExecute;
+  static _OpenShellItemDart? _openShellItem;
   static bool _tried = false;
   static bool _asyncTried = false;
+  static bool _shellExecuteTried = false;
+  static bool _openShellItemTried = false;
+
+  /// Opens a virtual Shell item with its default Windows `open` verb.
+  static bool openShellItem(String path) {
+    if (!Platform.isWindows) return false;
+    if (!_openShellItemTried) {
+      _openShellItemTried = true;
+      try {
+        _openShellItem = DynamicLibrary.process()
+            .lookupFunction<_OpenShellItemNative, _OpenShellItemDart>(
+              'OpenShellItemW',
+            );
+      } on Object {
+        _openShellItem = null;
+      }
+    }
+    final nativeOpen = _openShellItem;
+    if (nativeOpen != null && path.isNotEmpty) {
+      final target = path.toNativeUtf16();
+      try {
+        return nativeOpen(target) == 0;
+      } finally {
+        calloc.free(target);
+      }
+    }
+
+    if (!_shellExecuteTried) {
+      _shellExecuteTried = true;
+      try {
+        _shellExecute = DynamicLibrary.open('shell32.dll')
+            .lookupFunction<_ShellExecuteNative, _ShellExecuteDart>(
+              'ShellExecuteW',
+            );
+      } on Object {
+        _shellExecute = null;
+      }
+    }
+    final execute = _shellExecute;
+    if (execute == null || path.isEmpty) return false;
+
+    final verb = 'open'.toNativeUtf16();
+    final target = path.toNativeUtf16();
+    try {
+      return execute(nullptr, verb, target, nullptr, nullptr, 1) > 32;
+    } finally {
+      calloc.free(verb);
+      calloc.free(target);
+    }
+  }
 
   /// Whether the native `RunFileOperationW` symbol is available. False when
   /// running under the Dart VM (tests) or on non-Windows, so callers fall back
@@ -303,7 +375,10 @@ class ShellFileOperation {
         onProgress?.call(1);
         return const [];
       } on FileSystemException catch (error) {
-        throw ShellFileOperationException(_hrFromMessage(error.message), const []);
+        throw ShellFileOperationException(
+          _hrFromMessage(error.message),
+          const [],
+        );
       }
     }
 
@@ -330,10 +405,7 @@ class ShellFileOperation {
         operationId,
       );
       if (startHr != 0) {
-        throw ShellFileOperationException(
-          startHr,
-          const [],
-        );
+        throw ShellFileOperationException(startHr, const []);
       }
       return await _awaitOperation(
         operationId.value,
@@ -375,7 +447,10 @@ class ShellFileOperation {
         onProgress?.call(1);
         return const [];
       } on FileSystemException catch (error) {
-        throw ShellFileOperationException(_hrFromMessage(error.message), const []);
+        throw ShellFileOperationException(
+          _hrFromMessage(error.message),
+          const [],
+        );
       }
     }
 
@@ -450,10 +525,7 @@ class ShellFileOperation {
       while (true) {
         final pollHr = poll(operationId, status, progress, result);
         if (pollHr != 0) {
-          throw ShellFileOperationException(
-            pollHr,
-            _takeResults(operationId),
-          );
+          throw ShellFileOperationException(pollHr, _takeResults(operationId));
         }
         onProgress?.call((progress.value / 100).clamp(0, 1).toDouble());
         if (cancelRequested?.call() == true && !cancelSent) {
@@ -585,14 +657,12 @@ class ShellFileOperation {
           .lookupFunction<_CancelAsyncNative, _CancelAsyncDart>(
             'InfDirCancelFileOperationW',
           );
-      _getResults = library
-          .lookupFunction<_GetResultsNative, _GetResultsDart>(
-            'InfDirGetFileOperationResultsW',
-          );
-      _closeAsync = library
-          .lookupFunction<_CloseAsyncNative, _CloseAsyncDart>(
-            'InfDirCloseFileOperationW',
-          );
+      _getResults = library.lookupFunction<_GetResultsNative, _GetResultsDart>(
+        'InfDirGetFileOperationResultsW',
+      );
+      _closeAsync = library.lookupFunction<_CloseAsyncNative, _CloseAsyncDart>(
+        'InfDirCloseFileOperationW',
+      );
       _freeUtf8 = library.lookupFunction<_FreeUtf8Native, _FreeUtf8Dart>(
         'FreeCoTaskMemW',
       );

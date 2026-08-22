@@ -10,6 +10,9 @@
 #include <memory>
 #include <mutex>
 
+#include "shell_debug.h"
+#include "shell_pidl.h"
+
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "propsys.lib")
 
@@ -117,7 +120,8 @@ static std::wstring GetShellItemString(IShellItem2* item2, const PROPERTYKEY& pk
 
 static bool IsVirtualShellPath(const wchar_t* path) {
     return (wcsstr(path, L"shell:") != nullptr ||
-            wcsstr(path, L"::{") != nullptr);
+            wcsstr(path, L"::{") != nullptr ||
+            InfDirIsPidlPath(path));
 }
 
 static bool IsRecycleBinPath(const wchar_t* path) {
@@ -128,6 +132,19 @@ static bool IsRecycleBinPath(const wchar_t* path) {
 static bool IsMyComputerPath(const wchar_t* path) {
     return (wcsstr(path, L"MyComputerFolder") != nullptr ||
             wcsstr(path, L"20D04FE0") != nullptr);
+}
+
+static std::wstring ShellItemLogValue(const std::wstring& value) {
+    return value.empty() ? L"<empty>" : value;
+}
+
+static std::wstring GetShellDisplayNameForLog(
+    IShellItem* item, SIGDN flags) {
+    LPWSTR value = nullptr;
+    if (FAILED(item->GetDisplayName(flags, &value)) || !value) return L"";
+    std::wstring result = value;
+    CoTaskMemFree(value);
+    return result;
 }
 
 // -- Enumerate Shell virtual folder via BHID_EnumItems -----------------
@@ -142,8 +159,7 @@ static bool EnumerateShellFolder(const wchar_t* path,
 
     // Resolve IShellItem for the folder
     IShellItem* folderItem = nullptr;
-    HRESULT hr = SHCreateItemFromParsingName(path, nullptr,
-        IID_PPV_ARGS(&folderItem));
+    HRESULT hr = InfDirCreateShellItemFromPath(path, &folderItem);
     if (FAILED(hr) || !folderItem)
         return false;
 
@@ -200,7 +216,17 @@ static bool EnumerateShellFolder(const wchar_t* path,
             std::wstring modifiedDate;
             std::wstring originalPath;
             std::wstring recycleDate;
-            std::wstring parsingName;
+            // Preserve the absolute Shell parsing name for every virtual
+            // item. Namespace extensions use it for their icon and open verb.
+            std::wstring parentParsing = GetShellDisplayNameForLog(
+                child, SIGDN_PARENTRELATIVEPARSING);
+            const auto pidlPath = InfDirPidlPathFromShellItem(child);
+            const bool usePidl = !isRecycleBinItem &&
+                (parentParsing.rfind(L"::{", 0) == 0 ||
+                 parentParsing.rfind(L"shell:", 0) == 0);
+            const std::wstring shellId = usePidl ? pidlPath : L"";
+            const std::wstring itemPath = usePidl ? L"" : filePath;
+            const std::wstring parsingName = isRecycleBinItem ? filePath : L"";
 
             IShellItem2* item2 = nullptr;
             if (SUCCEEDED(child->QueryInterface(IID_PPV_ARGS(&item2)))) {
@@ -239,7 +265,6 @@ static bool EnumerateShellFolder(const wchar_t* path,
                             recycleDate = FormatFileTime(ft);
                     }
 
-                    parsingName = filePath;
                 } else {
                     // Modified date (skip for recycle bin, we use DateDeleted instead)
                     FILETIME ft = {};
@@ -250,9 +275,22 @@ static bool EnumerateShellFolder(const wchar_t* path,
                 item2->Release();
             }
 
+            InfDirShellLog(L"list item name=" + ShellItemLogValue(name) +
+                           L" path=" + ShellItemLogValue(filePath) +
+                           L" shellId=" + ShellItemLogValue(shellId) +
+                           L" parsing=" + ShellItemLogValue(parsingName) +
+                           L" parentParsing=" + ShellItemLogValue(parentParsing) +
+                           L" editing=" + ShellItemLogValue(
+                               GetShellDisplayNameForLog(
+                                   child, SIGDN_DESKTOPABSOLUTEEDITING)) +
+                           L" isDir=" + std::to_wstring(isDirectory) +
+                           L" recycle=" +
+                           std::to_wstring(isRecycleBinItem ? 1 : 0));
+
             // Write item to buffer
             AppendNameAndSortKey(buf, name);
-            AppendString(buf, filePath);
+            AppendString(buf, itemPath);
+            AppendString(buf, shellId);
             AppendInt32(buf, isDirectory);
             // For shell folders, if it's a directory we optimistically
             // mark hasChildren; the actual check is expensive.
@@ -315,6 +353,7 @@ static void EnumerateFilesystem(const wchar_t* path,
 
         AppendNameAndSortKey(buf, name);
         AppendString(buf, fullPath);
+        AppendString(buf, L""); // shellId
         AppendInt32(buf, isDirectory);
         AppendInt32(buf, hasChildren);
         AppendInt64(buf, sizeBytes);
@@ -379,6 +418,7 @@ static void EnumerateDrives(std::vector<unsigned char>& buf, int32_t& count) {
 
         AppendNameAndSortKey(buf, label); // name and natural sort key
         AppendString(buf, root);        // path
+        AppendString(buf, L"");         // shellId
         AppendInt32(buf, 1);            // isDirectory
         AppendInt32(buf, hasChildren);  // hasChildren
         AppendInt64(buf, 0);            // size
@@ -447,7 +487,7 @@ wchar_t* GetShellDisplayName(const wchar_t* path) {
     bool comInit = (hr == S_OK);
 
     IShellItem* item = nullptr;
-    hr = SHCreateItemFromParsingName(path, nullptr, IID_PPV_ARGS(&item));
+    hr = InfDirCreateShellItemFromPath(path, &item);
     if (FAILED(hr) || !item) {
         if (comInit) CoUninitialize();
         return nullptr;
@@ -524,7 +564,16 @@ static void WriteShellItemToBuffer(
     std::wstring modifiedDate;
     std::wstring originalPath;
     std::wstring recycleDate;
-    std::wstring parsingName;
+    // Keep the Shell identity for non-Recycle-Bin namespace items too.
+    std::wstring parentParsing = GetShellDisplayNameForLog(
+        child, SIGDN_PARENTRELATIVEPARSING);
+    const auto pidlPath = InfDirPidlPathFromShellItem(child);
+    const bool usePidl = !session.isRecycleBinItem &&
+        (parentParsing.rfind(L"::{", 0) == 0 ||
+         parentParsing.rfind(L"shell:", 0) == 0);
+    const std::wstring shellId = usePidl ? pidlPath : L"";
+    const std::wstring itemPath = usePidl ? L"" : filePath;
+    const std::wstring parsingName = session.isRecycleBinItem ? filePath : L"";
 
     IShellItem2* item2 = nullptr;
     if (SUCCEEDED(child->QueryInterface(IID_PPV_ARGS(&item2)))) {
@@ -569,7 +618,6 @@ static void WriteShellItemToBuffer(
                         recycleDate = FormatFileTime(ft);
                 }
             }
-            parsingName = filePath;
         } else {
             FILETIME ft = {};
             if (SUCCEEDED(item2->GetFileTime(PKEY_DateModified, &ft)))
@@ -579,8 +627,21 @@ static void WriteShellItemToBuffer(
         item2->Release();
     }
 
+    InfDirShellLog(L"page item name=" + ShellItemLogValue(name) +
+                   L" path=" + ShellItemLogValue(filePath) +
+                   L" shellId=" + ShellItemLogValue(shellId) +
+                   L" parsing=" + ShellItemLogValue(parsingName) +
+                   L" parentParsing=" + ShellItemLogValue(parentParsing) +
+                   L" editing=" + ShellItemLogValue(
+                       GetShellDisplayNameForLog(
+                           child, SIGDN_DESKTOPABSOLUTEEDITING)) +
+                   L" isDir=" + std::to_wstring(isDirectory) +
+                   L" recycle=" +
+                   std::to_wstring(session.isRecycleBinItem ? 1 : 0));
+
     AppendNameAndSortKey(buf, name);
-    AppendString(buf, filePath);
+    AppendString(buf, itemPath);
+    AppendString(buf, shellId);
     AppendInt32(buf, isDirectory);
     AppendInt32(buf, isDirectory);
     AppendInt64(buf, sizeBytes);
@@ -616,6 +677,7 @@ static void WriteFilesystemItemToBuffer(
 
     AppendNameAndSortKey(buf, name);
     AppendString(buf, fullPath);
+    AppendString(buf, L"");
     AppendInt32(buf, isDirectory);
     AppendInt32(buf, hasChildren);
     AppendInt64(buf, sizeBytes);
@@ -631,6 +693,9 @@ extern "C" __declspec(dllexport)
 int BeginShellEnum(const wchar_t* path, int directoriesOnly) {
     if (!path) return -1;
 
+    InfDirShellLog(L"begin path=" + std::wstring(path) + L" directoriesOnly=" +
+                   std::to_wstring(directoriesOnly));
+
     auto session = std::make_unique<EnumSession>();
     session->done = false;
     session->directoriesOnly = (directoriesOnly != 0);
@@ -643,8 +708,10 @@ int BeginShellEnum(const wchar_t* path, int directoriesOnly) {
         session->comInitialized = (hr == S_OK);
         session->isRecycleBinItem = IsRecycleBinPath(path);
 
-        hr = SHCreateItemFromParsingName(path, nullptr, IID_PPV_ARGS(&session->folderItem));
+        hr = InfDirCreateShellItemFromPath(path, &session->folderItem);
         if (FAILED(hr) || !session->folderItem) {
+            InfDirShellLog(L"begin resolve failed hr=0x" +
+                           std::to_wstring(static_cast<unsigned long>(hr)));
             if (session->comInitialized) CoUninitialize();
             return -1;
         }

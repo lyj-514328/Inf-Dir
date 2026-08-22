@@ -244,7 +244,7 @@ class _FileListViewState extends State<FileListView> {
                                       _FileRow(
                                         entry: entry,
                                         isSelected: widget.selectedPaths
-                                            .contains(entry.path),
+                                            .contains(entry.identity),
                                         isActive: widget.isActive,
                                         columnWidths: widget.columnWidths,
                                         blankWidth: blankW,
@@ -254,15 +254,15 @@ class _FileListViewState extends State<FileListView> {
                                         showStatusColumn:
                                             widget.showStatusColumn,
                                         onSingleTap: () =>
-                                            widget.onSingleTap(entry.path),
+                                            widget.onSingleTap(entry.identity),
                                         onTap: () => widget.onPrimaryTap?.call(
-                                          entry.path,
+                                          entry.identity,
                                         ),
                                         onDoubleTap: () =>
-                                            widget.onDoubleTap(entry.path),
+                                            widget.onDoubleTap(entry.identity),
                                         onRightClick: (pos) => widget
                                             .onItemRightClick
-                                            ?.call(entry.path, pos),
+                                            ?.call(entry.identity, pos),
                                       ),
                                     );
                                   }, childCount: group.entries.length),
@@ -294,8 +294,8 @@ class _FileListViewState extends State<FileListView> {
     if (payload == null) return child;
 
     return _FileDraggable<FileDragPayload>(
-      key: ValueKey('file-drag-${entry.path}'),
-      debugLabel: entry.path,
+      key: ValueKey('file-drag-${entry.identity}'),
+      debugLabel: entry.identity,
       data: payload,
       dragAnchorStrategy: pointerDragAnchorStrategy,
       rootOverlay: true,
@@ -303,14 +303,14 @@ class _FileListViewState extends State<FileListView> {
       childWhenDragging: Opacity(opacity: 0.45, child: child),
       onDragStarted: () {
         _fileDragLog(
-          'started source=${entry.path} '
+          'started source=${entry.identity} '
           'items=${payload.items.length} from=${payload.sourceDirectory}',
         );
       },
       onDragEnd: (details) {
         payload.clearTargetFeedback();
         _fileDragLog(
-          'ended source=${entry.path} accepted=${details.wasAccepted} '
+          'ended source=${entry.identity} accepted=${details.wasAccepted} '
           'offset=${_debugOffset(details.offset)} '
           'velocity=${_debugOffset(details.velocity.pixelsPerSecond)}',
         );
@@ -330,7 +330,7 @@ class _FileListViewState extends State<FileListView> {
   }
 
   Widget _wrapFolderDropTarget(FileEntry entry, Widget child) {
-    final payload = _folderDropPath == entry.path ? _folderDropPayload : null;
+    final payload = _folderDropPath == entry.identity ? _folderDropPayload : null;
     final decision = payload == null
         ? null
         : widget.folderDropDecisionBuilder!(payload, entry);
@@ -338,35 +338,35 @@ class _FileListViewState extends State<FileListView> {
     final c = context.colors;
 
     return DragTarget<FileDragPayload>(
-      key: ValueKey('folder-drop-${entry.path}'),
+      key: ValueKey('folder-drop-${entry.identity}'),
       onWillAcceptWithDetails: (details) {
         final decision = widget.folderDropDecisionBuilder!(details.data, entry);
         _fileDragLog(
-          'folder enter target=${entry.path} '
+          'folder enter target=${entry.identity} '
           'at=${_debugOffset(details.offset)} '
           'accepted=${decision.accepted} reason=${decision.message}',
         );
-        _showFolderDrop(entry.path, details.data);
+        _showFolderDrop(entry.identity, details.data);
         _showFolderTargetFeedback(details.data, entry, decision);
         return decision.accepted;
       },
       onMove: (details) {
         final decision = widget.folderDropDecisionBuilder!(details.data, entry);
-        _showFolderDrop(entry.path, details.data);
+        _showFolderDrop(entry.identity, details.data);
         _showFolderTargetFeedback(details.data, entry, decision);
       },
       onLeave: (data) {
-        _fileDragLog('folder leave target=${entry.path}');
-        _clearFolderDrop(entry.path, data);
+        _fileDragLog('folder leave target=${entry.identity}');
+        _clearFolderDrop(entry.identity, data);
       },
       onAcceptWithDetails: (details) {
         final latest = widget.folderDropDecisionBuilder!(details.data, entry);
         _fileDragLog(
-          'folder accept target=${entry.path} '
+          'folder accept target=${entry.identity} '
           'at=${_debugOffset(details.offset)} '
           'accepted=${latest.accepted} operation=${latest.operation}',
         );
-        _clearFolderDrop(entry.path, details.data);
+        _clearFolderDrop(entry.identity, details.data);
         final operation = latest.operation;
         if (operation != null) {
           unawaited(widget.onFolderDrop!(details.data, entry, operation));
@@ -380,7 +380,7 @@ class _FileListViewState extends State<FileListView> {
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
-                  key: ValueKey('folder-drop-highlight-${entry.path}'),
+                  key: ValueKey('folder-drop-highlight-${entry.identity}'),
                   decoration: BoxDecoration(
                     color: accepted
                         ? c.accentSubtle.withValues(alpha: 0.82)
@@ -451,7 +451,7 @@ class _FileListViewState extends State<FileListView> {
 
   FileEntry? _entryAtPath(String path) {
     for (final entry in widget.entries) {
-      if (entry.path == path) return entry;
+      if (entry.identity == path) return entry;
     }
     return null;
   }
@@ -465,7 +465,7 @@ class _FileListViewState extends State<FileListView> {
   ) {
     payload.showTargetFeedback(
       FileDragTargetFeedback(
-        owner: _folderFeedbackOwner(entry.path),
+        owner: _folderFeedbackOwner(entry.identity),
         accepted: decision.accepted,
         copy: decision.operation == FileDropOperation.copy,
         destination: entry.name,
@@ -537,13 +537,13 @@ class _FileListViewState extends State<FileListView> {
                       iconSize: spec.iconSize,
                       horizontal: spec.horizontal,
                       showFileExtensions: widget.showFileExtensions,
-                      isSelected: widget.selectedPaths.contains(entry.path),
+                      isSelected: widget.selectedPaths.contains(entry.identity),
                       isActive: widget.isActive,
-                      onSingleTap: () => widget.onSingleTap(entry.path),
-                      onTap: () => widget.onPrimaryTap?.call(entry.path),
-                      onDoubleTap: () => widget.onDoubleTap(entry.path),
+                      onSingleTap: () => widget.onSingleTap(entry.identity),
+                      onTap: () => widget.onPrimaryTap?.call(entry.identity),
+                      onDoubleTap: () => widget.onDoubleTap(entry.identity),
                       onRightClick: (position) =>
-                          widget.onItemRightClick?.call(entry.path, position),
+                          widget.onItemRightClick?.call(entry.identity, position),
                     ),
                   );
                 }, childCount: group.entries.length),
@@ -586,13 +586,13 @@ class _FileListViewState extends State<FileListView> {
                       entry: entry,
                       contentMode: contentMode,
                       showFileExtensions: widget.showFileExtensions,
-                      isSelected: widget.selectedPaths.contains(entry.path),
+                      isSelected: widget.selectedPaths.contains(entry.identity),
                       isActive: widget.isActive,
-                      onSingleTap: () => widget.onSingleTap(entry.path),
-                      onTap: () => widget.onPrimaryTap?.call(entry.path),
-                      onDoubleTap: () => widget.onDoubleTap(entry.path),
+                      onSingleTap: () => widget.onSingleTap(entry.identity),
+                      onTap: () => widget.onPrimaryTap?.call(entry.identity),
+                      onDoubleTap: () => widget.onDoubleTap(entry.identity),
                       onRightClick: (position) =>
-                          widget.onItemRightClick?.call(entry.path, position),
+                          widget.onItemRightClick?.call(entry.identity, position),
                     ),
                   );
                 }, childCount: group.entries.length),
@@ -636,13 +636,13 @@ class _FileListViewState extends State<FileListView> {
                       entry: entry,
                       contentMode: false,
                       showFileExtensions: widget.showFileExtensions,
-                      isSelected: widget.selectedPaths.contains(entry.path),
+                      isSelected: widget.selectedPaths.contains(entry.identity),
                       isActive: widget.isActive,
-                      onSingleTap: () => widget.onSingleTap(entry.path),
-                      onTap: () => widget.onPrimaryTap?.call(entry.path),
-                      onDoubleTap: () => widget.onDoubleTap(entry.path),
+                      onSingleTap: () => widget.onSingleTap(entry.identity),
+                      onTap: () => widget.onPrimaryTap?.call(entry.identity),
+                      onDoubleTap: () => widget.onDoubleTap(entry.identity),
                       onRightClick: (position) =>
-                          widget.onItemRightClick?.call(entry.path, position),
+                          widget.onItemRightClick?.call(entry.identity, position),
                     ),
                   );
                 }, childCount: group.entries.length),
@@ -1035,7 +1035,7 @@ class _ExplorerTileState extends State<_ExplorerTile> {
                 ? Row(
                     children: [
                       _FileIcon(
-                        path: widget.entry.path,
+                        path: widget.entry.identity,
                         isDirectory: widget.entry.isDirectory,
                         isSelected: false,
                         size: widget.iconSize,
@@ -1064,7 +1064,7 @@ class _ExplorerTileState extends State<_ExplorerTile> {
                       Expanded(
                         child: Center(
                           child: _FileIcon(
-                            path: widget.entry.path,
+                            path: widget.entry.identity,
                             isDirectory: widget.entry.isDirectory,
                             isSelected: false,
                             size: widget.iconSize,
@@ -1165,7 +1165,7 @@ class _ExplorerContentRowState extends State<_ExplorerContentRow> {
             child: Row(
               children: [
                 _FileIcon(
-                  path: widget.entry.path,
+                  path: widget.entry.identity,
                   isDirectory: widget.entry.isDirectory,
                   isSelected: false,
                   size: widget.contentMode ? 40 : 34,
@@ -1538,7 +1538,7 @@ class _FileRowState extends State<_FileRow> {
                           child: Row(
                             children: [
                               _FileIcon(
-                                path: widget.entry.path,
+                                path: widget.entry.identity,
                                 isDirectory: widget.entry.isDirectory,
                                 isSelected:
                                     widget.isSelected && widget.isActive,
@@ -1566,7 +1566,7 @@ class _FileRowState extends State<_FileRow> {
                           if (widget.showStatusColumn)
                             SizedBox(
                               width: _statusColWidth,
-                              child: _CloudStatusCell(path: widget.entry.path),
+                              child: _CloudStatusCell(path: widget.entry.identity),
                             ),
                           SizedBox(
                             width: widget.columnWidths[1],

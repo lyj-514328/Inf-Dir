@@ -666,9 +666,8 @@ class _PaneContent extends StatelessWidget {
         : null;
     final directoryOpenerItems = canOpenDir
         ? [
-            for (final opener in context
-                .read<QuickViewService>()
-                .directoryOpeners)
+            for (final opener
+                in context.read<QuickViewService>().directoryOpeners)
               CommandMenuItem(
                 icon: Icons.open_in_new,
                 label: '用 ${opener.manifest.name} 打开',
@@ -801,9 +800,8 @@ class _PaneContent extends StatelessWidget {
     final canWrite = !FileService.isSpecialPath(controller.currentPath);
     final directoryOpenerItems = canWrite
         ? [
-            for (final opener in context
-                .read<QuickViewService>()
-                .directoryOpeners)
+            for (final opener
+                in context.read<QuickViewService>().directoryOpeners)
               CommandMenuItem(
                 icon: Icons.open_in_new,
                 label: '用 ${opener.manifest.name} 打开',
@@ -864,9 +862,10 @@ class _PaneContent extends StatelessWidget {
     String pluginId,
     String path,
   ) async {
-    final result = await context
-        .read<QuickViewService>()
-        .openDirectoryWith(pluginId, path);
+    final result = await context.read<QuickViewService>().openDirectoryWith(
+      pluginId,
+      path,
+    );
     if (!context.mounted || result.started) return;
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
@@ -1340,7 +1339,7 @@ class _PaneContent extends StatelessWidget {
     // Re-enumerate the whole bin: the pane may only hold a paged subset.
     final entries = DirectoryService.listDirectory(
       FileService.recycleBinShellPath,
-    ).where((entry) => entry.parsingName != null).toList(growable: false);
+    ).where((entry) => entry.isRecycleBinItem).toList(growable: false);
     if (entries.isEmpty) return;
     await _restoreRecycleBinEntries(context, entries, dialogTitle: '全部还原');
   }
@@ -2180,7 +2179,7 @@ class _FileListSection extends StatelessWidget {
             folderDropDecisionBuilder: (payload, directory) =>
                 FileDropService.decide(
                   payload: payload,
-                  targetDirectory: directory.path,
+                  targetDirectory: directory.identity,
                   controlPressed: HardwareKeyboard.instance.isControlPressed,
                   shiftPressed: HardwareKeyboard.instance.isShiftPressed,
                 ),
@@ -2228,13 +2227,13 @@ FileDragPayload? _buildFileDragPayload(
 ) {
   if (FileService.isSpecialPath(controller.currentPath)) return null;
 
-  final selectedPaths = controller.selectedPaths.contains(entry.path)
+  final selectedPaths = controller.selectedPaths.contains(entry.identity)
       ? controller.selectedPaths
-      : {entry.path};
+      : {entry.identity};
   final items = [
     for (final candidate in controller.visibleEntries)
-      if (selectedPaths.contains(candidate.path))
-        FileDragItem(path: candidate.path, isDirectory: candidate.isDirectory),
+      if (selectedPaths.contains(candidate.identity))
+        FileDragItem(path: candidate.identity, isDirectory: candidate.isDirectory),
   ];
   if (items.isEmpty) return null;
   return FileDragPayload(sourceDirectory: controller.currentPath, items: items);
@@ -2276,7 +2275,7 @@ class _StatusBarSection extends StatelessWidget {
 
 FileEntry? _findEntry(PaneController controller, String path) {
   for (final e in controller.entries) {
-    if (e.path == path) return e;
+    if (e.identity == path) return e;
   }
   return null;
 }
@@ -2296,7 +2295,9 @@ void _handleDoubleTap(
 
   final entry = _findEntry(controller, path);
   if (entry == null) return;
-  if (entry.isDirectory) {
+  if (FileService.isSpecialPath(path)) {
+    unawaited(FileService.openShellItem(path));
+  } else if (entry.isDirectory) {
     controller.navigateTo(path);
   } else {
     FileService.openFile(path);
