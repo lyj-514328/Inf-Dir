@@ -268,6 +268,19 @@ class _AppShellState extends State<AppShell>
       return false;
     }
 
+    if (matchesSearchShortcut(event, keyboard)) {
+      final route = ModalRoute.of(context);
+      if (route != null && !route.isCurrent) return false;
+      final layoutState = context.read<LayoutState>();
+      final controller = layoutState.controllerFor(layoutState.focusedNode);
+      if (controller != null &&
+          !controller.isHome &&
+          !FileService.isSpecialPath(controller.currentPath)) {
+        unawaited(openPaneSearch(context, controller));
+      }
+      return true;
+    }
+
     final layoutState = context.read<LayoutState>();
     final isAltDown =
         event is KeyDownEvent &&

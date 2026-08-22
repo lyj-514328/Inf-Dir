@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
-
 import '../services/file_search_service.dart';
+import 'address_bar.dart';
 import 'app_theme.dart';
 
 class FileSearchDialog extends StatefulWidget {
@@ -12,6 +12,7 @@ class FileSearchDialog extends StatefulWidget {
   final ValueChanged<FileSearchResult>? onResult;
   final String? initialQuery;
   final ValueChanged<String>? onQueryChanged;
+  final ValueChanged<String>? onRootChanged;
   final VoidCallback? onPickRoot;
 
   FileSearchDialog({
@@ -22,6 +23,7 @@ class FileSearchDialog extends StatefulWidget {
     this.onResult,
     this.initialQuery,
     this.onQueryChanged,
+    this.onRootChanged,
     this.onPickRoot,
   }) : searchService = searchService ?? FileSearchService();
 
@@ -155,11 +157,6 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
     }
   }
 
-  String get _rootLabel {
-    final label = p.basename(widget.rootPath);
-    return label.isEmpty ? widget.rootPath : label;
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
@@ -182,51 +179,8 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Icon(Icons.search, size: AppMetrics.iconMd, color: c.accent),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '搜索文件',
-                          style: TextStyle(
-                            fontSize: AppMetrics.fontTitle,
-                            fontWeight: FontWeight.w600,
-                            color: c.textPrimary,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Tooltip(
-                                message: '选择搜索目录',
-                                child: InputChip(
-                                  label: Text(
-                                    _rootLabel,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  labelStyle: TextStyle(
-                                    fontSize: AppMetrics.fontBody,
-                                    color: c.textSecondary,
-                                  ),
-                                  deleteIcon: const Icon(Icons.more_vert),
-                                  onDeleted: widget.onPickRoot,
-                                  backgroundColor: c.surfaceSubtle,
-                                  side: BorderSide(color: c.border),
-                                  visualDensity: VisualDensity.compact,
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
                   Tooltip(
                     message: '关闭',
                     child: IconButton(
@@ -235,6 +189,29 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
                       iconSize: AppMetrics.iconMd,
                       color: c.textSecondary,
                       visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Icon(Icons.search, size: AppMetrics.iconMd, color: c.accent),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: AddressBar(
+                      currentPath: widget.rootPath,
+                      iconPath: widget.rootPath,
+                      showIcon: false,
+                      onSubmit: (path) => widget.onRootChanged?.call(path),
+                      trailing: Tooltip(
+                        message: '选择搜索目录',
+                        child: IconButton(
+                          onPressed: widget.onPickRoot,
+                          icon: const Icon(Icons.more_vert),
+                          color: c.textSecondary,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
                     ),
                   ),
                 ],

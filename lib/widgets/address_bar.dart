@@ -10,12 +10,16 @@ class AddressBar extends StatefulWidget {
   final String currentPath;
   final String iconPath;
   final ValueChanged<String> onSubmit;
+  final bool showIcon;
+  final Widget? trailing;
 
   const AddressBar({
     super.key,
     required this.currentPath,
     required this.iconPath,
     required this.onSubmit,
+    this.showIcon = true,
+    this.trailing,
   });
 
   @override
@@ -270,9 +274,9 @@ class _AddressBarState extends State<AddressBar> {
         child: Row(
           children: [
             const SizedBox(width: 6),
-            _buildIcon(),
-            const SizedBox(width: 4),
+            if (widget.showIcon) ...[_buildIcon(), const SizedBox(width: 4)],
             Expanded(child: _editing ? _buildTextField() : _buildBreadcrumb()),
+            if (widget.trailing != null) widget.trailing!,
             const SizedBox(width: 6),
           ],
         ),

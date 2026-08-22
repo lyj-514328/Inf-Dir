@@ -47,12 +47,14 @@ class SearchDialog extends StatefulWidget {
 class _SearchDialogState extends State<SearchDialog> {
   late SearchMode _mode;
   late String _rootPath;
+  late String _query;
 
   @override
   void initState() {
     super.initState();
     _mode = widget.initialMode;
     _rootPath = widget.initialRootPath ?? widget.rootPath;
+    _query = widget.initialQuery ?? '';
   }
 
   void _pickRoot() {
@@ -60,6 +62,18 @@ class _SearchDialogState extends State<SearchDialog> {
     if (picked == null || !mounted) return;
     setState(() => _rootPath = picked);
     widget.onRootChanged?.call(picked);
+  }
+
+  void _setRoot(String path) {
+    final value = path.trim();
+    if (value.isEmpty || !mounted) return;
+    setState(() => _rootPath = value);
+    widget.onRootChanged?.call(value);
+  }
+
+  void _setQuery(String query) {
+    if (_query != query) setState(() => _query = query);
+    widget.onQueryChanged?.call(query);
   }
 
   @override
@@ -89,8 +103,9 @@ class _SearchDialogState extends State<SearchDialog> {
         rootPath: _rootPath,
         searchService: widget.fileSearchService,
         modeSelector: selector,
-        initialQuery: widget.initialQuery,
-        onQueryChanged: widget.onQueryChanged,
+        initialQuery: _query,
+        onQueryChanged: _setQuery,
+        onRootChanged: _setRoot,
         onPickRoot: _pickRoot,
         onResult: (result) => Navigator.of(context).pop(
           SearchDialogResult(
@@ -103,8 +118,9 @@ class _SearchDialogState extends State<SearchDialog> {
         rootPath: _rootPath,
         searchService: widget.textSearchService,
         modeSelector: selector,
-        initialQuery: widget.initialQuery,
-        onQueryChanged: widget.onQueryChanged,
+        initialQuery: _query,
+        onQueryChanged: _setQuery,
+        onRootChanged: _setRoot,
         onPickRoot: _pickRoot,
         onResult: (result) => Navigator.of(
           context,

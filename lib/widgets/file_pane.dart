@@ -46,6 +46,32 @@ bool matchesSearchShortcut(KeyEvent event, HardwareKeyboard keyboard) {
       !keyboard.isShiftPressed;
 }
 
+Future<void> openPaneSearch(
+  BuildContext context,
+  PaneController controller,
+) async {
+  final result = await showDialog<SearchDialogResult>(
+    context: context,
+    builder: (_) => SearchDialog(
+      rootPath: controller.currentPath,
+      initialRootPath: controller.searchRootPath,
+      initialQuery: controller.searchQuery,
+      onQueryChanged: controller.setSearchQuery,
+      onRootChanged: controller.setSearchRootPath,
+      folderPicker: (initialPath) =>
+          FileService.pickFolder(initialPath: initialPath),
+    ),
+  );
+  if (!context.mounted || result == null) return;
+
+  if (result.isDirectory) {
+    await controller.navigateTo(result.path);
+  } else {
+    await controller.navigateTo(p.dirname(result.path));
+    if (context.mounted) controller.selectSingle(result.path);
+  }
+}
+
 bool shouldConfirmFileDelete({
   required bool permanent,
   required bool confirmRecycleDelete,
@@ -331,7 +357,10 @@ class _PaneContent extends StatelessWidget {
                         .showFileExtensions,
                   )
                 : Focus(
-                    autofocus: false,
+                    key: ValueKey(
+                      'pane-content-focus-${paneNode.id}-$isActive',
+                    ),
+                    autofocus: isActive,
                     onKeyEvent: (node, event) {
                       if (event is KeyDownEvent) {
                         final keyboard = HardwareKeyboard.instance;
@@ -358,15 +387,6 @@ class _PaneContent extends StatelessWidget {
                         if (event.logicalKey == LogicalKeyboardKey.keyA &&
                             keyboard.isControlPressed) {
                           controller.selectAll();
-                          return KeyEventResult.handled;
-                        }
-                        if (matchesSearchShortcut(event, keyboard)) {
-                          if (!controller.isHome &&
-                              !FileService.isSpecialPath(
-                                controller.currentPath,
-                              )) {
-                            _openSearch(context, controller);
-                          }
                           return KeyEventResult.handled;
                         }
                         if (event.logicalKey == LogicalKeyboardKey.enter) {
@@ -854,32 +874,6 @@ class _PaneContent extends StatelessWidget {
         duration: const Duration(seconds: 3),
       ),
     );
-  }
-
-  Future<void> _openSearch(
-    BuildContext context,
-    PaneController controller,
-  ) async {
-    final result = await showDialog<SearchDialogResult>(
-      context: context,
-      builder: (_) => SearchDialog(
-        rootPath: controller.currentPath,
-        initialRootPath: controller.searchRootPath,
-        initialQuery: controller.searchQuery,
-        onQueryChanged: controller.setSearchQuery,
-        onRootChanged: controller.setSearchRootPath,
-        folderPicker: (initialPath) =>
-            FileService.pickFolder(initialPath: initialPath),
-      ),
-    );
-    if (!context.mounted || result == null) return;
-
-    if (result.isDirectory) {
-      await controller.navigateTo(result.path);
-    } else {
-      await controller.navigateTo(p.dirname(result.path));
-      if (context.mounted) controller.selectSingle(result.path);
-    }
   }
 
   Future<void> _openWith(BuildContext context, String path) async {
