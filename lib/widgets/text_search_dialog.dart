@@ -200,25 +200,34 @@ class _TextSearchDialogState extends State<TextSearchDialog> {
                             color: c.textPrimary,
                           ),
                         ),
-                        Text(
-                          _rootLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: AppMetrics.fontCaption,
-                            color: c.textTertiary,
-                          ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Tooltip(
+                                message: '选择搜索目录',
+                                child: InputChip(
+                                  label: Text(
+                                    _rootLabel,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  labelStyle: TextStyle(
+                                    fontSize: AppMetrics.fontBody,
+                                    color: c.textSecondary,
+                                  ),
+                                  deleteIcon: const Icon(Icons.more_vert),
+                                  onDeleted: widget.onPickRoot,
+                                  backgroundColor: c.surfaceSubtle,
+                                  side: BorderSide(color: c.border),
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ),
-                  Tooltip(
-                    message: '选择搜索目录',
-                    child: IconButton(
-                      onPressed: widget.onPickRoot,
-                      icon: const Icon(Icons.more_horiz),
-                      color: c.textSecondary,
-                      visualDensity: VisualDensity.compact,
                     ),
                   ),
                   Tooltip(
