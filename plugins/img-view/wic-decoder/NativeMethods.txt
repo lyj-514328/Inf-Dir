@@ -1,9 +1,0 @@
-IWICImagingFactory
-IWICComponentInfo
-IWICBitmapCodecInfo
-IEnumUnknown
-CLSID_WICImagingFactory
-CoCreateInstance
-CLSCTX
-WICComponentType
-WICComponentEnumerateOptions
