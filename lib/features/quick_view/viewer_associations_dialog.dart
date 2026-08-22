@@ -118,8 +118,10 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
                   _selectedRuleId = null;
                 }),
                 onAdd: () => _addGroup(context, service),
-                onEdit: () => _editGroup(context, service, activeGroup),
-                onDelete: activeGroup.builtIn
+                onEdit: activeGroup.preset
+                    ? null
+                    : () => _editGroup(context, service, activeGroup),
+                onDelete: activeGroup.preset
                     ? null
                     : () => _deleteGroup(context, service, activeGroup),
                 onReload: service.reload,
@@ -145,6 +147,7 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
               width: rulesWidth,
               child: _RulesColumn(
                 entries: flattened,
+                locked: activeGroup.preset,
                 filterController: _ruleFilterController,
                 filterQuery: _ruleFilter,
                 onFilterChanged: (value) =>
@@ -156,8 +159,10 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
                     _collapsedRuleIds.remove(id);
                   }
                 }),
-                onAdd: () => _addRule(context, service, activeGroup),
-                onAddChild: selectedRule == null
+                onAdd: activeGroup.preset
+                    ? null
+                    : () => _addRule(context, service, activeGroup),
+                onAddChild: selectedRule == null || activeGroup.preset
                     ? null
                     : () => _addRule(
                         context,
@@ -165,10 +170,10 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
                         activeGroup,
                         parent: selectedRule,
                       ),
-                onEdit: selectedRule == null || selectedRule.managed
+                onEdit: selectedRule == null || activeGroup.preset
                     ? null
                     : () => _editRule(context, service, selectedRule),
-                onDelete: selectedRule == null || selectedRule.managed
+                onDelete: selectedRule == null || activeGroup.preset
                     ? null
                     : () => _deleteRule(context, service, selectedRule),
                 onEnabled: service.setRuleEnabled,
@@ -200,8 +205,9 @@ class _ViewerAssociationsViewState extends State<ViewerAssociationsView> {
             Expanded(
               child: _ViewersColumn(
                 rule: selectedRule,
+                locked: activeGroup.preset,
                 service: service,
-                onAdd: selectedRule == null
+                onAdd: selectedRule == null || activeGroup.preset
                     ? null
                     : () => _addViewer(context, service, selectedRule),
               ),
@@ -393,7 +399,7 @@ class _GroupsColumn extends StatelessWidget {
   final String issueMessage;
   final ValueChanged<String> onSelect;
   final VoidCallback onAdd;
-  final VoidCallback onEdit;
+  final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback onReload;
   final ReorderCallback onReorder;
@@ -442,7 +448,7 @@ class _GroupsColumn extends StatelessWidget {
                 final group = groups[index];
                 return DragTarget<_RuleDragData>(
                   key: ValueKey('viewer-rule-group-${group.id}'),
-                  onWillAcceptWithDetails: (_) => true,
+                  onWillAcceptWithDetails: (_) => !group.preset,
                   onAcceptWithDetails: (details) =>
                       onRuleDropped(details.data.ruleId, group.id),
                   builder: (context, candidates, rejected) => _GroupRow(
@@ -502,18 +508,24 @@ class _GroupRow extends StatelessWidget {
                 ),
               ),
             ),
-            ReorderableDragStartListener(
-              index: index,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 5),
-                child: Icon(Icons.drag_indicator, size: AppMetrics.iconMd),
+            if (group.preset)
+              const SizedBox(width: 24)
+            else
+              ReorderableDragStartListener(
+                index: index,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 5),
+                  child: Icon(Icons.drag_indicator, size: AppMetrics.iconMd),
+                ),
               ),
-            ),
-            Checkbox(
-              value: group.enabled,
-              onChanged: (value) => onEnabled(value ?? false),
-              visualDensity: VisualDensity.compact,
-            ),
+            if (group.preset)
+              const SizedBox(width: 30)
+            else
+              Checkbox(
+                value: group.enabled,
+                onChanged: (value) => onEnabled(value ?? false),
+                visualDensity: VisualDensity.compact,
+              ),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -531,7 +543,7 @@ class _GroupRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (group.builtIn)
+            if (group.preset)
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: Icon(
@@ -550,6 +562,7 @@ class _GroupRow extends StatelessWidget {
 class _RulesColumn extends StatelessWidget {
   const _RulesColumn({
     required this.entries,
+    required this.locked,
     required this.filterController,
     required this.filterQuery,
     required this.onFilterChanged,
@@ -568,13 +581,16 @@ class _RulesColumn extends StatelessWidget {
   });
 
   final List<_RuleTreeEntry> entries;
+
+  /// 预置分组：规则整列只读（无拖拽/勾选/增删改）。
+  final bool locked;
   final TextEditingController filterController;
   final String filterQuery;
   final ValueChanged<String> onFilterChanged;
   final String? selectedRuleId;
   final ValueChanged<String> onSelect;
   final ValueChanged<String> onToggleCollapsed;
-  final VoidCallback onAdd;
+  final VoidCallback? onAdd;
   final VoidCallback? onAddChild;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
@@ -626,21 +642,25 @@ class _RulesColumn extends StatelessWidget {
                     itemCount: entries.length + 1,
                     itemBuilder: (context, index) {
                       if (index == entries.length) {
-                        return _RootRuleDropTarget(onAccept: onMoveToRoot);
+                        return locked
+                            ? const SizedBox(height: 12)
+                            : _RootRuleDropTarget(onAccept: onMoveToRoot);
                       }
                       final entry = entries[index];
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _RuleInsertTarget(
-                            targetId: entry.rule.id,
-                            canDrop: canDrop,
-                            onAccept: onMoveBefore,
-                          ),
+                          if (!locked)
+                            _RuleInsertTarget(
+                              targetId: entry.rule.id,
+                              canDrop: canDrop,
+                              onAccept: onMoveBefore,
+                            ),
                           _RuleTreeRow(
                             key: ValueKey('viewer-rule-${entry.rule.id}'),
                             entry: entry,
                             selected: entry.rule.id == selectedRuleId,
+                            locked: locked,
                             canDrop: canDrop,
                             onSelected: () => onSelect(entry.rule.id),
                             onEnabled: (value) =>
@@ -666,6 +686,7 @@ class _RuleTreeRow extends StatelessWidget {
     super.key,
     required this.entry,
     required this.selected,
+    required this.locked,
     required this.canDrop,
     required this.onSelected,
     required this.onEnabled,
@@ -675,6 +696,9 @@ class _RuleTreeRow extends StatelessWidget {
 
   final _RuleTreeEntry entry;
   final bool selected;
+
+  /// 预置分组中的规则：整行只读（无拖拽/勾选）。
+  final bool locked;
   final bool Function(String draggedId, String targetId) canDrop;
   final VoidCallback onSelected;
   final ValueChanged<bool> onEnabled;
@@ -687,7 +711,7 @@ class _RuleTreeRow extends StatelessWidget {
     final c = context.colors;
     return DragTarget<_RuleDragData>(
       onWillAcceptWithDetails: (details) =>
-          canDrop(details.data.ruleId, rule.id),
+          !locked && canDrop(details.data.ruleId, rule.id),
       onAcceptWithDetails: (details) => onAcceptChild(details.data.ruleId),
       builder: (context, candidates, rejected) {
         final accepting = candidates.isNotEmpty;
@@ -703,39 +727,44 @@ class _RuleTreeRow extends StatelessWidget {
               height: 52,
               child: Row(
                 children: [
-                  SizedBox(width: entry.depth * 16.0),
-                  Draggable<_RuleDragData>(
-                    data: _RuleDragData(rule.id),
-                    feedback: Material(
-                      color: c.surface,
-                      elevation: 4,
-                      borderRadius: BorderRadius.circular(
-                        AppMetrics.controlRadius,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 7,
+                  SizedBox(width: entry.depth * 10.0),
+                  if (locked)
+                    const SizedBox(width: 4)
+                  else
+                    Draggable<_RuleDragData>(
+                      data: _RuleDragData(rule.id),
+                      feedback: Material(
+                        color: c.surface,
+                        elevation: 4,
+                        borderRadius: BorderRadius.circular(
+                          AppMetrics.controlRadius,
                         ),
-                        child: Text(rule.value),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                          child: Text(rule.value),
+                        ),
                       ),
-                    ),
-                    childWhenDragging: Icon(
-                      Icons.drag_indicator,
-                      size: AppMetrics.iconMd,
-                      color: c.textTertiary,
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(
+                      childWhenDragging: Icon(
                         Icons.drag_indicator,
                         size: AppMetrics.iconMd,
-                        color: c.textSecondary,
+                        color: c.textTertiary,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Icon(
+                          Icons.drag_indicator,
+                          size: AppMetrics.iconMd,
+                          color: c.textSecondary,
+                        ),
                       ),
                     ),
-                  ),
+                  // 折叠箭头槽位固定占位（16px），叶子行也保留，
+                  // 保证同深度规则的名称列对齐（父规则不显得被缩进）。
                   SizedBox(
-                    width: rule.rules.isEmpty ? 4 : 20,
+                    width: 16,
                     child: rule.rules.isEmpty
                         ? null
                         : IconButton(
@@ -751,12 +780,15 @@ class _RuleTreeRow extends StatelessWidget {
                             ),
                           ),
                   ),
-                  Checkbox(
-                    key: ValueKey('viewer-rule-enabled-${rule.id}'),
-                    value: rule.enabled,
-                    onChanged: (value) => onEnabled(value ?? false),
-                    visualDensity: VisualDensity.compact,
-                  ),
+                  if (locked)
+                    const SizedBox(width: 10)
+                  else
+                    Checkbox(
+                      key: ValueKey('viewer-rule-enabled-${rule.id}'),
+                      value: rule.enabled,
+                      onChanged: (value) => onEnabled(value ?? false),
+                      visualDensity: VisualDensity.compact,
+                    ),
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -776,7 +808,7 @@ class _RuleTreeRow extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (rule.managed)
+                  if (locked)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: Icon(
@@ -849,11 +881,15 @@ class _RootRuleDropTarget extends StatelessWidget {
 class _ViewersColumn extends StatelessWidget {
   const _ViewersColumn({
     required this.rule,
+    required this.locked,
     required this.service,
     required this.onAdd,
   });
 
   final ViewerRule? rule;
+
+  /// 预置分组中的规则：Viewer 列表只读（无勾选/排序/增删）。
+  final bool locked;
   final QuickViewService service;
   final VoidCallback? onAdd;
 
@@ -901,12 +937,13 @@ class _ViewersColumn extends StatelessWidget {
                         viewer: viewer,
                         plugin: plugin,
                         index: index,
+                        locked: locked,
                         onEnabled: (enabled) => service.setRuleViewerEnabled(
                           valueRule.id,
                           viewer.id,
                           enabled,
                         ),
-                        onRemove: viewer.managed
+                        onRemove: locked
                             ? null
                             : () => service.removeViewerFromRule(
                                 valueRule.id,
@@ -928,6 +965,7 @@ class _ViewerRow extends StatelessWidget {
     required this.viewer,
     required this.plugin,
     required this.index,
+    required this.locked,
     required this.onEnabled,
     required this.onRemove,
   });
@@ -935,6 +973,7 @@ class _ViewerRow extends StatelessWidget {
   final ViewerRuleViewer viewer;
   final ViewerPlugin? plugin;
   final int index;
+  final bool locked;
   final ValueChanged<bool> onEnabled;
   final VoidCallback? onRemove;
 
@@ -946,19 +985,25 @@ class _ViewerRow extends StatelessWidget {
       color: Colors.transparent,
       child: Row(
         children: [
-          ReorderableDragStartListener(
-            index: index,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 6),
-              child: Icon(Icons.drag_indicator, size: AppMetrics.iconMd),
+          if (locked)
+            const SizedBox(width: 28)
+          else
+            ReorderableDragStartListener(
+              index: index,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 6),
+                child: Icon(Icons.drag_indicator, size: AppMetrics.iconMd),
+              ),
             ),
-          ),
-          Checkbox(
-            key: ValueKey('viewer-enabled-${viewer.id}'),
-            value: viewer.enabled,
-            onChanged: (value) => onEnabled(value ?? false),
-            visualDensity: VisualDensity.compact,
-          ),
+          if (locked)
+            const SizedBox(width: 30)
+          else
+            Checkbox(
+              key: ValueKey('viewer-enabled-${viewer.id}'),
+              value: viewer.enabled,
+              onChanged: (value) => onEnabled(value ?? false),
+              visualDensity: VisualDensity.compact,
+            ),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -981,7 +1026,16 @@ class _ViewerRow extends StatelessWidget {
               ],
             ),
           ),
-          if (viewer.managed)
+          if (locked)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Icon(
+                Icons.lock_outline,
+                size: AppMetrics.iconSm,
+                color: c.textTertiary,
+              ),
+            )
+          else if (viewer.managed)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Icon(

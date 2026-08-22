@@ -68,12 +68,12 @@ class ViewerRuleViewer {
       throw const FormatException('Viewer 条目必须是字符串或对象');
     }
     final id = value['id'];
-    final managed = value['managed'];
     final enabled = value['enabled'];
-    if (id is! String || managed is! bool || enabled is! bool) {
+    if (id is! String || enabled is! bool) {
       throw const FormatException('Viewer 条目字段无效');
     }
-    return ViewerRuleViewer(id: id, managed: managed, enabled: enabled);
+    // managed 已退役：兼容读取旧配置，新配置不再使用。
+    return ViewerRuleViewer(id: id, managed: value['managed'] == true, enabled: enabled);
   }
 
   final String id;
@@ -88,7 +88,6 @@ class ViewerRuleViewer {
 
   Map<String, Object?> toJson() => {
     'id': id,
-    'managed': managed,
     'enabled': enabled,
   };
 
@@ -127,14 +126,10 @@ class ViewerRule {
   factory ViewerRule.fromJson(Map<String, Object?> json, {int depth = 0}) {
     if (depth > 16) throw const FormatException('规则嵌套层级超过限制');
     final id = json['id'];
-    final managed = json['managed'];
     final enabled = json['enabled'];
     final type = ViewerRuleType.parse(json['type']);
     final value = json['value'];
-    if (id is! String ||
-        managed is! bool ||
-        enabled is! bool ||
-        value is! String) {
+    if (id is! String || enabled is! bool || value is! String) {
       throw const FormatException('规则字段无效');
     }
     final rawRules = json['rules'];
@@ -147,7 +142,8 @@ class ViewerRule {
         : null;
     return ViewerRule(
       id: id,
-      managed: managed,
+      // managed 已退役：兼容读取旧配置，新配置不再使用。
+      managed: json['managed'] == true,
       enabled: enabled,
       type: type,
       value: value,
@@ -213,7 +209,6 @@ class ViewerRule {
 
   Map<String, Object?> toJson() => {
     'id': id,
-    'managed': managed,
     'enabled': enabled,
     'type': type.jsonValue,
     'value': value,

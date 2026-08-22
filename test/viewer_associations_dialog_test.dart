@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:inf_dir/features/quick_view/plugin_manifest.dart';
 import 'package:inf_dir/features/quick_view/quick_view_service.dart';
 import 'package:inf_dir/features/quick_view/viewer_association_config.dart';
 import 'package:inf_dir/features/quick_view/viewer_associations_dialog.dart';
@@ -17,17 +16,30 @@ void main() {
 
   late Directory temp;
   late QuickViewService service;
+  late File defaultConfigFile;
 
   setUp(() {
     temp = Directory.systemTemp.createTempSync('inf_dir_plugin_ui_');
     final pluginRoot = Directory(p.join(temp.path, 'plugins'))..createSync();
     _writePlugin(pluginRoot, 'viewer.a', 'A Viewer');
     _writePlugin(pluginRoot, 'viewer.b', 'B Viewer');
+    defaultConfigFile = File(p.join(pluginRoot.path, 'quick-view.default.json'))
+      ..writeAsStringSync(
+        jsonEncode({
+          'schemaVersion': 3,
+          'id': 'default',
+          'name': '默认',
+          'rules': [
+            _rule('ext-txt', 'extension', '.txt', ['viewer.a', 'viewer.b']),
+          ],
+        }),
+      );
     service = QuickViewService(
       pluginRoots: [pluginRoot],
       associationStore: ViewerAssociationStore(
         filePath: p.join(temp.path, 'associations.json'),
       ),
+      defaultConfigFile: defaultConfigFile,
       mimeTypeResolver: (_) => null,
     );
   });
@@ -37,53 +49,105 @@ void main() {
     temp.deleteSync(recursive: true);
   });
 
-  testWidgets('shows four untyped default groups and their rule tree', (
-    tester,
-  ) async {
+  testWidgets('shows the fully locked preset default group', (tester) async {
     await _openDialog(tester, service);
 
-    expect(find.text('路径'), findsOneWidget);
-    expect(find.text('文件名'), findsOneWidget);
-    expect(find.text('扩展名'), findsOneWidget);
-    expect(find.text('MIME'), findsOneWidget);
+    expect(find.text('默认'), findsOneWidget);
     expect(find.byKey(const ValueKey('viewer-rule-groups-list')), findsOne);
 
-    await tester.tap(find.text('扩展名'));
-    await tester.pumpAndSettle();
-    expect(find.text('.txt'), findsOneWidget);
+    // 预置组（默认选中）：无勾选、无拖拽手柄、规则操作全禁用。
+    expect(find.byType(Checkbox), findsNothing);
+    expect(find.byIcon(Icons.drag_indicator), findsNothing);
+    expect(_iconButton(tester, '新建规则').onPressed, isNull);
+    expect(_iconButton(tester, '添加子规则').onPressed, isNull);
+    expect(_iconButton(tester, '编辑规则').onPressed, isNull);
+    expect(_iconButton(tester, '删除规则').onPressed, isNull);
+    expect(_iconButton(tester, '重命名').onPressed, isNull);
+    expect(_iconButton(tester, '删除规则组').onPressed, isNull);
 
+    // 预置规则只读，Viewer 列表只读。
     await tester.tap(find.text('.txt'));
     await tester.pumpAndSettle();
     expect(find.text('A Viewer'), findsOneWidget);
     expect(find.text('B Viewer'), findsOneWidget);
-    expect(find.byIcon(Icons.tune), findsNothing);
+    expect(find.byKey(const ValueKey('viewer-enabled-viewer.a')), findsNothing);
+    expect(_iconButton(tester, '添加 Viewer').onPressed, isNull);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('reorders rule groups through the list callback', (tester) async {
+  testWidgets('leaf and parent rules share the same name column', (
+    tester,
+  ) async {
+    // 带子规则的父规则与叶子规则同深度：名称列必须对齐。
+    defaultConfigFile.writeAsStringSync(
+      jsonEncode({
+        'schemaVersion': 3,
+        'id': 'default',
+        'name': '默认',
+        'rules': [
+          _rule('name-makefile', 'fileName', 'makefile', ['viewer.a']),
+          {
+            ..._rule('ext-markdown', 'extension', '.markdown', ['viewer.a']),
+            'rules': [
+              _rule('mime-markdown', 'mimeType', 'text/markdown', [
+                'viewer.b',
+              ]),
+              _rule('mime-x-markdown', 'mimeType', 'text/x-markdown', [
+                'viewer.b',
+              ]),
+            ],
+          },
+        ],
+      }),
+    );
+    service.reload();
     await _openDialog(tester, service);
+
+    final leafX = tester.getTopLeft(find.text('makefile')).dx;
+    final parentX = tester.getTopLeft(find.text('.markdown')).dx;
+    expect(parentX, leafX);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('user groups reorder around the locked preset group', (
+    tester,
+  ) async {
+    await _openDialog(tester, service);
+
+    await tester.tap(find.byTooltip('新建规则组'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('viewer-rule-group-name')),
+      '项目规则',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '确定'));
+    await tester.pumpAndSettle();
+
+    expect(service.ruleGroups.map((group) => group.id), [
+      ViewerAssociationConfig.defaultGroupId,
+      service.ruleGroups.last.id,
+    ]);
 
     final list = tester.widget<ReorderableListView>(
       find.byKey(const ValueKey('viewer-rule-groups-list')),
     );
-    list.onReorderItem!(0, 3);
+    list.onReorderItem!(1, 0);
     await tester.pump();
 
-    expect(service.ruleGroups.map((group) => group.id), [
-      ViewerAssociationConfig.builtInFileNameGroupId,
-      ViewerAssociationConfig.builtInExtensionGroupId,
-      ViewerAssociationConfig.builtInMimeTypeGroupId,
-      ViewerAssociationConfig.builtInPathGroupId,
-    ]);
+    expect(service.ruleGroups.first.id, isNot(ViewerAssociationConfig.defaultGroupId));
+    expect(service.ruleGroups.last.id, ViewerAssociationConfig.defaultGroupId);
+
+    // 用户配置只记录 default 引用，不存默认规则。
     final saved =
         jsonDecode(
               File(p.join(temp.path, 'associations.json')).readAsStringSync(),
             )
             as Map;
-    expect(
-      ((saved['groups'] as List).first as Map)['id'],
-      ViewerAssociationConfig.builtInFileNameGroupId,
-    );
+    final savedGroups = saved['groups']! as List;
+    expect((savedGroups.first as Map)['id'], isNot('default'));
+    expect((savedGroups.last as Map)['id'], 'default');
+    expect((savedGroups.last as Map)['preset'], isTrue);
+    expect(savedGroups.last, isNot(contains('rules')));
   });
 
   testWidgets('splitters preserve trailing rule and viewer editors', (
@@ -127,19 +191,38 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '确定'));
     await tester.pumpAndSettle();
 
-    expect(service.ruleGroups, hasLength(5));
+    expect(service.ruleGroups, hasLength(2));
     expect(service.ruleGroups.last.name, '项目规则');
     expect(service.ruleGroups.last.rules, isEmpty);
     expect(find.text('项目规则'), findsOneWidget);
   });
 
-  testWidgets('allows mixed rules and nested child rules', (tester) async {
+  testWidgets('allows mixed rules and nested child rules in a user group', (
+    tester,
+  ) async {
     await _openDialog(tester, service);
-    await tester.tap(find.text('扩展名'));
+    await tester.tap(find.byTooltip('新建规则组'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('.txt'));
+    await tester.enterText(
+      find.byKey(const ValueKey('viewer-rule-group-name')),
+      '项目规则',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '确定'));
     await tester.pumpAndSettle();
 
+    // 用户组规则列可编辑
+    await tester.tap(find.byTooltip('新建规则'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('viewer-rule-value')),
+      '.txt',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '确定'));
+    await tester.pumpAndSettle();
+    expect(find.text('.txt'), findsOneWidget);
+
+    await tester.tap(find.text('.txt'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('添加子规则'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('viewer-rule-type')));
@@ -153,25 +236,27 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '确定'));
     await tester.pumpAndSettle();
 
-    final parent = service.rule(
-      ViewerAssociationConfig.defaultRuleId(
-        ViewerAssociationKind.extension,
-        '.txt',
-      ),
-    );
+    final group = service.ruleGroups.last;
+    final parent = group.rules.single;
     expect(parent.rules, hasLength(1));
     expect(parent.rules.single.type, ViewerRuleType.mimeType);
     expect(parent.rules.single.value, 'text/x-special');
     expect(find.text('text/x-special'), findsOneWidget);
-    expect(
-      find.byWidgetPredicate((widget) => widget is Draggable),
-      findsWidgets,
-    );
   });
 
-  testWidgets('viewer checkboxes and drag order persist', (tester) async {
+  testWidgets('viewer checkboxes and drag order persist in a user rule', (
+    tester,
+  ) async {
+    final group = service.addRuleGroup(name: '自定义');
+    final valueRule = service.addRule(
+      groupId: group.id,
+      type: ViewerRuleType.extension,
+      value: '.txt',
+      viewerIds: ['viewer.a', 'viewer.b'],
+    );
+
     await _openDialog(tester, service);
-    await tester.tap(find.text('扩展名'));
+    await tester.tap(find.text('自定义'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('.txt'));
     await tester.pumpAndSettle();
@@ -182,31 +267,41 @@ void main() {
     list.onReorderItem!(0, 1);
     await tester.pump();
     expect(
-      service
-          .candidatesForAssociation(ViewerAssociationKind.extension, '.txt')
-          .map((plugin) => plugin.manifest.id),
+      service.rule(valueRule.id).viewers.map((viewer) => viewer.id),
       ['viewer.b', 'viewer.a'],
     );
 
     await tester.tap(find.byKey(const ValueKey('viewer-enabled-viewer.b')));
     await tester.pump();
     expect(
-      service
-          .candidatesForAssociation(ViewerAssociationKind.extension, '.txt')
-          .map((plugin) => plugin.manifest.id),
-      ['viewer.a'],
+      service.rule(valueRule.id).viewers.map((viewer) => viewer.enabled),
+      [false, true],
     );
     expect(File(p.join(temp.path, 'associations.json')).existsSync(), isTrue);
   });
 
   testWidgets('path rules use the same recursive rule editor', (tester) async {
-    final rule = service.addPathRule(
-      pattern: r'C:\Work\**\*.txt',
-      mode: ViewerPathMatchMode.glob,
-      viewerIds: ['viewer.a'],
-    );
+    final group = service.addRuleGroup(name: '路径组');
     await _openDialog(tester, service);
+    await tester.tap(find.text('路径组'));
+    await tester.pumpAndSettle();
 
+    await tester.tap(find.byTooltip('新建规则'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('viewer-rule-type')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('路径').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('viewer-rule-value')),
+      r'C:\Work\**\*.txt',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '确定'));
+    await tester.pumpAndSettle();
+
+    final rule = group.rules.single;
+    expect(rule.type, ViewerRuleType.path);
+    expect(rule.value, r'C:\Work\**\*.txt');
     expect(find.text(rule.value), findsOneWidget);
     await tester.tap(find.byKey(ValueKey('viewer-rule-enabled-${rule.id}')));
     await tester.pump();
@@ -215,10 +310,8 @@ void main() {
 
   testWidgets('rule filter matches the rule name only', (tester) async {
     await _openDialog(tester, service);
-    await tester.tap(find.text('扩展名'));
-    await tester.pumpAndSettle();
 
-    // 默认显示 .txt 规则
+    // 默认组（预置）已选中，规则列显示 .txt
     expect(find.text('.txt'), findsOneWidget);
 
     // 按名称（匹配值）过滤
@@ -229,7 +322,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('.txt'), findsOneWidget);
 
-    // 说明（副标题"扩展名"）不参与过滤：只匹配名称时无结果
+    // 说明（副标题"扩展名 · 2 个 Viewer"）不参与过滤：只匹配名称时无结果
     await tester.enterText(
       find.byKey(const ValueKey('viewer-rule-filter')),
       '扩展名',
@@ -248,6 +341,31 @@ void main() {
     expect(find.text('没有匹配的规则'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+Map<String, Object?> _rule(
+  String id,
+  String type,
+  String value,
+  List<String> viewerIds,
+) => {
+  'id': id,
+  'enabled': true,
+  'type': type,
+  'value': value,
+  'rules': <Object?>[],
+  'viewers': [
+    for (final viewerId in viewerIds) {'id': viewerId, 'enabled': true},
+  ],
+};
+
+IconButton _iconButton(WidgetTester tester, String tooltip) {
+  return tester.widget<IconButton>(
+    find.ancestor(
+      of: find.byTooltip(tooltip),
+      matching: find.byType(IconButton),
+    ),
+  );
 }
 
 Future<void> _openDialog(WidgetTester tester, QuickViewService service) async {

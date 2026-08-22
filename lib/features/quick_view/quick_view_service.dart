@@ -138,6 +138,7 @@ class QuickViewService extends ChangeNotifier {
   QuickViewService({
     List<Directory>? pluginRoots,
     ViewerAssociationStore? associationStore,
+    File? defaultConfigFile,
     String? Function(String filePath)? mimeTypeResolver,
     ViewerProcessStarter? processStarter,
     DirectoryOpenerResolver? directoryOpenerResolver,
@@ -147,6 +148,8 @@ class QuickViewService extends ChangeNotifier {
     Duration processExitTimeout = const Duration(milliseconds: 250),
   }) : _pluginRoots = pluginRoots ?? defaultPluginRoots(),
        _associationStore = associationStore ?? ViewerAssociationStore(),
+       _defaultConfigFile =
+           defaultConfigFile ?? QuickViewService.discoverDefaultConfigFile(),
        _directoryOpenerResolver =
            directoryOpenerResolver ?? DirectoryOpenerResolver(),
        _windowController =
@@ -162,6 +165,7 @@ class QuickViewService extends ChangeNotifier {
 
   final List<Directory> _pluginRoots;
   final ViewerAssociationStore _associationStore;
+  final File? _defaultConfigFile;
   final DirectoryOpenerResolver _directoryOpenerResolver;
   final ViewerWindowController _windowController;
   final Duration _windowDiscoveryTimeout;
@@ -317,28 +321,65 @@ class QuickViewService extends ChangeNotifier {
     }
 
     _associationStoreWritable = true;
+    final defaultGroup = _loadDefaultGroup();
     try {
-      _associations = _associationStore.load();
+      _associations = _associationStore.load(defaultGroup: defaultGroup);
     } catch (error) {
-      _associations = ViewerAssociationConfig.empty();
+      _associations = ViewerAssociationConfig.empty(defaultGroup: defaultGroup);
       _associationStoreWritable = false;
       _issues.add(
         PluginDiscoveryIssue(_associationStore.filePath, '关联配置加载失败：$error'),
       );
     }
-    final associationsChanged = _associations.reconcileManifestPlugins(
-      _plugins.values.map((plugin) => plugin.manifest),
-    );
-    if (_associationStoreWritable && associationsChanged) {
+    if (_associationStoreWritable && _associations.needsMigration) {
       try {
         _associationStore.save(_associations);
       } catch (error) {
         _issues.add(
-          PluginDiscoveryIssue(_associationStore.filePath, '关联配置更新保存失败：$error'),
+          PluginDiscoveryIssue(
+            _associationStore.filePath,
+            '关联配置迁移保存失败：$error',
+          ),
         );
       }
     }
     if (notify) notifyListeners();
+  }
+
+  /// 解析 plugins 静态默认配置（schema v3 的预置分组文档）。缺失或损坏
+  /// 时回退为空的预设组，保证配置界面仍可用。
+  ViewerRuleGroup _loadDefaultGroup() {
+    final file = _defaultConfigFile;
+    if (file == null || !file.existsSync()) {
+      return ViewerAssociationConfig.presetDefaultGroup();
+    }
+    try {
+      final decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is! Map<String, Object?>) {
+        throw const FormatException('默认配置根节点必须是对象');
+      }
+      return ViewerAssociationConfig.parsePresetGroup(decoded);
+    } catch (error) {
+      _issues.add(
+        PluginDiscoveryIssue(file.path, '默认关联配置加载失败：$error'),
+      );
+      return ViewerAssociationConfig.presetDefaultGroup();
+    }
+  }
+
+  /// 定位 plugins 目录下的默认关联配置：优先开发目录 `plugins/`，
+  /// 其次各插件根目录（发布时位于程序旁 `plugins/`）。
+  static File? discoverDefaultConfigFile() {
+    final candidates = <String>[
+      p.join(Directory.current.path, 'plugins', 'quick-view.default.json'),
+      for (final root in defaultPluginRoots())
+        p.join(root.path, 'quick-view.default.json'),
+    ];
+    for (final path in candidates) {
+      final file = File(path);
+      if (file.existsSync()) return file;
+    }
+    return null;
   }
 
   List<ViewerRuleGroup> get ruleGroups => _associations.groups;
@@ -349,7 +390,7 @@ class QuickViewService extends ChangeNotifier {
     final group = ViewerRuleGroup(
       id: _newRuleGroupId(),
       name: name,
-      builtIn: false,
+      preset: false,
       enabled: true,
     );
     _associations.addGroup(group);
@@ -452,22 +493,8 @@ class QuickViewService extends ChangeNotifier {
     _saveAndNotify();
   }
 
-  List<ViewerPlugin> availablePluginsFor(
-    ViewerAssociationKind kind,
-    String rawKey,
-  ) {
-    final key = kind.normalize(rawKey);
-    final result =
-        _plugins.values
-            .where(
-              (plugin) =>
-                  plugin.isAvailable &&
-                  plugin.manifest.quickView!.supports(kind, key),
-            )
-            .toList()
-          ..sort(_comparePlugins);
-    return result;
-  }
+  ViewerRuleGroup groupForRule(String ruleId) =>
+      _associations.groupForRule(ruleId);
 
   List<ViewerPlugin> availablePluginsForRule(ViewerRule valueRule) {
     final existing = valueRule.viewers.map((viewer) => viewer.id).toSet();
@@ -489,7 +516,14 @@ class QuickViewService extends ChangeNotifier {
       if (includeDisabled || viewer.enabled) ?_plugins[viewer.id],
   ];
 
+  void _ensureRuleEditable(String ruleId) {
+    if (groupForRule(ruleId).preset) {
+      throw ArgumentError('预置规则不能修改');
+    }
+  }
+
   void addViewerToRule(String ruleId, String pluginId) {
+    _ensureRuleEditable(ruleId);
     final current = rule(ruleId);
     final normalized = ViewerRuleViewer.normalizeId(pluginId);
     if (!_plugins.containsKey(normalized)) {
@@ -509,6 +543,7 @@ class QuickViewService extends ChangeNotifier {
   }
 
   void setRuleViewerEnabled(String ruleId, String pluginId, bool enabled) {
+    _ensureRuleEditable(ruleId);
     final current = rule(ruleId);
     final normalized = ViewerRuleViewer.normalizeId(pluginId);
     final index = current.viewers.indexWhere(
@@ -520,6 +555,7 @@ class QuickViewService extends ChangeNotifier {
   }
 
   void reorderRuleViewers(String ruleId, int oldIndex, int newIndex) {
+    _ensureRuleEditable(ruleId);
     final viewers = rule(ruleId).viewers;
     if (oldIndex < 0 || oldIndex >= viewers.length) {
       throw RangeError.index(oldIndex, viewers, 'oldIndex');
@@ -532,6 +568,7 @@ class QuickViewService extends ChangeNotifier {
   }
 
   void removeViewerFromRule(String ruleId, String pluginId) {
+    _ensureRuleEditable(ruleId);
     final current = rule(ruleId);
     final normalized = ViewerRuleViewer.normalizeId(pluginId);
     final index = current.viewers.indexWhere(
@@ -544,90 +581,6 @@ class QuickViewService extends ChangeNotifier {
     current.viewers.removeAt(index);
     _saveAndNotify();
   }
-
-  List<ViewerPlugin> candidatesForAssociation(
-    ViewerAssociationKind kind,
-    String rawKey, {
-    bool includeDisabled = false,
-  }) {
-    final key = kind.normalize(rawKey);
-    final valueRule = _ruleForAssociation(kind, key);
-    if (valueRule == null || (!valueRule.enabled && !includeDisabled)) {
-      return const [];
-    }
-    return viewersForRule(valueRule, includeDisabled: includeDisabled);
-  }
-
-  void setCandidates(
-    ViewerAssociationKind kind,
-    String rawKey,
-    Iterable<String> pluginIds,
-  ) {
-    final key = kind.normalize(rawKey);
-    final ids = pluginIds.map((id) => id.toLowerCase()).toSet().toList();
-    final validIds = {
-      for (final plugin in availablePluginsFor(kind, key)) plugin.manifest.id,
-    };
-    final invalid = ids.where((id) => !validIds.contains(id)).toList();
-    if (invalid.isNotEmpty) {
-      throw ArgumentError('插件未声明支持 $key：${invalid.join(', ')}');
-    }
-    final valueRule = _ruleForAssociation(kind, key);
-    if (valueRule == null) throw ArgumentError('关联规则不存在：$key');
-    final existing = {
-      for (final viewer in valueRule.viewers) viewer.id: viewer,
-    };
-    final next = <ViewerRuleViewer>[
-      for (final id in ids)
-        (existing.remove(id) ??
-                ViewerRuleViewer(id: id, managed: true, enabled: true))
-            .copyWith(enabled: true),
-      for (final viewer in existing.values)
-        if (!validIds.contains(viewer.id)) viewer,
-      for (final viewer in existing.values)
-        if (validIds.contains(viewer.id)) viewer.copyWith(enabled: false),
-    ];
-    valueRule.viewers
-      ..clear()
-      ..addAll(next);
-    if (!valueRule.enabled) {
-      _associations.updateRule(valueRule.copyWith(enabled: true));
-    }
-    _saveAndNotify();
-  }
-
-  void disableAssociation(ViewerAssociationKind kind, String rawKey) {
-    final valueRule = _ruleForAssociation(kind, kind.normalize(rawKey));
-    if (valueRule != null) setRuleEnabled(valueRule.id, false);
-  }
-
-  void resetAssociation(ViewerAssociationKind kind, String rawKey) {
-    final valueRule = _ruleForAssociation(kind, kind.normalize(rawKey));
-    if (valueRule == null) return;
-    for (var index = 0; index < valueRule.viewers.length; index++) {
-      final viewer = valueRule.viewers[index];
-      if (viewer.managed) {
-        valueRule.viewers[index] = viewer.copyWith(enabled: true);
-      }
-    }
-    _associations.updateRule(valueRule.copyWith(enabled: true));
-    _saveAndNotify();
-  }
-
-  List<ViewerPlugin> get availablePathRulePlugins =>
-      plugins.where((plugin) => plugin.isAvailable).toList();
-
-  ViewerRule addPathRule({
-    required String pattern,
-    required ViewerPathMatchMode mode,
-    required Iterable<String> viewerIds,
-  }) => addRule(
-    groupId: ViewerAssociationConfig.builtInPathGroupId,
-    type: ViewerRuleType.path,
-    value: pattern,
-    pathMode: mode,
-    viewerIds: viewerIds,
-  );
 
   List<ViewerPlugin> resolve(String filePath, {String? mimeType}) {
     return resolveCandidates(
@@ -819,14 +772,6 @@ class QuickViewService extends ChangeNotifier {
         ),
       );
     }
-  }
-
-  ViewerRule? _ruleForAssociation(ViewerAssociationKind kind, String value) {
-    final id = ViewerAssociationConfig.defaultRuleId(kind, value);
-    for (final valueRule in rules) {
-      if (valueRule.id == id) return valueRule;
-    }
-    return null;
   }
 
   List<String> _validateViewerIds(Iterable<String> viewerIds) {

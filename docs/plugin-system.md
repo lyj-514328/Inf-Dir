@@ -328,91 +328,56 @@ fn create_webview_window(
 
 ## 4. 用户关联配置
 
-Windows 下配置文件存储在：
+Windows 下用户配置文件存储在：
 
 ```text
 %LOCALAPPDATA%\Inf-Dir\viewer_associations.json
 ```
 
-`groups` 是有序规则组，组只负责分组和优先级，不限定规则类型。每个组的 `rules` 是递归规则树；
-每条规则同时拥有有序子规则 `rules` 和有序 Viewer 列表 `viewers`。例如扩展名为 `.bar` 时，
-优先根据 MIME 选择专用 Viewer，未命中子规则再回退到父规则 Viewer：
+schema 当前为 **3**。默认规则不再由 Manifest 运行时生成，而是来自
+`plugins/quick-view.default.json`（随插件目录分发、手工维护的静态预置分组）。
+用户配置只保存**用户自己的规则组与组间顺序**；预置 default 分组只记录一条引用
+（`{"id": "default", "preset": true}`），不存储其规则内容，因为内容以
+plugins 静态配置为准。因此用户拖动分组把自定义组放到 default 之前时，
+`groups` 数组顺序即可表达优先级并持久化：
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "groups": [
+    {"id": "default", "preset": true},
     {
-      "id": "builtin-extension",
-      "name": "扩展名",
-      "builtIn": true,
+      "id": "group-1737362571000000",
+      "name": "我的规则",
+      "preset": false,
       "enabled": true,
-      "rules": [
-        {
-          "id": "builtin-extension-2e626172",
-          "managed": true,
-          "enabled": true,
-          "type": "extension",
-          "value": ".bar",
-          "rules": [
-            {
-              "id": "rule-bar-v1",
-              "managed": false,
-              "enabled": true,
-              "type": "mimeType",
-              "value": "application/x-bar-v1",
-              "rules": [],
-              "viewers": [
-                {
-                  "id": "inf-dir.bar-v1-view",
-                  "managed": false,
-                  "enabled": true
-                }
-              ]
-            }
-          ],
-          "viewers": [
-            {
-              "id": "inf-dir.bar-view",
-              "managed": true,
-              "enabled": true
-            },
-            {
-              "id": "third-party.hex-view",
-              "managed": false,
-              "enabled": true
-            }
-          ]
-        }
-      ]
+      "rules": []
     }
   ]
 }
 ```
 
-### 4.1 规则组
+加载时按 `groups` 顺序把 `preset: true` 条目替换为 plugins 静态配置中的
+default 分组（含 `rules` 递归树），其余条目按完整组解析。应用升级 3 版本以下
+的旧配置时执行迁移（见 §4.3）。
 
-首次运行固定创建四个内置组，默认顺序为路径、文件名、扩展名、MIME：
+## 4.1 规则组
 
-| ID | 默认名称 |
-| --- | --- |
-| `builtin-path` | 路径 |
-| `builtin-file-name` | 文件名 |
-| `builtin-extension` | 扩展名 |
-| `builtin-mime` | MIME |
+默认只有一个预置组 `default`（名称"默认"），所有默认规则混合在它的递归树中。
+预置组**完全只读**：不能启用/禁用、不能改名、不能删除、不能拖拽排序、不能往
+里面添加规则或 Viewer；用户组可以任意操作。用户自定义规则放在自己的组里，
+通过把组拖到 default 之前获得更高优先级。
 
-四个名称只表达默认内容，不是类型约束。任意组内都可以混合 `path`、`fileName`、
-`extension` 和 `mimeType`，用户组也是相同结构。`groups` 数组顺序决定组优先级；
-每个组内顶层 `rules` 的顺序决定同级规则优先级。
+`groups` 数组顺序决定组优先级；`default` 的位置由用户配置记录（可被用户组
+排到前面或后面）。每个组内顶层 `rules` 的顺序决定同级规则优先级。
 
-### 4.2 规则与 Viewer
+## 4.2 规则与 Viewer
 
 规则字段：
 
 | 字段 | 说明 |
 | --- | --- |
 | `id` | 全局稳定 ID |
-| `managed` | 是否由 Manifest 管理的默认规则 |
 | `enabled` | 是否参与解析 |
 | `type` | `path`、`fileName`、`extension` 或 `mimeType` |
 | `value` | 规范化后的匹配值 |
@@ -420,38 +385,37 @@ Windows 下配置文件存储在：
 | `rules` | 有序子规则 |
 | `viewers` | 当前规则命中后贡献的有序 Viewer |
 
-Viewer 条目包含稳定插件 `id`、`managed` 和 `enabled`。配置不保存 EXE 路径。插件临时
-缺失时条目仍保留，Resolver 跳过不可用插件；插件重新安装后原有顺序和启用状态自动恢复。
+Viewer 条目只包含稳定插件 `id` 与 `enabled`。旧版 `managed` 字段被退役：
+读取旧配置时兼容解析，新配置不再写出，规则/Viewer 的只读性由所属预置组决定。
 
-路径规则必须使用 Windows 绝对路径，匹配不区分大小写，`/` 会规范化为 `\`。`exact` 不允许
-`*` 或 `?`；`glob` 中 `*` 匹配单个路径段，`**` 可跨目录，`?` 匹配一个非分隔符字符。
+路径规则必须使用 Windows 绝对路径，匹配不区分大小写，`/` 会规范化为 `\`。
+`exact` 不允许 `*` 或 `?`；`glob` 中 `*` 匹配单个路径段，`**` 可跨目录，
+`?` 匹配一个非分隔符字符。
 
-### 4.3 默认项权限与增量升级
-
-Manifest 生成的规则和 Viewer 标记为 `managed: true`：
+## 4.3 预置组权限与版本迁移
 
 | 对象 | 允许操作 | 不允许操作 |
 | --- | --- | --- |
-| 默认规则组 | 启用/禁用、排序、改名 | 删除 |
-| 默认规则 | 启用/禁用、拖拽排序或嵌套、添加子规则、添加 Viewer | 修改匹配条件、删除 |
-| 默认 Viewer | 启用/禁用、排序 | 删除 |
-| 用户规则/Viewer | 上述操作 | 无额外限制 |
+| 预置 default 分组 | 只读展示（选择、查看） | 启用/禁用、改名、删除、拖拽排序、增删规则/Viewer |
+| 预置组内规则 | 只读展示（选择、折叠、过滤） | 启用/禁用、拖拽、编辑、删除、添加子规则/Viewer |
+| 预置规则上的 Viewer | 只读展示 | 启用/禁用、排序、增删 |
+| 用户分组 | 启用/禁用、拖拽排序、改名、删除 | 无额外限制 |
+| 用户规则/Viewer | 全部 | — |
 
-程序启动或重新扫描插件时执行单调增量合并：
+plugins 静态配置结构（与默认规则同树）：`fileName`、`extension`、`mimeType`
+四种类型可混合嵌套。后缀冲突的项（如 `.md` 同时被代码与 Markdown 查看器声明、
+`.cbz` 同时被压缩包与漫画查看器声明）以 **MIME 子规则覆盖**：扩展名规则保留回退
+Viewer，子 `mimeType` 规则提供专用 Viewer，MIME 命中时子规则优先（解析语义见 §5）。
 
-1. Manifest 新增匹配值时，在对应默认组末尾创建新的默认规则。
-2. 已有默认规则新增 Viewer 时，只追加新的默认 Viewer。
-3. 不重排已有 Viewer，不恢复已禁用项，不删除暂时缺失的插件 ID。
-4. Manifest 删除声明时当前版本仍保留已有配置，Resolver 只跳过不可用插件。
+旧版本（< 3）配置按以下规则迁移为新 model：
 
-因此不需要“用户已调整”或 tune 标记。用户意图由条目顺序和 `enabled` 本身完整表达。
-
-版本 1 的完整候选数组和早期 v2 的 `rules + associations` / 带类型规则组结构都能读取，
-加载后统一映射为上述内存模型。写回始终只输出最新的 `schemaVersion: 2` 树结构。高于当前支持
-版本的配置不会被覆盖。
-
-当前版本通过 Win32 `AssocQueryStringW(ASSOCSTR_CONTENTTYPE)` 获取扩展名在 Windows
-文件关联中注册的 MIME。它不读取文件内容；没有注册 MIME 时只使用路径、文件名和扩展名事实。
+1. 旧内置四组（路径/文件名/扩展名/MIME）整体丢弃，默认规则一律以 plugins
+   静态配置为准。
+2. 旧内置组中的**用户规则**（非 managed 规则，以及用户添加到默认规则上的
+   自定义 Viewer / 子规则）转入新建用户组"我的规则"（id `migrated-rules`），
+   排在所有用户组之前、default 之前，保持原有覆盖优先级。
+3. 用户自定义组保留原样，相对顺序不变。
+4. 迁移后写回 `schemaVersion: 3`；高于当前版本的配置不会被覆盖。
 
 ## 5. 候选解析
 
@@ -477,9 +441,10 @@ if extension == ".bar":
 - `extension`：匹配全部复合后缀，例如同一文件可依次命中 `.tar.gz` 和 `.gz`；
 - `mimeType`：匹配精确 MIME 或 `type/*` 通配符。
 
-没有用户配置时从 Manifest 生成默认规则。单候选直接使用；多候选使用稳定的名称、ID 顺序。
-前一个 Viewer 启动失败时继续尝试后续候选。Resolver 同时保留候选首次命中的规则组 ID、
-规则类型、匹配值和规则 ID，供后续诊断界面展示。
+没有用户配置或配置里只有 default 引用时，Resolver 使用 plugins 静态配置的默认规则树。
+单候选直接使用；多候选使用 plugins 静态配置树中的顺序（后缀冲突项由 MIME 子规则
+优先，见 §4.3）。前一个 Viewer 启动失败时继续尝试后续候选。Resolver 同时保留候选
+首次命中的规则组 ID、规则类型、匹配值和规则 ID，供后续诊断界面展示。
 
 例如，代码文件可以同时由 `inf-dir.code-view`（CodeMirror 只读代码查看器）和
 `inf-dir.markdown-view`（Markdown 渲染查看器）声明支持。两者会作为独立候选出现，不会互相
@@ -491,16 +456,19 @@ F3 使用当前焦点面板中最近操作的项目。文件夹、无候选、�
 
 插件关联界面使用三列：
 
-1. 规则组列：选择、启用/禁用、拖拽排序、新建用户组和删除用户组。
-2. 规则树列：显示当前组的递归规则，支持折叠、启用/禁用、新建、编辑用户规则和删除用户规则。
-3. Viewer 列：显示所选规则的有序 Viewer，支持启用/禁用、添加、拖拽排序和删除用户 Viewer。
+1. 规则组列：选择、启用/禁用、拖拽排序、新建用户组和删除用户组。预置 default
+   分组整行只读（无勾选、无拖拽手柄、无重命名/删除），但可被用户组拖到前后。
+2. 规则树列：显示当前组的递归规则，支持折叠、按名称过滤（关键字框），用户组
+   内规则支持启用/禁用、新建、编辑和删除；预置组规则整列只读（无勾选、无拖拽）。
+3. Viewer 列：显示所选规则的有序 Viewer，支持启用/禁用、添加、拖拽排序和删除
+   用户 Viewer；预置规则只读展示。
 
 规则拖拽有三个明确落点：
 
 - 拖到规则上方插入线：移动到该规则之前，保持同一层级；
 - 拖到规则行：成为该规则最后一个子规则；
-- 拖到规则组：移动为目标组最后一个顶层规则。
+- 拖到用户组：移动为目标组最后一个顶层规则（预置组不接受拖入）。
 
 父规则不能拖入自己的后代。规则树与 Viewer 列都使用拖拽手柄，不再提供上移/下移按钮。
-默认项以锁图标标识受限操作，但不显示 tune 标记；默认规则及 Viewer 的顺序和启用状态就是用户
-配置，不需要额外记录“是否修改过”。
+预置组及其中所有内容以锁图标标识只读；用户组内的规则与 Viewer 顺序、启用状态
+就是用户配置，不需要额外记录“是否修改过”。

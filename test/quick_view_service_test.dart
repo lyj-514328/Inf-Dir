@@ -163,10 +163,15 @@ void main() {
   });
 
   group('ViewerAssociationConfig', () {
-    test('round-trips mixed recursive rules in schema V2', () {
+    ViewerRuleGroup userGroup(String id) =>
+        ViewerRuleGroup(id: id, name: '自定义', preset: false, enabled: true);
+
+    test('round-trips user rules into schema V3 with a default stub', () {
       final config = ViewerAssociationConfig.empty();
+      final custom = userGroup('custom-x');
+      config.addGroup(custom);
       config.addRule(
-        ViewerAssociationConfig.builtInExtensionGroupId,
+        custom.id,
         ViewerRule(
           id: 'extension-bar',
           managed: false,
@@ -192,7 +197,7 @@ void main() {
         ),
       );
       config.addRule(
-        ViewerAssociationConfig.builtInExtensionGroupId,
+        custom.id,
         ViewerRule(
           id: 'path-work',
           managed: false,
@@ -206,6 +211,7 @@ void main() {
       final decoded = jsonDecode(jsonEncode(config.toJson()));
       final restored = ViewerAssociationConfig.fromJson(
         Map<String, Object?>.from(decoded as Map),
+        defaultGroup: ViewerAssociationConfig.presetDefaultGroup(),
       );
 
       final extensionRule = restored.rule('extension-bar');
@@ -218,70 +224,159 @@ void main() {
       expect(extensionRule.rules.single.type, ViewerRuleType.mimeType);
       expect(extensionRule.rules.single.viewers.single.id, 'viewer.c');
       expect(restored.rule('path-work').type, ViewerRuleType.path);
-      expect(restored.toJson()['schemaVersion'], 2);
+      expect(restored.toJson()['schemaVersion'], 3);
       expect(restored.groups.map((group) => group.id), [
-        ViewerAssociationConfig.builtInPathGroupId,
-        ViewerAssociationConfig.builtInFileNameGroupId,
-        ViewerAssociationConfig.builtInExtensionGroupId,
-        ViewerAssociationConfig.builtInMimeTypeGroupId,
+        ViewerAssociationConfig.defaultGroupId,
+        'custom-x',
       ]);
-      expect(restored.toJson(), contains('groups'));
+      final savedGroups = restored.toJson()['groups']! as List;
+      expect((savedGroups.first as Map)['preset'], isTrue);
+      expect(savedGroups.first, isNot(contains('rules')));
     });
 
-    test('reads the legacy v2 layout and writes ordered groups', () {
+    test('migrates v2 built-in groups and keeps user rules', () {
+      final defaultGroup = ViewerAssociationConfig.parsePresetGroup({
+        'schemaVersion': 3,
+        'id': 'default',
+        'name': '默认',
+        'rules': [
+          _jsonRule('ext-pdf', 'extension', '.pdf', ['viewer.a']),
+        ],
+      });
       final restored = ViewerAssociationConfig.fromJson({
         'schemaVersion': 2,
-        'rules': [
+        'groups': [
           {
-            'id': 'path-work',
+            'id': ViewerAssociationConfig.builtInExtensionGroupId,
+            'name': '扩展名',
+            'builtIn': true,
             'enabled': true,
-            'type': 'path',
-            'mode': 'glob',
-            'pattern': r'C:\Work\**\*.pdf',
-            'viewerIds': ['viewer.a'],
+            'rules': [
+              {
+                'id': 'builtin-extension-2e706466',
+                'managed': true,
+                'enabled': true,
+                'type': 'extension',
+                'value': '.pdf',
+                'rules': <Object?>[],
+                'viewers': [
+                  {'id': 'viewer.a', 'managed': true, 'enabled': true},
+                  {'id': 'viewer.custom', 'managed': false, 'enabled': true},
+                ],
+              },
+              {
+                'id': 'extension-bar',
+                'managed': false,
+                'enabled': true,
+                'type': 'extension',
+                'value': '.bar',
+                'rules': <Object?>[],
+                'viewers': [
+                  {'id': 'viewer.c', 'managed': false, 'enabled': true},
+                ],
+              },
+            ],
+          },
+          {
+            'id': 'team-rules',
+            'name': '团队规则',
+            'builtIn': false,
+            'enabled': true,
+            'rules': <Object?>[],
           },
         ],
-        'associations': {
-          'extensions': {
-            '.pdf': {
-              'enabled': true,
-              'viewerOrder': ['viewer.a'],
-              'excludedViewerIds': <String>[],
-            },
-          },
-          'fileNames': <String, Object?>{},
-          'mimeTypes': <String, Object?>{},
-        },
-      });
+      }, defaultGroup: defaultGroup);
 
-      expect(restored.needsMigration, isTrue);
+      // 内置组丢弃；用户规则（.bar + .pdf 上的自定义 Viewer）迁移到"我的规则"，
+      // 排在用户组与 default 之前。
       expect(restored.groups.map((group) => group.id), [
-        ViewerAssociationConfig.builtInPathGroupId,
-        ViewerAssociationConfig.builtInFileNameGroupId,
-        ViewerAssociationConfig.builtInExtensionGroupId,
-        ViewerAssociationConfig.builtInMimeTypeGroupId,
+        ViewerAssociationConfig.migratedGroupId,
+        'team-rules',
+        ViewerAssociationConfig.defaultGroupId,
       ]);
-      expect(restored.rule('path-work').value, r'C:\Work\**\*.pdf');
-      expect(
-        restored
-            .rulesForGroup(ViewerAssociationConfig.builtInExtensionGroupId)
-            .single
-            .value,
-        '.pdf',
-      );
-      expect(restored.toJson(), isNot(contains('associations')));
+      expect(restored.needsMigration, isTrue);
+      final migrated = restored.group(ViewerAssociationConfig.migratedGroupId);
+      expect(migrated.name, '我的规则');
+      final barRule = migrated.rules.singleWhere((rule) => rule.value == '.bar');
+      expect(barRule.viewers.single.id, 'viewer.c');
+      final pdfRule = migrated.rules.singleWhere((rule) => rule.value == '.pdf');
+      expect(pdfRule.viewers.map((viewer) => viewer.id), ['viewer.custom']);
+      expect(restored.rule('extension-bar'), isNotNull);
+      expect(restored.toJson()['schemaVersion'], 3);
     });
 
-    test('extracts compound suffixes and treats a dotfile as a file name', () {
-      expect(ViewerFileFacts.fromPath(r'C:\Work\archive.tar.gz').suffixes, [
-        '.tar.gz',
-        '.gz',
+    test('preset group rejects all mutations but allows reordering', () {
+      final config = ViewerAssociationConfig.empty(
+        defaultGroup: ViewerAssociationConfig.parsePresetGroup({
+          'schemaVersion': 3,
+          'id': 'default',
+          'name': '默认',
+          'rules': [
+            _jsonRule('ext-md', 'extension', '.md', ['viewer.a']),
+          ],
+        }),
+      );
+      final custom = userGroup('custom-x');
+      config.addGroup(custom);
+
+      expect(
+        () => config.addRule(
+          ViewerAssociationConfig.defaultGroupId,
+          ViewerRule(
+            id: 'new-rule',
+            managed: false,
+            enabled: true,
+            type: ViewerRuleType.extension,
+            value: '.txt',
+          ),
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => config.updateRule(
+          ViewerRule(
+            id: 'ext-md',
+            managed: false,
+            enabled: false,
+            type: ViewerRuleType.extension,
+            value: '.md',
+          ),
+        ),
+        throwsArgumentError,
+      );
+      expect(() => config.removeRule('ext-md'), throwsArgumentError);
+      expect(
+        () => config.moveRuleBefore('ext-md', 'new-rule'),
+        throwsArgumentError,
+      );
+      expect(
+        () => config.removeGroup(ViewerAssociationConfig.defaultGroupId),
+        throwsArgumentError,
+      );
+      expect(
+        () => config.updateGroup(
+          ViewerRuleGroup(
+            id: ViewerAssociationConfig.defaultGroupId,
+            name: '默认',
+            preset: false,
+            enabled: true,
+          ),
+        ),
+        throwsArgumentError,
+      );
+
+      // 排序允许：default 可与其他组交换位置，顺序持久化。
+      config.reorderGroup(1, 0);
+      expect(config.groups.map((group) => group.id), [
+        'custom-x',
+        ViewerAssociationConfig.defaultGroupId,
       ]);
-      expect(ViewerFileFacts.fromPath(r'C:\Work\.gitignore').suffixes, isEmpty);
     });
 
     test('invalid drag targets do not remove the source rule', () {
       final config = ViewerAssociationConfig.empty();
+      final custom = userGroup('user-x');
+      config.addGroup(custom);
       final parent = ViewerRule(
         id: 'parent',
         managed: false,
@@ -298,7 +393,7 @@ void main() {
           ),
         ],
       );
-      config.addRule(ViewerAssociationConfig.builtInExtensionGroupId, parent);
+      config.addRule(custom.id, parent);
 
       expect(
         () => config.moveRuleBefore('parent', 'missing'),
@@ -312,63 +407,37 @@ void main() {
       expect(config.rule('parent').rules.single.id, 'child');
     });
 
-    test('manifest reconciliation restores managed identity only', () {
-      final ruleId = ViewerAssociationConfig.defaultRuleId(
-        ViewerAssociationKind.extension,
-        '.bar',
-      );
-      final config = ViewerAssociationConfig.fromJson({
-        'schemaVersion': 2,
-        'groups': [
-          {
-            'id': ViewerAssociationConfig.builtInExtensionGroupId,
-            'name': '扩展名',
-            'builtIn': true,
-            'enabled': true,
-            'rules': [
-              {
-                'id': ruleId,
-                'managed': false,
-                'enabled': false,
-                'type': 'fileName',
-                'value': 'wrong.bar',
-                'rules': <Object?>[],
-                'viewers': [
-                  {'id': 'viewer.a', 'managed': false, 'enabled': false},
-                ],
-              },
-            ],
-          },
-        ],
-      });
-      final manifest = PluginManifest.fromJson({
-        'manifestVersion': 1,
-        'id': 'viewer.a',
-        'name': 'A Viewer',
-        'version': '1.0.0',
-        'entrypoint': 'viewer.exe',
-        'capabilities': {
-          'quickView': {
-            'extensions': ['.bar'],
-          },
-        },
-      });
-
-      expect(config.reconcileManifestPlugins([manifest]), isTrue);
-      final rule = config.rule(ruleId);
-      expect(rule.managed, isTrue);
-      expect(rule.enabled, isFalse);
-      expect(rule.type, ViewerRuleType.extension);
-      expect(rule.value, '.bar');
-      expect(rule.viewers.single.managed, isTrue);
-      expect(rule.viewers.single.enabled, isFalse);
+    test('extracts compound suffixes and treats a dotfile as a file name', () {
+      expect(ViewerFileFacts.fromPath(r'C:\Work\archive.tar.gz').suffixes, [
+        '.tar.gz',
+        '.gz',
+      ]);
+      expect(ViewerFileFacts.fromPath(r'C:\Work\.gitignore').suffixes, isEmpty);
     });
   });
 
   group('QuickViewService resolver', () {
     late Directory temp;
     late Directory pluginRoot;
+    late File defaultConfigFile;
     late QuickViewService service;
+
+    QuickViewService createService({
+      required String associationFile,
+      required File? defaultConfigFile,
+      String? Function(String)? mimeTypeResolver = _noMime,
+      ViewerProcessStarter? processStarter,
+      ViewerWindowController? windowController,
+    }) {
+      return QuickViewService(
+        pluginRoots: [pluginRoot],
+        associationStore: ViewerAssociationStore(filePath: associationFile),
+        defaultConfigFile: defaultConfigFile,
+        mimeTypeResolver: mimeTypeResolver,
+        processStarter: processStarter,
+        windowController: windowController,
+      );
+    }
 
     setUp(() {
       temp = Directory.systemTemp.createTempSync('inf_dir_plugins_');
@@ -410,12 +479,19 @@ void main() {
         name: 'Archive Short Viewer',
         extensions: ['.gz'],
       );
-      service = QuickViewService(
-        pluginRoots: [pluginRoot],
-        associationStore: ViewerAssociationStore(
-          filePath: p.join(temp.path, 'associations.json'),
-        ),
-        mimeTypeResolver: (_) => null,
+      defaultConfigFile = _writeDefaultConfig(pluginRoot, [
+        _jsonRule('name-readme', 'fileName', 'readme.md', [
+          'viewer.a',
+          'viewer.b',
+        ]),
+        _jsonRule('ext-md', 'extension', '.md', ['viewer.b', 'viewer.c']),
+        _jsonRule('mime-image', 'mimeType', 'image/*', ['viewer.image']),
+        _jsonRule('ext-tar-gz', 'extension', '.tar.gz', ['viewer.archive-long']),
+        _jsonRule('ext-gz', 'extension', '.gz', ['viewer.archive-short']),
+      ]);
+      service = createService(
+        associationFile: p.join(temp.path, 'associations.json'),
+        defaultConfigFile: defaultConfigFile,
       );
     });
 
@@ -424,16 +500,12 @@ void main() {
       temp.deleteSync(recursive: true);
     });
 
-    test('merges file name and extension candidates without duplicates', () {
-      service.setCandidates(ViewerAssociationKind.fileName, 'README.md', [
-        'viewer.a',
-        'viewer.b',
-      ]);
-      service.setCandidates(ViewerAssociationKind.extension, '.md', [
-        'viewer.b',
-        'viewer.c',
-      ]);
+    ViewerRuleGroup firstUserGroup() {
+      final group = service.addRuleGroup(name: '我的规则组');
+      return group;
+    }
 
+    test('merges file name and extension candidates without duplicates', () {
       expect(
         service
             .resolve(r'C:\docs\README.md')
@@ -485,34 +557,29 @@ void main() {
       );
     });
 
-    test('manifest refresh appends viewers without losing user tuning', () {
-      final ruleId = ViewerAssociationConfig.defaultRuleId(
-        ViewerAssociationKind.extension,
-        '.md',
-      );
-      service.reorderRuleViewers(ruleId, 1, 0);
-      service.setRuleViewerEnabled(ruleId, 'viewer.b', false);
+    test('preset default rules are completely read-only', () {
+      final group = firstUserGroup();
 
-      _writePlugin(
-        pluginRoot,
-        id: 'viewer.new',
-        name: 'New Viewer',
-        extensions: ['.md'],
-      );
-      service.reload();
-
-      final viewers = service.rule(ruleId).viewers;
-      expect(viewers.map((viewer) => viewer.id), [
-        'viewer.c',
-        'viewer.b',
-        'viewer.new',
-      ]);
-      expect(viewers.map((viewer) => viewer.enabled), [true, false, true]);
+      expect(() => service.setRuleEnabled('ext-md', false), throwsArgumentError);
       expect(
-        service
-            .resolve(r'C:\docs\guide.md')
-            .map((plugin) => plugin.manifest.id),
-        ['viewer.c', 'viewer.new'],
+        () => service.moveRuleToGroup('ext-md', group.id),
+        throwsArgumentError,
+      );
+      expect(
+        () => service.addViewerToRule('ext-md', 'viewer.a'),
+        throwsArgumentError,
+      );
+      expect(
+        () => service.setRuleViewerEnabled('ext-md', 'viewer.b', false),
+        throwsArgumentError,
+      );
+      expect(
+        () => service.reorderRuleViewers('ext-md', 0, 1),
+        throwsArgumentError,
+      );
+      expect(
+        () => service.removeViewerFromRule('ext-md', 'viewer.b'),
+        throwsArgumentError,
       );
     });
 
@@ -532,11 +599,15 @@ void main() {
     });
 
     test('places ordered path rules before file name and suffix matches', () {
-      final rule = service.addPathRule(
-        pattern: r'C:\docs\**\*.md',
-        mode: ViewerPathMatchMode.glob,
+      final group = firstUserGroup();
+      final rule = service.addRule(
+        groupId: group.id,
+        type: ViewerRuleType.path,
+        value: r'C:\docs\**\*.md',
+        pathMode: ViewerPathMatchMode.glob,
         viewerIds: ['viewer.c'],
       );
+      service.reorderRuleGroups(service.ruleGroups.length - 1, 0);
 
       final candidates = service.resolveCandidates(r'C:\docs\README.md');
 
@@ -584,16 +655,29 @@ void main() {
                 File(p.join(temp.path, 'associations.json')).readAsStringSync(),
               )
               as Map;
-      final groups = saved['groups']! as List;
-      expect((groups.first as Map)['id'], group.id);
+      final savedGroups = saved['groups']! as List;
+      expect((savedGroups.first as Map)['id'], group.id);
+      // 用户配置只记 default 引用（preset stub），不存默认规则。
+      expect(savedGroups.map((entry) => (entry as Map)['id']), [
+        group.id,
+        'default',
+      ]);
+      expect((savedGroups.last as Map)['preset'], isTrue);
+      expect(savedGroups.last, isNot(contains('rules')));
+      final ids = savedGroups.map((entry) => (entry as Map)['id']).toSet();
+      expect(ids, isNot(contains('ext-md')));
     });
 
     test('matches exact paths case-insensitively', () {
-      service.addPathRule(
-        pattern: r'C:\Docs\README.md',
-        mode: ViewerPathMatchMode.exact,
+      final group = firstUserGroup();
+      service.addRule(
+        groupId: group.id,
+        type: ViewerRuleType.path,
+        value: r'C:\Docs\README.md',
+        pathMode: ViewerPathMatchMode.exact,
         viewerIds: ['viewer.c'],
       );
+      service.reorderRuleGroups(service.ruleGroups.length - 1, 0);
 
       expect(
         service.resolveCandidates(r'c:\docs\readme.md').first.matchKind,
@@ -601,7 +685,7 @@ void main() {
       );
     });
 
-    test('migrates v1 exactly and appends plugins installed later', () {
+    test('migrates v1 associations away and keeps static defaults stable', () {
       final configFile = File(p.join(temp.path, 'legacy-associations.json'))
         ..writeAsStringSync(
           jsonEncode({
@@ -613,24 +697,28 @@ void main() {
             },
           }),
         );
-      final migratingService = QuickViewService(
-        pluginRoots: [pluginRoot],
-        associationStore: ViewerAssociationStore(filePath: configFile.path),
-        mimeTypeResolver: (_) => null,
+      final migratingService = createService(
+        associationFile: configFile.path,
+        defaultConfigFile: defaultConfigFile,
       );
       addTearDown(migratingService.dispose);
 
+      // v1 内置关联被丢弃，默认规则来自 plugins 静态配置。
       expect(
         migratingService
             .resolve(r'C:\docs\guide.md')
             .map((plugin) => plugin.manifest.id),
-        ['viewer.b'],
+        ['viewer.b', 'viewer.c'],
       );
       final migratedJson = jsonDecode(configFile.readAsStringSync()) as Map;
-      expect(migratedJson['schemaVersion'], 2);
-      expect(migratedJson['groups'], isA<List>());
-      expect(migratedJson, isNot(contains('associations')));
+      expect(migratedJson['schemaVersion'], 3);
+      final groups = migratedJson['groups']! as List;
+      expect((groups.first as Map)['id'], 'default');
+      expect((groups.first as Map)['preset'], isTrue);
+      expect(groups.first, isNot(contains('rules')));
+      expect(groups.first, isNot(contains('associations')));
 
+      // 静态默认规则不随插件变化：reload 不追加新 Viewer。
       _writePlugin(
         pluginRoot,
         id: 'viewer.new',
@@ -643,26 +731,67 @@ void main() {
         migratingService
             .resolve(r'C:\docs\guide.md')
             .map((plugin) => plugin.manifest.id),
-        ['viewer.b', 'viewer.new'],
+        ['viewer.b', 'viewer.c'],
       );
+    });
+
+    test('migrates v2 user rules into 我的规则 before the default group', () {
+      final configFile = File(p.join(temp.path, 'v2-associations.json'))
+        ..writeAsStringSync(
+          jsonEncode({
+            'schemaVersion': 2,
+            'groups': [
+              {
+                'id': 'builtin-extension',
+                'name': '扩展名',
+                'builtIn': true,
+                'enabled': true,
+                'rules': [
+                  {
+                    'id': 'extension-bar',
+                    'managed': false,
+                    'enabled': true,
+                    'type': 'extension',
+                    'value': '.bar',
+                    'rules': <Object?>[],
+                    'viewers': [
+                      {'id': 'viewer.c', 'managed': false, 'enabled': true},
+                    ],
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      final migratingService = createService(
+        associationFile: configFile.path,
+        defaultConfigFile: defaultConfigFile,
+      );
+      addTearDown(migratingService.dispose);
+
+      expect(migratingService.ruleGroups.map((group) => group.id), [
+        ViewerAssociationConfig.migratedGroupId,
+        ViewerAssociationConfig.defaultGroupId,
+      ]);
+      expect(
+        migratingService.ruleGroup('migrated-rules').rules.single.value,
+        '.bar',
+      );
+      final saved = jsonDecode(configFile.readAsStringSync()) as Map;
+      expect(saved['schemaVersion'], 3);
     });
 
     test('does not overwrite an unsupported future config', () {
       final configFile = File(p.join(temp.path, 'future-associations.json'));
       const original = '{"schemaVersion":99,"futureSetting":true}';
       configFile.writeAsStringSync(original);
-      final futureService = QuickViewService(
-        pluginRoots: [pluginRoot],
-        associationStore: ViewerAssociationStore(filePath: configFile.path),
-        mimeTypeResolver: (_) => null,
+      final futureService = createService(
+        associationFile: configFile.path,
+        defaultConfigFile: defaultConfigFile,
       );
       addTearDown(futureService.dispose);
 
-      futureService.addPathRule(
-        pattern: r'C:\docs\**\*.md',
-        mode: ViewerPathMatchMode.glob,
-        viewerIds: ['viewer.b'],
-      );
+      futureService.addRuleGroup(name: '不可保存组');
 
       expect(configFile.readAsStringSync(), original);
       expect(
@@ -698,11 +827,9 @@ void main() {
     });
 
     test('uses the platform MIME resolver when no MIME is supplied', () {
-      final resolvingService = QuickViewService(
-        pluginRoots: [pluginRoot],
-        associationStore: ViewerAssociationStore(
-          filePath: p.join(temp.path, 'mime-associations.json'),
-        ),
+      final resolvingService = createService(
+        associationFile: p.join(temp.path, 'mime-associations.json'),
+        defaultConfigFile: defaultConfigFile,
         mimeTypeResolver: (_) => 'image/png',
       );
       addTearDown(resolvingService.dispose);
@@ -715,115 +842,126 @@ void main() {
       );
     });
 
-    test('rejects a configured plugin not declared by its manifest', () {
+    test('rejects a viewer not known to a user rule', () {
+      final group = firstUserGroup();
       expect(
-        () => service.setCandidates(ViewerAssociationKind.extension, '.md', [
-          'viewer.a',
-        ]),
+        () => service.addRule(
+          groupId: group.id,
+          type: ViewerRuleType.extension,
+          value: '.md',
+          viewerIds: ['viewer.nope'],
+        ),
         throwsArgumentError,
       );
     });
 
-    test('explicit empty list disables and reset restores auto candidates', () {
-      service.disableAssociation(ViewerAssociationKind.extension, '.md');
-      expect(
-        service.candidatesForAssociation(
-          ViewerAssociationKind.extension,
-          '.md',
-        ),
-        isEmpty,
+    test('discovers the plugins default config when none is injected', () {
+      final discovered = createService(
+        associationFile: p.join(temp.path, 'discovered.json'),
+        defaultConfigFile: null,
       );
+      addTearDown(discovered.dispose);
 
-      service.resetAssociation(ViewerAssociationKind.extension, '.md');
-      expect(
-        service
-            .candidatesForAssociation(ViewerAssociationKind.extension, '.md')
-            .map((plugin) => plugin.manifest.id),
-        ['viewer.b', 'viewer.c'],
-      );
+      final preset = discovered.ruleGroups.firstWhere((group) => group.preset);
+      expect(preset.id, ViewerAssociationConfig.defaultGroupId);
+      // 仓库根目录的 plugins/quick-view.default.json 应被自动发现。
+      expect(preset.rules, isNotEmpty);
     });
 
-    test('disabling and enabling preserves the configured candidate order', () {
-      service.setCandidates(ViewerAssociationKind.extension, '.md', [
-        'viewer.c',
-        'viewer.b',
-      ]);
-      service.disableAssociation(ViewerAssociationKind.extension, '.md');
+    test('user rule viewer edits persist order and disabled state', () {
+      final group = firstUserGroup();
+      final rule = service.addRule(
+        groupId: group.id,
+        type: ViewerRuleType.extension,
+        value: '.md',
+        viewerIds: ['viewer.c', 'viewer.b'],
+      );
+      service.reorderRuleGroups(service.ruleGroups.length - 1, 0);
 
       expect(
         service
-            .viewersForRule(
-              service.rule(
-                ViewerAssociationConfig.defaultRuleId(
-                  ViewerAssociationKind.extension,
-                  '.md',
-                ),
-              ),
-              includeDisabled: true,
-            )
+            .resolve(r'C:\docs\guide.md')
             .map((plugin) => plugin.manifest.id),
         ['viewer.c', 'viewer.b'],
       );
 
-      service.setRuleEnabled(
-        ViewerAssociationConfig.defaultRuleId(
-          ViewerAssociationKind.extension,
-          '.md',
+      service.setRuleViewerEnabled(rule.id, 'viewer.c', false);
+      service.addViewerToRule(rule.id, 'viewer.a');
+      expect(
+        service.rule(rule.id).viewers.map((viewer) => viewer.id),
+        ['viewer.c', 'viewer.b', 'viewer.a'],
+      );
+      final saved =
+          jsonDecode(
+                File(p.join(temp.path, 'associations.json')).readAsStringSync(),
+              )
+              as Map;
+      final groups = saved['groups']! as List;
+      final customGroup = groups.cast<Map>().singleWhere(
+        (candidate) => candidate['id'] == group.id,
+      );
+      final savedRule = (customGroup['rules']! as List).cast<Map>().single;
+      expect(
+        (savedRule['viewers'] as List).cast<Map>().map(
+          (viewer) => viewer['id'],
         ),
-        true,
+        ['viewer.c', 'viewer.b', 'viewer.a'],
       );
       expect(
-        service
-            .candidatesForAssociation(ViewerAssociationKind.extension, '.md')
-            .map((plugin) => plugin.manifest.id),
-        ['viewer.c', 'viewer.b'],
+        ((savedRule['viewers'] as List).cast<Map>().first)['enabled'],
+        isFalse,
       );
     });
 
-    test('editing candidates retains a temporarily missing viewer ID', () {
+    test('preserves a temporarily missing viewer ID on user edits', () {
       final configFile = File(p.join(temp.path, 'missing-viewer.json'))
         ..writeAsStringSync(
           jsonEncode({
-            'schemaVersion': 2,
-            'rules': <Object?>[],
-            'associations': {
-              'extensions': {
-                '.md': {
-                  'enabled': true,
-                  'viewerOrder': ['viewer.b', 'viewer.missing'],
-                  'excludedViewerIds': <String>[],
-                },
+            'schemaVersion': 3,
+            'groups': [
+              {'id': 'default', 'preset': true},
+              {
+                'id': 'custom-md',
+                'name': '自定义 Markdown',
+                'enabled': true,
+                'rules': [
+                  {
+                    'id': 'ext-md-user',
+                    'enabled': true,
+                    'type': 'extension',
+                    'value': '.md',
+                    'rules': <Object?>[],
+                    'viewers': [
+                      {'id': 'viewer.b', 'enabled': true},
+                      {'id': 'viewer.missing', 'enabled': true},
+                    ],
+                  },
+                ],
               },
-              'fileNames': <String, Object?>{},
-              'mimeTypes': <String, Object?>{},
-            },
+            ],
           }),
         );
-      final preservingService = QuickViewService(
-        pluginRoots: [pluginRoot],
-        associationStore: ViewerAssociationStore(filePath: configFile.path),
-        mimeTypeResolver: (_) => null,
+      final preservingService = createService(
+        associationFile: configFile.path,
+        defaultConfigFile: defaultConfigFile,
       );
       addTearDown(preservingService.dispose);
 
-      preservingService.setCandidates(ViewerAssociationKind.extension, '.md', [
-        'viewer.c',
-      ]);
+      preservingService.addViewerToRule('ext-md-user', 'viewer.c');
 
       final saved = jsonDecode(configFile.readAsStringSync()) as Map;
       final groups = saved['groups']! as List;
-      final extensionGroup = groups.cast<Map>().singleWhere(
-        (group) => group['id'] == 'builtin-extension',
+      final customGroup = groups.cast<Map>().singleWhere(
+        (group) => group['id'] == 'custom-md',
       );
-      final rules = extensionGroup['rules']! as List;
-      final markdownRule = rules.cast<Map>().singleWhere(
-        (rule) => rule['value'] == '.md',
-      );
+      final markdownRule = (customGroup['rules']! as List)
+          .cast<Map>()
+          .singleWhere((rule) => rule['id'] == 'ext-md-user');
       expect(
         (markdownRule['viewers'] as List).cast<Map>().map(
           (viewer) => viewer['id'],
         ),
-        ['viewer.c', 'viewer.missing', 'viewer.b'],
+        ['viewer.b', 'viewer.missing', 'viewer.c'],
       );
     });
 
@@ -834,12 +972,9 @@ void main() {
           ..writeAsStringSync('test');
         final starts = <(String, List<String>, String)>[];
         final windows = _FakeViewerWindowController();
-        final launchingService = QuickViewService(
-          pluginRoots: [pluginRoot],
-          associationStore: ViewerAssociationStore(
-            filePath: p.join(temp.path, 'launch-associations.json'),
-          ),
-          mimeTypeResolver: (_) => null,
+        final launchingService = createService(
+          associationFile: p.join(temp.path, 'launch-associations.json'),
+          defaultConfigFile: defaultConfigFile,
           processStarter: (executable, arguments, workingDirectory) async {
             starts.add((executable, arguments, workingDirectory));
             if (executable.contains('viewer.b')) {
@@ -850,10 +985,6 @@ void main() {
           windowController: windows,
         );
         addTearDown(launchingService.dispose);
-        launchingService.setCandidates(ViewerAssociationKind.extension, '.md', [
-          'viewer.b',
-          'viewer.c',
-        ]);
 
         final result = await launchingService.open(file.path);
 
@@ -871,12 +1002,9 @@ void main() {
         ..writeAsStringSync('second');
       final windows = _FakeViewerWindowController();
       final starts = <List<String>>[];
-      final launchingService = QuickViewService(
-        pluginRoots: [pluginRoot],
-        associationStore: ViewerAssociationStore(
-          filePath: p.join(temp.path, 'replace-associations.json'),
-        ),
-        mimeTypeResolver: (_) => null,
+      final launchingService = createService(
+        associationFile: p.join(temp.path, 'replace-associations.json'),
+        defaultConfigFile: defaultConfigFile,
         processStarter: (executable, arguments, workingDirectory) async {
           starts.add(arguments);
           return windows.createProcess();
@@ -884,9 +1012,6 @@ void main() {
         windowController: windows,
       );
       addTearDown(launchingService.dispose);
-      launchingService.setCandidates(ViewerAssociationKind.extension, '.md', [
-        'viewer.b',
-      ]);
 
       expect((await launchingService.open(firstFile.path)).started, isTrue);
       final firstWindow = windows.createdWindows.single;
@@ -913,20 +1038,14 @@ void main() {
       final file = File(p.join(temp.path, 'first.md'))
         ..writeAsStringSync('first');
       final windows = _FakeViewerWindowController();
-      final launchingService = QuickViewService(
-        pluginRoots: [pluginRoot],
-        associationStore: ViewerAssociationStore(
-          filePath: p.join(temp.path, 'exit-associations.json'),
-        ),
-        mimeTypeResolver: (_) => null,
+      final launchingService = createService(
+        associationFile: p.join(temp.path, 'exit-associations.json'),
+        defaultConfigFile: defaultConfigFile,
         processStarter: (executable, arguments, workingDirectory) async =>
             windows.createProcess(),
         windowController: windows,
       );
       addTearDown(launchingService.dispose);
-      launchingService.setCandidates(ViewerAssociationKind.extension, '.md', [
-        'viewer.b',
-      ]);
 
       await launchingService.open(file.path);
       expect(launchingService.hasAttachedViewer, isTrue);
@@ -945,20 +1064,14 @@ void main() {
         final secondFile = File(p.join(temp.path, 'second.md'))
           ..writeAsStringSync('second');
         final windows = _FakeViewerWindowController();
-        final launchingService = QuickViewService(
-          pluginRoots: [pluginRoot],
-          associationStore: ViewerAssociationStore(
-            filePath: p.join(temp.path, 'detach-associations.json'),
-          ),
-          mimeTypeResolver: (_) => null,
+        final launchingService = createService(
+          associationFile: p.join(temp.path, 'detach-associations.json'),
+          defaultConfigFile: defaultConfigFile,
           processStarter: (executable, arguments, workingDirectory) async =>
               windows.createProcess(),
           windowController: windows,
         );
         addTearDown(launchingService.dispose);
-        launchingService.setCandidates(ViewerAssociationKind.extension, '.md', [
-          'viewer.b',
-        ]);
 
         await launchingService.open(firstFile.path);
         final detachedWindow = windows.createdWindows.single;
@@ -1009,6 +1122,7 @@ void main() {
         associationStore: ViewerAssociationStore(
           filePath: p.join(temp.path, 'associations.json'),
         ),
+        defaultConfigFile: _writeDefaultConfig(pluginRoot, []),
         mimeTypeResolver: (_) => null,
         directoryOpenerResolver: DirectoryOpenerResolver(
           environment: const {},
@@ -1124,6 +1238,38 @@ void main() {
       expect(result.message, startsWith('启动失败'));
     });
   });
+}
+
+String? _noMime(String path) => null;
+
+Map<String, Object?> _jsonRule(
+  String id,
+  String type,
+  String value,
+  List<String> viewerIds, {
+  List<Map<String, Object?>>? rules,
+}) => {
+  'id': id,
+  'enabled': true,
+  'type': type,
+  'value': value,
+  'rules': rules ?? const <Object?>[],
+  'viewers': [
+    for (final viewerId in viewerIds) {'id': viewerId, 'enabled': true},
+  ],
+};
+
+File _writeDefaultConfig(Directory root, List<Map<String, Object?>> rules) {
+  final file = File(p.join(root.path, 'quick-view.default.json'));
+  file.writeAsStringSync(
+    jsonEncode({
+      'schemaVersion': 3,
+      'id': 'default',
+      'name': '默认',
+      'rules': rules,
+    }),
+  );
+  return file;
 }
 
 void _writeOpenerPlugin(

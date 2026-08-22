@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -26,11 +27,21 @@ void main() {
       store: SettingsStore(filePath: p.join(temp.path, 'settings.json')),
     );
     final pluginRoot = Directory(p.join(temp.path, 'plugins'))..createSync();
+    final defaultConfig = File(p.join(pluginRoot.path, 'quick-view.default.json'))
+      ..writeAsStringSync(
+        jsonEncode({
+          'schemaVersion': 3,
+          'id': 'default',
+          'name': '默认',
+          'rules': <Object?>[],
+        }),
+      );
     quickView = QuickViewService(
       pluginRoots: [pluginRoot],
       associationStore: ViewerAssociationStore(
         filePath: p.join(temp.path, 'associations.json'),
       ),
+      defaultConfigFile: defaultConfig,
       mimeTypeResolver: (_) => null,
     );
     clearCount = 0;
@@ -143,13 +154,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('settings-category-viewers')));
     await tester.pumpAndSettle();
 
-    expect(find.text('路径'), findsOneWidget);
-    expect(find.text('扩展名'), findsOneWidget);
-    expect(find.text('文件名'), findsOneWidget);
-    expect(find.text('MIME'), findsOneWidget);
+    expect(find.text('默认'), findsOneWidget);
     expect(find.byType(ReorderableListView), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('viewer-rule-group-builtin-path')),
+      find.byKey(const ValueKey('viewer-rule-group-default')),
       findsOneWidget,
     );
     expect(

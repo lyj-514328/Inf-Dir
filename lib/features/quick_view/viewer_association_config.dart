@@ -10,7 +10,7 @@ class ViewerRuleGroup {
   ViewerRuleGroup({
     required String id,
     required String name,
-    required this.builtIn,
+    required this.preset,
     required this.enabled,
     Iterable<ViewerRule> rules = const [],
   }) : id = normalizeId(id),
@@ -19,19 +19,21 @@ class ViewerRuleGroup {
 
   final String id;
   final String name;
-  final bool builtIn;
+
+  /// 预置分组（默认"default"）：内容来自 plugins 静态配置，整组只读。
+  final bool preset;
   final bool enabled;
   final List<ViewerRule> rules;
 
   ViewerRuleGroup copyWith({
     String? name,
     bool? enabled,
-    bool? builtIn,
+    bool? preset,
     Iterable<ViewerRule>? rules,
   }) => ViewerRuleGroup(
     id: id,
     name: name ?? this.name,
-    builtIn: builtIn ?? this.builtIn,
+    preset: preset ?? this.preset,
     enabled: enabled ?? this.enabled,
     rules: rules ?? this.rules,
   );
@@ -39,7 +41,7 @@ class ViewerRuleGroup {
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
-    'builtIn': builtIn,
+    'preset': preset,
     'enabled': enabled,
     'rules': [for (final rule in rules) rule.toJson()],
   };
@@ -63,36 +65,46 @@ class ViewerAssociationConfig {
   ViewerAssociationConfig._(
     this._groups, {
     bool needsMigration = false,
-    Set<String>? legacyExactRuleIds,
-  }) : _needsMigration = needsMigration,
-       _legacyExactRuleIds = legacyExactRuleIds ?? <String>{};
+  }) : _needsMigration = needsMigration;
 
+  static const String defaultGroupId = 'default';
+  static const String defaultGroupName = '默认';
+  static const String migratedGroupId = 'migrated-rules';
+  static const String migratedGroupName = '我的规则';
+
+  /// 旧版（< v3）内置组 ID，仅用于迁移识别。
   static const String builtInPathGroupId = 'builtin-path';
   static const String builtInFileNameGroupId = 'builtin-file-name';
   static const String builtInExtensionGroupId = 'builtin-extension';
   static const String builtInMimeTypeGroupId = 'builtin-mime';
 
-  static const Set<String> _builtInGroupIds = {
+  static const Set<String> _legacyBuiltInGroupIds = {
     builtInPathGroupId,
     builtInFileNameGroupId,
     builtInExtensionGroupId,
     builtInMimeTypeGroupId,
   };
 
-  factory ViewerAssociationConfig.empty() =>
-      ViewerAssociationConfig._(_defaultGroups());
+  /// 空配置：只有预置 default 分组（无规则时为 [presetDefaultGroup]）。
+  factory ViewerAssociationConfig.empty({ViewerRuleGroup? defaultGroup}) =>
+      ViewerAssociationConfig._([defaultGroup ?? presetDefaultGroup()]);
 
-  factory ViewerAssociationConfig.fromJson(Map<String, Object?> json) {
+  /// 解析 v3 及以下版本。v1/v2 会迁移为 v3 模型（内置组丢弃、用户规则
+  /// 转入"我的规则"组）。[defaultGroup] 为 plugins 静态配置中的预置组。
+  factory ViewerAssociationConfig.fromJson(
+    Map<String, Object?> json, {
+    ViewerRuleGroup? defaultGroup,
+  }) {
     final version = json['schemaVersion'];
     return switch (version) {
-      1 => _fromVersion1(json),
-      2 => _fromVersion2(json),
+      1 => _migrateLegacy(_fromVersion1(json), defaultGroup),
+      2 => _migrateLegacy(_fromVersion2(json), defaultGroup),
+      3 => _fromVersion3(json, defaultGroup),
       _ => throw FormatException('不支持的关联配置版本：$version'),
     };
   }
 
   final List<ViewerRuleGroup> _groups;
-  final Set<String> _legacyExactRuleIds;
   bool _needsMigration;
 
   List<ViewerRuleGroup> get groups => List.unmodifiable(_groups);
@@ -114,22 +126,22 @@ class ViewerAssociationConfig {
     if (_groups.any((item) => item.id == group.id)) {
       throw ArgumentError('规则组 ID 已存在：${group.id}');
     }
-    if (group.builtIn) throw ArgumentError('不能添加自定义内置规则组');
+    if (group.preset) throw ArgumentError('不能添加自定义预置规则组');
     _groups.add(group);
   }
 
   void updateGroup(ViewerRuleGroup group) {
     final index = _groups.indexWhere((item) => item.id == group.id);
     if (index < 0) throw ArgumentError('规则组不存在：${group.id}');
-    if (_groups[index].builtIn != group.builtIn) {
-      throw ArgumentError('规则组内置状态不能修改');
+    if (_groups[index].preset || group.preset != _groups[index].preset) {
+      throw ArgumentError('预置规则组不能修改');
     }
     _groups[index] = group;
   }
 
   void removeGroup(String id) {
     final value = _groupById(id);
-    if (value.builtIn) throw ArgumentError('内置规则组不能删除');
+    if (value.preset) throw ArgumentError('预置规则组不能删除');
     _groups.remove(value);
   }
 
@@ -153,25 +165,23 @@ class ViewerAssociationConfig {
             ViewerRuleGroup.normalizeId(groupId)) {
       throw ArgumentError('父规则不在目标规则组中');
     }
+    if (parentRuleId == null && _groupById(groupId).preset) {
+      throw ArgumentError('预置规则组不能修改');
+    }
     target.add(rule);
   }
 
   void updateRule(ViewerRule next) {
     final location = _ruleLocation(next.id);
-    final current = location.rule;
-    if (current.managed &&
-        (next.type != current.type ||
-            next.value != current.value ||
-            next.pathMode != current.pathMode ||
-            !next.managed)) {
-      throw ArgumentError('默认规则的类型和匹配值不能修改');
+    if (location.group.preset) {
+      throw ArgumentError('预置规则的匹配条件不能修改');
     }
     location.siblings[location.index] = next;
   }
 
   void removeRule(String id) {
     final location = _ruleLocation(id);
-    if (location.rule.managed) throw ArgumentError('默认规则不能删除');
+    if (location.group.preset) throw ArgumentError('预置规则不能删除');
     location.siblings.removeAt(location.index);
   }
 
@@ -179,128 +189,49 @@ class ViewerAssociationConfig {
     if (id == targetId) return;
     final source = _ruleLocation(id);
     _ruleLocation(targetId);
+    if (source.group.preset) throw ArgumentError('预置规则不能移动');
     if (_containsRule(source.rule, targetId)) {
       throw ArgumentError('不能把规则移动到自己的子树中');
     }
-    final value = source.siblings.removeAt(source.index);
     final target = _ruleLocation(targetId);
+    if (target.group.preset) throw ArgumentError('预置规则不能移动');
+    final value = source.siblings.removeAt(source.index);
     target.siblings.insert(target.index, value);
   }
 
   void moveRuleInto(String id, String parentId) {
     if (id == parentId) throw ArgumentError('规则不能成为自己的子规则');
     final source = _ruleLocation(id);
-    _ruleLocation(parentId);
+    final parent = _ruleLocation(parentId);
+    if (source.group.preset || parent.group.preset) {
+      throw ArgumentError('预置规则不能移动');
+    }
     if (_containsRule(source.rule, parentId)) {
       throw ArgumentError('不能把规则移动到自己的子树中');
     }
     final value = source.siblings.removeAt(source.index);
-    _ruleLocation(parentId).rule.rules.add(value);
+    parent.rule.rules.add(value);
   }
 
   void moveRuleToGroup(String id, String groupId) {
     final target = _groupById(groupId);
     final source = _ruleLocation(id);
+    if (source.group.preset || target.preset) {
+      throw ArgumentError('预置规则不能移动');
+    }
     final value = source.siblings.removeAt(source.index);
     target.rules.add(value);
   }
 
-  bool reconcileManifestPlugins(Iterable<PluginManifest> manifests) {
-    var changed = _needsMigration;
-    final declarations =
-        <(ViewerAssociationKind, String), List<PluginManifest>>{};
-    for (final manifest in manifests) {
-      final quickView = manifest.quickView;
-      if (quickView == null) continue;
-      for (final kind in ViewerAssociationKind.values) {
-        for (final value in quickView.valuesFor(kind)) {
-          declarations.putIfAbsent((kind, value), () => []).add(manifest);
-        }
-      }
-    }
-
-    final entries = declarations.entries.toList()
-      ..sort((a, b) => _compareDeclarations(a.key, b.key));
-    for (final entry in entries) {
-      final kind = entry.key.$1;
-      final value = entry.key.$2;
-      final id = defaultRuleId(kind, value);
-      final manifestsForRule = entry.value
-        ..sort((a, b) {
-          final byName = a.name.compareTo(b.name);
-          return byName != 0 ? byName : a.id.compareTo(b.id);
-        });
-      final existing = _tryRuleLocation(id);
-      if (existing == null) {
-        _groupById(builtInGroupIdFor(kind)).rules.add(
-          ViewerRule(
-            id: id,
-            managed: true,
-            enabled: true,
-            type: ViewerRuleType.fromAssociationKind(kind),
-            value: value,
-            viewers: [
-              for (final manifest in manifestsForRule)
-                ViewerRuleViewer(id: manifest.id, managed: true, enabled: true),
-            ],
-          ),
-        );
-        changed = true;
-        continue;
-      }
-
-      final expectedType = ViewerRuleType.fromAssociationKind(kind);
-      var valueRule = existing.rule;
-      if (!valueRule.managed ||
-          valueRule.type != expectedType ||
-          valueRule.value != value ||
-          valueRule.pathMode != null) {
-        valueRule = ViewerRule(
-          id: id,
-          managed: true,
-          enabled: valueRule.enabled,
-          type: expectedType,
-          value: value,
-          rules: valueRule.rules,
-          viewers: valueRule.viewers,
-        );
-        existing.siblings[existing.index] = valueRule;
-        changed = true;
-      }
-
-      final exactLegacy = _legacyExactRuleIds.contains(id);
-      final manifestIds = manifestsForRule
-          .map((manifest) => manifest.id)
-          .toSet();
-      for (var index = 0; index < valueRule.viewers.length; index++) {
-        final viewer = valueRule.viewers[index];
-        if (manifestIds.contains(viewer.id) && !viewer.managed) {
-          valueRule.viewers[index] = viewer.copyWith(managed: true);
-          changed = true;
-        }
-      }
-      final ids = valueRule.viewers.map((viewer) => viewer.id).toSet();
-      for (final manifest in manifestsForRule) {
-        if (!ids.add(manifest.id)) continue;
-        valueRule.viewers.add(
-          ViewerRuleViewer(
-            id: manifest.id,
-            managed: true,
-            enabled: !exactLegacy,
-          ),
-        );
-        changed = true;
-      }
-    }
-
-    _legacyExactRuleIds.clear();
-    _needsMigration = false;
-    return changed;
-  }
-
   Map<String, Object?> toJson() => {
-    'schemaVersion': 2,
-    'groups': [for (final group in _groups) group.toJson()],
+    'schemaVersion': 3,
+    'groups': [
+      for (final group in _groups)
+        if (group.preset)
+          {'id': group.id, 'preset': true}
+        else
+          group.toJson(),
+    ],
   };
 
   static String builtInGroupIdFor(ViewerAssociationKind kind) => switch (kind) {
@@ -319,6 +250,218 @@ class ViewerAssociationConfig {
       kind,
     ).jsonValue.toLowerCase();
     return 'builtin-$type-$encoded';
+  }
+
+  /// 预置 default 分组的空占位（plugins 静态配置缺失时使用）。
+  static ViewerRuleGroup presetDefaultGroup() => ViewerRuleGroup(
+    id: defaultGroupId,
+    name: defaultGroupName,
+    preset: true,
+    enabled: true,
+  );
+
+  /// 解析 plugins 静态默认配置（v3 分组文档）：
+  /// `{schemaVersion, id, name, rules}`。整组只读且始终启用。
+  static ViewerRuleGroup parsePresetGroup(Map<String, Object?> json) {
+    final idValue = json['id'];
+    final nameValue = json['name'];
+    final rawRules = json['rules'];
+    if (idValue is! String || nameValue is! String || rawRules is! List) {
+      throw const FormatException('预置分组字段无效');
+    }
+    final rules = <ViewerRule>[];
+    final ruleIds = <String>{};
+    for (final rawRule in rawRules) {
+      if (rawRule is! Map<String, Object?>) continue;
+      try {
+        final rule = ViewerRule.fromJson(rawRule);
+        final subtreeIds = <String>{};
+        if (_collectRuleIds(rule, subtreeIds) && !subtreeIds.any(ruleIds.contains)) {
+          ruleIds.addAll(subtreeIds);
+          rules.add(rule);
+        }
+      } on FormatException {
+        // Skip malformed preset rules.
+      }
+    }
+    return ViewerRuleGroup(
+      id: ViewerRuleGroup.normalizeId(idValue),
+      name: ViewerRuleGroup.normalizeName(nameValue),
+      preset: true,
+      enabled: true,
+      rules: rules,
+    );
+  }
+
+  // ----------------------------------------------------------------------
+  //  v3 / legacy parsing
+  // ----------------------------------------------------------------------
+
+  static ViewerAssociationConfig _fromVersion3(
+    Map<String, Object?> json,
+    ViewerRuleGroup? defaultGroup,
+  ) {
+    final rawGroups = json['groups'];
+    if (rawGroups is! List) {
+      throw const FormatException('v3 配置缺少 groups 数组');
+    }
+    final groups = <ViewerRuleGroup>[];
+    final ids = <String>{};
+    var repaired = false;
+    for (final raw in rawGroups.whereType<Map<String, Object?>>()) {
+      try {
+        final idValue = raw['id'];
+        if (idValue is! String) throw const FormatException('规则组字段无效');
+        final id = ViewerRuleGroup.normalizeId(idValue);
+        if (!ids.add(id)) {
+          repaired = true;
+          continue;
+        }
+        if (raw['preset'] == true) {
+          groups.add(_resolvePresetEntry(id, defaultGroup, onMismatch: () {
+            repaired = true;
+          }));
+          continue;
+        }
+        if (raw.containsKey('preset')) {
+          repaired = true;
+        }
+        final nameValue = raw['name'];
+        final enabledValue = raw['enabled'];
+        final rawRules = raw['rules'];
+        if (nameValue is! String ||
+            enabledValue is! bool ||
+            rawRules is! List) {
+          throw const FormatException('规则组字段无效');
+        }
+        final rules = <ViewerRule>[];
+        final groupRuleIds = <String>{};
+        for (final rawRule in rawRules) {
+          if (rawRule is! Map<String, Object?>) {
+            repaired = true;
+            continue;
+          }
+          try {
+            final rule = ViewerRule.fromJson(rawRule);
+            final subtreeIds = <String>{};
+            if (!_collectRuleIds(rule, subtreeIds) ||
+                subtreeIds.any(ids.contains) ||
+                subtreeIds.any(groupRuleIds.contains)) {
+              repaired = true;
+              continue;
+            }
+            groupRuleIds.addAll(subtreeIds);
+            rules.add(rule);
+          } on FormatException {
+            repaired = true;
+          }
+        }
+        groups.add(
+          ViewerRuleGroup(
+            id: id,
+            name: nameValue,
+            preset: false,
+            enabled: enabledValue,
+            rules: rules,
+          ),
+        );
+        ids.addAll(groupRuleIds);
+      } on FormatException {
+        repaired = true;
+      }
+    }
+    if (!groups.any((group) => group.preset)) {
+      groups.add(
+        _resolvePresetEntry(defaultGroupId, defaultGroup, onMismatch: () {}),
+      );
+      repaired = true;
+    }
+    return ViewerAssociationConfig._(groups, needsMigration: repaired);
+  }
+
+  static ViewerRuleGroup _resolvePresetEntry(
+    String requestedId,
+    ViewerRuleGroup? defaultGroup, {
+    required void Function() onMismatch,
+  }) {
+    if (defaultGroup != null) {
+      if (defaultGroup.id != ViewerRuleGroup.normalizeId(requestedId)) {
+        onMismatch();
+      }
+      return defaultGroup;
+    }
+    return ViewerRuleGroup(
+      id: ViewerRuleGroup.normalizeId(requestedId),
+      name: defaultGroupName,
+      preset: true,
+      enabled: true,
+    );
+  }
+
+  /// v2/v1 模型迁移：丢弃旧内置组（默认规则以 plugins 静态配置为准），
+  /// 内置组中的用户规则（含旧默认规则上的自定义 Viewer）转入"我的规则"组，
+  /// 排在所有用户组之前、default 之前。
+  static ViewerAssociationConfig _migrateLegacy(
+    ViewerAssociationConfig legacy,
+    ViewerRuleGroup? defaultGroup,
+  ) {
+    final defaultResolved =
+        defaultGroup ?? ViewerAssociationConfig.presetDefaultGroup();
+    final userGroups = <ViewerRuleGroup>[];
+    final migrated = <ViewerRule>[];
+    for (final group in legacy._groups) {
+      if (_legacyBuiltInGroupIds.contains(group.id)) {
+        for (final rule in group.rules) {
+          _extractUserRules(rule, migrated);
+        }
+      } else {
+        userGroups.add(group);
+      }
+    }
+    final migratedGroup = migrated.isEmpty
+        ? null
+        : ViewerRuleGroup(
+            id: migratedGroupId,
+            name: migratedGroupName,
+            preset: false,
+            enabled: true,
+            rules: migrated,
+          );
+    return ViewerAssociationConfig._(
+      [
+        ?migratedGroup,
+        ...userGroups,
+        defaultResolved,
+      ],
+      needsMigration: true,
+    );
+  }
+
+  /// 从旧内置组里抽取用户规则：非 managed 规则整树保留；managed 规则上
+  /// 用户添加的 Viewer 与子规则聚合为同值的同步规则，保持覆盖语义。
+  static void _extractUserRules(ViewerRule rule, List<ViewerRule> out) {
+    if (!rule.managed) {
+      out.add(rule);
+      return;
+    }
+    final children = <ViewerRule>[];
+    for (final child in rule.rules) {
+      _extractUserRules(child, children);
+    }
+    final customViewers = rule.viewers.where((viewer) => !viewer.managed).toList();
+    if (customViewers.isEmpty && children.isEmpty) return;
+    out.add(
+      ViewerRule(
+        id: rule.id,
+        managed: false,
+        enabled: rule.enabled,
+        type: rule.type,
+        value: rule.value,
+        pathMode: rule.pathMode,
+        rules: children,
+        viewers: customViewers,
+      ),
+    );
   }
 
   static ViewerAssociationConfig _fromVersion2(Map<String, Object?> json) {
@@ -378,12 +521,12 @@ class ViewerAssociationConfig {
             repaired = true;
           }
         }
-        final builtIn = _builtInGroupIds.contains(id);
+        final builtIn = _legacyBuiltInGroupIds.contains(id);
         if ((raw['builtIn'] == true) != builtIn) repaired = true;
         final group = ViewerRuleGroup(
           id: id,
           name: nameValue,
-          builtIn: builtIn,
+          preset: builtIn,
           enabled: enabledValue,
           rules: rules,
         );
@@ -394,11 +537,9 @@ class ViewerAssociationConfig {
         repaired = true;
       }
     }
-    _appendMissingDefaultGroups(
-      groups,
-      groupIds,
-      onRepair: () => repaired = true,
-    );
+    _appendMissingLegacyGroups(groups, groupIds, onRepair: () {
+      repaired = true;
+    });
     return ViewerAssociationConfig._(groups, needsMigration: repaired);
   }
 
@@ -422,7 +563,7 @@ class ViewerAssociationConfig {
         final id = ViewerRuleGroup.normalizeId(idValue);
         ViewerRuleGroup.normalizeName(nameValue);
         if (groupIds.contains(id)) continue;
-        final builtIn = _builtInGroupIds.contains(id);
+        final builtIn = _legacyBuiltInGroupIds.contains(id);
         final rules = <ViewerRule>[];
         if (type == ViewerRuleType.path) {
           _decodeLegacyPathRules(raw['rules'], rules, ruleIds, managed: false);
@@ -439,7 +580,7 @@ class ViewerAssociationConfig {
         final group = ViewerRuleGroup(
           id: id,
           name: nameValue,
-          builtIn: builtIn,
+          preset: builtIn,
           enabled: enabledValue,
           rules: rules,
         );
@@ -449,14 +590,14 @@ class ViewerAssociationConfig {
         // Keep valid groups when one legacy group is malformed.
       }
     }
-    _appendMissingDefaultGroups(groups, groupIds);
+    _appendMissingLegacyGroups(groups, groupIds);
     return ViewerAssociationConfig._(groups, needsMigration: true);
   }
 
   static ViewerAssociationConfig _fromLegacyVersion2(
     Map<String, Object?> json,
   ) {
-    final groups = _defaultGroups();
+    final groups = _legacyDefaultGroups();
     final ids = <String>{};
     _decodeLegacyPathRules(
       json['rules'],
@@ -483,9 +624,8 @@ class ViewerAssociationConfig {
   }
 
   static ViewerAssociationConfig _fromVersion1(Map<String, Object?> json) {
-    final groups = _defaultGroups();
+    final groups = _legacyDefaultGroups();
     final ruleIds = <String>{};
-    final exact = <String>{};
     final associations = json['associations'];
     if (associations is Map<String, Object?>) {
       for (final kind in ViewerAssociationKind.values) {
@@ -518,18 +658,19 @@ class ViewerAssociationConfig {
                 ],
               ),
             );
-            exact.add(id);
           } on FormatException {
             // Keep valid associations when one v1 entry is malformed.
           }
         }
       }
     }
-    return ViewerAssociationConfig._(
-      groups,
-      needsMigration: true,
-      legacyExactRuleIds: exact,
+    _decodeLegacyPathRules(
+      json['rules'],
+      groups.firstWhere((group) => group.id == builtInPathGroupId).rules,
+      ruleIds,
+      managed: false,
     );
+    return ViewerAssociationConfig._(groups, needsMigration: true);
   }
 
   static void _decodeLegacyAssociations(
@@ -718,60 +859,41 @@ class ViewerAssociationConfig {
     return '$groupId-${ViewerRuleType.fromAssociationKind(kind).jsonValue}-$encoded';
   }
 
-  static int _compareDeclarations(
-    (ViewerAssociationKind, String) a,
-    (ViewerAssociationKind, String) b,
-  ) {
-    final kind = a.$1.index.compareTo(b.$1.index);
-    if (kind != 0) return kind;
-    if (a.$1 == ViewerAssociationKind.extension) {
-      final specificity = b.$2.length.compareTo(a.$2.length);
-      if (specificity != 0) return specificity;
-    }
-    if (a.$1 == ViewerAssociationKind.mimeType) {
-      final wildcard = (a.$2.endsWith('/*') ? 1 : 0).compareTo(
-        b.$2.endsWith('/*') ? 1 : 0,
-      );
-      if (wildcard != 0) return wildcard;
-    }
-    return a.$2.compareTo(b.$2);
-  }
-
-  static void _appendMissingDefaultGroups(
+  static void _appendMissingLegacyGroups(
     List<ViewerRuleGroup> groups,
     Set<String> ids, {
     void Function()? onRepair,
   }) {
-    for (final group in _defaultGroups()) {
+    for (final group in _legacyDefaultGroups()) {
       if (!ids.add(group.id)) continue;
       groups.add(group);
       onRepair?.call();
     }
   }
 
-  static List<ViewerRuleGroup> _defaultGroups() => [
+  static List<ViewerRuleGroup> _legacyDefaultGroups() => [
     ViewerRuleGroup(
       id: builtInPathGroupId,
       name: '路径',
-      builtIn: true,
+      preset: true,
       enabled: true,
     ),
     ViewerRuleGroup(
       id: builtInFileNameGroupId,
       name: '文件名',
-      builtIn: true,
+      preset: true,
       enabled: true,
     ),
     ViewerRuleGroup(
       id: builtInExtensionGroupId,
       name: '扩展名',
-      builtIn: true,
+      preset: true,
       enabled: true,
     ),
     ViewerRuleGroup(
       id: builtInMimeTypeGroupId,
       name: 'MIME',
-      builtIn: true,
+      preset: true,
       enabled: true,
     ),
   ];
@@ -800,14 +922,19 @@ class ViewerAssociationStore {
     return p.join(root, 'Inf-Dir', 'viewer_associations.json');
   }
 
-  ViewerAssociationConfig load() {
+  ViewerAssociationConfig load({ViewerRuleGroup? defaultGroup}) {
     final file = File(filePath);
-    if (!file.existsSync()) return ViewerAssociationConfig.empty();
+    if (!file.existsSync()) {
+      return ViewerAssociationConfig.empty(defaultGroup: defaultGroup);
+    }
     final decoded = jsonDecode(file.readAsStringSync());
     if (decoded is! Map<String, Object?>) {
       throw const FormatException('关联配置根节点必须是对象');
     }
-    return ViewerAssociationConfig.fromJson(decoded);
+    return ViewerAssociationConfig.fromJson(
+      decoded,
+      defaultGroup: defaultGroup,
+    );
   }
 
   void save(ViewerAssociationConfig config) {

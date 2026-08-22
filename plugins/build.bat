@@ -614,6 +614,9 @@ copy /Y "%SCRIPT_DIR%vscode-open\plugin.json" "%DIST_DIR%\inf-dir.vscode-open\" 
 
 copy /Y "%SCRIPT_DIR%terminal\plugin.json" "%DIST_DIR%\inf-dir.windows-terminal\" >nul
 
+rem Quick View default associations (schema v3, manually maintained tree).
+copy /Y "%SCRIPT_DIR%quick-view.default.json" "%DIST_DIR%\" >nul
+
 echo.
 echo [DONE] All plugins built and installed to: %DIST_DIR%
 endlocal
