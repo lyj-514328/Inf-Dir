@@ -1640,13 +1640,17 @@ class _FileIcon extends StatefulWidget {
 
 class _FileIconState extends State<_FileIcon> {
   Uint8List? _thumbnail;
+  Uint8List? _icon;
   int _requestId = 0;
+  int _iconRequestId = 0;
+  String? _requestedIconKey;
   bool? _lastShowThumbnails;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _requestThumbnail();
+    _requestShellIcon();
   }
 
   @override
@@ -1656,8 +1660,30 @@ class _FileIconState extends State<_FileIcon> {
         oldWidget.size != widget.size ||
         oldWidget.modified != widget.modified) {
       _thumbnail = null;
+      _icon = null;
+      _requestedIconKey = null;
       _requestThumbnail();
+      _requestShellIcon();
     }
+  }
+
+  void _requestShellIcon() {
+    if (!widget.path.startsWith(r'\\SHELL\')) return;
+    final sourceSize = (widget.size * View.of(context).devicePixelRatio).ceil();
+    final key = '${widget.path}:$sourceSize';
+    if (_requestedIconKey == key) return;
+    _requestedIconKey = key;
+    final requestId = ++_iconRequestId;
+    unawaited(
+      IconService.getFileIconPngAsync(
+        widget.path,
+        widget.isDirectory,
+        sourceSize,
+      ).then((bytes) {
+        if (!mounted || requestId != _iconRequestId || bytes == null) return;
+        setState(() => _icon = bytes);
+      }),
+    );
   }
 
   void _requestThumbnail() {
@@ -1709,13 +1735,18 @@ class _FileIconState extends State<_FileIcon> {
       _thumbnail = null;
     }
 
-    final png =
-        _thumbnail ??
-        IconService.getFileIconPng(widget.path, widget.isDirectory, sourceSize);
-    final overlayPng = IconService.getFileOverlayPng(
-      widget.path,
-      badgeSourceSize,
-    );
+    final isShellItem = widget.path.startsWith(r'\\SHELL\');
+    final png = isShellItem
+        ? (_thumbnail ?? _icon)
+        : (_thumbnail ??
+              IconService.getFileIconPng(
+                widget.path,
+                widget.isDirectory,
+                sourceSize,
+              ));
+    final overlayPng = isShellItem
+        ? null
+        : IconService.getFileOverlayPng(widget.path, badgeSourceSize);
 
     final Widget base = png != null
         ? Image.memory(

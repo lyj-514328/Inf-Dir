@@ -104,6 +104,28 @@ class IconService {
     }
   }
 
+  /// Resolves Shell namespace icons off the UI isolate. Third-party namespace
+  /// extensions can block both Shell image APIs while starting up.
+  static Future<Uint8List?> getFileIconPngAsync(
+    String path,
+    bool isDirectory,
+    int size,
+  ) async {
+    final cacheKey = '${isDirectory ? 'D' : 'F'}:$path:$size';
+    final cached = _pngCache[cacheKey];
+    if (cached != null) return cached;
+
+    final bytes = path.startsWith(r'\\SHELL\')
+        ? await ThumbnailWorker.instance.extract(
+            path: path,
+            size: size,
+            flags: imageIconOnly,
+          )
+        : getFileIconPng(path, isDirectory, size);
+    if (bytes != null) _pngCache[cacheKey] = bytes;
+    return bytes;
+  }
+
   /// Shell overlay icon (shortcut arrow, OneDrive badge, etc.) or null.
   static Uint8List? getFileOverlayPng(String path, int size) {
     final cacheKey = '$path:$size';

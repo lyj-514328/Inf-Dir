@@ -114,6 +114,46 @@ static int ToSiigbf(int flags) {
     return siigbf;
 }
 
+// Forward declaration: the fast PIDL path converts the Shell image-list icon
+// through the same PNG encoder as the regular bitmap path below.
+static unsigned char* IconToPng(HICON hIcon, int size, int* outSize);
+
+// IShellItemImageFactory may enter a namespace extension while resolving a
+// virtual item's image and block for several seconds. The system image list
+// already contains the resolved icon index, so use that cache for icon-only
+// requests and reserve GetImage for thumbnails/normal paths.
+static unsigned char* GetPidlIconFromSystemImageList(
+    const wchar_t* path, int size, int* outSize) {
+    PIDLIST_ABSOLUTE pidl = nullptr;
+    if (FAILED(InfDirGetPidlFromPath(path, &pidl)) || !pidl) return nullptr;
+
+    SHFILEINFOW info = {};
+    const UINT iconFlags = SHGFI_PIDL | SHGFI_SYSICONINDEX |
+        (size <= 32 ? SHGFI_SMALLICON : SHGFI_LARGEICON);
+    const DWORD_PTR result = SHGetFileInfoW(
+        reinterpret_cast<LPCWSTR>(pidl), 0, &info, sizeof(info), iconFlags);
+    if (!result) {
+        CoTaskMemFree(pidl);
+        return nullptr;
+    }
+
+    IImageList* imageList = nullptr;
+    const int listType = size <= 32 ? SHIL_SMALL : SHIL_LARGE;
+    HICON icon = nullptr;
+    if (SUCCEEDED(SHGetImageList(listType, IID_IImageList,
+                                 reinterpret_cast<void**>(&imageList))) &&
+        imageList) {
+        imageList->GetIcon(info.iIcon, ILD_TRANSPARENT, &icon);
+        imageList->Release();
+    }
+    CoTaskMemFree(pidl);
+
+    if (!icon) return nullptr;
+    auto* png = IconToPng(icon, size, outSize);
+    DestroyIcon(icon);
+    return png;
+}
+
 static unsigned char* GetShellImagePng(
     const wchar_t* path, int size, int siigbfFlags, int* outSize) {
     if (!path || !outSize || size <= 0) return nullptr;
@@ -124,6 +164,14 @@ static unsigned char* GetShellImagePng(
     HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     if (FAILED(hr)) return nullptr;
     comInitialized = (hr == S_OK);
+
+    if (InfDirIsPidlPath(path) && (siigbfFlags & SIIGBF_ICONONLY)) {
+        auto* cachedIcon = GetPidlIconFromSystemImageList(path, size, outSize);
+        if (cachedIcon) {
+            if (comInitialized) CoUninitialize();
+            return cachedIcon;
+        }
+    }
 
     IShellItemImageFactory* factory = nullptr;
     IShellItem* shellItem = nullptr;
