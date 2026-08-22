@@ -226,7 +226,10 @@ class PaneController extends ChangeNotifier {
   bool get canGoBack => _backStack.isNotEmpty;
   bool get canGoForward => _forwardStack.isNotEmpty;
   bool get canGoUp {
-    if (FileService.isHomePath(_currentPath)) return false;
+    if (FileService.isHomePath(_currentPath) ||
+        FileService.isSpecialPath(_currentPath)) {
+      return false;
+    }
     final parent = p.dirname(_currentPath);
     return parent != _currentPath;
   }
@@ -759,7 +762,10 @@ class PaneController extends ChangeNotifier {
   }
 
   void goUp() {
-    if (FileService.isHomePath(_currentPath)) return;
+    if (FileService.isHomePath(_currentPath) ||
+        FileService.isSpecialPath(_currentPath)) {
+      return;
+    }
     final parent = p.dirname(_currentPath);
     if (parent != _currentPath) navigateTo(parent);
   }
