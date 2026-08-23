@@ -126,7 +126,7 @@
 | Image | .cel | Autodesk image | ❌ ImageMagick 无对应 decoder |
 | Image | .cin | Kodak Cineon Bitmap File | ✅ image（扩展名规则） |
 | Image | .cur | Windows Cursor / Windows cursor | ✅ image（扩展名规则） |
-| Image | .cut | Dr. Halo image | ⚠️ ImageMagick 可解，未在配置声明（待实测） |
+| Image | .cut | Dr. Halo image | ✅ image（扩展名规则；ImageMagick `CUT`，7.1.2-29 列表实测） |
 | Image | .dcm | DICOM Image | ✅ image（扩展名规则） |
 | Image | .dds | DirectDraw Surface | ✅ image（扩展名规则） |
 | Image | .dfont | Mac OS X Data Fork Font | ✅ font（扩展名规则） |
@@ -138,7 +138,7 @@
 | Image | .fax | GFI fax image | ✅ image（扩展名规则） |
 | Image | .gif | Graphical Interchange Format File / Compuserve GIF image | ✅ image、video（扩展名规则） |
 | Image | .heic | High Efficiency Image Format | ✅ image（扩展名规则） |
-| Image | .icb | Truevision image | ⚠️ ImageMagick 可解，未在配置声明（待实测） |
+| Image | .icb | Truevision image | ✅ image（扩展名规则；ImageMagick `ICB`，TGA 变体） |
 | Image | .icl | Windows icon library | ❌ LibRaw/ImageMagick 无对应 codec；Windows 图标资源 API（GDI）可读，image-view 未接入（待评估） |
 | Image | .ico | Icon File / Windows icon | ✅ image（扩展名规则） |
 | Image | .jfif | JPEG format | ✅ image（扩展名规则） |
@@ -154,7 +154,7 @@
 | Image | .miff | Magick Image File | ✅ image（扩展名规则） |
 | Image | .mvg | Magick Vector Graphics File | ✅ image（扩展名规则） |
 | Image | .ora | OpenRaster Image | ✅ image（扩展名规则） |
-| Image | .pal | Dr. Halo image | ⚠️ ImageMagick 可解，未在配置声明（待实测） |
+| Image | .pal | Dr. Halo image | ✅ image（扩展名规则；ImageMagick `PAL`） |
 | Image | .pbm | Portable Bitmap Image / Portable pixmap | ✅ image（扩展名规则） |
 | Image | .pcc | ZSoft Paintbrush image | ❌ ImageMagick 无对应 decoder |
 | Image | .pcd | Kodak Photo CD Image File / Kodak Photo-CD image | ✅ image（扩展名规则） |
@@ -173,7 +173,7 @@
 | Image | .ptx | V.Flash PTX Image | ❌ ImageMagick 无对应 decoder（同名 `.ptx` 的 Pentax RAW 语义已支持，见 RAW 段） |
 | Image | .ras | SunOS Unix raster format | ✅ image（扩展名规则） |
 | Image | .rgb | RGB Bitmap / SGI image | ✅ image（扩展名规则） |
-| Image | .rgba | SGI image | ⚠️ ImageMagick 可解，未在配置声明（待实测） |
+| Image | .rgba | SGI image | ✅ image（扩展名规则；ImageMagick `RGBA`，SGI 家族） |
 | Image | .rla | SGI Wavefront image | ✅ image（扩展名规则） |
 | Image | .rle | Windows bitmap | ✅ image（扩展名规则） |
 | Image | .rpf | SGI Wavefront image | ❌ ImageMagick 无对应 decoder |
@@ -186,7 +186,7 @@
 | Image | .tiff | Tagged Image File / Tagged Image File Format | ✅ image（扩展名规则） |
 | Image | .ttf | TrueType Font | ✅ font（扩展名规则） |
 | Image | .txd | Renderware Texture Dictionary / Renderware TeXture Dictionary | ❌ ImageMagick 无对应 decoder |
-| Image | .vda | Truevision image | ⚠️ ImageMagick 可解，未在配置声明（待实测） |
+| Image | .vda | Truevision image | ✅ image（扩展名规则；ImageMagick `VDA`，TGA 变体） |
 | Image | .vst | Truevision image | 🔮 默认 .vst 规则为 Visio 模板（onlyoffice）；Truevision 图像属 MIME/内容嗅探子类，待嗅探器 |
 | Image | .wbmp | Wireless Bitmap Image File | ✅ image（扩展名规则） |
 | Image | .webp | WebP Image | ✅ image（扩展名规则） |
@@ -236,7 +236,7 @@
 | RAW | .sr2 | Sony Raw Image / sr2 | ✅ image（扩展名规则） |
 | RAW | .srf | Sony Raw Image / srf | ✅ image（扩展名规则） |
 | RAW | .srw | Samsung Raw Image | ✅ image（扩展名规则） |
-| RAW | .sti | sti | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Sinar eMotion 22/54） |
+| RAW | .sti | sti | ✅ image（扩展名规则；LibRaw 0.22.2 支持表：Sinar eMotion 22/54；ImageMagick `STI` 实测） |
 | RAW | .x3f | SIGMA X3F Camera Raw File / x3f | ✅ image（扩展名规则） |
 | Audio | .3ga | 3GP Audio File | ✅ video（扩展名规则） |
 | Audio | .8svx | Amiga 8-Bit Sound File | ✅ video（扩展名规则） |
