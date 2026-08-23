@@ -42,11 +42,13 @@ fn load_image(path: &str) -> Result<DynamicImage, String> {
             })
         })
     } else if RAW_EXTENSIONS.contains(&ext.as_str()) {
-        load_wic(path).or_else(|wic_error| load_magick(path).map_err(|magick_error| {
-            format!(
-                "WIC RAW decode failed: {wic_error}; ImageMagick fallback failed: {magick_error}"
-            )
-        }))
+        load_libraw(path).or_else(|libraw_error| {
+            load_wic(path).or_else(|wic_error| load_magick(path).map_err(|magick_error| {
+                format!(
+                    "LibRaw RAW decode failed: {libraw_error}; WIC fallback failed: {wic_error}; ImageMagick fallback failed: {magick_error}"
+                )
+            }))
+        })
     } else {
         image::open(path).or_else(|image_error| {
             load_wic(path).or_else(|wic_error| load_magick(path).map_err(|magick_error| {
@@ -91,6 +93,26 @@ fn load_magick(path: &str) -> Result<DynamicImage, String> {
     }
     image::load_from_memory(&output.stdout)
         .map_err(|error| format!("ImageMagick returned invalid PNG: {error}"))
+}
+
+// Decode a camera RAW file with the libraw-decoder sidecar (LibRaw 0.22.2
+// dcraw pipeline) which emits a PPM stream on stdout.
+fn load_libraw(path: &str) -> Result<DynamicImage, String> {
+    let executable = runtime_executable("libraw-decoder", "libraw-decoder.exe")?;
+    let output = Command::new(&executable)
+        .arg(path)
+        .output()
+        .map_err(|error| format!("failed to start {}: {error}", executable.display()))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if detail.is_empty() {
+            format!("LibRaw decoder exited with {}", output.status)
+        } else {
+            detail
+        });
+    }
+    image::load_from_memory(&output.stdout)
+        .map_err(|error| format!("LibRaw decoder returned invalid image: {error}"))
 }
 
 fn load_wic(path: &str) -> Result<DynamicImage, String> {

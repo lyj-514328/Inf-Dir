@@ -11,8 +11,10 @@
 > - `⚠️` 后端可解但未在配置声明（待实测后补 manifest 与默认配置）；
 > - `❌` 后端无对应能力或非文件类型（伪格式、网络协议、原始采样流、字幕等）。
 >
-> 支持面判定依据（image-view 的解码链：image crate → Windows WIC 子进程 →
-> ImageMagick 子进程；video-view：mpv/FFmpeg）：
+> 支持面判定依据（image-view 的解码链：image crate → LibRaw decoder 子进程 →
+> Windows WIC 子进程 → ImageMagick 子进程；video-view：mpv/FFmpeg）：
+> - LibRaw 0.22+ 官方支持表（`src/tables/cameralist.cpp`，约 1300 条相机条目）为
+>   现代 RAW 覆盖基准（微软系统 WIC Raw 为其许可版本，随系统提供）；
 > - FFmpeg `libavformat/allformats.c` 的 368 个 demuxer（对应 shinchiro `mpv-dev`
 >   全量构建）；
 > - ImageMagick 实测 `magick -list format` 输出；
