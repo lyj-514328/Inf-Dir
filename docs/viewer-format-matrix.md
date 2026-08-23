@@ -12,16 +12,12 @@
 > - `❌` 后端无对应能力或非文件类型（伪格式、网络协议、原始采样流、字幕等）。
 >
 > 支持面判定依据（image-view 的解码链：image crate → LibRaw decoder 子进程 →
-> Windows WIC 子进程 → ImageMagick 子进程；video-view：mpv/FFmpeg）：
+> ImageMagick 子进程；video-view：mpv/FFmpeg）：
 > - LibRaw 0.22+ 官方支持表（`src/tables/cameralist.cpp`，约 1300 条相机条目）为
->   现代 RAW 覆盖基准（微软系统 WIC Raw 为其许可版本，随系统提供）；
+>   现代 RAW 覆盖基准；
 > - FFmpeg `libavformat/allformats.c` 的 368 个 demuxer（对应 shinchiro `mpv-dev`
 >   全量构建）；
-> - ImageMagick 实测 `magick -list format` 输出；
-> - Windows WIC：系统内置 codec（JXR、HEIF[+扩展]、WMF/EMF、DIB 等），优先于
->   ImageMagick 兜底；其中 Raw Image Decoder 注册了 `.BAY` `.PXN` `.PTX` 等相机 RAW
->   后缀（`wic-decoder --list` 实测），超出 ImageMagick 能力评估范围，
->   随 OS 版本/厂商 codec 安装情况浮动，不作为覆盖判定的确定性依据。
+> - ImageMagick 实测 `magick -list format` 输出。
 >
 > RAW 清单考古（dcraw 体系）：UV 的 RAW 扩展名清单（36 项）是 dcraw 2003 年前后
 > 扩展名表的快照，含早已被删除的后缀——`.bmq` 为 Nucore 相机 RAW（dcraw 2003-05-29
@@ -119,7 +115,7 @@
 | Email | .msg | Outlook Mail Message | ✅ email（扩展名规则） |
 | Email | .oft | Outlook Email Template | ✅ email（扩展名规则） |
 | Image | .aai | Dune HD Image | ✅ image（扩展名规则） |
-| Image | .ani | Windows animated cursor | ❌ WIC/ImageMagick 无对应 codec；Windows 光标 API（GDI）可读，image-view 未接入（待评估） |
+| Image | .ani | Windows animated cursor | ❌ LibRaw/ImageMagick 无对应 codec；Windows 光标 API（GDI）可读，image-view 未接入（待评估） |
 | Image | .apng | Animated PNG File | ✅ video（扩展名规则） |
 | Image | .avif | AVIF Image | ✅ image（扩展名规则） |
 | Image | .bmp | Bitmap Image File / Windows bitmap | ✅ image（扩展名规则） |
@@ -141,7 +137,7 @@
 | Image | .gif | Graphical Interchange Format File / Compuserve GIF image | ✅ image、video（扩展名规则） |
 | Image | .heic | High Efficiency Image Format | ✅ image（扩展名规则） |
 | Image | .icb | Truevision image | ⚠️ ImageMagick 可解，未在配置声明（待实测） |
-| Image | .icl | Windows icon library | ❌ WIC/ImageMagick 无对应 codec；Windows 图标资源 API（GDI）可读，image-view 未接入（待评估） |
+| Image | .icl | Windows icon library | ❌ LibRaw/ImageMagick 无对应 codec；Windows 图标资源 API（GDI）可读，image-view 未接入（待评估） |
 | Image | .ico | Icon File / Windows icon | ✅ image（扩展名规则） |
 | Image | .jfif | JPEG format | ✅ image（扩展名规则） |
 | Image | .jls | JPEG-LS Image | ❌ ImageMagick 无对应 decoder |
@@ -201,23 +197,23 @@
 | RAW | .3fr | Hasselblad 3F Raw Image / 3fr | ✅ image（扩展名规则） |
 | RAW | .ari | ARRIRAW Image | ✅ image（扩展名规则） |
 | RAW | .arw | Sony Digital Camera Image / arw | ✅ image（扩展名规则） |
-| RAW | .bay | Casio Raw Image / bay | ✅ image（扩展名规则；系统 WIC Raw Image Decoder，`wic-decoder --list` 实测注册 `.BAY`） |
-| RAW | .bmq | bmq | ❌ WIC/ImageMagick 无对应 coder |
+| RAW | .bay | Casio Raw Image / bay | ✅ image（扩展名规则；LibRaw 0.22+ 官方支持表包含对应相机） |
+| RAW | .bmq | bmq | ❌ LibRaw/ImageMagick 无对应 coder |
 | RAW | .cine | cine | ✅ image（扩展名规则） |
 | RAW | .cr2 | Canon Raw Image File / cr2 | ✅ image（扩展名规则） |
 | RAW | .cr3 | Canon Raw 3 Image File | ✅ image（扩展名规则） |
 | RAW | .crw | Canon Raw CIFF Image File / crw | ✅ image（扩展名规则） |
-| RAW | .cs1 | cs1 | ❌ WIC/ImageMagick 无对应 coder |
-| RAW | .dc2 | dc2 | ❌ WIC/ImageMagick 无对应 coder |
+| RAW | .cs1 | cs1 | ❌ LibRaw/ImageMagick 无对应 coder |
+| RAW | .dc2 | dc2 | ❌ LibRaw/ImageMagick 无对应 coder |
 | RAW | .dcr | Kodak Raw Image File / dcr | ✅ image（扩展名规则） |
 | RAW | .dng | Digital Negative Image File / dng | ✅ image（扩展名规则） |
 | RAW | .erf | Epson Raw File / erf | ✅ image（扩展名规则） |
 | RAW | .fff | Hasselblad Raw Image / fff | ✅ image（扩展名规则） |
 | RAW | .hdr | hdr | ✅ image（扩展名规则） |
-| RAW | .ia | ia | ❌ WIC/ImageMagick 无对应 coder |
+| RAW | .ia | ia | ❌ LibRaw/ImageMagick 无对应 coder |
 | RAW | .iiq | Phase One Raw Image | ✅ image（扩展名规则） |
 | RAW | .k25 | k25 | ✅ image（扩展名规则） |
-| RAW | .kc2 | Kodak DCS200 Camera Raw Image / kc2 | ❌ WIC/ImageMagick 无对应 coder |
+| RAW | .kc2 | Kodak DCS200 Camera Raw Image / kc2 | ❌ LibRaw/ImageMagick 无对应 coder |
 | RAW | .kdc | Kodak Digital Camera Image / kdc | ✅ image（扩展名规则） |
 | RAW | .mdc | Minolta Camera Raw Image / mdc | ✅ image（扩展名规则） |
 | RAW | .mef | Mamiya Raw Image / mef | ✅ image（扩展名规则） |
@@ -227,12 +223,12 @@
 | RAW | .nrw | Nikon Raw Image File / nrw | ✅ image（扩展名规则） |
 | RAW | .orf | Olympus Raw File / orf | ✅ image（扩展名规则） |
 | RAW | .pef | Pentax Electronic File / pef | ✅ image（扩展名规则） |
-| RAW | .ptx | Pentax RAW / ptx | ✅ image（扩展名规则；系统 WIC Raw Image Decoder，`wic-decoder --list` 实测注册 `.PTX`；同名 V.Flash 图像语义见 Image 段） |
-| RAW | .pxn | pxn | ✅ image（扩展名规则；系统 WIC Raw Image Decoder，`wic-decoder --list` 实测注册 `.PXN`） |
-| RAW | .qtk | qtk | ❌ WIC/ImageMagick 无对应 coder |
+| RAW | .ptx | Pentax RAW / ptx | ✅ image（扩展名规则；LibRaw 0.22+ 官方支持表包含对应相机；同名 V.Flash 图像语义见 Image 段） |
+| RAW | .pxn | pxn | ✅ image（扩展名规则；LibRaw 0.22+ 官方支持表包含对应相机） |
+| RAW | .qtk | qtk | ❌ LibRaw/ImageMagick 无对应 coder |
 | RAW | .raf | Fuji Raw Image File / raf | ✅ image（扩展名规则） |
 | RAW | .raw | Raw Image Data File / raw | ✅ image（扩展名规则） |
-| RAW | .rdc | rdc | ❌ WIC/ImageMagick 无对应 coder |
+| RAW | .rdc | rdc | ❌ LibRaw/ImageMagick 无对应 coder |
 | RAW | .rw2 | Panasonic Raw Image / rw2 | ✅ image（扩展名规则） |
 | RAW | .rwl | Leica Raw Image | ✅ image（扩展名规则） |
 | RAW | .sr2 | Sony Raw Image / sr2 | ✅ image（扩展名规则） |

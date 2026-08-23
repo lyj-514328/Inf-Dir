@@ -58,9 +58,6 @@ plugins/font-view/obj/
 plugins/project-view/bin/
 plugins/project-view/obj/
 plugins/img-view/compface/
-plugins/img-view/wic-decoder/bin/
-plugins/img-view/wic-decoder/obj/
-plugins/img-view/wic-decoder/wic-decoder.exe
 plugins/img-view/libraw-decoder/libraw-decoder.exe
 plugins/img-view/libraw-decoder/libraw.dll
 plugins/mupdf-view/mupdf-view.csproj.user

@@ -10,14 +10,10 @@ set "COMPFACE_DIR=%SCRIPT_DIR%compface"
 set "COMPFACE_ARCHIVE=%CACHE_DIR%\compface-1.5.2-bin.zip"
 set "COMPFACE_URL=https://downloads.sourceforge.net/gnuwin32/compface-1.5.2-bin.zip"
 set "COMPFACE_SHA=ea9ae88a6380d7b0f8398ce12d6e0f35003b6b141f768c7a74dd7fe90dc50e34"
-set "WIC_DIR=%SCRIPT_DIR%wic-decoder"
-set "WIC_PUBLISH=%SCRIPT_DIR%wic-decoder\bin\publish"
 set "LIBRAW_DIR=%SCRIPT_DIR%libraw-decoder"
 set "LIBRAW_ARCHIVE=%CACHE_DIR%\LibRaw-0.22.2-Win64.zip"
 set "LIBRAW_URL=https://www.libraw.org/data/LibRaw-0.22.2-Win64.zip"
 set "LIBRAW_SHA=ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948"
-set "DOTNET=%USERPROFILE%\scoop\apps\dotnet-sdk\current\dotnet.exe"
-if not exist "%DOTNET%" set "DOTNET=dotnet"
 set "ARCHIVE=%CACHE_DIR%\ImageMagick-7.1.2-29-portable-Q16-x64.7z"
 set "URL=https://download.imagemagick.org/archive/binaries/ImageMagick-7.1.2-29-portable-Q16-x64.7z"
 set "SHA=4715072c158c46bbdc3e6971817e92ed43fca7c93142cad142ee42c603baaac1"
@@ -26,8 +22,6 @@ if not exist "%CACHE_DIR%" mkdir "%CACHE_DIR%"
 if not exist "%RUNTIME_DIR%\magick.exe" call :prepare_magick
 if errorlevel 1 exit /b 1
 if not exist "%COMPFACE_DIR%\uncompface.exe" call :prepare_compface
-if errorlevel 1 exit /b 1
-call :prepare_wic
 if errorlevel 1 exit /b 1
 if not exist "%LIBRAW_DIR%\libraw-decoder.exe" call :prepare_libraw
 if errorlevel 1 exit /b 1
@@ -79,14 +73,6 @@ copy /Y "%TEMP_DIR%\bin\compface1.dll" "%COMPFACE_DIR%\" >nul
 copy /Y "%TEMP_DIR%\contrib\compface\1.5.2\compface-1.5.2-src\README" "%COMPFACE_DIR%\" >nul
 rmdir /s /q "%TEMP_DIR%"
 if not exist "%COMPFACE_DIR%\uncompface.exe" exit /b 1
-exit /b 0
-
-:prepare_wic
-if exist "%WIC_PUBLISH%" rmdir /s /q "%WIC_PUBLISH%"
-"%DOTNET%" publish "%WIC_DIR%\wic-decoder.csproj" -c Release -r win-x64 --self-contained true -o "%WIC_PUBLISH%"
-if errorlevel 1 exit /b 1
-copy /Y "%WIC_PUBLISH%\wic-decoder.exe" "%WIC_DIR%\" >nul
-if not exist "%WIC_DIR%\wic-decoder.exe" exit /b 1
 exit /b 0
 
 :prepare_libraw
