@@ -5,6 +5,12 @@
 > `docs/uvviewer-formats/`（Universal Viewer，UV）。同名不同义的后缀分多行列出
 > （如 `.dat`：Winmail 邮件 / VCD 视频；`.cin`：Cineon 位图 / Delphine 视频）。
 >
+> **参考清单的性质提醒**：FVP 按"文件类型数据库"收录（存在即列，不代表可解码）；
+> UV 的音视频清单实为 **FFmpeg demuxer 表的转抄**（未校准，含早已被 FFmpeg
+> 移除的条目，如 `.a64/.psxstr/.p64`）——两家的"支持"均不能作为可解码依据，
+> 最终以本表的后端实测（LibRaw 支持表 / FFmpeg demuxer 名单 / ImageMagick
+> `-list format`）为准。
+>
 > 状态列图例：
 > - `✅` 已支持（同时给出 viewer 与命中方式：扩展名/文件名规则或 MIME 子类）；
 > - `🔮` 依赖更强的内容/MIME 嗅探器（规则体系已就绪，嗅探器上线后自动命中）；
@@ -200,21 +206,21 @@
 | RAW | .ari | ARRIRAW Image | ✅ image（扩展名规则） |
 | RAW | .arw | Sony Digital Camera Image / arw | ✅ image（扩展名规则） |
 | RAW | .bay | Casio Raw Image / bay | ✅ image（扩展名规则；LibRaw 0.22+ 官方支持表包含对应相机） |
-| RAW | .bmq | bmq | ❌ LibRaw/ImageMagick 无对应 coder |
-| RAW | .cine | cine | ✅ image（扩展名规则） |
+| RAW | .bmq | Nucore Raw Image File（厂商：Nucore，已绝版）| ❌ LibRaw/ImageMagick 无对应 coder |
+| RAW | .cine | Phantom Software CINE Raw（厂商：Phantom，高速摄像机）| ✅ image（扩展名规则） |
 | RAW | .cr2 | Canon Raw Image File / cr2 | ✅ image（扩展名规则） |
 | RAW | .cr3 | Canon Raw 3 Image File | ✅ image（扩展名规则） |
 | RAW | .crw | Canon Raw CIFF Image File / crw | ✅ image（扩展名规则） |
-| RAW | .cs1 | cs1 | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Sinar eMotion 22/54） |
-| RAW | .dc2 | dc2 | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Kodak DC20/DC25） |
+| RAW | .cs1 | Sinar Capture Shop Raw（厂商：Sinar）| ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Sinar eMotion 22/54） |
+| RAW | .dc2 | Kodak DC20/DC25 Raw（厂商：Kodak）| ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Kodak DC20/DC25） |
 | RAW | .dcr | Kodak Raw Image File / dcr | ✅ image（扩展名规则） |
 | RAW | .dng | Digital Negative Image File / dng | ✅ image（扩展名规则） |
 | RAW | .erf | Epson Raw File / erf | ✅ image（扩展名规则） |
 | RAW | .fff | Hasselblad Raw Image / fff | ✅ image（扩展名规则） |
-| RAW | .hdr | hdr | ✅ image（扩展名规则） |
-| RAW | .ia | ia | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Sinar eMotion 22/54） |
+| RAW | .hdr | Leaf Raw Image File（厂商：Leaf；参考清单仅列扩展名，具体见实测）| ✅ image（扩展名规则） |
+| RAW | .ia | Sinar Raw（厂商：Sinar）| ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Sinar eMotion 22/54） |
 | RAW | .iiq | Phase One Raw Image | ✅ image（扩展名规则） |
-| RAW | .k25 | k25 | ✅ image（扩展名规则） |
+| RAW | .k25 | Kodak DC25 Raw（厂商：Kodak）| ✅ image（扩展名规则） |
 | RAW | .kc2 | Kodak DCS200 Camera Raw Image / kc2 | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Kodak DCS200） |
 | RAW | .kdc | Kodak Digital Camera Image / kdc | ✅ image（扩展名规则） |
 | RAW | .mdc | Minolta Camera Raw Image / mdc | ✅ image（扩展名规则） |
@@ -226,17 +232,17 @@
 | RAW | .orf | Olympus Raw File / orf | ✅ image（扩展名规则） |
 | RAW | .pef | Pentax Electronic File / pef | ✅ image（扩展名规则） |
 | RAW | .ptx | Pentax RAW / ptx | ✅ image（扩展名规则；LibRaw 0.22+ 官方支持表包含对应相机；同名 V.Flash 图像语义见 Image 段） |
-| RAW | .pxn | pxn | ✅ image（扩展名规则；LibRaw 0.22+ 官方支持表包含对应相机） |
-| RAW | .qtk | qtk | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Apple QuickTake 100/150） |
+| RAW | .pxn | Logitech PXN Raw（厂商：Logitech）| ✅ image（扩展名规则；LibRaw 0.22+ 官方支持表包含对应相机） |
+| RAW | .qtk | Apple QuickTake 100/150 Raw（厂商：Apple）| ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Apple QuickTake 100/150） |
 | RAW | .raf | Fuji Raw Image File / raf | ✅ image（扩展名规则） |
-| RAW | .raw | Raw Image Data File / raw | ✅ image（扩展名规则） |
-| RAW | .rdc | rdc | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Rollei d530flex） |
+| RAW | .raw | 多厂商通用 RAW（如 Kodak/Panasonic 等，无单一厂商）| ✅ image（扩展名规则） |
+| RAW | .rdc | Rollei d530flex Raw（厂商：Rollei，配套 Digital Foto Maker 软件）| ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Rollei d530flex） |
 | RAW | .rw2 | Panasonic Raw Image / rw2 | ✅ image（扩展名规则） |
 | RAW | .rwl | Leica Raw Image | ✅ image（扩展名规则） |
 | RAW | .sr2 | Sony Raw Image / sr2 | ✅ image（扩展名规则） |
 | RAW | .srf | Sony Raw Image / srf | ✅ image（扩展名规则） |
 | RAW | .srw | Samsung Raw Image | ✅ image（扩展名规则） |
-| RAW | .sti | sti | ✅ image（扩展名规则；LibRaw 0.22.2 支持表：Sinar eMotion 22/54；ImageMagick `STI` 实测） |
+| RAW | .sti | Sinar Capture Shop Raw（厂商：Sinar）| ✅ image（扩展名规则；LibRaw 0.22.2 支持表：Sinar eMotion 22/54；ImageMagick `STI` 实测） |
 | RAW | .x3f | SIGMA X3F Camera Raw File / x3f | ✅ image（扩展名规则） |
 | Audio | .3ga | 3GP Audio File | ✅ video（扩展名规则） |
 | Audio | .8svx | Amiga 8-Bit Sound File | ✅ video（扩展名规则） |
@@ -309,9 +315,9 @@
 | Video | .3g2 | 3GPP2 Multimedia File / 3GP2 format | ✅ video（扩展名规则） |
 | Video | .3gp | 3GPP Multimedia File / 3GP format | ✅ video（扩展名规则） |
 | Video | .4xm | 4X Movie / 4X Technologies format | ✅ video（扩展名规则） |
-| Video | .a64 | a64 - video for Commodore 64 | ❌ FFmpeg 无对应 demuxer |
+| Video | .a64 | Commodore 64 主机专用视频（厂商：Commodore）| ❌ 现行 FFmpeg 无 a64 demuxer（UV 清单转抄自老 FFmpeg 表，条目已失效）|
 | Video | .amv | Anime Music Video File | ✅ video（扩展名规则） |
-| Video | .anim | Amiga Animation File | ❌ FFmpeg 无对应 demuxer |
+| Video | .anim | Amiga 动画（厂商：Commodore Amiga）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .anm | DeluxePaint Animation / Deluxe Paint Animation | ✅ video（扩展名规则） |
 | Video | .asf | Advanced Systems Format File / ASF format | ✅ video（扩展名规则） |
 | Video | .avi | Audio Video Interleave File / AVI format | ✅ video（扩展名规则） |
@@ -322,21 +328,21 @@
 | Video | .bink | Bink | ✅ video（扩展名规则） |
 | Video | .bmv | Discworld II Video File | ✅ video（扩展名规则） |
 | Video | .c93 | Interplay C93 Video / Interplay C93 | ✅ video（扩展名规则） |
-| Video | .cak | SEGA FILM Video | ❌ FFmpeg 无对应 demuxer |
-| Video | .cam | MSN Messenger Webcam Recording | ❌ FFmpeg 无对应 demuxer |
+| Video | .cak | SEGA FILM 视频（厂商：SEGA，街机/主机）| ❌ 现行 FFmpeg 无对应 demuxer|
+| Video | .cam | MSN Messenger 摄像头录屏（厂商：Microsoft）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .cdg | CD Graphics Format | ✅ video（扩展名规则） |
 | Video | .cdxl | Commodore CDXL Video | ✅ video（扩展名规则） |
 | Video | .cin | Delphine Software CIN Video | ⚠️ 默认 .cin 规则为 Cineon 位图（image）；Delphine CIN 视频可由 FFmpeg（cine）解码，待实测/嗅探 |
-| Video | .cmv | Electronic Arts CMV Video | ❌ FFmpeg 无对应 demuxer |
+| Video | .cmv | Electronic Arts CMV 视频（厂商：EA，游戏）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .dat | VCD Video File | ✅ email（扩展名规则） |
-| Video | .dct | Electronic Arts DCT Video | ❌ FFmpeg 无对应 demuxer |
+| Video | .dct | Electronic Arts DCT 视频（厂商：EA，游戏）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .dfa | DreamForge Intertainment Video | ✅ video（扩展名规则） |
 | Video | .dirac | raw Dirac | ✅ video（扩展名规则） |
 | Video | .divx | DivX Video File | ✅ video（扩展名规则） |
 | Video | .dnxhd | raw DNxHD (SMPTE VC-3) | ✅ video（扩展名规则） |
-| Video | .drc | BBC Dirac Video | ❌ FFmpeg 无对应 demuxer |
+| Video | .drc | BBC Dirac 视频（厂商/组织：BBC）| ✅ video（扩展名规则；FFmpeg `dirac` demuxer）|
 | Video | .dsicin | Delphine Software International CIN format | ✅ video（扩展名规则） |
-| Video | .duk | Duck TrueMotion 1 Video | ❌ FFmpeg 无对应 demuxer |
+| Video | .duk | Duck TrueMotion 1 视频（厂商：Duck Corp）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .dv | Digital Video File / DV video format | ✅ video（扩展名规则） |
 | Video | .dvd | MPEG-2 PS format (DVD VOB) | ✅ video（扩展名规则；FFmpeg `mpegps` demuxer） |
 | Video | .dxa | Feeble Files Video / DXA | ✅ video（扩展名规则） |
@@ -360,30 +366,30 @@
 | Video | .iv8 | A format generated by IndigoVision 8000 video server | ✅ video（扩展名规则） |
 | Video | .ivf | On2 IVF | ✅ video（扩展名规则） |
 | Video | .jv | Bitmap Brothers Video File | ✅ video（扩展名规则） |
-| Video | .k3g | 3GP Mobile Phone Video File | ❌ FFmpeg 无对应 demuxer |
+| Video | .k3g | KDDI 3GP 变体（厂商：KDDI，au 手机）| ⚠️ 内容属 3GP 家族，`mov`/`3gp` probe 可能命中（待实测）|
 | Video | .lmlm4 | lmlm4 raw format | ✅ video（扩展名规则） |
 | Video | .lvf | DVR LVF Video File | ✅ video（扩展名规则） |
 | Video | .lxf | Harris/Leitch DVR Video File / VR native stream format (LXF) | ✅ video（扩展名规则） |
 | Video | .m2t | Blu-ray BDAV Video File | ✅ video（扩展名规则） |
 | Video | .m2v | MPEG-2 Video File | ✅ video（扩展名规则） |
 | Video | .m4v | iTunes Video File / raw MPEG-4 video format | ✅ video（扩展名规则） |
-| Video | .mad | Electronic Arts Madcow Video | ❌ FFmpeg 无对应 demuxer |
+| Video | .mad | Electronic Arts Madcow 视频（厂商：EA，游戏）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .mjpeg | raw MJPEG video | ✅ video（扩展名规则） |
 | Video | .mk3d | Matroska 3D Video File | ✅ video（扩展名规则） |
 | Video | .mkv | Matroska Video File | ✅ video（扩展名规则） |
 | Video | .mm | American Laser Games MM format | ✅ video（扩展名规则） |
-| Video | .mmv | Sony MicroMV Video | ❌ FFmpeg 无对应 demuxer |
+| Video | .mmv | Sony MicroMV 视频（厂商：Sony）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .mod | JVC Everio Video Recording | ✅ video（扩展名规则） |
 | Video | .mov | Apple QuickTime Movie / MOV format | ✅ video（扩展名规则） |
-| Video | .mp3id3v1 | MPEG audio layer 3 with id3v1 only | ❌ FFmpeg 无对应 demuxer |
-| Video | .mp3id3v2 | MPEG audio layer 3 with id3v2 only | ❌ FFmpeg 无对应 demuxer |
+| Video | .mp3id3v1 | MP3（ID3v1 变体，非独立格式；厂商：无，MPEG 规范）| ✅ video（扩展名规则；FFmpeg `mp3` demuxer 可直接解）|
+| Video | .mp3id3v2 | MP3（ID3v2 变体，非独立格式；厂商：无，MPEG 规范）| ✅ video（扩展名规则；FFmpeg `mp3` demuxer 可直接解）|
 | Video | .mp4 | MPEG-4 Video File / MP4 format | ✅ video（扩展名规则） |
 | Video | .mpc | Electronic Arts MPCh Video File / Musepack | ✅ video（扩展名规则） |
 | Video | .mpeg | MPEG-1 System format | ✅ video（扩展名规则） |
 | Video | .mpg | MPEG Video File | ✅ video（扩展名规则） |
 | Video | .mts | AVCHD Video File | ✅ video（扩展名规则） |
 | Video | .mtv | MTV format | ✅ video（扩展名规则） |
-| Video | .mve | Interplay MVE Video File | ❌ FFmpeg 无对应 demuxer |
+| Video | .mve | Interplay MVE 视频（厂商：Interplay，游戏）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .mvi | Motion Pixels MVI1 Video File / Motion Pixels MVI format | ✅ video（扩展名规则） |
 | Video | .mxf | Material Exchange Format File / Material eXchange Format | ✅ video（扩展名规则） |
 | Video | .mxg | MxPEG clip file format | ✅ video（扩展名规则） |
@@ -393,10 +399,10 @@
 | Video | .nuv | NuppelVideo File / NuppelVideo format | ✅ video（扩展名规则） |
 | Video | .ogm | Ogg Media File | ✅ video（扩展名规则） |
 | Video | .ogv | Ogg Video File | ✅ video（扩展名规则） |
-| Video | .p64 | H.261 Video File | ❌ FFmpeg 无对应 demuxer |
-| Video | .pmf | PSP Movie File | ❌ FFmpeg 无对应 demuxer |
+| Video | .p64 | H.261 裸码流（非文件容器；厂商：无，ITU-T 标准）| ❌ 裸码流，无 demuxer 容器识别|
+| Video | .pmf | Sony PSP 电影（厂商：Sony）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .psp | PSP MP4 format | ✅ video（扩展名规则；FFmpeg `mov`/`m4v` demuxer） |
-| Video | .psxstr | Sony Playstation STR format | ❌ FFmpeg 无对应 demuxer |
+| Video | .psxstr | Sony PlayStation STR（厂商：Sony，主机）| ❌ 现行 FFmpeg 无 psxstr demuxer（UV 转抄老表，条目已失效）|
 | Video | .pva | PVA Video File / TechnoTrend PVA file and stream format | ✅ video（扩展名规则） |
 | Video | .qt | QuickTime RLE Video File | ✅ video（扩展名规则） |
 | Video | .r3d | REDCODE R3D format | ✅ video（扩展名规则） |
@@ -406,14 +412,14 @@
 | Video | .rmvb | RealMedia Variable Bit Rate File | ✅ video（扩展名规则） |
 | Video | .roq | id RoQ Video / raw id RoQ format | ✅ video（扩展名规则） |
 | Video | .rpl | Escape Video File / RPL/ARMovie format | ✅ video（扩展名规则） |
-| Video | .san | LucasArts Smush Video | ❌ FFmpeg 无对应 demuxer |
-| Video | .sfd | Sofdec Dreamcast Movie | ❌ FFmpeg 无对应 demuxer |
+| Video | .san | LucasArts Smush 视频（厂商：LucasArts，游戏）| ✅ video（扩展名规则；FFmpeg `smush` demuxer）|
+| Video | .sfd | Sofdec Dreamcast 电影（厂商：Sofdec/Criware）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .siff | Beam Software SIFF | ✅ video（扩展名规则） |
 | Video | .smk | Smacker Movie File / Smacker video | ✅ video（扩展名规则） |
 | Video | .svcd | MPEG-2 PS format (VOB) | ✅ video（扩展名规则） |
 | Video | .swf | Flash format | ✅ video（扩展名规则） |
-| Video | .tgq | Electronic Arts TGQ Video | ❌ FFmpeg 无对应 demuxer |
-| Video | .tgv | Electronic Arts TGV Video | ❌ FFmpeg 无对应 demuxer |
+| Video | .tgq | Electronic Arts TGQ 视频（厂商：EA，游戏）| ❌ 现行 FFmpeg 无对应 demuxer|
+| Video | .tgv | Electronic Arts TGV 视频（厂商：EA，游戏）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .thp | Wii/GameCube Video File / THP | ✅ video（扩展名规则） |
 | Video | .tiertexseq | Tiertex Limited SEQ format | ✅ video（扩展名规则） |
 | Video | .tmv | 8088flex Video File / 8088flex TMV | ✅ video（扩展名规则） |
@@ -422,25 +428,25 @@
 | Video | .truehd | raw TrueHD | ✅ video（扩展名规则） |
 | Video | .ts | Video Transport Stream File | ✅ code、video（扩展名规则） |
 | Video | .tty | Tele-typewriter | ✅ video（扩展名规则；FFmpeg `tty` demuxer） |
-| Video | .vb | Beam Game SIFF Video | ❌ 默认 .vb 规则为 VBScript（code）；Beam SIFF 视频无对应 demuxer |
+| Video | .vb | Beam Software SIFF 视频（厂商：Beam Software；与 VBScript 同名）| ✅ video（扩展名规则；FFmpeg `siff` demuxer）+ 🔮 与 VBScript 同名，默认规则归 code，内容子类待嗅探器|
 | Video | .vc1 | VC-1 Video File / raw VC-1 | ✅ video（扩展名规则） |
 | Video | .vcd | MPEG-1 System format (VCD) | ✅ video（扩展名规则） |
-| Video | .vid | Bethesda Video File | ❌ FFmpeg 无对应 demuxer |
+| Video | .vid | Bethesda 视频（厂商：Bethesda，游戏）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .vmd | Sierra VMD Video File / Sierra VMD format | ✅ video（扩展名规则） |
 | Video | .vob | DVD Video Object File / MPEG-2 PS format (VOB) | ✅ video（扩展名规则） |
-| Video | .vp3 | On2 VP3 Video File | ❌ FFmpeg 无对应 demuxer |
-| Video | .vp5 | On2 VP5 Video File | ❌ FFmpeg 无对应 demuxer |
-| Video | .vp6 | On2 VP6 Video File | ❌ FFmpeg 无对应 demuxer |
-| Video | .vp7 | On2 VP7 Video File | ❌ FFmpeg 无对应 demuxer |
-| Video | .vqa | Westwood Studios VQA Video | ❌ FFmpeg 无对应 demuxer |
-| Video | .vsr | CPCAM CCTV Recording | ❌ FFmpeg 无对应 demuxer |
+| Video | .vp3 | On2 VP3 裸码流（厂商：On2 Technologies；无容器）| ❌ 裸码流，无 demuxer 容器识别|
+| Video | .vp5 | On2 VP5 裸码流（厂商：On2 Technologies；无容器）| ❌ 裸码流，无 demuxer 容器识别|
+| Video | .vp6 | On2 VP6 裸码流（厂商：On2 Technologies；无容器）| ❌ 裸码流，无 demuxer 容器识别|
+| Video | .vp7 | On2 VP7 裸码流（厂商：On2 Technologies；无容器）| ❌ 裸码流，无 demuxer 容器识别|
+| Video | .vqa | Westwood VQA 视频（厂商：Westwood Studios，游戏）| ❌ 现行 FFmpeg 无对应 demuxer|
+| Video | .vsr | CPCAM CCTV 录像（厂商：CPCAM）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .wc3movie | Wing Commander III movie format | ✅ video（扩展名规则） |
 | Video | .webm | WebM Video File / WebM file format | ✅ video（扩展名规则） |
 | Video | .wmv | Windows Media Video File | ✅ video（扩展名规则） |
 | Video | .wsvqa | Westwood Studios VQA format | ✅ video（扩展名规则） |
 | Video | .wtv | Windows Recorded TV Show File / Windows Television (WTV) | ✅ video（扩展名规则） |
 | Video | .wve | Electronic Arts TQI Video File | ✅ video（扩展名规则；FFmpeg `wve` demuxer） |
-| Video | .xesc | Microsoft Expression Screen Capture Video File | ❌ FFmpeg 无对应 demuxer |
+| Video | .xesc | Microsoft Expression 录屏（厂商：Microsoft）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .xmv | Xbox Media Video File | ✅ video（扩展名规则） |
 | Video | .yop | Psygnosis YOP Video / Psygnosis YOP Format | ✅ video（扩展名规则） |
 | Archive | .7z | 7-Zip Compressed File | ✅ archive（扩展名规则） |
