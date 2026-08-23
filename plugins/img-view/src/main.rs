@@ -7,17 +7,15 @@ use eframe::egui;
 use egui::{
     Color32, ColorImage, Context, Rect, Sense, TextureHandle, TextureOptions, Vec2, ViewportCommand,
 };
-use image::{DynamicImage, GenericImageView, RgbImage};
-use rawloader::{Orientation, RawImage, RawImageData};
+use image::{DynamicImage, GenericImageView};
 use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGUMENT};
 
 const DEFAULT_W: usize = 960;
 const DEFAULT_H: usize = 720;
-const MAX_RAW_DIMENSION: usize = 3200;
 const MAX_MAGICK_DIMENSION: &str = "3200x3200>";
 
 const RAW_EXTENSIONS: &[&str] = &[
-    "ari", "arw", "cr2", "crw", "dcr", "dcs", "dng", "erf", "iiq", "k25", "kdc", "mef", "mos",
+    "ari", "arw", "cr2", "cr3", "crw", "dcr", "dcs", "dng", "erf", "iiq", "k25", "kdc", "mef", "mos",
     "mrw", "nef", "nkd", "nrw", "orf", "pef", "raf", "raw", "rw2", "sr2", "srf", "srw", "x3f",
 ];
 
@@ -44,13 +42,11 @@ fn load_image(path: &str) -> Result<DynamicImage, String> {
             })
         })
     } else if RAW_EXTENSIONS.contains(&ext.as_str()) {
-        load_raw(path).or_else(|raw_error| {
-            load_wic(path).or_else(|wic_error| load_magick(path).map_err(|magick_error| {
-                format!(
-                    "RAW decode failed: {raw_error}; WIC fallback failed: {wic_error}; ImageMagick fallback failed: {magick_error}"
-                )
-            }))
-        })
+        load_wic(path).or_else(|wic_error| load_magick(path).map_err(|magick_error| {
+            format!(
+                "WIC RAW decode failed: {wic_error}; ImageMagick fallback failed: {magick_error}"
+            )
+        }))
     } else {
         image::open(path).or_else(|image_error| {
             load_wic(path).or_else(|wic_error| load_magick(path).map_err(|magick_error| {
@@ -168,246 +164,6 @@ fn load_xface(path: &str) -> Result<DynamicImage, String> {
     result
 }
 
-fn load_raw(path: &str) -> Result<DynamicImage, String> {
-    let raw =
-        rawloader::decode_file(path).map_err(|error| format!("RAW decode failed: {error}"))?;
-    let image = raw_to_rgb(&raw)?;
-    Ok(apply_orientation(image, raw.orientation))
-}
-
-fn raw_to_rgb(raw: &RawImage) -> Result<DynamicImage, String> {
-    if raw.width == 0 || raw.height == 0 {
-        return Err("RAW image has an invalid size".to_owned());
-    }
-
-    let step = raw.width.max(raw.height).div_ceil(MAX_RAW_DIMENSION).max(1);
-    let output_width = raw.width.div_ceil(step) as u32;
-    let output_height = raw.height.div_ceil(step) as u32;
-
-    let image = match &raw.data {
-        RawImageData::Integer(data) => {
-            if raw.cpp >= 3 {
-                rgb_integer_image(raw, data, step, output_width, output_height)?
-            } else {
-                bayer_integer_image(raw, data, step, output_width, output_height)?
-            }
-        }
-        RawImageData::Float(data) => {
-            if raw.cpp >= 3 {
-                rgb_float_image(raw, data, step, output_width, output_height)?
-            } else {
-                bayer_float_image(raw, data, step, output_width, output_height)?
-            }
-        }
-    };
-
-    Ok(DynamicImage::ImageRgb8(image))
-}
-
-fn rgb_integer_image(
-    raw: &RawImage,
-    data: &[u16],
-    step: usize,
-    width: u32,
-    height: u32,
-) -> Result<RgbImage, String> {
-    expected_data_len(raw, data.len())?;
-    let mut output = RgbImage::new(width, height);
-    for (x, y, pixel) in output.enumerate_pixels_mut() {
-        let source_x = (x as usize * step).min(raw.width - 1);
-        let source_y = (y as usize * step).min(raw.height - 1);
-        let offset = (source_y * raw.width + source_x) * raw.cpp;
-        for channel in 0..3 {
-            let value = data[offset + channel];
-            pixel[channel] = scale_integer(
-                value,
-                raw.blacklevels[channel],
-                raw.whitelevels[channel],
-                raw.wb_coeffs[channel],
-            );
-        }
-    }
-    Ok(output)
-}
-
-fn rgb_float_image(
-    raw: &RawImage,
-    data: &[f32],
-    step: usize,
-    width: u32,
-    height: u32,
-) -> Result<RgbImage, String> {
-    expected_data_len(raw, data.len())?;
-    let mut output = RgbImage::new(width, height);
-    for (x, y, pixel) in output.enumerate_pixels_mut() {
-        let source_x = (x as usize * step).min(raw.width - 1);
-        let source_y = (y as usize * step).min(raw.height - 1);
-        let offset = (source_y * raw.width + source_x) * raw.cpp;
-        for channel in 0..3 {
-            pixel[channel] = scale_float(data[offset + channel], raw.wb_coeffs[channel]);
-        }
-    }
-    Ok(output)
-}
-
-fn bayer_integer_image(
-    raw: &RawImage,
-    data: &[u16],
-    step: usize,
-    width: u32,
-    height: u32,
-) -> Result<RgbImage, String> {
-    expected_data_len(raw, data.len())?;
-    let mut output = RgbImage::new(width, height);
-    for (x, y, pixel) in output.enumerate_pixels_mut() {
-        let source_x = (x as usize * step).min(raw.width - 1);
-        let source_y = (y as usize * step).min(raw.height - 1);
-        for channel in 0..3 {
-            let value = sample_bayer_integer(raw, data, source_x, source_y, channel);
-            pixel[channel] = (value * 255.0).round().clamp(0.0, 255.0) as u8;
-        }
-    }
-    Ok(output)
-}
-
-fn bayer_float_image(
-    raw: &RawImage,
-    data: &[f32],
-    step: usize,
-    width: u32,
-    height: u32,
-) -> Result<RgbImage, String> {
-    expected_data_len(raw, data.len())?;
-    let mut output = RgbImage::new(width, height);
-    for (x, y, pixel) in output.enumerate_pixels_mut() {
-        let source_x = (x as usize * step).min(raw.width - 1);
-        let source_y = (y as usize * step).min(raw.height - 1);
-        for channel in 0..3 {
-            let value = sample_bayer_float(raw, data, source_x, source_y, channel);
-            pixel[channel] = (value * 255.0).round().clamp(0.0, 255.0) as u8;
-        }
-    }
-    Ok(output)
-}
-
-fn expected_data_len(raw: &RawImage, actual: usize) -> Result<(), String> {
-    let expected = raw
-        .width
-        .checked_mul(raw.height)
-        .and_then(|size| size.checked_mul(raw.cpp))
-        .ok_or_else(|| "RAW image dimensions overflow".to_owned())?;
-    if actual < expected {
-        return Err(format!(
-            "RAW pixel data is truncated (expected {expected}, got {actual})"
-        ));
-    }
-    Ok(())
-}
-
-fn scale_integer(value: u16, black: u16, white: u16, wb: f32) -> u8 {
-    let range = white.saturating_sub(black).max(1) as f32;
-    let normalized = ((value.saturating_sub(black) as f32) / range) * wb.max(0.01);
-    (normalized.clamp(0.0, 1.0) * 255.0).round() as u8
-}
-
-fn scale_float(value: f32, wb: f32) -> u8 {
-    let normalized = if value > 1.0 { value / 65535.0 } else { value };
-    (normalized * wb.max(0.01))
-        .clamp(0.0, 1.0)
-        .mul_add(255.0, 0.0)
-        .round() as u8
-}
-
-fn sample_bayer_integer(raw: &RawImage, data: &[u16], x: usize, y: usize, target: usize) -> f32 {
-    let mut total = 0.0;
-    let mut weight = 0.0;
-    for radius in 0..=2 {
-        let min_y = y.saturating_sub(radius);
-        let max_y = (y + radius).min(raw.height - 1);
-        let min_x = x.saturating_sub(radius);
-        let max_x = (x + radius).min(raw.width - 1);
-        for row in min_y..=max_y {
-            for col in min_x..=max_x {
-                if raw.cfa.color_at(row, col) != target {
-                    continue;
-                }
-                let distance = ((row as isize - y as isize).unsigned_abs()
-                    + (col as isize - x as isize).unsigned_abs())
-                    as f32;
-                let current_weight = 1.0 / (1.0 + distance);
-                let offset = row * raw.width + col;
-                let value = ((data[offset].saturating_sub(raw.blacklevels[target]) as f32)
-                    / raw.whitelevels[target]
-                        .saturating_sub(raw.blacklevels[target])
-                        .max(1) as f32)
-                    * raw.wb_coeffs[target].max(0.01);
-                total += value * current_weight;
-                weight += current_weight;
-            }
-        }
-        if weight > 0.0 {
-            break;
-        }
-    }
-    if weight == 0.0 {
-        0.0
-    } else {
-        (total / weight).clamp(0.0, 1.0)
-    }
-}
-
-fn sample_bayer_float(raw: &RawImage, data: &[f32], x: usize, y: usize, target: usize) -> f32 {
-    let mut total = 0.0;
-    let mut weight = 0.0;
-    for radius in 0..=2 {
-        let min_y = y.saturating_sub(radius);
-        let max_y = (y + radius).min(raw.height - 1);
-        let min_x = x.saturating_sub(radius);
-        let max_x = (x + radius).min(raw.width - 1);
-        for row in min_y..=max_y {
-            for col in min_x..=max_x {
-                if raw.cfa.color_at(row, col) != target {
-                    continue;
-                }
-                let distance = ((row as isize - y as isize).unsigned_abs()
-                    + (col as isize - x as isize).unsigned_abs())
-                    as f32;
-                let current_weight = 1.0 / (1.0 + distance);
-                let value = if data[row * raw.width + col] > 1.0 {
-                    data[row * raw.width + col] / 65535.0
-                } else {
-                    data[row * raw.width + col]
-                } * raw.wb_coeffs[target].max(0.01);
-                total += value * current_weight;
-                weight += current_weight;
-            }
-        }
-        if weight > 0.0 {
-            break;
-        }
-    }
-    if weight == 0.0 {
-        0.0
-    } else {
-        (total / weight).clamp(0.0, 1.0)
-    }
-}
-
-fn apply_orientation(image: DynamicImage, orientation: Orientation) -> DynamicImage {
-    let (transpose, horizontal, vertical) = orientation.to_flips();
-    let mut output = image;
-    if horizontal {
-        output = output.fliph();
-    }
-    if vertical {
-        output = output.flipv();
-    }
-    if transpose {
-        output = output.rotate90();
-    }
-    output
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,27 +173,7 @@ mod tests {
         assert!(RAW_EXTENSIONS.contains(&"cr2"));
         assert!(RAW_EXTENSIONS.contains(&"dng"));
         assert!(RAW_EXTENSIONS.contains(&"x3f"));
-        assert!(!RAW_EXTENSIONS.contains(&"cr3"));
-    }
-
-    #[test]
-    fn scales_integer_sensor_values() {
-        assert_eq!(scale_integer(512, 0, 1023, 1.0), 128);
-        assert_eq!(scale_integer(0, 128, 1023, 1.0), 0);
-        assert_eq!(scale_integer(1023, 0, 1023, 1.0), 255);
-    }
-
-    #[test]
-    fn preserves_orientation_dimensions() {
-        let image = DynamicImage::ImageRgb8(RgbImage::new(4, 2));
-        assert_eq!(
-            apply_orientation(image.clone(), Orientation::Normal).dimensions(),
-            (4, 2)
-        );
-        assert_eq!(
-            apply_orientation(image, Orientation::Rotate90).dimensions(),
-            (2, 4)
-        );
+        assert!(RAW_EXTENSIONS.contains(&"cr3"));
     }
 }
 
@@ -649,14 +385,14 @@ fn main() {
     });
 
     if !Path::new(path).exists() {
-        eprintln!("Error: file not found — {}", path);
+        eprintln!("Error: file not found 鈥?{}", path);
         std::process::exit(1);
     }
 
     let original = match load_image(path) {
         Ok(img) => img,
         Err(e) => {
-            eprintln!("Error: failed to load image — {}", e);
+            eprintln!("Error: failed to load image 鈥?{}", e);
             std::process::exit(1);
         }
     };
@@ -686,7 +422,7 @@ fn main() {
         native_options,
         Box::new(move |cc| Ok(Box::new(Viewer::new(cc, original)))),
     ) {
-        eprintln!("Error: failed to open window — {}", e);
+        eprintln!("Error: failed to open window 鈥?{}", e);
         std::process::exit(1);
     }
 }

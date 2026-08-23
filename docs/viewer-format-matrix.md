@@ -11,14 +11,14 @@
 > - `⚠️` 后端可解但未在配置声明（待实测后补 manifest 与默认配置）；
 > - `❌` 后端无对应能力或非文件类型（伪格式、网络协议、原始采样流、字幕等）。
 >
-> 支持面判定依据（image-view 的解码链：原生 image/rawloader → Windows WIC 子进程 →
+> 支持面判定依据（image-view 的解码链：image crate → Windows WIC 子进程 →
 > ImageMagick 子进程；video-view：mpv/FFmpeg）：
 > - FFmpeg `libavformat/allformats.c` 的 368 个 demuxer（对应 shinchiro `mpv-dev`
 >   全量构建）；
 > - ImageMagick 实测 `magick -list format` 输出；
 > - Windows WIC：系统内置 codec（JXR、HEIF[+扩展]、WMF/EMF、DIB 等），优先于
 >   ImageMagick 兜底；其中 Raw Image Decoder 注册了 `.BAY` `.PXN` `.PTX` 等相机 RAW
->   后缀（`wic-decoder --list` 实测），超出 rawloader/ImageMagick 能力评估范围，
+>   后缀（`wic-decoder --list` 实测），超出 ImageMagick 能力评估范围，
 >   随 OS 版本/厂商 codec 安装情况浮动，不作为覆盖判定的确定性依据。
 >
 > RAW 清单考古（dcraw 体系）：UV 的 RAW 扩展名清单（36 项）是 dcraw 2003 年前后
@@ -200,22 +200,22 @@
 | RAW | .ari | ARRIRAW Image | ✅ image（扩展名规则） |
 | RAW | .arw | Sony Digital Camera Image / arw | ✅ image（扩展名规则） |
 | RAW | .bay | Casio Raw Image / bay | ✅ image（扩展名规则；系统 WIC Raw Image Decoder，`wic-decoder --list` 实测注册 `.BAY`） |
-| RAW | .bmq | bmq | ❌ rawloader/ImageMagick 无对应 coder |
+| RAW | .bmq | bmq | ❌ WIC/ImageMagick 无对应 coder |
 | RAW | .cine | cine | ✅ image（扩展名规则） |
 | RAW | .cr2 | Canon Raw Image File / cr2 | ✅ image（扩展名规则） |
 | RAW | .cr3 | Canon Raw 3 Image File | ✅ image（扩展名规则） |
 | RAW | .crw | Canon Raw CIFF Image File / crw | ✅ image（扩展名规则） |
-| RAW | .cs1 | cs1 | ❌ rawloader/ImageMagick 无对应 coder |
-| RAW | .dc2 | dc2 | ❌ rawloader/ImageMagick 无对应 coder |
+| RAW | .cs1 | cs1 | ❌ WIC/ImageMagick 无对应 coder |
+| RAW | .dc2 | dc2 | ❌ WIC/ImageMagick 无对应 coder |
 | RAW | .dcr | Kodak Raw Image File / dcr | ✅ image（扩展名规则） |
 | RAW | .dng | Digital Negative Image File / dng | ✅ image（扩展名规则） |
 | RAW | .erf | Epson Raw File / erf | ✅ image（扩展名规则） |
 | RAW | .fff | Hasselblad Raw Image / fff | ✅ image（扩展名规则） |
 | RAW | .hdr | hdr | ✅ image（扩展名规则） |
-| RAW | .ia | ia | ❌ rawloader/ImageMagick 无对应 coder |
+| RAW | .ia | ia | ❌ WIC/ImageMagick 无对应 coder |
 | RAW | .iiq | Phase One Raw Image | ✅ image（扩展名规则） |
 | RAW | .k25 | k25 | ✅ image（扩展名规则） |
-| RAW | .kc2 | Kodak DCS200 Camera Raw Image / kc2 | ❌ rawloader/ImageMagick 无对应 coder |
+| RAW | .kc2 | Kodak DCS200 Camera Raw Image / kc2 | ❌ WIC/ImageMagick 无对应 coder |
 | RAW | .kdc | Kodak Digital Camera Image / kdc | ✅ image（扩展名规则） |
 | RAW | .mdc | Minolta Camera Raw Image / mdc | ✅ image（扩展名规则） |
 | RAW | .mef | Mamiya Raw Image / mef | ✅ image（扩展名规则） |
@@ -227,10 +227,10 @@
 | RAW | .pef | Pentax Electronic File / pef | ✅ image（扩展名规则） |
 | RAW | .ptx | Pentax RAW / ptx | ✅ image（扩展名规则；系统 WIC Raw Image Decoder，`wic-decoder --list` 实测注册 `.PTX`；同名 V.Flash 图像语义见 Image 段） |
 | RAW | .pxn | pxn | ✅ image（扩展名规则；系统 WIC Raw Image Decoder，`wic-decoder --list` 实测注册 `.PXN`） |
-| RAW | .qtk | qtk | ❌ rawloader/ImageMagick 无对应 coder |
+| RAW | .qtk | qtk | ❌ WIC/ImageMagick 无对应 coder |
 | RAW | .raf | Fuji Raw Image File / raf | ✅ image（扩展名规则） |
 | RAW | .raw | Raw Image Data File / raw | ✅ image（扩展名规则） |
-| RAW | .rdc | rdc | ❌ rawloader/ImageMagick 无对应 coder |
+| RAW | .rdc | rdc | ❌ WIC/ImageMagick 无对应 coder |
 | RAW | .rw2 | Panasonic Raw Image / rw2 | ✅ image（扩展名规则） |
 | RAW | .rwl | Leica Raw Image | ✅ image（扩展名规则） |
 | RAW | .sr2 | Sony Raw Image / sr2 | ✅ image（扩展名规则） |

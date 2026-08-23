@@ -38,7 +38,7 @@
 | MHTML / MHT | `web-view` | 已接入（转换） | 页面层解析 multipart/related，将 HTML、图片、CSS 和字体转换为 Blob 后渲染 | WebView2；内置 MHTML 解析器 |
 | 旧 Office：DOC/XLS/PPT 等 | `mupdf-view` | 已接入（转换） | 调用 `soffice --headless` 转 PDF，再交给 MuPDF.NET | 内置或系统 LibreOffice |
 | OOXML：DOCX/XLSX/PPTX | `office-view` | 已接入 | WebView2 加载本地 OOXML Web 渲染器 | WebView2；`@silurus/ooxml` 静态资源 |
-| 图片与 RAW | `img-view` | 已接入 | Rust 原生解码；SVG 用 resvg；RAW 用 rawloader；失败时按 WIC decoder → ImageMagick 顺序回退；manifest 扩展名已与系统 WIC 注册格式对齐（HEIF/AVIF、JPEG XL、WebP、Raw 相机格式及 `.icon` `.jfif` `.dib` 等别名） | `image`、`resvg`、`rawloader`；可选 ImageMagick、Compface、Windows WIC |
+| 图片与 RAW | `img-view` | 已接入 | Rust 原生解码；SVG 用 resvg；RAW 经 Windows WIC decoder → ImageMagick 顺序处理；manifest 扩展名已与系统 WIC 注册格式对齐（HEIF/AVIF、JPEG XL、WebP、Raw 相机格式及 `.icon` `.jfif` `.dib` 等别名） | `image`、`resvg`；可选 ImageMagick、Compface、Windows WIC |
 | 音频/视频 | `video-view` | 已接入 | libmpv2 渲染和播放 | `libmpv2`；发布时附带 `libmpv-2.dll` |
 | 压缩包 | `archive-view` | 已接入 | libarchive 枚举并显示归档内容 | `archive.dll`（libarchive） |
 | 邮件：EML/EMLX/MSG/OFT/TNEF | `email-view` | 已接入 | .NET 解析邮件，WebView2 渲染正文 | MimeKit；MSGReader；WebView2；DOMPurify |
@@ -51,7 +51,7 @@
 | --- | --- | --- | --- | --- |
 | `inf-dir.code-view` | Rust + winit/wry/WebView2 | CodeMirror 6、Lezer | WebView2；CodeMirror Web bundle | 代码、文本、JSON、HTML、CSS、配置和日志 |
 | `inf-dir.markdown-view` | Rust + winit/wry/WebView2 | markdown-it、highlight.js、KaTeX、Mermaid、GitHub Markdown CSS | WebView2；Markdown 静态资源 | Markdown |
-| `inf-dir.image-view` | Rust + egui/eframe | image、resvg、rawloader | 可选 ImageMagick、Compface、WIC decoder | 常用位图、SVG、相机 RAW、专业图像格式（HEIF/AVIF、JPEG XL、WebP、JPEG-XR 由系统 WIC 兜底） |
+| `inf-dir.image-view` | Rust + egui/eframe | image、resvg | 可选 ImageMagick、Compface、WIC decoder | 常用位图、SVG、相机 RAW、专业图像格式（HEIF/AVIF、JPEG XL、WebP、JPEG-XR 由系统 WIC 兜底） |
 | `inf-dir.pdf-view` | Rust + egui/eframe | pdfium-render | `pdfium.dll`，默认构建 PDFium 7881 x64 | PDF |
 | `inf-dir.pdfjs-view` | Rust + winit/wry/WebView2 | Mozilla pdf.js 6.2.108 | WebView2；pdf.js `web/` 和 `build/` 资源 | PDF |
 | `inf-dir.office-view` | Rust + winit/wry/WebView2 | `@silurus/ooxml` WASM/Web 渲染器 | WebView2；`office-view-web/` | DOCX/XLSX/PPTX 及 OOXML 模板 |
