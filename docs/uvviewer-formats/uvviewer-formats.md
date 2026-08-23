@@ -1,6 +1,7 @@
 # Universal Viewer 支持的文件格式参考
 
 > 数据来源：<https://www.uvviewsoft.com/uviewer/fmt.htm> 与 <https://www.uvviewsoft.com/uviewer/fmt_vid.htm>（抓取于 2026-08-19，共 296 个条目 / 294 个唯一扩展名）
+> 注意：RAW 扩展名清单位于 `fmt.htm` 的 "RAW Images" 段（原文仅列扩展名，无格式名）；`fmt.htm` 中 "For the list of cameras models" 链接指向的 <https://www.uvviewsoft.com/uviewer/fmt_raw.htm> 为"支持相机型号"补充页（dcraw 系相机表），不含扩展名清单。
 > 用途：Inf-Dir viewer 插件覆盖矩阵规划参考（与 `../file-type-reference/` 的 File Viewer Plus 数据为两个独立数据源）。
 > 注意：`.gif`、`.psp` 在 Images 与 Audio/Video 两个分类各出现一次。
 
