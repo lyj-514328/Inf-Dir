@@ -23,7 +23,9 @@
 > 扩展名表的快照，含早已被删除的后缀——`.bmq` 为 Nucore 相机 RAW（dcraw 2003-05-29
 > 添加，2007-04-29 以 "not used outside Nucore" 为由移除；另有 Re-Volt 游戏
 > mipmap 纹理的同名语义，与相机格式无关），`.rdc` 为 Rollei 相机 RAW（2003-09-15
-> 添加，后被移除），`.cs1` 在 dcraw 9.28 识别表中仍保留而 LibRaw 未继承。
+> 添加，后被移除），`.cs1` 与 `.ia`/`.sti` 同属 Sinar eMotion（22/54）系，LibRaw 0.22.2
+> 官方支持表含对应相机（QuickTake/Kodak DC20/DC25/DCS200/Rollei d530flex 同理）；
+> 唯一无引擎覆盖的是 `.bmq`（Nucore）与 `.rwz`（Rawzor）。
 > 依据：LibRaw 论坛帖 <https://www.libraw.org/node/2152> 与 ncruces/dcraw 全历史
 > （commit `01bf793` / `2bc1e21` / `773559d`）。
 >
@@ -203,17 +205,17 @@
 | RAW | .cr2 | Canon Raw Image File / cr2 | ✅ image（扩展名规则） |
 | RAW | .cr3 | Canon Raw 3 Image File | ✅ image（扩展名规则） |
 | RAW | .crw | Canon Raw CIFF Image File / crw | ✅ image（扩展名规则） |
-| RAW | .cs1 | cs1 | ❌ LibRaw/ImageMagick 无对应 coder |
-| RAW | .dc2 | dc2 | ❌ LibRaw/ImageMagick 无对应 coder |
+| RAW | .cs1 | cs1 | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Sinar eMotion 22/54） |
+| RAW | .dc2 | dc2 | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Kodak DC20/DC25） |
 | RAW | .dcr | Kodak Raw Image File / dcr | ✅ image（扩展名规则） |
 | RAW | .dng | Digital Negative Image File / dng | ✅ image（扩展名规则） |
 | RAW | .erf | Epson Raw File / erf | ✅ image（扩展名规则） |
 | RAW | .fff | Hasselblad Raw Image / fff | ✅ image（扩展名规则） |
 | RAW | .hdr | hdr | ✅ image（扩展名规则） |
-| RAW | .ia | ia | ❌ LibRaw/ImageMagick 无对应 coder |
+| RAW | .ia | ia | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Sinar eMotion 22/54） |
 | RAW | .iiq | Phase One Raw Image | ✅ image（扩展名规则） |
 | RAW | .k25 | k25 | ✅ image（扩展名规则） |
-| RAW | .kc2 | Kodak DCS200 Camera Raw Image / kc2 | ❌ LibRaw/ImageMagick 无对应 coder |
+| RAW | .kc2 | Kodak DCS200 Camera Raw Image / kc2 | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Kodak DCS200） |
 | RAW | .kdc | Kodak Digital Camera Image / kdc | ✅ image（扩展名规则） |
 | RAW | .mdc | Minolta Camera Raw Image / mdc | ✅ image（扩展名规则） |
 | RAW | .mef | Mamiya Raw Image / mef | ✅ image（扩展名规则） |
@@ -225,16 +227,16 @@
 | RAW | .pef | Pentax Electronic File / pef | ✅ image（扩展名规则） |
 | RAW | .ptx | Pentax RAW / ptx | ✅ image（扩展名规则；LibRaw 0.22+ 官方支持表包含对应相机；同名 V.Flash 图像语义见 Image 段） |
 | RAW | .pxn | pxn | ✅ image（扩展名规则；LibRaw 0.22+ 官方支持表包含对应相机） |
-| RAW | .qtk | qtk | ❌ LibRaw/ImageMagick 无对应 coder |
+| RAW | .qtk | qtk | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Apple QuickTake 100/150） |
 | RAW | .raf | Fuji Raw Image File / raf | ✅ image（扩展名规则） |
 | RAW | .raw | Raw Image Data File / raw | ✅ image（扩展名规则） |
-| RAW | .rdc | rdc | ❌ LibRaw/ImageMagick 无对应 coder |
+| RAW | .rdc | rdc | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Rollei d530flex） |
 | RAW | .rw2 | Panasonic Raw Image / rw2 | ✅ image（扩展名规则） |
 | RAW | .rwl | Leica Raw Image | ✅ image（扩展名规则） |
 | RAW | .sr2 | Sony Raw Image / sr2 | ✅ image（扩展名规则） |
 | RAW | .srf | Sony Raw Image / srf | ✅ image（扩展名规则） |
 | RAW | .srw | Samsung Raw Image | ✅ image（扩展名规则） |
-| RAW | .sti | sti | ⚠️ ImageMagick 可解，未在配置声明（待实测） |
+| RAW | .sti | sti | ✅ image（扩展名规则；LibRaw 0.22.2 官方支持表：Sinar eMotion 22/54） |
 | RAW | .x3f | SIGMA X3F Camera Raw File / x3f | ✅ image（扩展名规则） |
 | Audio | .3ga | 3GP Audio File | ✅ video（扩展名规则） |
 | Audio | .8svx | Amiga 8-Bit Sound File | ✅ video（扩展名规则） |

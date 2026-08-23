@@ -15,8 +15,10 @@ const DEFAULT_H: usize = 720;
 const MAX_MAGICK_DIMENSION: &str = "3200x3200>";
 
 const RAW_EXTENSIONS: &[&str] = &[
-    "ari", "arw", "cr2", "cr3", "crw", "dcr", "dcs", "dng", "erf", "iiq", "k25", "kdc", "mef", "mos",
-    "mrw", "nef", "nkd", "nrw", "orf", "pef", "raf", "raw", "rw2", "sr2", "srf", "srw", "x3f",
+    "3fr", "ari", "arw", "bay", "cap", "cr2", "cr3", "crw", "cs1", "dc2", "dcr", "dcs", "dng",
+    "drf", "eip", "erf", "fff", "ia", "iiq", "k25", "kc2", "kdc", "mef", "mos", "mrw", "nef",
+    "nkd", "nrw", "orf", "ori", "pef", "ptx", "pxn", "qtk", "raf", "raw", "rdc", "rw2", "rwl",
+    "sr2", "srf", "srw", "sti", "x3f",
 ];
 
 fn color_image(img: &DynamicImage) -> ColorImage {

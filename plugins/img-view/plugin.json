@@ -1,4 +1,12 @@
-{   "manifestVersion": 1,   "id": "inf-dir.image-view",   "name": "图片查看器",   "version": "0.1.0",   "entrypoint": "img-view.exe",   "capabilities": {     "quickView": {           "extensions": [
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.image-view",
+  "name": "图片查看器",
+  "version": "0.1.0",
+  "entrypoint": "img-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [
         ".3fr",
         ".aai",
         ".ari",
@@ -16,7 +24,9 @@
         ".cr2",
         ".cr3",
         ".crw",
+        ".cs1",
         ".cur",
+        ".dc2",
         ".dcm",
         ".dcr",
         ".dcs",
@@ -40,6 +50,7 @@
         ".heif",
         ".heifs",
         ".hif",
+        ".ia",
         ".ico",
         ".icon",
         ".iiq",
@@ -54,6 +65,7 @@
         ".jxl",
         ".jxr",
         ".k25",
+        ".kc2",
         ".kdc",
         ".mdc",
         ".mef",
@@ -83,9 +95,11 @@
         ".pwp",
         ".pxn",
         ".qoi",
+        ".qtk",
         ".raf",
         ".ras",
         ".raw",
+        ".rdc",
         ".rgb",
         ".rla",
         ".rle",
@@ -96,6 +110,7 @@
         ".sr2",
         ".srf",
         ".srw",
+        ".sti",
         ".svg",
         ".svgz",
         ".tga",
@@ -110,4 +125,9 @@
         ".xface",
         ".xpm"
       ],
-      "mimeTypes": [         "image/*"       ]     }   } }
+      "mimeTypes": [
+        "image/*"
+      ]
+    }
+  }
+}
