@@ -21,6 +21,14 @@
 >   后缀（`wic-decoder --list` 实测），超出 rawloader/ImageMagick 能力评估范围，
 >   随 OS 版本/厂商 codec 安装情况浮动，不作为覆盖判定的确定性依据。
 >
+> RAW 清单考古（dcraw 体系）：UV 的 RAW 扩展名清单（36 项）是 dcraw 2003 年前后
+> 扩展名表的快照，含早已被删除的后缀——`.bmq` 为 Nucore 相机 RAW（dcraw 2003-05-29
+> 添加，2007-04-29 以 "not used outside Nucore" 为由移除；另有 Re-Volt 游戏
+> mipmap 纹理的同名语义，与相机格式无关），`.rdc` 为 Rollei 相机 RAW（2003-09-15
+> 添加，后被移除），`.cs1` 在 dcraw 9.28 识别表中仍保留而 LibRaw 未继承。
+> 依据：LibRaw 论坛帖 <https://www.libraw.org/node/2152> 与 ncruces/dcraw 全历史
+> （commit `01bf793` / `2bc1e21` / `773559d`）。
+>
 > 注：无扩展名规则的文件可能经 `image/*`、`video/*`、`audio/*`、`text/*`
 > MIME 兜底命中（依赖系统注册的 Content Type 与后端解码能力）；同名冲突后缀的
 > 常见语义作为默认 viewer、其余语义作为 MIME 子类表达。
