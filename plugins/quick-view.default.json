@@ -5832,19 +5832,6 @@
       ]
     },
     {
-      "id": "ext-wsaud",
-      "enabled": true,
-      "type": "extension",
-      "value": ".wsaud",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
       "id": "ext-adts",
       "enabled": true,
       "type": "extension",

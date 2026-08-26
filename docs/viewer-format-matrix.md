@@ -304,7 +304,6 @@
 | Audio | .w64 | Sony Wave64 Audio File / Sony Wave64 format | ✅ video（扩展名规则） |
 | Audio | .wav | WAVE Audio File / WAV format | ✅ video（扩展名规则） |
 | Audio | .wma | Windows Media Audio File | ✅ video（扩展名规则） |
-| Audio | .wsaud | Westwood Studios audio format | ✅ video（扩展名规则） |
 | Audio | .wv | WavPack Audio File / WavPack | ✅ video（扩展名规则） |
 | Audio | .xa | PlayStation Audio File / Maxis XA File Format | ✅ video（扩展名规则） |
 | Audio | .xma | Xbox Media Audio File | ✅ video（扩展名规则） |
