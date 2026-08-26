@@ -264,6 +264,7 @@
 | Audio | .au | Audio File / SUN AU format | ✅ video（扩展名规则） |
 | Audio | .aud | WestWood Audio File | ❌ FFmpeg 无对应 demuxer |
 | Audio | .caf | Core Audio File / Apple Core Audio Format | ✅ video（扩展名规则） |
+| Audio | .302 | D-Cinema audio format | ✅ video（扩展名规则；FFmpeg `daud` demuxer） |
 | Audio | .daud | D-Cinema audio format | ✅ video（扩展名规则；FFmpeg `daud` demuxer） |
 | Audio | .dss | Digital Speech Standard Audio File | ✅ video（扩展名规则） |
 | Audio | .dts | DTS Encoded Audio File / raw DTS | ✅ video（扩展名规则） |
