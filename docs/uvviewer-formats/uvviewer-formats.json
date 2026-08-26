@@ -1,872 +1,872 @@
 [
     {
         "Category":  "Audio/Video",
-        "Ext":  "3g2",
+        "Demuxer":  "3g2",
         "Name":  "3GP2 format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "3gp",
+        "Demuxer":  "3gp",
         "Name":  "3GP format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "4xm",
+        "Demuxer":  "4xm",
         "Name":  "4X Technologies format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "a64",
+        "Demuxer":  "a64",
         "Name":  "a64 - video for Commodore 64"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "aac",
+        "Demuxer":  "aac",
         "Name":  "raw ADTS AAC"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ac3",
+        "Demuxer":  "ac3",
         "Name":  "raw AC-3"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "adts",
+        "Demuxer":  "adts",
         "Name":  "ADTS AAC"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "aea",
+        "Demuxer":  "aea",
         "Name":  "MD STUDIO audio"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "aiff",
+        "Demuxer":  "aiff",
         "Name":  "Audio IFF"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "alaw",
+        "Demuxer":  "alaw",
         "Name":  "PCM A-law format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "amr",
+        "Demuxer":  "amr",
         "Name":  "3GPP AMR file format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "anm",
+        "Demuxer":  "anm",
         "Name":  "Deluxe Paint Animation"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "apc",
+        "Demuxer":  "apc",
         "Name":  "CRYO APC format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ape",
+        "Demuxer":  "ape",
         "Name":  "Monkey\u0027s Audio"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "applehttp",
+        "Demuxer":  "applehttp",
         "Name":  "Apple HTTP Live Streaming format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "asf",
+        "Demuxer":  "asf",
         "Name":  "ASF format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "asf_stream",
+        "Demuxer":  "asf_stream",
         "Name":  "ASF format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ass",
+        "Demuxer":  "ass",
         "Name":  "Advanced SubStation Alpha subtitle format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "au",
+        "Demuxer":  "au",
         "Name":  "SUN AU format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "avi",
+        "Demuxer":  "avi",
         "Name":  "AVI format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "avm2",
+        "Demuxer":  "avm2",
         "Name":  "Flash 9 (AVM2) format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "avs",
+        "Demuxer":  "avs",
         "Name":  "AVISynth"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "bethsoftvid",
+        "Demuxer":  "bethsoftvid",
         "Name":  "Bethesda Softworks VID format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "bfi",
+        "Demuxer":  "bfi",
         "Name":  "Brute Force \u0026 Ignorance"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "bink",
+        "Demuxer":  "bink",
         "Name":  "Bink"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "c93",
+        "Demuxer":  "c93",
         "Name":  "Interplay C93"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "caf",
+        "Demuxer":  "caf",
         "Name":  "Apple Core Audio Format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "cavsvideo",
+        "Demuxer":  "cavsvideo",
         "Name":  "raw Chinese AVS video"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "cdg",
+        "Demuxer":  "cdg",
         "Name":  "CD Graphics Format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "crc",
+        "Demuxer":  "crc",
         "Name":  "CRC testing format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "daud",
+        "Demuxer":  "daud",
         "Name":  "D-Cinema audio format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "dirac",
+        "Demuxer":  "dirac",
         "Name":  "raw Dirac"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "dnxhd",
+        "Demuxer":  "dnxhd",
         "Name":  "raw DNxHD (SMPTE VC-3)"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "dsicin",
+        "Demuxer":  "dsicin",
         "Name":  "Delphine Software International CIN format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "dts",
+        "Demuxer":  "dts",
         "Name":  "raw DTS"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "dv",
+        "Demuxer":  "dv",
         "Name":  "DV video format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "dvd",
+        "Demuxer":  "dvd",
         "Name":  "MPEG-2 PS format (DVD VOB)"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "dxa",
+        "Demuxer":  "dxa",
         "Name":  "DXA"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ea",
+        "Demuxer":  "ea",
         "Name":  "Electronic Arts Multimedia Format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ea_cdata",
+        "Demuxer":  "ea_cdata",
         "Name":  "Electronic Arts cdata"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "eac3",
+        "Demuxer":  "eac3",
         "Name":  "raw E-AC-3"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "f32be",
+        "Demuxer":  "f32be",
         "Name":  "PCM 32 bit floating-point big-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "f32le",
+        "Demuxer":  "f32le",
         "Name":  "PCM 32 bit floating-point little-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "f64be",
+        "Demuxer":  "f64be",
         "Name":  "PCM 64 bit floating-point big-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "f64le",
+        "Demuxer":  "f64le",
         "Name":  "PCM 64 bit floating-point little-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ffm",
+        "Demuxer":  "ffm",
         "Name":  "FFM (FFserver live feed) format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ffmetadata",
+        "Demuxer":  "ffmetadata",
         "Name":  "FFmpeg metadata in text format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "film_cpk",
+        "Demuxer":  "film_cpk",
         "Name":  "Sega FILM/CPK format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "filmstrip",
+        "Demuxer":  "filmstrip",
         "Name":  "Adobe Filmstrip"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "flac",
+        "Demuxer":  "flac",
         "Name":  "raw FLAC"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "flic",
+        "Demuxer":  "flic",
         "Name":  "FLI/FLC/FLX animation format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "flv",
+        "Demuxer":  "flv",
         "Name":  "FLV format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "framecrc",
+        "Demuxer":  "framecrc",
         "Name":  "framecrc testing format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "framemd5",
+        "Demuxer":  "framemd5",
         "Name":  "Per-frame MD5 testing format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "g722",
+        "Demuxer":  "g722",
         "Name":  "raw G.722"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "gif",
+        "Demuxer":  "gif",
         "Name":  "GIF Animation"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "gsm",
+        "Demuxer":  "gsm",
         "Name":  "raw GSM"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "gxf",
+        "Demuxer":  "gxf",
         "Name":  "GXF format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "h261",
+        "Demuxer":  "h261",
         "Name":  "raw H.261"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "h263",
+        "Demuxer":  "h263",
         "Name":  "raw H.263"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "h264",
+        "Demuxer":  "h264",
         "Name":  "raw H.264 video format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "idcin",
+        "Demuxer":  "idcin",
         "Name":  "id Cinematic format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "iff",
+        "Demuxer":  "iff",
         "Name":  "IFF format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "image2",
+        "Demuxer":  "image2",
         "Name":  "image2 sequence"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "image2pipe",
+        "Demuxer":  "image2pipe",
         "Name":  "piped image2 sequence"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ingenient",
+        "Demuxer":  "ingenient",
         "Name":  "raw Ingenient MJPEG"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ipmovie",
+        "Demuxer":  "ipmovie",
         "Name":  "Interplay MVE format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ipod",
+        "Demuxer":  "ipod",
         "Name":  "iPod H.264 MP4 format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "iss",
+        "Demuxer":  "iss",
         "Name":  "Funcom ISS format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "iv8",
+        "Demuxer":  "iv8",
         "Name":  "A format generated by IndigoVision 8000 video server"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ivf",
+        "Demuxer":  "ivf",
         "Name":  "On2 IVF"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "lmlm4",
+        "Demuxer":  "lmlm4",
         "Name":  "lmlm4 raw format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "lxf",
+        "Demuxer":  "lxf",
         "Name":  "VR native stream format (LXF)"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "m4v",
+        "Demuxer":  "m4v",
         "Name":  "raw MPEG-4 video format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "matroska",
+        "Demuxer":  "matroska",
         "Name":  "Matroska file format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "md5",
+        "Demuxer":  "md5",
         "Name":  "MD5 testing format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mjpeg",
+        "Demuxer":  "mjpeg",
         "Name":  "raw MJPEG video"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mlp",
+        "Demuxer":  "mlp",
         "Name":  "raw MLP"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mm",
+        "Demuxer":  "mm",
         "Name":  "American Laser Games MM format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mmf",
+        "Demuxer":  "mmf",
         "Name":  "Yamaha SMAF"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mov",
+        "Demuxer":  "mov",
         "Name":  "MOV format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mp2",
+        "Demuxer":  "mp2",
         "Name":  "MPEG audio layer 2"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mp3",
+        "Demuxer":  "mp3",
         "Name":  "MPEG audio layer 3"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mp3id3v1",
+        "Demuxer":  "mp3id3v1",
         "Name":  "MPEG audio layer 3 with id3v1 only"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mp3id3v2",
+        "Demuxer":  "mp3id3v2",
         "Name":  "MPEG audio layer 3 with id3v2 only"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mp4",
+        "Demuxer":  "mp4",
         "Name":  "MP4 format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mpc",
+        "Demuxer":  "mpc",
         "Name":  "Musepack"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mpc8",
+        "Demuxer":  "mpc8",
         "Name":  "Musepack SV8"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mpeg",
+        "Demuxer":  "mpeg",
         "Name":  "MPEG-1 System format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mpeg1video",
+        "Demuxer":  "mpeg1video",
         "Name":  "raw MPEG-1 video"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mpeg2video",
+        "Demuxer":  "mpeg2video",
         "Name":  "raw MPEG-2 video"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mpegts",
+        "Demuxer":  "mpegts",
         "Name":  "MPEG-2 transport stream format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mpegtsraw",
+        "Demuxer":  "mpegtsraw",
         "Name":  "MPEG-2 raw transport stream format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mpegvideo",
+        "Demuxer":  "mpegvideo",
         "Name":  "raw MPEG video"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mpjpeg",
+        "Demuxer":  "mpjpeg",
         "Name":  "MIME multipart JPEG format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "msnwctcp",
+        "Demuxer":  "msnwctcp",
         "Name":  "MSN TCP Webcam stream"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mtv",
+        "Demuxer":  "mtv",
         "Name":  "MTV format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mulaw",
+        "Demuxer":  "mulaw",
         "Name":  "PCM mu-law format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mvi",
+        "Demuxer":  "mvi",
         "Name":  "Motion Pixels MVI format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mxf",
+        "Demuxer":  "mxf",
         "Name":  "Material eXchange Format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mxf_d10",
+        "Demuxer":  "mxf_d10",
         "Name":  "Material eXchange Format, D-10 Mapping"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "mxg",
+        "Demuxer":  "mxg",
         "Name":  "MxPEG clip file format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "nc",
+        "Demuxer":  "nc",
         "Name":  "NC camera feed format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "nsv",
+        "Demuxer":  "nsv",
         "Name":  "Nullsoft Streaming Video"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "null",
+        "Demuxer":  "null",
         "Name":  "raw null video format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "nut",
+        "Demuxer":  "nut",
         "Name":  "NUT format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "nuv",
+        "Demuxer":  "nuv",
         "Name":  "NuppelVideo format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "ogg",
+        "Demuxer":  "ogg",
         "Name":  "Ogg"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "oma",
+        "Demuxer":  "oma",
         "Name":  "Sony OpenMG audio"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "psp",
+        "Demuxer":  "psp",
         "Name":  "PSP MP4 format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "psxstr",
+        "Demuxer":  "psxstr",
         "Name":  "Sony Playstation STR format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "pva",
+        "Demuxer":  "pva",
         "Name":  "TechnoTrend PVA file and stream format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "qcp",
+        "Demuxer":  "qcp",
         "Name":  "QCP format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "r3d",
+        "Demuxer":  "r3d",
         "Name":  "REDCODE R3D format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "rawvideo",
+        "Demuxer":  "rawvideo",
         "Name":  "raw video format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "rcv",
+        "Demuxer":  "rcv",
         "Name":  "VC-1 test bitstream"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "rl2",
+        "Demuxer":  "rl2",
         "Name":  "RL2 format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "rm",
+        "Demuxer":  "rm",
         "Name":  "RealMedia format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "roq",
+        "Demuxer":  "roq",
         "Name":  "raw id RoQ format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "rpl",
+        "Demuxer":  "rpl",
         "Name":  "RPL/ARMovie format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "rso",
+        "Demuxer":  "rso",
         "Name":  "Lego Mindstorms RSO format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "rtp",
+        "Demuxer":  "rtp",
         "Name":  "RTP output format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "rtsp",
+        "Demuxer":  "rtsp",
         "Name":  "RTSP output format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "s16be",
+        "Demuxer":  "s16be",
         "Name":  "PCM signed 16 bit big-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "s16le",
+        "Demuxer":  "s16le",
         "Name":  "PCM signed 16 bit little-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "s24be",
+        "Demuxer":  "s24be",
         "Name":  "PCM signed 24 bit big-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "s24le",
+        "Demuxer":  "s24le",
         "Name":  "PCM signed 24 bit little-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "s32be",
+        "Demuxer":  "s32be",
         "Name":  "PCM signed 32 bit big-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "s32le",
+        "Demuxer":  "s32le",
         "Name":  "PCM signed 32 bit little-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "s8",
+        "Demuxer":  "s8",
         "Name":  "PCM signed 8 bit format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "sap",
+        "Demuxer":  "sap",
         "Name":  "SAP output format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "sdp",
+        "Demuxer":  "sdp",
         "Name":  "SDP"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "shn",
+        "Demuxer":  "shn",
         "Name":  "raw Shorten"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "siff",
+        "Demuxer":  "siff",
         "Name":  "Beam Software SIFF"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "smk",
+        "Demuxer":  "smk",
         "Name":  "Smacker video"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "sol",
+        "Demuxer":  "sol",
         "Name":  "Sierra SOL format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "sox",
+        "Demuxer":  "sox",
         "Name":  "SoX native format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "spdif",
+        "Demuxer":  "spdif",
         "Name":  "IEC 61937 (used on S/PDIF - IEC958)"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "srt",
+        "Demuxer":  "srt",
         "Name":  "SubRip subtitle format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "svcd",
+        "Demuxer":  "svcd",
         "Name":  "MPEG-2 PS format (VOB)"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "swf",
+        "Demuxer":  "swf",
         "Name":  "Flash format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "thp",
+        "Demuxer":  "thp",
         "Name":  "THP"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "tiertexseq",
+        "Demuxer":  "tiertexseq",
         "Name":  "Tiertex Limited SEQ format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "tmv",
+        "Demuxer":  "tmv",
         "Name":  "8088flex TMV"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "truehd",
+        "Demuxer":  "truehd",
         "Name":  "raw TrueHD"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "tta",
+        "Demuxer":  "tta",
         "Name":  "True Audio"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "tty",
+        "Demuxer":  "tty",
         "Name":  "Tele-typewriter"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "txd",
+        "Demuxer":  "txd",
         "Name":  "Renderware TeXture Dictionary"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "u16be",
+        "Demuxer":  "u16be",
         "Name":  "PCM unsigned 16 bit big-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "u16le",
+        "Demuxer":  "u16le",
         "Name":  "PCM unsigned 16 bit little-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "u24be",
+        "Demuxer":  "u24be",
         "Name":  "PCM unsigned 24 bit big-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "u24le",
+        "Demuxer":  "u24le",
         "Name":  "PCM unsigned 24 bit little-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "u32be",
+        "Demuxer":  "u32be",
         "Name":  "PCM unsigned 32 bit big-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "u32le",
+        "Demuxer":  "u32le",
         "Name":  "PCM unsigned 32 bit little-endian format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "u8",
+        "Demuxer":  "u8",
         "Name":  "PCM unsigned 8 bit format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "vc1",
+        "Demuxer":  "vc1",
         "Name":  "raw VC-1"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "vc1test",
+        "Demuxer":  "vc1test",
         "Name":  "VC-1 test bitstream format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "vcd",
+        "Demuxer":  "vcd",
         "Name":  "MPEG-1 System format (VCD)"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "vfwcap",
+        "Demuxer":  "vfwcap",
         "Name":  "VFW video capture"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "vmd",
+        "Demuxer":  "vmd",
         "Name":  "Sierra VMD format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "vob",
+        "Demuxer":  "vob",
         "Name":  "MPEG-2 PS format (VOB)"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "voc",
+        "Demuxer":  "voc",
         "Name":  "Creative Voice file format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "vqf",
+        "Demuxer":  "vqf",
         "Name":  "Nippon Telegraph and Telephone Corporation (NTT) TwinVQ"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "w64",
+        "Demuxer":  "w64",
         "Name":  "Sony Wave64 format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "wav",
+        "Demuxer":  "wav",
         "Name":  "WAV format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "wc3movie",
+        "Demuxer":  "wc3movie",
         "Name":  "Wing Commander III movie format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "webm",
+        "Demuxer":  "webm",
         "Name":  "WebM file format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "wsaud",
+        "Demuxer":  "wsaud",
         "Name":  "Westwood Studios audio format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "wsvqa",
+        "Demuxer":  "wsvqa",
         "Name":  "Westwood Studios VQA format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "wtv",
+        "Demuxer":  "wtv",
         "Name":  "Windows Television (WTV)"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "wv",
+        "Demuxer":  "wv",
         "Name":  "WavPack"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "xa",
+        "Demuxer":  "xa",
         "Name":  "Maxis XA File Format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "yop",
+        "Demuxer":  "yop",
         "Name":  "Psygnosis YOP Format"
     },
     {
         "Category":  "Audio/Video",
-        "Ext":  "yuv4mpegpipe",
+        "Demuxer":  "yuv4mpegpipe",
         "Name":  "YUV4MPEG pipe format"
     },
     {

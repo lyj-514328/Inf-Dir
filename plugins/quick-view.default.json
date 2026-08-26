@@ -782,6 +782,10 @@
         {
           "id": "inf-dir.image-view",
           "enabled": true
+        },
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
         }
       ]
     },
@@ -1083,6 +1087,10 @@
       "viewers": [
         {
           "id": "inf-dir.image-view",
+          "enabled": true
+        },
+        {
+          "id": "inf-dir.video-view",
           "enabled": true
         }
       ]
@@ -1419,19 +1427,6 @@
       "viewers": [
         {
           "id": "inf-dir.code-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
-      "id": "ext-svcd",
-      "enabled": true,
-      "type": "extension",
-      "value": ".svcd",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
           "enabled": true
         }
       ]
@@ -2202,6 +2197,10 @@
       "viewers": [
         {
           "id": "inf-dir.image-view",
+          "enabled": true
+        },
+        {
+          "id": "inf-dir.video-view",
           "enabled": true
         }
       ]
@@ -5669,6 +5668,10 @@
         {
           "id": "inf-dir.code-view",
           "enabled": true
+        },
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
         }
       ]
     },
@@ -5816,49 +5819,10 @@
       ]
     },
     {
-      "id": "ext-truehd",
-      "enabled": true,
-      "type": "extension",
-      "value": ".truehd",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
-      "id": "ext-dirac",
-      "enabled": true,
-      "type": "extension",
-      "value": ".dirac",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
       "id": "ext-dnxhd",
       "enabled": true,
       "type": "extension",
       "value": ".dnxhd",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
-      "id": "ext-mjpeg",
-      "enabled": true,
-      "type": "extension",
-      "value": ".mjpeg",
       "rules": [],
       "viewers": [
         {
@@ -5881,36 +5845,10 @@
       ]
     },
     {
-      "id": "ext-wsvqa",
-      "enabled": true,
-      "type": "extension",
-      "value": ".wsvqa",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
       "id": "ext-adts",
       "enabled": true,
       "type": "extension",
       "value": ".adts",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
-      "id": "ext-bink",
-      "enabled": true,
-      "type": "extension",
-      "value": ".bink",
       "rules": [],
       "viewers": [
         {
@@ -5993,19 +5931,6 @@
       "viewers": [
         {
           "id": "inf-dir.image-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
-      "id": "ext-siff",
-      "enabled": true,
-      "type": "extension",
-      "value": ".siff",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
           "enabled": true
         }
       ]
@@ -6531,19 +6456,6 @@
       ]
     },
     {
-      "id": "ext-ea",
-      "enabled": true,
-      "type": "extension",
-      "value": ".ea",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
       "id": "ext-jv",
       "enabled": true,
       "type": "extension",
@@ -6583,45 +6495,6 @@
       ]
     },
     {
-      "id": "ext-bethsoftvid",
-      "enabled": true,
-      "type": "extension",
-      "value": ".bethsoftvid",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
-      "id": "ext-ipmovie",
-      "enabled": true,
-      "type": "extension",
-      "value": ".ipmovie",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
-      "id": "ext-dsicin",
-      "enabled": true,
-      "type": "extension",
-      "value": ".dsicin",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
       "id": "ext-lmlm4",
       "enabled": true,
       "type": "extension",
@@ -6639,19 +6512,6 @@
       "enabled": true,
       "type": "extension",
       "value": ".spdif",
-      "rules": [],
-      "viewers": [
-        {
-          "id": "inf-dir.video-view",
-          "enabled": true
-        }
-      ]
-    },
-    {
-      "id": "ext-flic",
-      "enabled": true,
-      "type": "extension",
-      "value": ".flic",
       "rules": [],
       "viewers": [
         {
@@ -7533,6 +7393,409 @@
       "viewers": [
         {
           "id": "inf-dir.code-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-722",
+      "enabled": true,
+      "type": "extension",
+      "value": ".722",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-apl",
+      "enabled": true,
+      "type": "extension",
+      "value": ".apl",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-cue",
+      "enabled": true,
+      "type": "extension",
+      "value": ".cue",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-daud",
+      "enabled": true,
+      "type": "extension",
+      "value": ".daud",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-dif",
+      "enabled": true,
+      "type": "extension",
+      "value": ".dif",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-drc",
+      "enabled": true,
+      "type": "extension",
+      "value": ".drc",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-ec3",
+      "enabled": true,
+      "type": "extension",
+      "value": ".ec3",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-edl",
+      "enabled": true,
+      "type": "extension",
+      "value": ".edl",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-flm",
+      "enabled": true,
+      "type": "extension",
+      "value": ".flm",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-heif",
+      "enabled": true,
+      "type": "extension",
+      "value": ".heif",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-ism",
+      "enabled": true,
+      "type": "extension",
+      "value": ".ism",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-isma",
+      "enabled": true,
+      "type": "extension",
+      "value": ".isma",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-ismv",
+      "enabled": true,
+      "type": "extension",
+      "value": ".ismv",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-m2a",
+      "enabled": true,
+      "type": "extension",
+      "value": ".m2a",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-m3u",
+      "enabled": true,
+      "type": "extension",
+      "value": ".m3u",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-m3u8",
+      "enabled": true,
+      "type": "extension",
+      "value": ".m3u8",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mac",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mac",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mj2",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mj2",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mjpg",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mjpg",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mks",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mks",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mpc8",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mpc8",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-mve",
+      "enabled": true,
+      "type": "extension",
+      "value": ".mve",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-omg",
+      "enabled": true,
+      "type": "extension",
+      "value": ".omg",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-pls",
+      "enabled": true,
+      "type": "extension",
+      "value": ".pls",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-psp",
+      "enabled": true,
+      "type": "extension",
+      "value": ".psp",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-son",
+      "enabled": true,
+      "type": "extension",
+      "value": ".son",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-thd",
+      "enabled": true,
+      "type": "extension",
+      "value": ".thd",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-vid",
+      "enabled": true,
+      "type": "extension",
+      "value": ".vid",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-vqa",
+      "enabled": true,
+      "type": "extension",
+      "value": ".vqa",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-wve",
+      "enabled": true,
+      "type": "extension",
+      "value": ".wve",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-y4m",
+      "enabled": true,
+      "type": "extension",
+      "value": ".y4m",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
           "enabled": true
         }
       ]
