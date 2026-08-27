@@ -14,6 +14,7 @@ set "LIBRAW_DIR=%SCRIPT_DIR%libraw-decoder"
 set "LIBRAW_ARCHIVE=%CACHE_DIR%\LibRaw-0.22.2-Win64.zip"
 set "LIBRAW_URL=https://www.libraw.org/data/LibRaw-0.22.2-Win64.zip"
 set "LIBRAW_SHA=ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948"
+set "LIBRAW_BUILD_DIR=%TEMP_DIR%\libraw-build"
 set "ARCHIVE=%CACHE_DIR%\ImageMagick-7.1.2-29-portable-Q16-x64.7z"
 set "URL=https://download.imagemagick.org/archive/binaries/ImageMagick-7.1.2-29-portable-Q16-x64.7z"
 set "SHA=4715072c158c46bbdc3e6971817e92ed43fca7c93142cad142ee42c603baaac1"
@@ -97,8 +98,17 @@ if not exist "%LIBRAW_ROOT%\bin\libraw.dll" (
     echo [ERROR] LibRaw archive layout unexpected.
     exit /b 1
 )
-clang++ -O2 -std=c++17 "%SCRIPT_DIR%libraw-decoder\main.cpp" -I "%LIBRAW_ROOT%" "%LIBRAW_ROOT%\lib\libraw.lib" -o "%LIBRAW_DIR%\libraw-decoder.exe"
+if exist "%LIBRAW_BUILD_DIR%" rmdir /s /q "%LIBRAW_BUILD_DIR%"
+cmake -S "%SCRIPT_DIR%libraw-decoder" -B "%LIBRAW_BUILD_DIR%" -DLIBRAW_ROOT="%LIBRAW_ROOT%" -DLIBRAW_LIB="%LIBRAW_ROOT%\lib\libraw.lib"
 if errorlevel 1 exit /b 1
+cmake --build "%LIBRAW_BUILD_DIR%" --config Release --target libraw-decoder
+if errorlevel 1 exit /b 1
+if not exist "%LIBRAW_BUILD_DIR%\out\libraw-decoder.exe" (
+    echo [ERROR] CMake did not produce libraw-decoder.exe.
+    exit /b 1
+)
+if not exist "%LIBRAW_DIR%" mkdir "%LIBRAW_DIR%"
+copy /Y "%LIBRAW_BUILD_DIR%\out\libraw-decoder.exe" "%LIBRAW_DIR%\" >nul
 copy /Y "%LIBRAW_ROOT%\bin\libraw.dll" "%LIBRAW_DIR%\" >nul
 rmdir /s /q "%TEMP_DIR%"
 if not exist "%LIBRAW_DIR%\libraw-decoder.exe" exit /b 1
