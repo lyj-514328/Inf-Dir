@@ -5304,6 +5304,19 @@
       ]
     },
     {
+      "id": "ext-aud",
+      "enabled": true,
+      "type": "extension",
+      "value": ".aud",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.video-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
       "id": "ext-bw",
       "enabled": true,
       "type": "extension",

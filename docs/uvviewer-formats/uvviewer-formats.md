@@ -328,6 +328,7 @@
 | wav | WAV format |
 | wc3movie | Wing Commander III movie format |
 | webm | WebM file format |
+| wsaud | Westwood Studios audio format |
 | wsvqa | Westwood Studios VQA format |
 | wtv | Windows Television (WTV) |
 | wv | WavPack |

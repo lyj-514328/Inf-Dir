@@ -836,6 +836,11 @@
     },
     {
         "Category":  "Audio/Video",
+        "Demuxer":  "wsaud",
+        "Name":  "Westwood Studios audio format"
+    },
+    {
+        "Category":  "Audio/Video",
         "Demuxer":  "wsvqa",
         "Name":  "Westwood Studios VQA format"
     },

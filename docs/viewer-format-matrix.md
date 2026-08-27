@@ -262,7 +262,7 @@
 | Audio | .apc | CRYO Interactive APC Audio File / CRYO APC format | ✅ video（扩展名规则） |
 | Audio | .ape, .apl, .mac | Monkey's Audio aliases | ✅ video（扩展名规则；FFmpeg `ape` demuxer） |
 | Audio | .au | Audio File / SUN AU format | ✅ video（扩展名规则） |
-| Audio | .aud | WestWood Audio File | ❌ FFmpeg 无对应 demuxer |
+| Audio | .aud | WestWood Audio File | ✅ video（扩展名规则；FFmpeg `wsaud` demuxer） |
 | Audio | .caf | Core Audio File / Apple Core Audio Format | ✅ video（扩展名规则） |
 | Audio | .302 | D-Cinema audio format | ✅ video（扩展名规则；FFmpeg `daud` demuxer） |
 | Audio | .daud | D-Cinema audio format | ✅ video（扩展名规则；FFmpeg `daud` demuxer） |
