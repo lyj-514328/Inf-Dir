@@ -4,9 +4,10 @@
 - Samples root: D:\BaiduNetdiskDownload\abc\samples
 - Initial persisted records: 603
 - Rechecked records: 22
+- Manual override records: 1
 - Final logical viewer/sample jobs: 604
 - Responsive windows (including content errors): 597
-- Responsive windows without an explicit viewer error: 485
+- Responsive windows without an explicit viewer error: 484
 - The initial run had one JSONL write lost to a file lock; the missing AAI job was rechecked and included in the final set.
 
 ## Classification
@@ -23,16 +24,16 @@
 
 | Status | Count |
 | --- | ---: |
-| content_error | 112 |
+| content_error | 113 |
 | exit_nonzero | 7 |
-| running_window | 485 |
+| running_window | 484 |
 
 ## By Viewer
 
 | Viewer | Declared samples | Responsive windows | Failures / content errors | Indeterminate |
 | --- | ---: | ---: | ---: | ---: |
 | inf-dir.archive-view | 35 | 32 | 3 | 0 |
-| inf-dir.chm-view | 1 | 1 | 0 | 0 |
+| inf-dir.chm-view | 1 | 0 | 1 | 0 |
 | inf-dir.code-view | 103 | 102 | 1 | 0 |
 | inf-dir.email-view | 6 | 6 | 0 | 0 |
 | inf-dir.font-view | 4 | 4 | 0 | 0 |
@@ -55,6 +56,7 @@
 | inf-dir.archive-view | .arj | archive\arj\sample_web.arj | exit_nonzero |  | recheck_12s | error: failed to open archive: Unrecognized archive format |
 | inf-dir.archive-view | .dmg | archive\dmg\sample_web.dmg | content_error | -1 | initial | error: failed to open archive: Unrecognized archive format |
 | inf-dir.archive-view | .wim | archive\wim\sample_wimlib.wim | content_error | -1 | recheck_12s | error: failed to open archive: Unrecognized archive format |
+| inf-dir.chm-view | .chm | document\chm\sample_web.chm | content_error | -1 | manual_20260828 | Manual verification: Unexpected ITSF GUIDs: {00000000-0000-0000-0000-000000000000} / {00000060-0000-0000-0000-000000000000} |
 | inf-dir.code-view | .ads | code\ads\sample_targeted.ads | content_error | -1 | initial | [code-view] failed to initialize WebView2: WebView2 error: WindowsError(Error { code: HRESULT(0x800700AA), message: "请求的资源在使用中。" }) |
 | inf-dir.image-view | .cr2 | image\cr2\sample1.cr2 | content_error | -1 | initial | Error: failed to load image 鈥?LibRaw RAW decode failed: runtime is missing: C:\Users\lyjia\Desktop\Workspace\Inf-Dir2\plugins\dist\inf-dir.image-view\libraw-decoder\libraw-decoder.exe; ImageMagick fallback failed: ImageMagick exited with ex ... |
 | inf-dir.image-view | .dng | image\dng\sample1.dng | content_error | -1 | initial | Error: failed to load image 鈥?LibRaw RAW decode failed: runtime is missing: C:\Users\lyjia\Desktop\Workspace\Inf-Dir2\plugins\dist\inf-dir.image-view\libraw-decoder\libraw-decoder.exe; ImageMagick fallback failed: ImageMagick exited with ex ... |
@@ -175,3 +177,4 @@
 Raw per-job results: viewer-sample-test\results\20260828-141039\results.jsonl
 Recheck results: viewer-sample-test\results\20260828-141039\recheck.jsonl
 Recheck results: viewer-sample-test\results\20260828-141039\recheck-failures.jsonl
+Manual verification overrides: viewer-sample-test\results\20260828-141039\manual-overrides.jsonl

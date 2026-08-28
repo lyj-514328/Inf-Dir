@@ -2,6 +2,7 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$ResultsPath,
   [string[]]$RecheckPath = @(),
+  [string[]]$OverridePath = @(),
   [string]$ReportPath = ''
 )
 
@@ -10,6 +11,9 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $ResultsPath = (Resolve-Path $ResultsPath).Path
 if (-not [string]::IsNullOrWhiteSpace($RecheckPath)) {
   $RecheckPath = (Resolve-Path $RecheckPath).Path
+}
+if (-not [string]::IsNullOrWhiteSpace($OverridePath)) {
+  $OverridePath = @($OverridePath | ForEach-Object { (Resolve-Path $_).Path })
 }
 if ([string]::IsNullOrWhiteSpace($ReportPath)) {
   $ReportPath = Join-Path $PSScriptRoot 'viewer-sample-test-report.md'
@@ -32,12 +36,17 @@ function Markdown-Text([object]$Value, [int]$MaxLength = 240) {
 
 $rawResults = @(Read-JsonLines $ResultsPath)
 $recheckResults = @($RecheckPath | ForEach-Object { Read-JsonLines $_ })
+$overrideResults = @($OverridePath | ForEach-Object { Read-JsonLines $_ })
 $byKey = @{}
 foreach ($result in $rawResults) {
   $byKey["$($result.ViewerId)|$($result.Sample)"] = $result
 }
 foreach ($result in $recheckResults) {
   # A recheck is authoritative for the same viewer/sample pair.
+  $byKey["$($result.ViewerId)|$($result.Sample)"] = $result
+}
+foreach ($result in $overrideResults) {
+  # Manual verification is authoritative for the explicitly checked pair.
   $byKey["$($result.ViewerId)|$($result.Sample)"] = $result
 }
 $results = @($byKey.Values | Sort-Object ViewerId, Sample)
@@ -59,6 +68,7 @@ $md = [System.Collections.Generic.List[string]]::new()
 [void]$md.Add("- Samples root: D:\BaiduNetdiskDownload\abc\samples")
 [void]$md.Add("- Initial persisted records: $($rawResults.Count)")
 [void]$md.Add("- Rechecked records: $($recheckResults.Count)")
+[void]$md.Add("- Manual override records: $($overrideResults.Count)")
 [void]$md.Add("- Final logical viewer/sample jobs: $($results.Count)")
 [void]$md.Add("- Responsive windows (including content errors): $(@($results | Where-Object { (Get-EffectiveStatus $_) -in @('running_window', 'content_error') }).Count)")
 [void]$md.Add("- Responsive windows without an explicit viewer error: $(@($results | Where-Object { (Get-EffectiveStatus $_) -eq 'running_window' }).Count)")
@@ -115,6 +125,11 @@ if ($anomalies.Count -eq 0) {
 foreach ($recheckFile in $RecheckPath) {
   if (-not [string]::IsNullOrWhiteSpace($recheckFile)) {
     [void]$md.Add("Recheck results: $($recheckFile.Replace($repoRoot + '\', ''))")
+  }
+}
+foreach ($overrideFile in $OverridePath) {
+  if (-not [string]::IsNullOrWhiteSpace($overrideFile)) {
+    [void]$md.Add("Manual verification overrides: $($overrideFile.Replace($repoRoot + '\', ''))")
   }
 }
 

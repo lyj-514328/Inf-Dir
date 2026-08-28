@@ -13,6 +13,7 @@ persisted results from the 2026-08-28 run, and the generated report.
   files and regenerates the Markdown report.
 - `viewer-sample-test-report.md`: final compatibility statistics and anomaly
   details.
+- `manual-verification.md`: manual CHM checks and interpretation.
 - `results/20260828-141039/`: raw initial and recheck results for this run.
 
 ## Run
@@ -33,7 +34,9 @@ with `-SamplesRoot` when necessary. New runs are stored under `results/`.
   -ResultsPath .\viewer-sample-test\results\20260828-141039\results.jsonl `
   -RecheckPath `
     .\viewer-sample-test\results\20260828-141039\recheck.jsonl, `
-    .\viewer-sample-test\results\20260828-141039\recheck-failures.jsonl
+    .\viewer-sample-test\results\20260828-141039\recheck-failures.jsonl `
+  -OverridePath `
+    .\viewer-sample-test\results\20260828-141039\manual-overrides.jsonl
 ```
 
 `running_window` means a responsive window appeared without a recognized
