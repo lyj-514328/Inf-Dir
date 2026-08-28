@@ -38,7 +38,7 @@
 | MHTML / MHT | `web-view` | 已接入（转换） | 页面层解析 multipart/related，将 HTML、图片、CSS 和字体转换为 Blob 后渲染 | WebView2；内置 MHTML 解析器 |
 | 旧 Office：DOC/XLS/PPT 等 | `mupdf-view` | 已接入（转换） | 调用 `soffice --headless` 转 PDF，再交给 MuPDF.NET | 内置或系统 LibreOffice |
 | OOXML：DOCX/XLSX/PPTX | `office-view` | 已接入 | WebView2 加载本地 OOXML Web 渲染器 | WebView2；`@silurus/ooxml` 静态资源 |
-| 图片与 RAW | `img-view` | 已接入 | Rust 原生解码；SVG 用 resvg；RAW 经 LibRaw decoder → ImageMagick 顺序处理；manifest 扩展名清单已覆盖现代 RAW 与常见图片别名（`.icon` `.jfif` `.dib` 等） | `image`、`resvg`；可选 LibRaw decoder、ImageMagick、Compface |
+| 图片与 RAW | `img-view` | 已接入 | Rust 原生解码；SVG 用 resvg；V.Flash PTX 由内置 BGR555 解码；RAW 先按内容识别，再走 ImageMagick 的 LibRaw-backed RAW coder，必要时强制 `dng:` 入口，最后读取嵌入 JPEG 预览；manifest 扩展名清单已覆盖现代 RAW 与常见图片别名（`.icon` `.jfif` `.dib` 等） | `image`、`resvg`；ImageMagick（含 LibRaw RAW delegate）、Compface |
 | 音频/视频 | `video-view` | 已接入 | libmpv2 渲染和播放 | `libmpv2`；发布时附带 `libmpv-2.dll` |
 | 压缩包 | `archive-view` | 已接入 | libarchive 枚举并显示归档内容 | `archive.dll`（libarchive） |
 | 邮件：EML/EMLX/MSG/OFT/TNEF | `email-view` | 已接入 | .NET 解析邮件，WebView2 渲染正文 | MimeKit；MSGReader；WebView2；DOMPurify |
@@ -51,7 +51,7 @@
 | --- | --- | --- | --- | --- |
 | `inf-dir.code-view` | Rust + winit/wry/WebView2 | CodeMirror 6、Lezer | WebView2；CodeMirror Web bundle | 代码、文本、JSON、HTML、CSS、配置和日志 |
 | `inf-dir.markdown-view` | Rust + winit/wry/WebView2 | markdown-it、highlight.js、KaTeX、Mermaid、GitHub Markdown CSS | WebView2；Markdown 静态资源 | Markdown |
-| `inf-dir.image-view` | Rust + egui/eframe | image、resvg | 可选 LibRaw decoder、ImageMagick、Compface | 常用位图、SVG、相机 RAW、专业图像格式（HEIF/AVIF、JPEG XL、WebP 由后端能力覆盖） |
+| `inf-dir.image-view` | Rust + egui/eframe | image、resvg | ImageMagick（含 LibRaw RAW delegate）、Compface | 常用位图、SVG、相机 RAW、专业图像格式（HEIF/AVIF、JPEG XL、WebP 由后端能力覆盖） |
 | `inf-dir.pdf-view` | Rust + egui/eframe | pdfium-render | `pdfium.dll`，默认构建 PDFium 7881 x64 | PDF |
 | `inf-dir.pdfjs-view` | Rust + winit/wry/WebView2 | Mozilla pdf.js 6.2.108 | WebView2；pdf.js `web/` 和 `build/` 资源 | PDF |
 | `inf-dir.office-view` | Rust + winit/wry/WebView2 | `@silurus/ooxml` WASM/Web 渲染器 | WebView2；`office-view-web/` | DOCX/XLSX/PPTX 及 OOXML 模板 |
@@ -102,7 +102,7 @@ Windows 11 通常自带，Windows 10 依赖 Edge/WebView2 Runtime 安装状态�
 | LibreOffice | `mupdf-view` | `mupdf-view/libreoffice/`，调用 `program/soffice.exe` |
 | ImageMagick | `img-view` | `img-view/magick/`，作为解码失败时的子进程 |
 | Compface | `img-view` | `img-view/compface/`，用于 X-Face |
-| LibRaw decoder | `img-view` | `img-view/libraw-decoder/`（`libraw-decoder.exe` + `libraw.dll`，LibRaw 0.22.2 Win64 官方包）；RAW 首选解码器，输出 PPM 流 |
+| LibRaw decoder | `img-view` 构建辅助 | `img-view/libraw-decoder/`（`libraw-decoder.exe` + `libraw.dll`，LibRaw 0.22.2 Win64 官方包）；保留独立 wrapper 供诊断和后续回退，当前运行时由 ImageMagick 的 RAW delegate 负责解码 |
 | CHMate reader | `chm-view` | `chm-view-web/` 中的静态 ES modules，无额外运行时 |
 
 ### 4.4 .NET 运行时

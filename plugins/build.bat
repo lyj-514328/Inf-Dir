@@ -555,10 +555,6 @@ if not exist "%DIST_DIR%\inf-dir.image-view\libraw-decoder\libraw.dll" (
     echo [ERROR] Installed image-view package is missing libraw.dll.
     exit /b 1
 )
-if exist "%DIST_DIR%\inf-dir.image-view\wic-decoder" rmdir /s /q "%DIST_DIR%\inf-dir.image-view\wic-decoder"
-mkdir "%DIST_DIR%\inf-dir.image-view\wic-decoder"
-copy /Y "%SCRIPT_DIR%img-view\wic-decoder\wic-decoder.exe" "%DIST_DIR%\inf-dir.image-view\wic-decoder\" >nul
-
 copy /Y "%SCRIPT_DIR%code-view\plugin.json" "%DIST_DIR%\inf-dir.code-view\" >nul
 copy /Y "%SCRIPT_DIR%code-view\target\release\code-view.exe" "%DIST_DIR%\inf-dir.code-view\" >nul
 if exist "%DIST_DIR%\inf-dir.code-view\code-view.exe.WebView2" rmdir /s /q "%DIST_DIR%\inf-dir.code-view\code-view.exe.WebView2"

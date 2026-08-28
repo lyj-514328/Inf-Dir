@@ -59,7 +59,11 @@ std::vector<unsigned char> shrink(const unsigned char* src, int width, int heigh
 
 }  // namespace
 
+#if defined(_WIN32)
+int wmain(int argc, wchar_t** argv) {
+#else
 int main(int argc, char** argv) {
+#endif
   if (argc != 2) {
     std::fprintf(stderr, "Usage: libraw-decoder.exe <image>\n");
     return 2;
@@ -72,7 +76,13 @@ int main(int argc, char** argv) {
 #endif
 
   LibRaw raw;
+#if defined(_WIN32)
+  // Use LibRaw's wide-character entrypoint so samples under non-ACP paths
+  // (for example a synced folder with CJK characters) remain readable.
   int rc = raw.open_file(argv[1]);
+#else
+  int rc = raw.open_file(argv[1]);
+#endif
   if (rc != LIBRAW_SUCCESS) {
     fail("open_file", rc);
     return 1;
@@ -107,13 +117,11 @@ int main(int argc, char** argv) {
     const int height = static_cast<int>(image->height);
     const int step = std::max(1, (std::max(width, height) + kMaxDimension - 1) / kMaxDimension);
     const unsigned char* pixels = image->data;
-    bool downscaled = false;
     std::vector<unsigned char> scaled;
     if (step > 1) {
       scaled = shrink(pixels, width, height, step);
       pixels = scaled.data();
     }
-    (void)downscaled;
     // PPM P6.
     const std::string header =
         "P6\n" + std::to_string(width / step + ((width % step) ? 1 : 0)) + " " +
@@ -132,6 +140,8 @@ int main(int argc, char** argv) {
     }
   }
 
-  libraw_dcraw_clear_mem(image);
+  if (image != nullptr) {
+    libraw_dcraw_clear_mem(image);
+  }
   return result;
 }

@@ -20,8 +20,8 @@
 > - `⚠️` 后端可解但未在配置声明（待实测后补 manifest 与默认配置）；
 > - `❌` 后端无对应能力或非文件类型（伪格式、网络协议、原始采样流、字幕等）。
 >
-> 支持面判定依据（image-view 的解码链：image crate → LibRaw decoder 子进程 →
-> ImageMagick 子进程；video-view：mpv/FFmpeg）：
+> 支持面判定依据（image-view 的解码链：image crate → ImageMagick 的 LibRaw RAW
+> delegate；必要时使用 `dng:` 强制入口并尝试容器内嵌 JPEG 预览；video-view：mpv/FFmpeg）：
 > - LibRaw 0.22+ 官方支持表（`src/tables/cameralist.cpp`，约 1300 条相机条目）为
 >   现代 RAW 覆盖基准；
 > - FFmpeg `libavformat/allformats.c` 的 demuxer 名单，以及各 `FFInputFormat` 的
@@ -163,7 +163,7 @@
 | Image | .miff | Magick Image File | ✅ image（扩展名规则） |
 | Image | .mvg | Magick Vector Graphics File | ✅ image（扩展名规则） |
 | Image | .ora | OpenRaster Image | ✅ image（扩展名规则） |
-| Image | .pal | Dr. Halo image | ✅ image（扩展名规则；ImageMagick `PAL`） |
+| Image | .pal | Dr. Halo palette/sidecar | ❌ 非独立图像；样本是 palette sidecar，ImageMagick `PAL` 需要显式尺寸 |
 | Image | .pbm | Portable Bitmap Image / Portable pixmap | ✅ image（扩展名规则） |
 | Image | .pcc | ZSoft Paintbrush image | ❌ ImageMagick 无对应 decoder |
 | Image | .pcd | Kodak Photo CD Image File / Kodak Photo-CD image | ✅ image（扩展名规则） |
@@ -179,7 +179,7 @@
 | Image | .psb | Adobe Photoshop Large Document Format | ✅ image（扩展名规则） |
 | Image | .psd | Adobe Photoshop Document / Photoshop image | ✅ image（扩展名规则） |
 | Image | .psp | Paintshop Pro image | ❌ ImageMagick 无对应 decoder |
-| Image | .ptx | V.Flash PTX Image | ❌ ImageMagick 无对应 decoder（同名 `.ptx` 的 Pentax RAW 语义已支持，见 RAW 段） |
+| Image | .ptx | V.Flash PTX Image | ✅ image-view 内置 V.Flash 16 位 BGR555 解码（同名 `.ptx` 的 Pentax RAW 语义仍走 LibRaw，见 RAW 段） |
 | Image | .ras | SunOS Unix raster format | ✅ image（扩展名规则） |
 | Image | .rgb | RGB Bitmap / SGI image | ✅ image（扩展名规则） |
 | Image | .rgba | SGI image | ✅ image（扩展名规则；ImageMagick `RGBA`，SGI 家族） |
@@ -206,7 +206,7 @@
 | Image | .xface | X-Face Image | ✅ image（扩展名规则） |
 | Image | .xpm | X11 Pixmap Graphic | ✅ image（扩展名规则） |
 | RAW | .3fr | Hasselblad 3F Raw Image / 3fr | ✅ image（扩展名规则） |
-| RAW | .ari | ARRIRAW Image | ✅ image（扩展名规则） |
+| RAW | .ari | ARRIRAW Image | ❌ 当前随包 LibRaw 0.22.2 不含可用 ARRI 解码能力；需要 ARRI Image SDK |
 | RAW | .arw | Sony Digital Camera Image / arw | ✅ image（扩展名规则） |
 | RAW | .bay | Casio Raw Image / bay | ✅ image（扩展名规则；LibRaw 0.22+ 官方支持表包含对应相机） |
 | RAW | .bmq | Nucore Raw Image File（厂商：Nucore，已绝版）| ❌ LibRaw/ImageMagick 无对应 coder |
@@ -246,7 +246,7 @@
 | RAW | .srf | Sony Raw Image / srf | ✅ image（扩展名规则） |
 | RAW | .srw | Samsung Raw Image | ✅ image（扩展名规则） |
 | RAW | .sti | Sinar Capture Shop Raw（厂商：Sinar）| ✅ image（扩展名规则；LibRaw 0.22.2 支持表：Sinar eMotion 22/54；ImageMagick `STI` 实测） |
-| RAW | .x3f | SIGMA X3F Camera Raw File / x3f | ✅ image（扩展名规则） |
+| RAW | .x3f | SIGMA X3F Camera Raw File / x3f | ✅ image（ImageMagick/LibRaw RAW 或容器内嵌 JPEG 预览） |
 | Audio | .3ga | 3GP Audio File | ✅ video（扩展名规则） |
 | Audio | .8svx | Amiga 8-Bit Sound File | ✅ video（扩展名规则） |
 | Audio | .aa | Audible Audio Book File | ✅ video（扩展名规则） |

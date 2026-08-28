@@ -7,7 +7,7 @@ use eframe::egui;
 use egui::{
     Color32, ColorImage, Context, Rect, Sense, TextureHandle, TextureOptions, Vec2, ViewportCommand,
 };
-use image::{DynamicImage, GenericImageView};
+use image::{DynamicImage, GenericImageView, RgbaImage};
 use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGUMENT};
 
 const DEFAULT_W: usize = 960;
@@ -35,6 +35,8 @@ fn load_image(path: &str) -> Result<DynamicImage, String> {
 
     if ext == "svg" || ext == "svgz" {
         load_svg(path)
+    } else if ext == "ptx" && looks_like_vflash_ptx(path) {
+        load_vflash_ptx(path)
     } else if ext == "xface" {
         load_xface(path).or_else(|xface_error| {
             load_magick(path).map_err(|magick_error| {
@@ -44,18 +46,153 @@ fn load_image(path: &str) -> Result<DynamicImage, String> {
             })
         })
     } else if RAW_EXTENSIONS.contains(&ext.as_str()) {
-        load_libraw(path).or_else(|libraw_error| load_magick(path).map_err(|magick_error| {
-            format!(
-                "LibRaw RAW decode failed: {libraw_error}; ImageMagick fallback failed: {magick_error}"
-            )
-        }))
+        // ImageMagick already embeds the RAW delegate for the formats covered
+        // by the packaged runtime. Try bytes before the extension-driven RAW
+        // coder so mislabeled files (for example a JPEG named `.raw`) work.
+        load_from_memory(path).or_else(|memory_error| {
+            load_magick(path).or_else(|magick_error| {
+                // ImageMagick only registers a subset of LibRaw's extension
+                // aliases. Force its DNG/LibRaw coder for the remaining RAW
+                // extensions (for example `.bay` and `.qtk`).
+                load_magick_with_format("dng", path).or_else(|forced_magick_error| {
+                    load_embedded_jpeg(path).map_err(|preview_error| {
+                        format!(
+                            "content decode failed: {memory_error}; ImageMagick RAW decode failed: {magick_error}; ImageMagick forced DNG/LibRaw decode failed: {forced_magick_error}; embedded preview failed: {preview_error}"
+                        )
+                    })
+                })
+            })
+        })
     } else {
-        image::open(path).or_else(|image_error| load_magick(path).map_err(|magick_error| {
-            format!(
-                "native image decoder failed: {image_error}; ImageMagick fallback failed: {magick_error}"
-            )
-        }))
+        image::open(path).or_else(|image_error| {
+            load_from_memory(path).or_else(|memory_error| {
+                load_magick(path).map_err(|magick_error| {
+                    format!(
+                        "native image decoder failed: {image_error}; content decode failed: {memory_error}; ImageMagick fallback failed: {magick_error}"
+                    )
+                })
+            })
+        })
     }
+}
+
+fn load_from_memory(path: &str) -> Result<DynamicImage, String> {
+    let data = std::fs::read(path).map_err(|error| format!("failed to read image: {error}"))?;
+    image::load_from_memory(&data).map_err(|error| format!("content sniff failed: {error}"))
+}
+
+// Some RAW containers carry a JPEG preview even when the bundled LibRaw build
+// does not support that particular camera family. Decode the largest validated
+// JPEG segment as a last-resort preview rather than treating arbitrary bytes as
+// an image.
+fn load_embedded_jpeg(path: &str) -> Result<DynamicImage, String> {
+    let data = std::fs::read(path).map_err(|error| format!("failed to read RAW: {error}"))?;
+    let mut cursor = 0usize;
+    let mut best: Option<(u64, DynamicImage)> = None;
+
+    while cursor + 1 < data.len() {
+        let Some(relative_start) = data[cursor..]
+            .windows(2)
+            .position(|marker| marker == [0xff, 0xd8])
+        else {
+            break;
+        };
+        let start = cursor + relative_start;
+        let Some(relative_end) = data[start + 2..]
+            .windows(2)
+            .position(|marker| marker == [0xff, 0xd9])
+        else {
+            break;
+        };
+        let end = start + 2 + relative_end + 2;
+        if let Ok(image) = image::load_from_memory(&data[start..end]) {
+            let area = u64::from(image.width()) * u64::from(image.height());
+            if best
+                .as_ref()
+                .map_or(true, |(best_area, _)| area > *best_area)
+            {
+                best = Some((area, image));
+            }
+        }
+        cursor = end;
+    }
+
+    best.map(|(_, image)| image)
+        .ok_or_else(|| "no embedded JPEG preview found".to_owned())
+}
+
+fn read_u16_le(data: &[u8], offset: usize) -> Option<u16> {
+    let bytes = data.get(offset..offset + 2)?;
+    Some(u16::from_le_bytes([bytes[0], bytes[1]]))
+}
+
+fn looks_like_vflash_ptx(path: &str) -> bool {
+    let Ok(data) = std::fs::read(path) else {
+        return false;
+    };
+    let Some(offset) = read_u16_le(&data, 0) else {
+        return false;
+    };
+    let Some(width) = read_u16_le(&data, 8) else {
+        return false;
+    };
+    let Some(height) = read_u16_le(&data, 10) else {
+        return false;
+    };
+    let Some(bits_per_pixel) = read_u16_le(&data, 12) else {
+        return false;
+    };
+    let Some(pixel_bytes) = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|count| count.checked_mul(2))
+    else {
+        return false;
+    };
+    let Some(expected_size) = (offset as usize).checked_add(pixel_bytes) else {
+        return false;
+    };
+    offset == 0x2c && width > 0 && height > 0 && bits_per_pixel == 16 && data.len() >= expected_size
+}
+
+fn load_vflash_ptx(path: &str) -> Result<DynamicImage, String> {
+    let data = std::fs::read(path).map_err(|error| format!("failed to read PTX: {error}"))?;
+    let offset = read_u16_le(&data, 0).ok_or_else(|| "PTX header is truncated".to_owned())?;
+    let width = read_u16_le(&data, 8).ok_or_else(|| "PTX header is truncated".to_owned())?;
+    let height = read_u16_le(&data, 10).ok_or_else(|| "PTX header is truncated".to_owned())?;
+    let bits_per_pixel =
+        read_u16_le(&data, 12).ok_or_else(|| "PTX header is truncated".to_owned())?;
+
+    if offset != 0x2c || width == 0 || height == 0 || bits_per_pixel != 16 {
+        return Err("unsupported PTX header (expected V.Flash 16-bit BGR555)".to_owned());
+    }
+
+    let pixel_count = (width as usize)
+        .checked_mul(height as usize)
+        .ok_or_else(|| "PTX dimensions overflow".to_owned())?;
+    let data_size = pixel_count
+        .checked_mul(2)
+        .ok_or_else(|| "PTX dimensions overflow".to_owned())?;
+    let pixels = data
+        .get(offset as usize..offset as usize + data_size)
+        .ok_or_else(|| "PTX pixel data is truncated".to_owned())?;
+
+    let mut rgba = Vec::with_capacity(pixel_count * 4);
+    for pair in pixels.chunks_exact(2) {
+        let value = u16::from_le_bytes([pair[0], pair[1]]);
+        let red = ((value >> 10) & 0x1f) as u8;
+        let green = ((value >> 5) & 0x1f) as u8;
+        let blue = (value & 0x1f) as u8;
+        rgba.extend_from_slice(&[
+            (red << 3) | (red >> 2),
+            (green << 3) | (green >> 2),
+            (blue << 3) | (blue >> 2),
+            255,
+        ]);
+    }
+
+    RgbaImage::from_raw(width as u32, height as u32, rgba)
+        .map(DynamicImage::ImageRgba8)
+        .ok_or_else(|| "failed to construct PTX image".to_owned())
 }
 
 fn runtime_executable(directory: &str, executable: &str) -> Result<std::path::PathBuf, String> {
@@ -70,11 +207,32 @@ fn runtime_executable(directory: &str, executable: &str) -> Result<std::path::Pa
     Ok(path)
 }
 
+fn magick_command(executable: &Path) -> Command {
+    let mut command = Command::new(executable);
+    if let Some(runtime_dir) = executable.parent() {
+        // Keep ImageMagick isolated from machine-wide installations and their modules.
+        command
+            .env("MAGICK_HOME", runtime_dir)
+            .env("MAGICK_CONFIGURE_PATH", runtime_dir)
+            .env("MAGICK_CODER_MODULE_PATH", runtime_dir)
+            .env("MAGICK_CODER_FILTER_MODULE_PATH", runtime_dir);
+    }
+    command
+}
+
 fn load_magick(path: &str) -> Result<DynamicImage, String> {
+    load_magick_input(path)
+}
+
+fn load_magick_with_format(format: &str, path: &str) -> Result<DynamicImage, String> {
+    load_magick_input(&format!("{format}:{path}"))
+}
+
+fn load_magick_input(input: &str) -> Result<DynamicImage, String> {
     let executable = runtime_executable("magick", "magick.exe")?;
 
-    let output = Command::new(&executable)
-        .arg(path)
+    let output = magick_command(&executable)
+        .arg(input)
         .arg("-auto-orient")
         .arg("-resize")
         .arg(MAX_MAGICK_DIMENSION)
@@ -91,26 +249,6 @@ fn load_magick(path: &str) -> Result<DynamicImage, String> {
     }
     image::load_from_memory(&output.stdout)
         .map_err(|error| format!("ImageMagick returned invalid PNG: {error}"))
-}
-
-// Decode a camera RAW file with the libraw-decoder sidecar (LibRaw 0.22.2
-// dcraw pipeline) which emits a PPM stream on stdout.
-fn load_libraw(path: &str) -> Result<DynamicImage, String> {
-    let executable = runtime_executable("libraw-decoder", "libraw-decoder.exe")?;
-    let output = Command::new(&executable)
-        .arg(path)
-        .output()
-        .map_err(|error| format!("failed to start {}: {error}", executable.display()))?;
-    if !output.status.success() {
-        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-        return Err(if detail.is_empty() {
-            format!("LibRaw decoder exited with {}", output.status)
-        } else {
-            detail
-        });
-    }
-    image::load_from_memory(&output.stdout)
-        .map_err(|error| format!("LibRaw decoder returned invalid image: {error}"))
 }
 
 fn load_xface(path: &str) -> Result<DynamicImage, String> {
@@ -151,7 +289,7 @@ fn load_xface(path: &str) -> Result<DynamicImage, String> {
             return Err(String::from_utf8_lossy(&expanded.stderr).trim().to_string());
         }
 
-        let output = Command::new(&magick)
+        let output = magick_command(&magick)
             .arg(&xbm)
             .args(["-resize", MAX_MAGICK_DIMENSION, "png:-"])
             .output()
@@ -169,6 +307,22 @@ fn load_xface(path: &str) -> Result<DynamicImage, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_TEST_FILE: AtomicU64 = AtomicU64::new(0);
+
+    fn test_path(extension: &str) -> std::path::PathBuf {
+        env::temp_dir().join(format!(
+            "inf-dir-img-view-test-{}-{}-{extension}.{extension}",
+            std::process::id(),
+            NEXT_TEST_FILE.fetch_add(1, Ordering::Relaxed),
+        ))
+    }
+
+    fn put_u16_le(data: &mut [u8], offset: usize, value: u16) {
+        data[offset..offset + 2].copy_from_slice(&value.to_le_bytes());
+    }
 
     #[test]
     fn recognizes_raw_extensions() {
@@ -176,6 +330,75 @@ mod tests {
         assert!(RAW_EXTENSIONS.contains(&"dng"));
         assert!(RAW_EXTENSIONS.contains(&"x3f"));
         assert!(RAW_EXTENSIONS.contains(&"cr3"));
+    }
+
+    #[test]
+    fn decodes_vflash_ptx_bgr555() {
+        let path = test_path("ptx");
+        let mut data = vec![0u8; 44];
+        put_u16_le(&mut data, 0, 0x2c);
+        put_u16_le(&mut data, 8, 2);
+        put_u16_le(&mut data, 10, 1);
+        put_u16_le(&mut data, 12, 16);
+        data.extend_from_slice(&0x7c00u16.to_le_bytes());
+        data.extend_from_slice(&0x001fu16.to_le_bytes());
+        std::fs::write(&path, data).expect("write PTX fixture");
+
+        let image = load_image(path.to_str().expect("UTF-8 test path")).expect("decode PTX");
+        assert_eq!(image.dimensions(), (2, 1));
+        let rgba = image.to_rgba8();
+        assert_eq!(rgba.get_pixel(0, 0).0, [255, 0, 0, 255]);
+        assert_eq!(rgba.get_pixel(1, 0).0, [0, 0, 255, 255]);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn does_not_treat_tiff_ptx_as_vflash() {
+        let path = test_path("ptx");
+        std::fs::write(&path, b"II*\0").expect("write TIFF header");
+        assert!(!looks_like_vflash_ptx(
+            path.to_str().expect("UTF-8 test path")
+        ));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn decodes_content_when_extension_is_mislabeled() {
+        let path = test_path("raw");
+        let source = RgbaImage::from_pixel(1, 1, image::Rgba([12, 34, 56, 255]));
+        let mut encoded = Cursor::new(Vec::new());
+        DynamicImage::ImageRgba8(source)
+            .write_to(&mut encoded, image::ImageFormat::Png)
+            .expect("encode PNG fixture");
+        std::fs::write(&path, encoded.into_inner()).expect("write mislabeled fixture");
+
+        let image = load_image(path.to_str().expect("UTF-8 test path")).expect("decode content");
+        assert_eq!(image.to_rgba8().get_pixel(0, 0).0, [12, 34, 56, 255]);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn decodes_largest_embedded_jpeg_preview() {
+        let path = test_path("x3f");
+        let mut small_encoded = Cursor::new(Vec::new());
+        DynamicImage::ImageRgba8(RgbaImage::from_pixel(1, 1, image::Rgba([20, 30, 40, 255])))
+            .write_to(&mut small_encoded, image::ImageFormat::Jpeg)
+            .expect("encode small JPEG fixture");
+        let mut large_encoded = Cursor::new(Vec::new());
+        DynamicImage::ImageRgba8(RgbaImage::from_pixel(2, 1, image::Rgba([80, 90, 100, 255])))
+            .write_to(&mut large_encoded, image::ImageFormat::Jpeg)
+            .expect("encode large JPEG fixture");
+        let mut container = b"X3F container".to_vec();
+        container.extend_from_slice(&small_encoded.into_inner());
+        container.extend_from_slice(b"metadata");
+        container.extend_from_slice(&large_encoded.into_inner());
+        container.extend_from_slice(b"trailer");
+        std::fs::write(&path, container).expect("write X3F fixture");
+
+        let image = load_embedded_jpeg(path.to_str().expect("UTF-8 test path"))
+            .expect("decode embedded JPEG");
+        assert_eq!(image.dimensions(), (2, 1));
+        let _ = std::fs::remove_file(path);
     }
 }
 

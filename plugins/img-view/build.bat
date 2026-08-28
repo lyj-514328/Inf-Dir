@@ -15,12 +15,18 @@ set "LIBRAW_ARCHIVE=%CACHE_DIR%\LibRaw-0.22.2-Win64.zip"
 set "LIBRAW_URL=https://www.libraw.org/data/LibRaw-0.22.2-Win64.zip"
 set "LIBRAW_SHA=ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948"
 set "LIBRAW_BUILD_DIR=%TEMP_DIR%\libraw-build"
-set "ARCHIVE=%CACHE_DIR%\ImageMagick-7.1.2-29-portable-Q16-x64.7z"
-set "URL=https://download.imagemagick.org/archive/binaries/ImageMagick-7.1.2-29-portable-Q16-x64.7z"
-set "SHA=4715072c158c46bbdc3e6971817e92ed43fca7c93142cad142ee42c603baaac1"
+set "ARCHIVE=%CACHE_DIR%\ImageMagick-LibRaw-x64.zip"
+set "URL=https://github.com/lyj-514328/ImageMagick/releases/download/7.1.2-30/ImageMagick-LibRaw-x64.zip"
+set "SHA=e7ddd77c100560e92379dc0a8d3135f46c09cf6296cbe85e83ba733991bdaeb8"
 
 if not exist "%CACHE_DIR%" mkdir "%CACHE_DIR%"
-if not exist "%RUNTIME_DIR%\magick.exe" call :prepare_magick
+if not exist "%RUNTIME_DIR%\magick.exe" (
+    call :prepare_magick
+) else if not exist "%RUNTIME_DIR%\CORE_RL_raw_.dll" (
+    call :prepare_magick
+) else if not exist "%RUNTIME_DIR%\IM_MOD_RL_dng_.dll" (
+    call :prepare_magick
+)
 if errorlevel 1 exit /b 1
 if not exist "%COMPFACE_DIR%\uncompface.exe" call :prepare_compface
 if errorlevel 1 exit /b 1
@@ -49,10 +55,14 @@ if exist "%TEMP_DIR%" rmdir /s /q "%TEMP_DIR%"
 mkdir "%TEMP_DIR%"
 7z x "%ARCHIVE%" -o"%TEMP_DIR%" -y >nul
 if errorlevel 1 exit /b 1
+if not exist "%TEMP_DIR%\Artifacts\bin\magick.exe" (
+    echo [ERROR] ImageMagick archive layout unexpected.
+    exit /b 1
+)
 if exist "%RUNTIME_DIR%" rmdir /s /q "%RUNTIME_DIR%"
 mkdir "%RUNTIME_DIR%"
-copy /Y "%TEMP_DIR%\magick.exe" "%RUNTIME_DIR%\" >nul
-for %%F in (colors.xml configure.xml delegates.xml english.xml locale.xml log.xml mime.xml policy.xml sRGB.icc thresholds.xml type-ghostscript.xml type.xml LICENSE.txt NOTICE.txt) do if exist "%TEMP_DIR%\%%F" copy /Y "%TEMP_DIR%\%%F" "%RUNTIME_DIR%\" >nul
+robocopy "%TEMP_DIR%\Artifacts\bin" "%RUNTIME_DIR%" /E /XF *.pdb /NFL /NDL /NJH /NJS /NP >nul
+if errorlevel 8 exit /b 1
 rmdir /s /q "%TEMP_DIR%"
 exit /b 0
 
@@ -122,6 +132,14 @@ exit /b 0
 :done
 if not exist "%RUNTIME_DIR%\magick.exe" (
     echo [ERROR] ImageMagick runtime is incomplete.
+    exit /b 1
+)
+if not exist "%RUNTIME_DIR%\CORE_RL_raw_.dll" (
+    echo [ERROR] ImageMagick RAW delegate is missing.
+    exit /b 1
+)
+if not exist "%RUNTIME_DIR%\IM_MOD_RL_dng_.dll" (
+    echo [ERROR] ImageMagick DNG coder module is missing.
     exit /b 1
 )
 if not exist "%LIBRAW_DIR%\libraw-decoder.exe" (
