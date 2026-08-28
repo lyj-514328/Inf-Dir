@@ -24,7 +24,11 @@ if not exist "%RUNTIME_DIR%\magick.exe" call :prepare_magick
 if errorlevel 1 exit /b 1
 if not exist "%COMPFACE_DIR%\uncompface.exe" call :prepare_compface
 if errorlevel 1 exit /b 1
-if not exist "%LIBRAW_DIR%\libraw-decoder.exe" call :prepare_libraw
+if not exist "%LIBRAW_DIR%\libraw-decoder.exe" (
+    call :prepare_libraw
+) else if not exist "%LIBRAW_DIR%\libraw.dll" (
+    call :prepare_libraw
+)
 if errorlevel 1 exit /b 1
 goto :done
 
@@ -112,11 +116,20 @@ copy /Y "%LIBRAW_BUILD_DIR%\out\libraw-decoder.exe" "%LIBRAW_DIR%\" >nul
 copy /Y "%LIBRAW_ROOT%\bin\libraw.dll" "%LIBRAW_DIR%\" >nul
 rmdir /s /q "%TEMP_DIR%"
 if not exist "%LIBRAW_DIR%\libraw-decoder.exe" exit /b 1
+if not exist "%LIBRAW_DIR%\libraw.dll" exit /b 1
 exit /b 0
 
 :done
 if not exist "%RUNTIME_DIR%\magick.exe" (
     echo [ERROR] ImageMagick runtime is incomplete.
+    exit /b 1
+)
+if not exist "%LIBRAW_DIR%\libraw-decoder.exe" (
+    echo [ERROR] LibRaw decoder runtime is incomplete.
+    exit /b 1
+)
+if not exist "%LIBRAW_DIR%\libraw.dll" (
+    echo [ERROR] LibRaw DLL runtime is incomplete.
     exit /b 1
 )
 echo [IMG] ImageMagick runtime ready.

@@ -527,6 +527,34 @@ if exist "%DIST_DIR%\inf-dir.image-view\magick" rmdir /s /q "%DIST_DIR%\inf-dir.
 xcopy /E /I /Y /Q "%SCRIPT_DIR%img-view\magick" "%DIST_DIR%\inf-dir.image-view\magick" >nul
 if exist "%DIST_DIR%\inf-dir.image-view\compface" rmdir /s /q "%DIST_DIR%\inf-dir.image-view\compface"
 xcopy /E /I /Y /Q "%SCRIPT_DIR%img-view\compface" "%DIST_DIR%\inf-dir.image-view\compface" >nul
+if exist "%DIST_DIR%\inf-dir.image-view\libraw-decoder" rmdir /s /q "%DIST_DIR%\inf-dir.image-view\libraw-decoder"
+if not exist "%SCRIPT_DIR%img-view\libraw-decoder\libraw-decoder.exe" (
+    echo [ERROR] LibRaw decoder executable is missing from the image-view build output.
+    exit /b 1
+)
+if not exist "%SCRIPT_DIR%img-view\libraw-decoder\libraw.dll" (
+    echo [ERROR] LibRaw DLL is missing from the image-view build output.
+    exit /b 1
+)
+mkdir "%DIST_DIR%\inf-dir.image-view\libraw-decoder"
+copy /Y "%SCRIPT_DIR%img-view\libraw-decoder\libraw-decoder.exe" "%DIST_DIR%\inf-dir.image-view\libraw-decoder\" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to install libraw-decoder.exe.
+    exit /b 1
+)
+copy /Y "%SCRIPT_DIR%img-view\libraw-decoder\libraw.dll" "%DIST_DIR%\inf-dir.image-view\libraw-decoder\" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to install libraw.dll.
+    exit /b 1
+)
+if not exist "%DIST_DIR%\inf-dir.image-view\libraw-decoder\libraw-decoder.exe" (
+    echo [ERROR] Installed image-view package is missing libraw-decoder.exe.
+    exit /b 1
+)
+if not exist "%DIST_DIR%\inf-dir.image-view\libraw-decoder\libraw.dll" (
+    echo [ERROR] Installed image-view package is missing libraw.dll.
+    exit /b 1
+)
 if exist "%DIST_DIR%\inf-dir.image-view\wic-decoder" rmdir /s /q "%DIST_DIR%\inf-dir.image-view\wic-decoder"
 mkdir "%DIST_DIR%\inf-dir.image-view\wic-decoder"
 copy /Y "%SCRIPT_DIR%img-view\wic-decoder\wic-decoder.exe" "%DIST_DIR%\inf-dir.image-view\wic-decoder\" >nul
