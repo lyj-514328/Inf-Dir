@@ -866,6 +866,16 @@ void main() {
       expect(preset.id, ViewerAssociationConfig.defaultGroupId);
       // 仓库根目录的 plugins/quick-view.default.json 应被自动发现。
       expect(preset.rules, isNotEmpty);
+      final datRule = preset.rules.firstWhere((rule) => rule.id == 'ext-dat');
+      expect(datRule.viewers.map((viewer) => viewer.id), [
+        'inf-dir.email-view',
+      ]);
+      expect(datRule.rules.single.id, 'mime-dat-video');
+      expect(datRule.rules.single.type, ViewerRuleType.mimeType);
+      expect(datRule.rules.single.value, 'video/*');
+      expect(datRule.rules.single.viewers.map((viewer) => viewer.id), [
+        'inf-dir.video-view',
+      ]);
     });
 
     test('user rule viewer edits persist order and disabled state', () {

@@ -6681,7 +6681,21 @@
       "enabled": true,
       "type": "extension",
       "value": ".dat",
-      "rules": [],
+      "rules": [
+        {
+          "id": "mime-dat-video",
+          "enabled": true,
+          "type": "mimeType",
+          "value": "video/*",
+          "rules": [],
+          "viewers": [
+            {
+              "id": "inf-dir.video-view",
+              "enabled": true
+            }
+          ]
+        }
+      ],
       "viewers": [
         {
           "id": "inf-dir.email-view",
