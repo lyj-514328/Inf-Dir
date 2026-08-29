@@ -1,7 +1,27 @@
 use std::env;
+use std::io::Read;
 use std::path::Path;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+#[cfg(windows)]
+use std::ffi::OsStr;
+#[cfg(windows)]
+use std::os::windows::ffi::OsStrExt;
+
+#[cfg(windows)]
+use windows::core::PCWSTR;
+#[cfg(windows)]
+use windows::Win32::Foundation::GENERIC_READ;
+#[cfg(windows)]
+use windows::Win32::Graphics::Imaging::{
+    CLSID_WICImagingFactory, GUID_WICPixelFormat32bppBGRA, IWICImagingFactory,
+    WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnLoad,
+};
+#[cfg(windows)]
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
+};
 
 use eframe::egui;
 use egui::{
@@ -18,7 +38,7 @@ const RAW_EXTENSIONS: &[&str] = &[
     "3fr", "ari", "arw", "bay", "cap", "cr2", "cr3", "crw", "cs1", "dc2", "dcr", "dcs", "dng",
     "drf", "eip", "erf", "fff", "ia", "iiq", "k25", "kc2", "kdc", "mef", "mos", "mrw", "nef",
     "nkd", "nrw", "orf", "ori", "pef", "ptx", "pxn", "qtk", "raf", "raw", "rdc", "rw2", "rwl",
-    "sr2", "srf", "srw", "sti", "x3f",
+    "sr2", "srf", "srw", "sti", "x3f", "cine",
 ];
 
 fn color_image(img: &DynamicImage) -> ColorImage {
@@ -45,20 +65,52 @@ fn load_image(path: &str) -> Result<DynamicImage, String> {
                 )
             })
         })
+    } else if ext == "mvg" {
+        // ImageMagick's MVG coder is available in the portable runtime, but
+        // extension-based detection may reject local MVG files. Force the
+        // coder so vector samples use the bundled renderer consistently.
+        load_magick_with_format("mvg", path)
+    } else if ext == "jng" {
+        // Some JNG files contain a valid JPEG color stream but an alpha PNG
+        // with a non-standard bit-depth marker. Keep the color preview when
+        // ImageMagick cannot decode the combined JNG container.
+        load_embedded_jpeg(path).or_else(|jpeg_error| {
+            load_magick(path).map_err(|magick_error| {
+                format!(
+                    "embedded JPEG preview failed: {jpeg_error}; ImageMagick fallback failed: {magick_error}"
+                )
+            })
+        })
+    } else if ext == "jxr" {
+        load_wic(path).or_else(|wic_error| {
+            load_magick(path).map_err(|magick_error| {
+                format!(
+                    "Windows WIC decode failed: {wic_error}; ImageMagick fallback failed: {magick_error}"
+                )
+            })
+        })
+    } else if ext == "ora" {
+        load_ora_thumbnail(path).or_else(|ora_error| {
+            load_magick(path).map_err(|magick_error| {
+                format!(
+                    "OpenRaster thumbnail fallback failed: {ora_error}; ImageMagick fallback failed: {magick_error}"
+                )
+            })
+        })
     } else if RAW_EXTENSIONS.contains(&ext.as_str()) {
-        // ImageMagick already embeds the RAW delegate for the formats covered
-        // by the packaged runtime. Try bytes before the extension-driven RAW
-        // coder so mislabeled files (for example a JPEG named `.raw`) work.
-        load_from_memory(path).or_else(|memory_error| {
+        // LibRaw is substantially faster for camera containers. Keep
+        // ImageMagick and content sniffing as fallbacks for formats that LibRaw
+        // does not cover (including mislabeled images such as a JPEG named
+        // `.raw`).
+        load_libraw(path).or_else(|libraw_error| {
             load_magick(path).or_else(|magick_error| {
-                // ImageMagick only registers a subset of LibRaw's extension
-                // aliases. Force its DNG/LibRaw coder for the remaining RAW
-                // extensions (for example `.bay` and `.qtk`).
                 load_magick_with_format("dng", path).or_else(|forced_magick_error| {
-                    load_embedded_jpeg(path).map_err(|preview_error| {
-                        format!(
-                            "content decode failed: {memory_error}; ImageMagick RAW decode failed: {magick_error}; ImageMagick forced DNG/LibRaw decode failed: {forced_magick_error}; embedded preview failed: {preview_error}"
-                        )
+                    load_from_memory(path).or_else(|memory_error| {
+                        load_embedded_jpeg(path).map_err(|preview_error| {
+                            format!(
+                                "LibRaw sidecar decode failed: {libraw_error}; ImageMagick RAW decode failed: {magick_error}; ImageMagick forced DNG/LibRaw decode failed: {forced_magick_error}; content decode failed: {memory_error}; embedded preview failed: {preview_error}"
+                            )
+                        })
                     })
                 })
             })
@@ -79,6 +131,110 @@ fn load_image(path: &str) -> Result<DynamicImage, String> {
 fn load_from_memory(path: &str) -> Result<DynamicImage, String> {
     let data = std::fs::read(path).map_err(|error| format!("failed to read image: {error}"))?;
     image::load_from_memory(&data).map_err(|error| format!("content sniff failed: {error}"))
+}
+
+fn load_ora_thumbnail(path: &str) -> Result<DynamicImage, String> {
+    let file = std::fs::File::open(path).map_err(|error| format!("failed to open ORA: {error}"))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|error| format!("invalid ORA ZIP container: {error}"))?;
+    let mut errors = Vec::new();
+
+    for name in [
+        "Thumbnails/thumbnail.png",
+        "Thumbnails/thumbnail.jpg",
+        "data/mergedimage.png",
+        "data/background.png",
+    ] {
+        let result = (|| {
+            let mut entry = archive
+                .by_name(name)
+                .map_err(|error| format!("{name}: {error}"))?;
+            let mut bytes = Vec::new();
+            entry
+                .read_to_end(&mut bytes)
+                .map_err(|error| format!("{name}: failed to read entry: {error}"))?;
+            image::load_from_memory(&bytes)
+                .map_err(|error| format!("{name}: invalid image data: {error}"))
+        })();
+        match result {
+            Ok(image) => return Ok(image),
+            Err(error) => errors.push(error),
+        }
+    }
+
+    Err(errors.join("; "))
+}
+
+#[cfg(windows)]
+fn load_wic(path: &str) -> Result<DynamicImage, String> {
+    let wide_path: Vec<u16> = OsStr::new(path).encode_wide().chain(Some(0)).collect();
+    let init_result = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+    if init_result.is_err() && init_result.0 != 0x80010106u32 as i32 {
+        return Err(format!(
+            "COM initialization failed: 0x{:08x}",
+            init_result.0
+        ));
+    }
+    let uninitialize = init_result.is_ok();
+    let result = (|| unsafe {
+        let factory: IWICImagingFactory =
+            CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)
+                .map_err(|error| format!("WIC factory unavailable: {error}"))?;
+        let decoder = factory
+            .CreateDecoderFromFilename(
+                PCWSTR(wide_path.as_ptr()),
+                None,
+                GENERIC_READ,
+                WICDecodeMetadataCacheOnLoad,
+            )
+            .map_err(|error| format!("WIC decoder unavailable: {error}"))?;
+        let frame = decoder
+            .GetFrame(0)
+            .map_err(|error| format!("WIC frame decode failed: {error}"))?;
+        let converter = factory
+            .CreateFormatConverter()
+            .map_err(|error| format!("WIC format converter unavailable: {error}"))?;
+        converter
+            .Initialize(
+                &frame,
+                &GUID_WICPixelFormat32bppBGRA,
+                WICBitmapDitherTypeNone,
+                None,
+                0.0,
+                WICBitmapPaletteTypeCustom,
+            )
+            .map_err(|error| format!("WIC pixel conversion failed: {error}"))?;
+        let mut width = 0u32;
+        let mut height = 0u32;
+        converter
+            .GetSize(&mut width, &mut height)
+            .map_err(|error| format!("WIC image dimensions unavailable: {error}"))?;
+        let stride = width
+            .checked_mul(4)
+            .ok_or_else(|| "WIC image stride overflow".to_owned())?;
+        let byte_count = (stride as usize)
+            .checked_mul(height as usize)
+            .ok_or_else(|| "WIC image size overflow".to_owned())?;
+        let mut bgra = vec![0u8; byte_count];
+        converter
+            .CopyPixels(std::ptr::null(), stride, &mut bgra)
+            .map_err(|error| format!("WIC pixel copy failed: {error}"))?;
+        for pixel in bgra.chunks_exact_mut(4) {
+            pixel.swap(0, 2);
+        }
+        RgbaImage::from_raw(width, height, bgra)
+            .map(DynamicImage::ImageRgba8)
+            .ok_or_else(|| "WIC returned an invalid pixel buffer".to_owned())
+    })();
+    if uninitialize {
+        unsafe { CoUninitialize() };
+    }
+    result
+}
+
+#[cfg(not(windows))]
+fn load_wic(_path: &str) -> Result<DynamicImage, String> {
+    Err("Windows WIC is unavailable on this platform".to_owned())
 }
 
 // Some RAW containers carry a JPEG preview even when the bundled LibRaw build
@@ -251,6 +407,26 @@ fn load_magick_input(input: &str) -> Result<DynamicImage, String> {
         .map_err(|error| format!("ImageMagick returned invalid PNG: {error}"))
 }
 
+// Decode camera/Phantom RAW containers with the bundled LibRaw sidecar. The
+// executable remains isolated from the Flutter process and emits PPM bytes.
+fn load_libraw(path: &str) -> Result<DynamicImage, String> {
+    let executable = runtime_executable("libraw-decoder", "libraw-decoder.exe")?;
+    let output = Command::new(&executable)
+        .arg(path)
+        .output()
+        .map_err(|error| format!("failed to start {}: {error}", executable.display()))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if detail.is_empty() {
+            format!("LibRaw decoder exited with {}", output.status)
+        } else {
+            detail
+        });
+    }
+    image::load_from_memory(&output.stdout)
+        .map_err(|error| format!("LibRaw decoder returned invalid image: {error}"))
+}
+
 fn load_xface(path: &str) -> Result<DynamicImage, String> {
     let uncompface = runtime_executable("compface", "uncompface.exe")?;
     let magick = runtime_executable("magick", "magick.exe")?;
@@ -330,6 +506,7 @@ mod tests {
         assert!(RAW_EXTENSIONS.contains(&"dng"));
         assert!(RAW_EXTENSIONS.contains(&"x3f"));
         assert!(RAW_EXTENSIONS.contains(&"cr3"));
+        assert!(RAW_EXTENSIONS.contains(&"cine"));
     }
 
     #[test]

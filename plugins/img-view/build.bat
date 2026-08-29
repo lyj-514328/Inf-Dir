@@ -15,12 +15,13 @@ set "LIBRAW_ARCHIVE=%CACHE_DIR%\LibRaw-0.22.2-Win64.zip"
 set "LIBRAW_URL=https://www.libraw.org/data/LibRaw-0.22.2-Win64.zip"
 set "LIBRAW_SHA=ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948"
 set "LIBRAW_BUILD_DIR=%TEMP_DIR%\libraw-build"
-set "ARCHIVE=%CACHE_DIR%\ImageMagick-LibRaw-x64.zip"
-set "URL=https://github.com/lyj-514328/ImageMagick/releases/download/7.1.2-30/ImageMagick-LibRaw-x64.zip"
-set "SHA=e7ddd77c100560e92379dc0a8d3135f46c09cf6296cbe85e83ba733991bdaeb8"
+set "RUNTIME_MARKER=%RUNTIME_DIR%\inf-dir-image-runtime-fix-jng-sfw.txt"
+set "ARCHIVE=%CACHE_DIR%\ImageMagick-LibRaw-fix-jng-sfw.zip"
+set "URL=https://github.com/lyj-514328/ImageMagick/releases/download/fix-jng-sfw/ImageMagick-LibRaw-x64-fix-jng-sfw-20260829.zip"
+set "SHA=4817381933078d5586aa41ae75147890ea551c968ac772de253fa037ed939bda"
 
 if not exist "%CACHE_DIR%" mkdir "%CACHE_DIR%"
-if not exist "%RUNTIME_DIR%\magick.exe" (
+if not exist "%RUNTIME_MARKER%" (
     call :prepare_magick
 ) else if not exist "%RUNTIME_DIR%\CORE_RL_raw_.dll" (
     call :prepare_magick
@@ -63,6 +64,7 @@ if exist "%RUNTIME_DIR%" rmdir /s /q "%RUNTIME_DIR%"
 mkdir "%RUNTIME_DIR%"
 robocopy "%TEMP_DIR%\Artifacts\bin" "%RUNTIME_DIR%" /E /XF *.pdb /NFL /NDL /NJH /NJS /NP >nul
 if errorlevel 8 exit /b 1
+>"%RUNTIME_MARKER%" echo fix-jng-sfw
 rmdir /s /q "%TEMP_DIR%"
 exit /b 0
 
@@ -140,6 +142,10 @@ if not exist "%RUNTIME_DIR%\CORE_RL_raw_.dll" (
 )
 if not exist "%RUNTIME_DIR%\IM_MOD_RL_dng_.dll" (
     echo [ERROR] ImageMagick DNG coder module is missing.
+    exit /b 1
+)
+if not exist "%RUNTIME_MARKER%" (
+    echo [ERROR] ImageMagick runtime marker is missing.
     exit /b 1
 )
 if not exist "%LIBRAW_DIR%\libraw-decoder.exe" (
