@@ -121,3 +121,16 @@
 | inf-dir.project-view | .mpp | document\mpp\sample_targeted.mpp | running_no_window | -1 |  |  |
 
 Raw per-job results: C:\Users\LYJ514328\Desktop\WorkSpace\Inf-Dir\viewer-sample-test\results\20260829-225810\results.jsonl
+
+## Post-fix recheck (12s)
+
+The 26 jobs that had no responsive window within the initial 3-second timeout
+were rechecked with a 12-second timeout. Twenty-three subsequently created a
+responsive window (including the slow RAW, email, Project, and supported
+Visio-XML samples). Three old Visio4 files still fail during Document Builder
+conversion with an open-file error.
+
+Effective status after the recheck: 514 responsive jobs, 48 content/conversion
+failures, and no remaining indeterminate jobs. The extra AAI record mentioned in
+the image-view report was a persistence repair and is not part of the 562-job
+manifest scan.
