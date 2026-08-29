@@ -129,5 +129,6 @@ limits rather than license or WebView2 startup failures. The complete scan and
 the 12-second follow-up are recorded under
 `viewer-sample-test/results/20260829-225810/`.
 
-The latest MSVC image-view executable used for the RAW-order fix has SHA-256
-`AFC917FC99477FF27464AFF0354D6E6439101EFB71EA2FFB2C96741B1F24CE4F`.
+The latest MSVC image-view executable used for the RAW-order and JNG alpha-order
+fixes has SHA-256
+`CAE042D6D429DCCEB213041FF1095E085F1E26FE8B320739FBCB8DAEA03CA33D`.

@@ -73,11 +73,12 @@ fn load_image(path: &str) -> Result<DynamicImage, String> {
     } else if ext == "jng" {
         // Some JNG files contain a valid JPEG color stream but an alpha PNG
         // with a non-standard bit-depth marker. Keep the color preview when
-        // ImageMagick cannot decode the combined JNG container.
-        load_embedded_jpeg(path).or_else(|jpeg_error| {
-            load_magick(path).map_err(|magick_error| {
+        // ImageMagick cannot decode the combined JNG container. Try the full
+        // decode first so valid alpha channels are preserved.
+        load_magick(path).or_else(|magick_error| {
+            load_embedded_jpeg(path).map_err(|jpeg_error| {
                 format!(
-                    "embedded JPEG preview failed: {jpeg_error}; ImageMagick fallback failed: {magick_error}"
+                    "ImageMagick JNG decode failed: {magick_error}; embedded JPEG preview failed: {jpeg_error}"
                 )
             })
         })
