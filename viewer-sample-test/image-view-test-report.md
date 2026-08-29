@@ -73,7 +73,7 @@ is 111 of 115 matched image-view jobs responsive; four content failures remain.
 
 | Sample | Result |
 | --- | --- |
-| `image\\jng\\sample_libpng_jdaa.jng` | recovered via embedded JPEG color-stream fallback |
+| `image\\jng\\sample_libpng_jdaa.jng` | recovered via patched ImageMagick JNG decode; malformed alpha falls back to color-only preview |
 | `image\\jxr\\sample_nomacs.jxr` | recovered via Windows WIC decoder |
 | `image\\mvg\\sample_sembiance.mvg` | recovered via explicit MVG dispatch |
 | `image\\ora\\sample_orajs.ora` | recovered via ORA ZIP thumbnail extraction |
