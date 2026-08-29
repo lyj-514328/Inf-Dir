@@ -2,7 +2,7 @@
 name = "onlyoffice-view"
 version = "0.1.0"
 edition = "2021"
-description = "ONLYOFFICE x2t based Office-to-PDF viewer for Inf-Dir Quick View"
+description = "ONLYOFFICE Document Builder based Office-to-PDF viewer for Inf-Dir Quick View"
 
 [dependencies]
 dpi = "0.1"

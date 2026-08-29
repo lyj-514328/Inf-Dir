@@ -76,7 +76,7 @@ if exist "C:\msys64\ucrt64\bin" (
 REM ============================================================
 REM  0. Prepare the official ONLYOFFICE Document Builder runtime
 REM ============================================================
-if not exist "%ONLYOFFICE_RUNTIME_DIR%\x2t.exe" (
+if not exist "%ONLYOFFICE_RUNTIME_DIR%\docbuilder.exe" (
     echo [0/19] Downloading the official ONLYOFFICE Document Builder runtime v9.4.0...
     if not exist "%ONLYOFFICE_RUNTIME_ZIP%" (
         curl -L --fail -o "%ONLYOFFICE_RUNTIME_ZIP%" "%ONLYOFFICE_RUNTIME_URL%"
@@ -92,13 +92,21 @@ if not exist "%ONLYOFFICE_RUNTIME_DIR%\x2t.exe" (
         echo [ERROR] Failed to extract the ONLYOFFICE Document Builder runtime.
         exit /b 1
     )
-    if not exist "%ONLYOFFICE_RUNTIME_DIR%\x2t.exe" (
-        echo [ERROR] The downloaded runtime does not contain x2t.exe.
+    if not exist "%ONLYOFFICE_RUNTIME_DIR%\docbuilder.exe" (
+        echo [ERROR] The downloaded runtime does not contain docbuilder.exe.
         exit /b 1
     )
     del "%ONLYOFFICE_RUNTIME_ZIP%" 2>nul
 ) else (
     echo [0/19] ONLYOFFICE runtime v9.4.0 already present, skipping download.
+)
+if not exist "%ONLYOFFICE_RUNTIME_DIR%\docbuilder.exe" (
+    echo [ERROR] The ONLYOFFICE runtime does not contain docbuilder.exe.
+    exit /b 1
+)
+if not exist "%ONLYOFFICE_RUNTIME_DIR%\x2t.exe" (
+    echo [ERROR] The ONLYOFFICE runtime does not contain x2t.exe.
+    exit /b 1
 )
 
 REM --- Ensure rustup target ---
@@ -450,7 +458,7 @@ if errorlevel 1 ( echo [ERROR] pdfjs-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  16. Build onlyoffice-view (MSVC + WebView2 + ONLYOFFICE x2t)
+REM  16. Build onlyoffice-view (MSVC + WebView2 + ONLYOFFICE Document Builder)
 REM ============================================================
 echo [16/19] Building onlyoffice-view...
 pushd "%SCRIPT_DIR%onlyoffice-view"

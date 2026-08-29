@@ -22,8 +22,7 @@ use std::os::windows::process::CommandExt;
 const SCHEME: &str = "http";
 const HOST: &str = "onlyoffice-view.local";
 const WEB_DIR_NAME: &str = "onlyoffice-view-web";
-const X2T_TIMEOUT: Duration = Duration::from_secs(120);
-const PDF_FORMAT_CODE: &str = "513";
+const DOCBUILDER_TIMEOUT: Duration = Duration::from_secs(120);
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 const SUPPORTED_EXTENSIONS: &[&str] = &[
@@ -102,16 +101,16 @@ fn is_supported_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn find_x2t_in(directory: &Path) -> Option<PathBuf> {
-    ["x2t.exe", "x2t32.exe", "x2t"]
+fn find_docbuilder_in(directory: &Path) -> Option<PathBuf> {
+    ["docbuilder.exe", "docbuilder"]
         .iter()
         .map(|name| directory.join(name))
         .find(|path| path.is_file())
 }
 
-fn resolve_x2t() -> Result<(PathBuf, PathBuf), String> {
+fn resolve_docbuilder() -> Result<(PathBuf, PathBuf), String> {
     let mut candidates = Vec::new();
-    if let Some(path) = std::env::var_os("ONLYOFFICE_X2T_PATH") {
+    if let Some(path) = std::env::var_os("ONLYOFFICE_DOCBUILDER_PATH") {
         let path = PathBuf::from(path);
         if path.is_file() {
             let parent = path.parent().unwrap_or(Path::new(".")).to_path_buf();
@@ -137,70 +136,24 @@ fn resolve_x2t() -> Result<(PathBuf, PathBuf), String> {
         ];
         for directory in directories {
             searched.push(directory.display().to_string());
-            if let Some(x2t) = find_x2t_in(&directory) {
-                return Ok((x2t, directory));
+            if let Some(docbuilder) = find_docbuilder_in(&directory) {
+                return Ok((docbuilder, directory));
             }
         }
     }
 
     Err(format!(
-        "ONLYOFFICE x2t was not found. Set ONLYOFFICE_X2T_PATH or provide the bundled onlyoffice runtime. Searched: {}",
+        "ONLYOFFICE docbuilder was not found. Set ONLYOFFICE_DOCBUILDER_PATH or provide the bundled onlyoffice runtime. Searched: {}",
         searched.join(", ")
     ))
 }
 
-fn first_existing_directory(candidates: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
-    candidates.into_iter().find(|path| path.is_dir())
-}
-
-fn font_directory(runtime: &Path) -> Option<PathBuf> {
-    first_existing_directory([
-        runtime.join("core-fonts"),
-        runtime.join("fonts"),
-        runtime.join(Path::new("..")).join("core-fonts"),
-        runtime
-            .join(Path::new(".."))
-            .join(Path::new(".."))
-            .join("core-fonts"),
-        runtime
-            .join(Path::new(".."))
-            .join(Path::new(".."))
-            .join(Path::new(".."))
-            .join("core-fonts"),
-    ])
-}
-
-fn theme_directory(runtime: &Path) -> Option<PathBuf> {
-    first_existing_directory([
-        runtime.join("sdkjs").join("slide").join("themes"),
-        runtime
-            .join(Path::new(".."))
-            .join("sdkjs")
-            .join("slide")
-            .join("themes"),
-        runtime
-            .join(Path::new(".."))
-            .join(Path::new(".."))
-            .join("sdkjs")
-            .join("slide")
-            .join("themes"),
-        runtime
-            .join(Path::new(".."))
-            .join(Path::new(".."))
-            .join(Path::new(".."))
-            .join("sdkjs")
-            .join("slide")
-            .join("themes"),
-    ])
-}
-
-fn xml_escape(value: &str) -> String {
+fn script_string(value: &str) -> String {
     value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
+        .replace('\\', "/")
+        .replace('"', "\\\"")
+        .replace('\r', "\\r")
+        .replace('\n', "\\n")
 }
 
 fn conversion_directory() -> Result<PathBuf, String> {
@@ -217,27 +170,13 @@ fn conversion_directory() -> Result<PathBuf, String> {
     Ok(directory)
 }
 
-fn create_params(source: &Path, output: &Path, directory: &Path, runtime: &Path) -> String {
-    let mut xml = format!(
-        "<?xml version=\"1.0\" encoding=\"utf-8\"?><TaskQueueDataConvert xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"><m_sFileFrom>{}</m_sFileFrom><m_sFileTo>{}</m_sFileTo><m_nFormatTo>{PDF_FORMAT_CODE}</m_nFormatTo><m_sTempDir>{}</m_sTempDir>",
-        xml_escape(&source.to_string_lossy()),
-        xml_escape(&output.to_string_lossy()),
-        xml_escape(&directory.to_string_lossy()),
-    );
-    if let Some(fonts) = font_directory(runtime) {
-        xml.push_str(&format!(
-            "<m_sFontDir>{}</m_sFontDir>",
-            xml_escape(&fonts.to_string_lossy())
-        ));
-    }
-    if let Some(themes) = theme_directory(runtime) {
-        xml.push_str(&format!(
-            "<m_sThemeDir>{}</m_sThemeDir>",
-            xml_escape(&themes.to_string_lossy())
-        ));
-    }
-    xml.push_str("<m_bIsNoBase64 xsi:nil=\"true\"/></TaskQueueDataConvert>");
-    xml
+fn create_builder_script(source: &Path, output: &Path, directory: &Path) -> String {
+    format!(
+        "builder.SetTmpFolder(\"{}\");\nbuilder.OpenFile(\"{}\");\nbuilder.SaveFile(\"pdf\", \"{}\");\nbuilder.CloseFile();\n",
+        script_string(&directory.to_string_lossy()),
+        script_string(&source.to_string_lossy()),
+        script_string(&output.to_string_lossy()),
+    )
 }
 
 fn terminate_process_tree(child: &mut Child) {
@@ -251,36 +190,47 @@ fn terminate_process_tree(child: &mut Child) {
     let _ = child.kill();
 }
 
-fn run_x2t(x2t: &Path, runtime: &Path, params: &Path) -> Result<(), String> {
-    let mut command = Command::new(x2t);
+fn run_docbuilder(docbuilder: &Path, runtime: &Path, script: &Path) -> Result<(), String> {
+    let mut command = Command::new(docbuilder);
     command
-        .arg(params)
+        .arg(script)
         .current_dir(runtime)
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
 
     let mut child = command
         .spawn()
-        .map_err(|error| format!("failed to start x2t: {error}"))?;
+        .map_err(|error| format!("failed to start docbuilder: {error}"))?;
     let start = SystemTime::now();
     loop {
         if let Some(status) = child
             .try_wait()
-            .map_err(|error| format!("failed waiting for x2t: {error}"))?
+            .map_err(|error| format!("failed waiting for docbuilder: {error}"))?
         {
+            let output = child
+                .wait_with_output()
+                .map_err(|error| format!("failed collecting docbuilder output: {error}"))?;
             if status.success() {
+                // An unlicensed Builder can warn on stderr and still return a PDF;
+                // the output is usable for preview, but may contain a watermark.
                 return Ok(());
             }
-            return Err(format!("x2t exited with status {status}"));
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+            let detail = if !stderr.is_empty() { stderr } else { stdout };
+            if detail.is_empty() {
+                return Err(format!("docbuilder exited with status {status}"));
+            }
+            return Err(format!("docbuilder exited with status {status}: {detail}"));
         }
-        if start.elapsed().unwrap_or_default() > X2T_TIMEOUT {
+        if start.elapsed().unwrap_or_default() > DOCBUILDER_TIMEOUT {
             terminate_process_tree(&mut child);
             return Err(format!(
-                "x2t timed out after {} seconds",
-                X2T_TIMEOUT.as_secs()
+                "docbuilder timed out after {} seconds",
+                DOCBUILDER_TIMEOUT.as_secs()
             ));
         }
         thread::sleep(Duration::from_millis(100));
@@ -288,23 +238,23 @@ fn run_x2t(x2t: &Path, runtime: &Path, params: &Path) -> Result<(), String> {
 }
 
 fn convert_to_pdf(source: &Path) -> Result<Conversion, String> {
-    let (x2t, runtime) = resolve_x2t()?;
+    let (docbuilder, runtime) = resolve_docbuilder()?;
     let directory = conversion_directory()?;
     let output = directory.join("converted.pdf");
-    let params_path = directory.join("params.xml");
-    let params = create_params(source, &output, &directory, &runtime);
-    if let Err(error) = fs::write(&params_path, params.as_bytes()) {
+    let script_path = directory.join("convert.docbuilder");
+    let script = create_builder_script(source, &output, &directory);
+    if let Err(error) = fs::write(&script_path, script.as_bytes()) {
         let _ = fs::remove_dir_all(&directory);
-        return Err(format!("failed to write x2t parameters: {error}"));
+        return Err(format!("failed to write docbuilder script: {error}"));
     }
-    if let Err(error) = run_x2t(&x2t, &runtime, &params_path) {
+    if let Err(error) = run_docbuilder(&docbuilder, &runtime, &script_path) {
         let _ = fs::remove_dir_all(&directory);
         return Err(error);
     }
     if !output.is_file() {
         let _ = fs::remove_dir_all(&directory);
         return Err(format!(
-            "x2t completed without creating {}",
+            "docbuilder completed without creating {}",
             output.display()
         ));
     }
@@ -583,16 +533,15 @@ mod tests {
     }
 
     #[test]
-    fn xml_paths_are_escaped() {
-        let xml = create_params(
+    fn builder_script_escapes_paths() {
+        let script = create_builder_script(
             Path::new(r"C:\docs\a&b<draft>.docx"),
             Path::new(r"C:\temp\out.pdf"),
             Path::new(r"C:\temp\work"),
-            Path::new(r"C:\missing-runtime"),
         );
-        assert!(xml.contains("a&amp;b&lt;draft&gt;.docx"));
-        assert!(!xml.contains("a&b<draft>.docx"));
-        assert!(xml.contains("<m_nFormatTo>513</m_nFormatTo>"));
+        assert!(script.contains("C:/docs/a&b<draft>.docx"));
+        assert!(script.contains("builder.SaveFile(\"pdf\", \"C:/temp/out.pdf\")"));
+        assert!(script.contains("builder.SetTmpFolder(\"C:/temp/work\")"));
     }
 
     #[test]
