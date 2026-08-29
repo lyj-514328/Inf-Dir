@@ -85,7 +85,7 @@ fn webview_data_directory() -> PathBuf {
         .unwrap_or_else(std::env::temp_dir)
         .join("Inf-Dir")
         .join("WebView2")
-        .join("code-view")
+        .join(format!("code-view-{}", std::process::id()))
 }
 
 fn response(status: StatusCode, mime: &str, body: Vec<u8>) -> Response<Cow<'static, [u8]>> {
@@ -298,14 +298,19 @@ fn main() {
             std::process::exit(1);
         }
     };
+    let data_directory = webview_data_directory();
     let mut app = App {
         args,
         web_root,
-        web_context: WebContext::new(Some(webview_data_directory())),
+        web_context: WebContext::new(Some(data_directory.clone())),
         window: None,
         webview: None,
     };
     let _ = event_loop.run_app(&mut app);
+    // WebView2 profiles are process-scoped to avoid lock contention between
+    // rapidly launched viewers. Remove the temporary profile when possible.
+    drop(app);
+    let _ = std::fs::remove_dir_all(data_directory);
 }
 
 #[cfg(test)]
@@ -344,7 +349,12 @@ mod tests {
     fn webview_data_is_outside_the_plugin_package() {
         let directory = webview_data_directory();
 
-        assert!(directory.ends_with(Path::new("Inf-Dir/WebView2/code-view")));
+        assert!(directory
+            .parent()
+            .is_some_and(|parent| parent.ends_with(Path::new("Inf-Dir/WebView2"))));
+        assert!(directory
+            .file_name()
+            .is_some_and(|name| name.to_string_lossy().starts_with("code-view-")));
     }
 
     fn manifest_path() -> String {
