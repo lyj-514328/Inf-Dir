@@ -43,7 +43,7 @@
 | 压缩包 | `archive-view` | 已接入 | libarchive 枚举并显示归档内容 | `archive.dll`（libarchive） |
 | 邮件：EML/EMLX/MSG/OFT/TNEF | `email-view` | 已接入 | .NET 解析邮件，WebView2 渲染正文 | MimeKit；MSGReader；WebView2；DOMPurify |
 | 字体：TTF/OTF/WOFF/WOFF2/TTC/DFONT | `font-view` | 已接入 | .NET 处理 DFONT，WebView2 显示字体预览 | .NET 8；WebView2；Windows 字体能力 |
-| Project：MPP/MPT/MPX | `project-view` | 已接入 | MPXJ.Net 读取任务、时间和层级 | .NET 10；MPXJ.Net |
+| Project：MPP/MPT/MPX | `project-view` | 已接入 | Java MPXJ 读取任务、时间、层级和前置关系；Rust/WebView2 + ECharts 渲染 | Java 17 私有运行时；MPXJ；ECharts |
 
 ## 3. Viewer 工程技术栈
 
@@ -60,7 +60,7 @@
 | `inf-dir.video-view` | Rust + egui/eframe | libmpv2 | `libmpv-2.dll`；mpv/FFmpeg 能力由 DLL 提供 | 音频、视频、动图 |
 | `inf-dir.email-view` | .NET 8 Windows Forms + WebView2 | MimeKit 4.17.0、MSGReader 6.0.7 | WebView2；本地 HTML/CSS/JS；DOMPurify | EML/EMLX/MSG/OFT/TNEF |
 | `inf-dir.font-view` | .NET 8 Windows Forms + WebView2 | 自研 DFONT 提取器 | WebView2；self-contained .NET 运行时 | 字体预览 |
-| `inf-dir.project-view` | .NET 10 Windows Forms | MPXJ.Net 16.7.0 | self-contained .NET 运行时 | Microsoft Project |
+| `inf-dir.project-view` | Rust + winit/wry/WebView2；Java tool | MPXJ Java 16.7.0；ECharts 6 | jpackage self-contained Java parser；WebView2 Runtime | Microsoft Project |
 | `inf-dir.chm-view` | Rust + winit/wry/WebView2 | CHMate ES modules | WebView2；随包发布的 `chm-view-web/` 静态资源 | CHM |
 | `inf-dir.web-view` | Rust + viewer-web-shell/wry/WebView2 | 浏览器原生 HTML/SVG；内置 MHTML 解析器 | WebView2；随包发布的 `web-view-web/` 静态资源 | SVG、HTML、XHTML、MHTML |
 
@@ -105,10 +105,10 @@ Windows 11 通常自带，Windows 10 依赖 Edge/WebView2 Runtime 安装状态�
 | LibRaw decoder | `img-view` 构建辅助 | `img-view/libraw-decoder/`（`libraw-decoder.exe` + `libraw.dll`，LibRaw 0.22.2 Win64 官方包）；保留独立 wrapper 供诊断和后续回退，当前运行时由 ImageMagick 的 RAW delegate 负责解码 |
 | CHMate reader | `chm-view` | `chm-view-web/` 中的静态 ES modules，无额外运行时 |
 
-### 4.4 .NET 运行时
+### 4.4 运行时与发布
 
 - `email-view` 和 `font-view` 使用 .NET 8、Windows Forms、win-x64 self-contained 发布。
-- `mupdf-view` 和 `project-view` 使用 .NET 10；当前开发环境需要对应 SDK，正式发布按构建脚本发布 self-contained 产物。
+- `mupdf-view` 使用 .NET 10；`project-view` 使用 Rust/WebView2 外壳和 Java 17 MPXJ parser tool，正式发布按构建脚本发布 self-contained 产物。
 - .NET Viewer 的第三方包只在独立 Viewer 进程中加载，不由 Flutter 直接引用。
 
 ## 5. CBR 的特殊依赖关系

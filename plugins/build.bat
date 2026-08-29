@@ -28,7 +28,7 @@ set "CODE_WEB=%SCRIPT_DIR%code-view-web"
 set "EMAIL_WEB=%SCRIPT_DIR%email-view-web"
 set "EMAIL_PUBLISH=%SCRIPT_DIR%email-view\publish"
 set "FONT_PUBLISH=%SCRIPT_DIR%font-view\bin\Release\net8.0-windows\win-x64\publish"
-set "PROJECT_PUBLISH=%SCRIPT_DIR%project-view\bin\Release\net10.0-windows\win-x64\publish"
+set "PROJECT_PUBLISH=%SCRIPT_DIR%project-view\bin\Release\project-view"
 set "ONLYOFFICE_RUNTIME_URL=https://github.com/ONLYOFFICE/DocumentBuilder/releases/download/v9.4.0/onlyoffice-documentbuilder-windows-x64.zip"
 set "ONLYOFFICE_RUNTIME_ZIP=%SCRIPT_DIR%onlyoffice-view\_documentbuilder-v9.4.0-windows-x64.zip"
 set "ONLYOFFICE_RUNTIME_DIR=%SCRIPT_DIR%onlyoffice-view\_documentbuilder-runtime-v9.4.0"
@@ -485,7 +485,7 @@ if errorlevel 1 ( echo [ERROR] font-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  19. Build project-view (.NET self-contained + MPXJ.Net)
+REM  19. Build project-view (Rust/WebView2 + Java MPXJ)
 REM ============================================================
 echo [19/19] Building project-view...
 pushd "%SCRIPT_DIR%project-view"

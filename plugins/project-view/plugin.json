@@ -1,8 +1,8 @@
 {
   "manifestVersion": 1,
   "id": "inf-dir.project-view",
-  "name": "Project 查看器",
-  "version": "0.1.0",
+  "name": "Project Viewer",
+  "version": "0.2.0",
   "entrypoint": "project-view.exe",
   "capabilities": {
     "quickView": {

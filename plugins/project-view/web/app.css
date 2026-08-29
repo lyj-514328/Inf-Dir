@@ -1,0 +1,70 @@
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #f5f7f9;
+  --surface-hover: #e9edf2;
+  --border: #d9dfe6;
+  --text: #20262d;
+  --muted: #6b7480;
+  --accent: #246db3;
+  --danger: #b42318;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #1d2128;
+    --surface: #252a32;
+    --surface-hover: #343b46;
+    --border: #3c4550;
+    --text: #edf0f3;
+    --muted: #a2abb7;
+    --accent: #77b5ed;
+    --danger: #ff948a;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { display: grid; grid-template-rows: 56px minmax(0, 1fr) 30px; color: var(--text); background: var(--bg); font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif; font-size: 13px; }
+button, select, input { color: inherit; font: inherit; }
+
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 0; padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.identity { display: flex; align-items: center; min-width: 0; gap: 9px; }
+.identity-mark { display: grid; width: 28px; height: 28px; place-items: center; color: #fff; background: var(--accent); border-radius: 6px; font-weight: 700; }
+.identity-copy { display: flex; min-width: 100px; flex-direction: column; gap: 2px; }
+.identity-copy strong, .identity-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.identity-copy strong { font-size: 13px; }
+.identity-copy span { max-width: 320px; color: var(--muted); font-size: 11px; }
+.readonly { padding: 3px 7px; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; font-size: 10px; white-space: nowrap; }
+.toolbar-actions { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.toolbar-actions::-webkit-scrollbar { display: none; }
+.select-control, .search-control { display: inline-flex; height: 32px; align-items: center; gap: 6px; padding: 0 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--muted); }
+.select-control select { min-width: 66px; height: 28px; padding: 0 18px 0 0; color: var(--text); background: transparent; border: 0; outline: 0; }
+.search-control { width: 150px; }
+.search-control input { width: 100%; min-width: 0; padding: 0; color: var(--text); background: transparent; border: 0; outline: 0; }
+.search-control input::placeholder { color: var(--muted); }
+.search-icon { color: var(--muted); font-size: 15px; transform: rotate(-20deg); }
+.command-button { height: 32px; padding: 0 11px; background: transparent; border: 1px solid var(--border); border-radius: 5px; cursor: pointer; }
+.command-button:hover { background: var(--surface-hover); }
+.command-button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hidden { display: none !important; }
+
+.content { position: relative; min-width: 0; min-height: 0; }
+.view-panel, .chart { width: 100%; height: 100%; min-width: 0; min-height: 0; }
+.empty-panel, .loading-panel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: var(--muted); background: var(--bg); }
+.empty-panel strong { color: var(--text); font-size: 14px; }
+.empty-panel span { max-width: 560px; text-align: center; }
+.loading-panel { z-index: 2; flex-direction: row; }
+.spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.statusbar { display: flex; align-items: center; justify-content: space-between; min-width: 0; padding: 0 12px; color: var(--muted); background: var(--surface); border-top: 1px solid var(--border); font-size: 11px; }
+.statusbar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .identity-copy span, .readonly, .toolbar-actions .select-control:first-child span { display: none; }
+  .search-control { width: 120px; }
+  body { grid-template-rows: auto minmax(0, 1fr) 30px; }
+  .toolbar { align-items: flex-start; flex-direction: column; }
+  .toolbar-actions { width: 100%; justify-content: flex-start; }
+}
