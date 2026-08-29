@@ -14,8 +14,8 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
 use wry::{WebContext, WebViewBuilder};
 
-const SCHEME: &str = "http";
-const HOST: &str = "project-view.local";
+const SCHEME: &str = "project-view";
+const HOST: &str = "localhost";
 const WEB_DIR_NAME: &str = "project-view-web";
 
 #[derive(Debug)]
@@ -306,11 +306,17 @@ impl ApplicationHandler for App {
         let state = self.state.clone();
         let web_root = self.web_root.clone();
         let start_url = format!("{SCHEME}://{HOST}/index.html");
+        let allowed_origins = [
+            format!("{SCHEME}://{HOST}/"),
+            format!("http://{SCHEME}.localhost/"),
+        ];
         let webview = match WebViewBuilder::new_with_web_context(&mut self.web_context)
             .with_custom_protocol(SCHEME.into(), move |_id, request| {
                 handle_request(request, &web_root, &state)
             })
-            .with_navigation_handler(|url| url.starts_with("http://project-view.local/"))
+            .with_navigation_handler(move |url| {
+                allowed_origins.iter().any(|origin| url.starts_with(origin))
+            })
             .with_url(&start_url)
             .build(&window)
         {
