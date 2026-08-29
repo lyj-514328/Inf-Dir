@@ -59,6 +59,7 @@ plugins/project-view/bin/
 plugins/project-view/obj/
 plugins/project-view/backend/target/
 plugins/project-view/backend/.maven/
+plugins/project-view/backend/parser-image/
 plugins/project-view/host/target/
 plugins/project-view/web/node_modules/
 plugins/project-view-web/

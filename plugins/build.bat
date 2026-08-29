@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 REM ============================================================
 REM  Inf-Dir plugins one-click build script
-REM  Prerequisites: rustup, cargo, Node.js/npm, .NET SDK, curl, PowerShell, 7z
+REM  Prerequisites: rustup, cargo, Node.js/npm, .NET SDK, curl, PowerShell, 7z, JDK 17+ (project-view)
 REM ============================================================
 
 set "SCRIPT_DIR=%~dp0"

@@ -1,6 +1,8 @@
 package infdir.projectview;
 
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,7 +31,7 @@ public final class ProjectParser {
                 return;
             }
             Path input = parseInput(args);
-            System.out.println(toJson(load(input)));
+            System.out.println(toJson(loadQuietly(input)));
         } catch (Exception exception) {
             System.err.println("[project-parser] " + exception.getMessage());
             System.exit(1);
@@ -94,6 +96,20 @@ public final class ProjectParser {
                     dependencies));
         }
         return new ProjectData(SCHEMA_VERSION, path.getFileName().toString(), title, tasks);
+    }
+
+    /** Keep third-party diagnostics off stdout, which is the parser's JSON protocol. */
+    private static ProjectData loadQuietly(Path path) throws Exception {
+        PrintStream stdout = System.out;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        try (PrintStream capture = new PrintStream(captured, true, StandardCharsets.UTF_8)) {
+            System.setOut(capture);
+            return load(path);
+        } finally {
+            System.setOut(stdout);
+            String diagnostics = captured.toString(StandardCharsets.UTF_8);
+            if (!diagnostics.isBlank()) System.err.print(diagnostics);
+        }
     }
 
     private static void selfTest() throws Exception {
@@ -190,9 +206,9 @@ public final class ProjectParser {
         private final List<Boolean> first = new ArrayList<>();
         private boolean afterName;
 
-        Json objectStart() { valuePrefix(); out.append('{'); first.add(true); return this; }
+        Json objectStart() { valuePrefix(); out.append('{'); first.add(true); afterName = false; return this; }
         Json objectEnd() { out.append('}'); first.remove(first.size() - 1); afterName = false; return this; }
-        Json arrayStart() { valuePrefix(); out.append('['); first.add(true); return this; }
+        Json arrayStart() { valuePrefix(); out.append('['); first.add(true); afterName = false; return this; }
         Json arrayEnd() { out.append(']'); first.remove(first.size() - 1); afterName = false; return this; }
         Json name(String name) { valuePrefix(); string(name); out.append(':'); afterName = true; return this; }
         Json field(String name, String value) { name(name); nullable(value); return this; }

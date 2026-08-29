@@ -1,11 +1,14 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 set "SCRIPT_DIR=%~dp0"
 set "BACKEND_DIR=%SCRIPT_DIR%backend"
 set "HOST_DIR=%SCRIPT_DIR%host"
 set "WEB_DIR=%SCRIPT_DIR%web"
 set "WEB_OUTPUT=%SCRIPT_DIR%..\project-view-web"
-set "PARSER_IMAGE=%BACKEND_DIR%\target\image"
+REM PARSER_IMAGE must stay OUTSIDE backend\target: jpackage --input is backend\target, and
+REM an output dir located inside the input dir makes jpackage copy its own output recursively
+REM ("Cannot access file with path exceeding 32000 characters").
+set "PARSER_IMAGE=%BACKEND_DIR%\parser-image"
 set "PUBLISH_DIR=%SCRIPT_DIR%bin\Release\project-view"
 set "MAVEN_VERSION=3.9.11"
 set "MAVEN_HOME=%BACKEND_DIR%\.maven\apache-maven-%MAVEN_VERSION%"
@@ -26,6 +29,34 @@ if errorlevel 1 (
   set "MAVEN_CMD=%MAVEN_HOME%\bin\mvn.cmd"
 ) else (
   set "MAVEN_CMD=mvn.cmd"
+)
+
+REM --- Resolve a JDK for jpackage (JDK 14+; prefer 17+). Search PATH, JAVA_HOME, then common install roots. ---
+set "JPACKAGE_CMD=jpackage"
+where jpackage >nul 2>&1
+if errorlevel 1 (
+  set "JPACKAGE_CMD="
+  if exist "%JAVA_HOME%\bin\jpackage.exe" set "JPACKAGE_CMD=%JAVA_HOME%\bin\jpackage.exe"
+  if not defined JPACKAGE_CMD (
+    set "BEST_JDK="
+    set "BEST_VER=0"
+    for /d %%D in ("C:\Program Files\Java\jdk-*" "C:\Program Files\Eclipse Adoptium\jdk-*" "C:\Program Files\Microsoft\jdk-*") do (
+      if exist "%%~D\bin\jpackage.exe" (
+        for /f "tokens=2 delims=-." %%V in ("%%~nxD") do (
+          if %%V gtr !BEST_VER! (
+            set "BEST_VER=%%V"
+            set "BEST_JDK=%%~D"
+          )
+        )
+      )
+    )
+    if defined BEST_JDK set "JPACKAGE_CMD=!BEST_JDK!\bin\jpackage.exe"
+  )
+  if not defined JPACKAGE_CMD (
+    echo [ERROR] jpackage was not found. Install JDK 17+ and add its bin to PATH,
+    echo         or set JAVA_HOME, or place the JDK under C:\Program Files\Java\.
+    exit /b 1
+  )
 )
 
 echo [project-view] Building Java MPXJ parser...
@@ -54,7 +85,7 @@ copy /Y "%WEB_DIR%\node_modules\echarts\dist\echarts.min.js" "%WEB_OUTPUT%\" >nu
 echo [project-view] Packaging Java parser runtime...
 if exist "%PARSER_IMAGE%" rmdir /s /q "%PARSER_IMAGE%"
 mkdir "%PARSER_IMAGE%"
-jpackage --type app-image --name project-parser --input "%BACKEND_DIR%\target" --main-jar project-parser-0.1.0.jar --main-class infdir.projectview.ProjectParser --dest "%PARSER_IMAGE%" --app-version 0.1.0 --vendor Inf-Dir --java-options "-Dfile.encoding=UTF-8"
+"%JPACKAGE_CMD%" --type app-image --name project-parser --input "%BACKEND_DIR%\target" --main-jar project-parser-0.1.0.jar --main-class infdir.projectview.ProjectParser --dest "%PARSER_IMAGE%" --app-version 0.1.0 --vendor Inf-Dir --java-options "-Dfile.encoding=UTF-8"
 if errorlevel 1 ( echo [ERROR] Java parser packaging failed. & exit /b 1 )
 
 if exist "%PUBLISH_DIR%" rmdir /s /q "%PUBLISH_DIR%"
