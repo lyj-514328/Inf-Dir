@@ -555,6 +555,21 @@ if not exist "%DIST_DIR%\inf-dir.image-view\libraw-decoder\libraw.dll" (
     echo [ERROR] Installed image-view package is missing libraw.dll.
     exit /b 1
 )
+if exist "%DIST_DIR%\inf-dir.image-view\wic-decoder" rmdir /s /q "%DIST_DIR%\inf-dir.image-view\wic-decoder"
+if not exist "%SCRIPT_DIR%img-view\wic-decoder\wic-decoder.exe" (
+    echo [ERROR] WIC decoder executable is missing from the image-view build output.
+    exit /b 1
+)
+mkdir "%DIST_DIR%\inf-dir.image-view\wic-decoder"
+copy /Y "%SCRIPT_DIR%img-view\wic-decoder\wic-decoder.exe" "%DIST_DIR%\inf-dir.image-view\wic-decoder\" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to install wic-decoder.exe.
+    exit /b 1
+)
+if not exist "%DIST_DIR%\inf-dir.image-view\wic-decoder\wic-decoder.exe" (
+    echo [ERROR] Installed image-view package is missing wic-decoder.exe.
+    exit /b 1
+)
 copy /Y "%SCRIPT_DIR%code-view\plugin.json" "%DIST_DIR%\inf-dir.code-view\" >nul
 copy /Y "%SCRIPT_DIR%code-view\target\release\code-view.exe" "%DIST_DIR%\inf-dir.code-view\" >nul
 if exist "%DIST_DIR%\inf-dir.code-view\code-view.exe.WebView2" rmdir /s /q "%DIST_DIR%\inf-dir.code-view\code-view.exe.WebView2"

@@ -15,6 +15,8 @@ set "LIBRAW_ARCHIVE=%CACHE_DIR%\LibRaw-0.22.2-Win64.zip"
 set "LIBRAW_URL=https://www.libraw.org/data/LibRaw-0.22.2-Win64.zip"
 set "LIBRAW_SHA=ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948"
 set "LIBRAW_BUILD_DIR=%TEMP_DIR%\libraw-build"
+set "WIC_DIR=%SCRIPT_DIR%wic-decoder"
+set "WIC_BUILD_DIR=%TEMP_DIR%\wic-build"
 set "RUNTIME_MARKER=%RUNTIME_DIR%\inf-dir-image-runtime-fix-jng-sfw.txt"
 set "ARCHIVE=%CACHE_DIR%\ImageMagick-LibRaw-fix-jng-sfw.zip"
 set "URL=https://github.com/lyj-514328/ImageMagick/releases/download/fix-jng-sfw/ImageMagick-LibRaw-x64-fix-jng-sfw-20260829.zip"
@@ -36,6 +38,8 @@ if not exist "%LIBRAW_DIR%\libraw-decoder.exe" (
 ) else if not exist "%LIBRAW_DIR%\libraw.dll" (
     call :prepare_libraw
 )
+if errorlevel 1 exit /b 1
+call :prepare_wic
 if errorlevel 1 exit /b 1
 goto :done
 
@@ -131,6 +135,22 @@ if not exist "%LIBRAW_DIR%\libraw-decoder.exe" exit /b 1
 if not exist "%LIBRAW_DIR%\libraw.dll" exit /b 1
 exit /b 0
 
+:prepare_wic
+
+if exist "%WIC_BUILD_DIR%" rmdir /s /q "%WIC_BUILD_DIR%"
+cmake -S "%WIC_DIR%" -B "%WIC_BUILD_DIR%"
+if errorlevel 1 exit /b 1
+cmake --build "%WIC_BUILD_DIR%" --config Release --target wic-decoder
+if errorlevel 1 exit /b 1
+if not exist "%WIC_BUILD_DIR%\out\wic-decoder.exe" (
+    echo [ERROR] CMake did not produce wic-decoder.exe.
+    exit /b 1
+)
+copy /Y "%WIC_BUILD_DIR%\out\wic-decoder.exe" "%WIC_DIR%\" >nul
+rmdir /s /q "%WIC_BUILD_DIR%"
+if not exist "%WIC_DIR%\wic-decoder.exe" exit /b 1
+exit /b 0
+
 :done
 if not exist "%RUNTIME_DIR%\magick.exe" (
     echo [ERROR] ImageMagick runtime is incomplete.
@@ -154,6 +174,10 @@ if not exist "%LIBRAW_DIR%\libraw-decoder.exe" (
 )
 if not exist "%LIBRAW_DIR%\libraw.dll" (
     echo [ERROR] LibRaw DLL runtime is incomplete.
+    exit /b 1
+)
+if not exist "%WIC_DIR%\wic-decoder.exe" (
+    echo [ERROR] WIC decoder runtime is incomplete.
     exit /b 1
 )
 echo [IMG] ImageMagick runtime ready.

@@ -14,10 +14,3 @@ eframe = "0.29"
 egui = "0.29"
 viewer-window-placement = { path = "../viewer-window-placement" }
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
-
-[target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = [
-    "Win32_Foundation",
-    "Win32_Graphics_Imaging",
-    "Win32_System_Com",
-] }

@@ -1883,7 +1883,6 @@ dependencies = [
  "image",
  "resvg",
  "viewer-window-placement",
- "windows 0.58.0",
  "zip",
 ]
 

@@ -4,25 +4,6 @@ use std::path::Path;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[cfg(windows)]
-use std::ffi::OsStr;
-#[cfg(windows)]
-use std::os::windows::ffi::OsStrExt;
-
-#[cfg(windows)]
-use windows::core::PCWSTR;
-#[cfg(windows)]
-use windows::Win32::Foundation::GENERIC_READ;
-#[cfg(windows)]
-use windows::Win32::Graphics::Imaging::{
-    CLSID_WICImagingFactory, GUID_WICPixelFormat32bppBGRA, IWICImagingFactory,
-    WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnLoad,
-};
-#[cfg(windows)]
-use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
-};
-
 use eframe::egui;
 use egui::{
     Color32, ColorImage, Context, Rect, Sense, TextureHandle, TextureOptions, Vec2, ViewportCommand,
@@ -166,76 +147,22 @@ fn load_ora_thumbnail(path: &str) -> Result<DynamicImage, String> {
     Err(errors.join("; "))
 }
 
-#[cfg(windows)]
 fn load_wic(path: &str) -> Result<DynamicImage, String> {
-    let wide_path: Vec<u16> = OsStr::new(path).encode_wide().chain(Some(0)).collect();
-    let init_result = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
-    if init_result.is_err() && init_result.0 != 0x80010106u32 as i32 {
-        return Err(format!(
-            "COM initialization failed: 0x{:08x}",
-            init_result.0
-        ));
+    let executable = runtime_executable("wic-decoder", "wic-decoder.exe")?;
+    let output = Command::new(&executable)
+        .arg(path)
+        .output()
+        .map_err(|error| format!("failed to start {}: {error}", executable.display()))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if detail.is_empty() {
+            format!("WIC decoder exited with {}", output.status)
+        } else {
+            detail
+        });
     }
-    let uninitialize = init_result.is_ok();
-    let result = (|| unsafe {
-        let factory: IWICImagingFactory =
-            CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)
-                .map_err(|error| format!("WIC factory unavailable: {error}"))?;
-        let decoder = factory
-            .CreateDecoderFromFilename(
-                PCWSTR(wide_path.as_ptr()),
-                None,
-                GENERIC_READ,
-                WICDecodeMetadataCacheOnLoad,
-            )
-            .map_err(|error| format!("WIC decoder unavailable: {error}"))?;
-        let frame = decoder
-            .GetFrame(0)
-            .map_err(|error| format!("WIC frame decode failed: {error}"))?;
-        let converter = factory
-            .CreateFormatConverter()
-            .map_err(|error| format!("WIC format converter unavailable: {error}"))?;
-        converter
-            .Initialize(
-                &frame,
-                &GUID_WICPixelFormat32bppBGRA,
-                WICBitmapDitherTypeNone,
-                None,
-                0.0,
-                WICBitmapPaletteTypeCustom,
-            )
-            .map_err(|error| format!("WIC pixel conversion failed: {error}"))?;
-        let mut width = 0u32;
-        let mut height = 0u32;
-        converter
-            .GetSize(&mut width, &mut height)
-            .map_err(|error| format!("WIC image dimensions unavailable: {error}"))?;
-        let stride = width
-            .checked_mul(4)
-            .ok_or_else(|| "WIC image stride overflow".to_owned())?;
-        let byte_count = (stride as usize)
-            .checked_mul(height as usize)
-            .ok_or_else(|| "WIC image size overflow".to_owned())?;
-        let mut bgra = vec![0u8; byte_count];
-        converter
-            .CopyPixels(std::ptr::null(), stride, &mut bgra)
-            .map_err(|error| format!("WIC pixel copy failed: {error}"))?;
-        for pixel in bgra.chunks_exact_mut(4) {
-            pixel.swap(0, 2);
-        }
-        RgbaImage::from_raw(width, height, bgra)
-            .map(DynamicImage::ImageRgba8)
-            .ok_or_else(|| "WIC returned an invalid pixel buffer".to_owned())
-    })();
-    if uninitialize {
-        unsafe { CoUninitialize() };
-    }
-    result
-}
-
-#[cfg(not(windows))]
-fn load_wic(_path: &str) -> Result<DynamicImage, String> {
-    Err("Windows WIC is unavailable on this platform".to_owned())
+    image::load_from_memory(&output.stdout)
+        .map_err(|error| format!("WIC decoder returned invalid PNG: {error}"))
 }
 
 // Some RAW containers carry a JPEG preview even when the bundled LibRaw build

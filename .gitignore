@@ -60,6 +60,8 @@ plugins/project-view/obj/
 plugins/img-view/compface/
 plugins/img-view/libraw-decoder/libraw-decoder.exe
 plugins/img-view/libraw-decoder/libraw.dll
+plugins/img-view/wic-decoder/wic-decoder.exe
+plugins/img-view/_wic-*
 plugins/mupdf-view/mupdf-view.csproj.user
 plugins/office-view.exe.WebView2/
 plugins/*.log
