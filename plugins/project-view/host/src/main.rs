@@ -75,10 +75,25 @@ fn parse_args_from(args: impl IntoIterator<Item = String>) -> Result<Args, Strin
     if !file.is_file() {
         return Err(format!("file does not exist: {}", file.display()));
     }
+    let file = file.canonicalize().map_err(|error| error.to_string())?;
     Ok(Args {
-        file: file.canonicalize().map_err(|error| error.to_string())?,
+        file: normalize_child_path(file),
         window_placement,
     })
+}
+
+fn normalize_child_path(path: PathBuf) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let value = path.to_string_lossy();
+        if let Some(rest) = value.strip_prefix("\\\\?\\UNC\\") {
+            return PathBuf::from(format!("\\\\{rest}"));
+        }
+        if let Some(rest) = value.strip_prefix("\\\\?\\") {
+            return PathBuf::from(rest);
+        }
+    }
+    path
 }
 
 fn resolve_web_root() -> Option<PathBuf> {
