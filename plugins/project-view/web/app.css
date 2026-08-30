@@ -8,6 +8,7 @@
   --muted: #6b7480;
   --accent: #246db3;
   --danger: #b42318;
+  --selected-row: rgba(36, 109, 179, .18);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +22,7 @@
     --muted: #a2abb7;
     --accent: #77b5ed;
     --danger: #ff948a;
+    --selected-row: rgba(243, 201, 105, .22);
   }
 }
 
@@ -52,6 +54,51 @@ button, select, input { color: inherit; font: inherit; }
 
 .content { position: relative; min-width: 0; min-height: 0; }
 .view-panel, .chart { width: 100%; height: 100%; min-width: 0; min-height: 0; }
+#gantt-chart {
+  --dhx-gantt-font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  --dhx-gantt-font-size: 13px;
+  --dhx-gantt-container-background: var(--bg);
+  --dhx-gantt-container-color: var(--text);
+  --dhx-gantt-base-colors-background: var(--bg);
+  --dhx-gantt-base-colors-background-alt: var(--surface);
+  --dhx-gantt-base-colors-border: var(--project-grid-color, var(--border));
+  --dhx-gantt-base-colors-border-light: var(--project-grid-color, var(--border));
+  --dhx-gantt-base-colors-text-light: var(--project-muted-color, var(--muted));
+  --dhx-gantt-base-colors-text-base: var(--project-text-color, var(--text));
+  --dhx-gantt-base-colors-primary: var(--project-bar-color, var(--accent));
+  --dhx-gantt-base-colors-select: var(--surface-hover);
+  --dhx-gantt-grid-scale-background: var(--surface);
+  --dhx-gantt-timeline-scale-background: var(--surface);
+  --dhx-gantt-grid-body-background: var(--bg);
+  --dhx-gantt-task-background: var(--project-bar-color, var(--accent));
+  --dhx-gantt-task-progress-color: var(--project-progress-color, var(--accent));
+  --dhx-gantt-project-background: var(--project-summary-color, var(--muted));
+  --dhx-gantt-project-progress-color: var(--project-progress-color, var(--accent));
+  --dhx-gantt-milestone-background: var(--project-selected-color, var(--accent));
+  --dhx-gantt-task-line-text: var(--text);
+  --dhx-gantt-scale-color: var(--muted);
+  --dhx-gantt-link-background: var(--muted);
+}
+#gantt-chart .gantt_container { width: 100%; height: 100%; min-height: 100%; border: 0; border-radius: 0; background: var(--bg); font-family: inherit; }
+#gantt-chart .gantt_grid, #gantt-chart .gantt_task { font-family: inherit; }
+#gantt-chart .gantt_grid_head_cell, #gantt-chart .gantt_scale_cell { color: var(--muted); font-size: 11px; }
+#gantt-chart .gantt_grid_data .gantt_row, #gantt-chart .gantt_task_row { background: var(--bg); border-color: var(--border); }
+#gantt-chart .gantt_grid_data .gantt_row.odd, #gantt-chart .gantt_task_row.odd { background: var(--surface); }
+#gantt-chart .gantt_task_line { border-radius: 4px; }
+#gantt-chart .gantt_task_line.project-task-summary { background: var(--project-summary-color, var(--muted)); }
+#gantt-chart .gantt_task_line.project-task-milestone { background: var(--project-selected-color, var(--accent)); }
+#gantt-chart .gantt_grid_data .gantt_row.gantt_selected,
+#gantt-chart .gantt_grid_data .gantt_row.odd.gantt_selected,
+#gantt-chart .gantt_task_row.gantt_selected,
+#gantt-chart .gantt_task_row.odd.gantt_selected {
+  background: var(--selected-row);
+  box-shadow: inset 4px 0 0 var(--project-selected-color, var(--accent));
+}
+#gantt-chart .gantt_task_line.gantt_selected {
+  background: var(--project-selected-color, var(--accent));
+  box-shadow: 0 0 0 3px var(--project-selected-color, var(--accent));
+}
+#gantt-chart .gantt_tree_icon { color: var(--muted); }
 .empty-panel, .loading-panel { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: var(--muted); background: var(--bg); }
 .empty-panel strong { color: var(--text); font-size: 14px; }
 .empty-panel span { max-width: 560px; text-align: center; }

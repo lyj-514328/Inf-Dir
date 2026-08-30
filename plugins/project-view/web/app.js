@@ -3,23 +3,20 @@ const state = {
   tasks: [],
   taskById: new Map(),
   selectedId: null,
-  collapsed: new Set(),
   query: '',
   scale: 'week',
   gantt: null,
-  wbs: null,
+  ganttReady: false,
 };
 
 const elements = {
   title: document.getElementById('project-title'),
   file: document.getElementById('project-file'),
-  view: document.getElementById('view-select'),
   scale: document.getElementById('scale-select'),
   fit: document.getElementById('fit-button'),
-  collapse: document.getElementById('collapse-button'),
   search: document.getElementById('search-input'),
   ganttPanel: document.getElementById('gantt-panel'),
-  wbsPanel: document.getElementById('wbs-panel'),
+  ganttChart: document.getElementById('gantt-chart'),
   errorPanel: document.getElementById('error-panel'),
   errorTitle: document.getElementById('error-title'),
   errorMessage: document.getElementById('error-message'),
@@ -87,36 +84,21 @@ function normalizeTasks(rawTasks) {
   return tasks;
 }
 
-function childrenOf(parentId) {
-  return state.tasks.filter((task) => task.parentId === parentId);
-}
-
 function visibleTasks() {
-  const result = [];
-  const visit = (parentId) => {
-    for (const task of state.tasks) {
-      if (task.parentId !== parentId) continue;
-      if (state.query && !task.name.toLowerCase().includes(state.query)) continue;
-      result.push(task);
-      if (!state.collapsed.has(task.uid)) visit(task.uid);
+  if (!state.query) return state.tasks;
+  const matches = state.tasks.filter((task) => task.name.toLowerCase().includes(state.query));
+  if (matches.length === 0) return [];
+  const visible = new Map(matches.map((task) => [task.uid, task]));
+  for (const task of matches) {
+    let parentId = task.parentId;
+    while (parentId) {
+      const parent = state.taskById.get(parentId);
+      if (!parent) break;
+      visible.set(parent.uid, parent);
+      parentId = parent.parentId;
     }
-  };
-  visit(null);
-  if (result.length === 0 && state.query) {
-    return state.tasks.filter((task) => task.name.toLowerCase().includes(state.query));
   }
-  return result;
-}
-
-function taskTree() {
-  const makeNode = (task) => ({
-    name: task.name,
-    value: task.uid,
-    task,
-    children: state.collapsed.has(task.uid) ? [] : childrenOf(task.uid).map(makeNode),
-  });
-  const roots = state.tasks.filter((task) => !task.parentId).map(makeNode);
-  return {name: state.project?.title || 'Project', value: 'root', children: roots};
+  return state.tasks.filter((task) => visible.has(task.uid));
 }
 
 function chartColors() {
@@ -133,157 +115,209 @@ function chartColors() {
   };
 }
 
-function renderGantt() {
-  if (!window.echarts) return;
-  const colors = chartColors();
-  const rows = visibleTasks();
-  const categories = rows.map((task) => task.name);
-  const data = rows.map((task, index) => [index, dateValue(task.start), dateValue(task.finish), task.percentComplete, task.summary, task.milestone, task.uid]);
-  const scaleInterval = {day: 86400000, week: 7 * 86400000, month: 30 * 86400000}[state.scale] || 7 * 86400000;
-  const scaleFormat = state.scale === 'month'
-    ? {year: 'numeric', month: 'short'}
-    : state.scale === 'day'
-      ? {month: 'short', day: 'numeric'}
-      : {month: 'short', day: 'numeric'};
-  const option = {
-    animation: false,
-    backgroundColor: colors.background,
-    grid: {left: 220, right: 28, top: 44, bottom: 42},
-    tooltip: {
-      trigger: 'item',
-      formatter: (params) => {
-        const task = state.taskById.get(params.value?.[6]);
-        if (!task) return '';
-        return `<strong>${escapeLabel(task.name)}</strong><br>${formatDate(task.start)} - ${formatDate(task.finish)}<br>${formatPercent(task.percentComplete)} complete`;
-      },
-    },
-    xAxis: {
-      type: 'time',
-      minInterval: scaleInterval,
-      axisLabel: {color: colors.muted, formatter: (value) => new Intl.DateTimeFormat(undefined, scaleFormat).format(value)},
-      axisLine: {lineStyle: {color: colors.grid}},
-      splitLine: {show: true, lineStyle: {color: colors.grid}},
-      min: (value) => value.min - 86400000 * 2,
-      max: (value) => value.max + 86400000 * 2,
-      axisPointer: {snap: true},
-    },
-    yAxis: {
-      type: 'category',
-      inverse: true,
-      data: categories,
-      axisLabel: {
-        color: colors.text,
-        width: 200,
-        overflow: 'truncate',
-        formatter: (value, index) => {
-          const task = rows[index];
-          return `${'  '.repeat(Math.max(0, task.outlineLevel - 1))}${task.summary ? '▰ ' : ''}${value}`;
-        },
-      },
-      axisLine: {lineStyle: {color: colors.grid}},
-      axisTick: {show: false},
-    },
-    series: [{
-      type: 'custom',
-      encode: {x: [1, 2], y: 0},
-      data,
-      renderItem: (params, api) => {
-        const index = api.value(0);
-        const start = api.value(1);
-        const finish = api.value(2) ?? start;
-        if (start == null) return null;
-        const startPoint = api.coord([start, index]);
-        const endPoint = api.coord([finish, index]);
-        const width = Math.max(4, endPoint[0] - startPoint[0]);
-        const height = api.size([0, 1])[1] * 0.52;
-        const y = startPoint[1] - height / 2;
-        const isSummary = Boolean(api.value(4));
-        const isMilestone = Boolean(api.value(5));
-        const selected = api.value(6) === state.selectedId;
-        const fill = selected ? colors.selected : (isSummary ? colors.summary : colors.bar);
-        if (isMilestone) {
-          const center = [startPoint[0], startPoint[1]];
-          return {type: 'polygon', shape: {points: [[center[0], center[1] - 7], [center[0] + 7, center[1]], [center[0], center[1] + 7], [center[0] - 7, center[1]]]}, style: {fill}};
-        }
-        const progressWidth = width * Math.max(0, Math.min(1, Number(api.value(3)) / 100));
-        return {
-          type: 'group',
-          children: [
-            {type: 'rect', shape: {x: startPoint[0], y, width, height}, style: {fill, opacity: 0.9, radius: 3}},
-            {type: 'rect', shape: {x: startPoint[0], y: y + height - 4, width: progressWidth, height: 4}, style: {fill: colors.progress}},
-          ],
-        };
-      },
-    }],
-  };
-  if (!state.gantt) state.gantt = echarts.init(document.getElementById('gantt-chart'));
-  state.gantt.setOption(option, true);
-  state.gantt.off('click');
-  state.gantt.on('click', (params) => {
-    const id = params.value?.[6];
-    if (id) selectTask(id);
-  });
+function syncTheme() {
+  document.documentElement.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-function renderWbs() {
-  if (!window.echarts) return;
+function ganttDate(value) {
+  if (!value || dateValue(value) === null) return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  const date = new Date(dateValue(value));
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
+
+function ganttTaskId(task) {
+  return `task-${String(task.uid).replace(/[^a-zA-Z0-9_-]+/g, '_')}`;
+}
+
+function taskDuration(task) {
+  if (task.milestone) return 0;
+  const start = dateValue(task.start);
+  const finish = dateValue(task.finish) ?? start;
+  if (start === null || finish === null) return 1;
+  return Math.max(1, Math.ceil((finish - start) / 86400000));
+}
+
+function dependencySourceId(predecessor) {
+  return predecessor && typeof predecessor === 'object'
+    ? predecessor.taskId ?? predecessor.id ?? predecessor.uid
+    : predecessor;
+}
+
+function dependencyType(value) {
+  const type = String(value || '').toUpperCase();
+  if (type.includes('SS')) return '1';
+  if (type.includes('FF')) return '2';
+  if (type.includes('SF')) return '3';
+  return '0';
+}
+
+function toDhtmlxData(rows) {
+  const idBySource = new Map();
+  for (const task of rows) {
+    const id = ganttTaskId(task);
+    idBySource.set(String(task.uid), id);
+  }
+  for (const task of rows) {
+    const id = ganttTaskId(task);
+    if (!idBySource.has(String(task.id))) idBySource.set(String(task.id), id);
+  }
+  const data = rows.map((task) => {
+    const start = ganttDate(task.start);
+    if (!start) return null;
+    const parent = task.parentId ? idBySource.get(String(task.parentId)) || 0 : 0;
+    return {
+      id: ganttTaskId(task),
+      uid: task.uid,
+      text: task.name,
+      start_date: start,
+      duration: taskDuration(task),
+      progress: task.percentComplete / 100,
+      parent,
+      type: task.milestone ? 'milestone' : (task.summary ? 'project' : 'task'),
+      open: true,
+      projectTaskSummary: Boolean(task.summary),
+      projectTaskMilestone: Boolean(task.milestone),
+      sourceStart: task.start,
+      sourceFinish: task.finish,
+      sourcePercent: task.percentComplete,
+    };
+  }).filter(Boolean);
+  const links = [];
+  for (const task of rows) {
+    const target = idBySource.get(String(task.uid));
+    if (!target) continue;
+    task.predecessors.forEach((predecessor, index) => {
+      const source = idBySource.get(String(dependencySourceId(predecessor)));
+      if (!source || source === target) return;
+      links.push({
+        id: `link-${target}-${index}`,
+        source,
+        target,
+        type: dependencyType(predecessor?.type),
+      });
+    });
+  }
+  return {data, links};
+}
+
+function ganttScaleConfig() {
+  if (state.scale === 'day') {
+    return {scales: [{unit: 'day', step: 1, format: '%d %M'}]};
+  }
+  if (state.scale === 'month') {
+    return {scales: [
+      {unit: 'month', step: 1, format: '%F %Y'},
+      {unit: 'week', step: 1, format: 'W%W'},
+    ]};
+  }
+  return {scales: [
+    {unit: 'week', step: 1, format: 'Week %W'},
+    {unit: 'day', step: 1, format: '%D'},
+  ]};
+}
+
+function configureGantt() {
+  const gantt = window.dhtmlxgantt?.gantt || window.gantt;
+  if (!gantt) return null;
   const colors = chartColors();
-  if (!state.wbs) state.wbs = echarts.init(document.getElementById('wbs-chart'));
-  state.wbs.setOption({
-    animationDuration: 220,
-    backgroundColor: colors.background,
-    tooltip: {formatter: (params) => {
-      const task = params.data?.task;
-      return task ? `<strong>${escapeLabel(task.name)}</strong><br>${formatDate(task.start)} - ${formatDate(task.finish)}<br>${formatPercent(task.percentComplete)} complete` : escapeLabel(params.name);
-    }},
-    series: [{
-      type: 'tree',
-      data: [taskTree()],
-      top: '4%', left: '3%', bottom: '4%', right: '16%',
-      orient: 'LR',
-      symbol: 'roundRect',
-      symbolSize: [10, 10],
-      edgeShape: 'polyline',
-      edgeForkPosition: '55%',
-      initialTreeDepth: -1,
-      label: {position: 'right', verticalAlign: 'middle', align: 'left', color: colors.text, fontSize: 12},
-      leaves: {label: {position: 'right', color: colors.text}},
-      lineStyle: {color: colors.grid, width: 1.2},
-      itemStyle: {color: colors.bar, borderColor: colors.background},
-      emphasis: {focus: 'descendant'},
-      expandAndCollapse: true,
-      roam: true,
-    }],
-  }, true);
-  state.wbs.off('click');
-  state.wbs.on('click', (params) => {
-    if (params.data?.task?.uid) selectTask(params.data.task.uid);
-  });
+  const scale = ganttScaleConfig();
+  gantt.config.date_format = '%Y-%m-%d';
+  gantt.config.readonly = true;
+  gantt.config.select_task = true;
+  gantt.config.drag_move = false;
+  gantt.config.drag_resize = false;
+  gantt.config.drag_progress = false;
+  gantt.config.details_on_dblclick = false;
+  gantt.config.dblclick_create = false;
+  gantt.config.show_progress = true;
+  gantt.config.show_links = true;
+  gantt.config.preserve_scroll = true;
+  gantt.config.row_height = 32;
+  gantt.config.bar_height = 20;
+  gantt.config.scale_height = 42;
+  gantt.config.min_column_width = state.scale === 'month' ? 90 : 70;
+  gantt.config.scales = scale.scales;
+  gantt.templates.task_class = (start, end, task) => [
+    task.projectTaskSummary ? 'project-task-summary' : '',
+    task.projectTaskMilestone ? 'project-task-milestone' : '',
+  ].filter(Boolean).join(' ');
+  gantt.templates.tooltip_text = (start, end, task) => {
+    const source = task.uid ? state.taskById.get(String(task.uid)) : null;
+    if (!source) return escapeLabel(task.text);
+    return `<b>${escapeLabel(source.name)}</b><br>${escapeLabel(formatDate(source.start))} - ${escapeLabel(formatDate(source.finish))}<br>${escapeLabel(formatPercent(source.percentComplete))} complete`;
+  };
+  if (!state.ganttReady) {
+    gantt.config.grid_width = 310;
+    gantt.config.keep_grid_width = true;
+    gantt.config.columns = [
+      {name: 'text', label: 'Task', tree: true, width: '*'},
+      {name: 'start_date', label: 'Start', align: 'center', width: 92},
+      {name: 'duration', label: 'Days', align: 'center', width: 58},
+    ];
+    gantt.plugins({tooltip: true});
+    gantt.attachEvent('onTaskClick', (id) => {
+      const task = gantt.getTask(id);
+      if (task) selectTask(task.uid || id);
+      return true;
+    });
+    gantt.init(elements.ganttChart);
+    state.ganttReady = true;
+    state.gantt = gantt;
+  }
+  elements.ganttChart.style.setProperty('--project-bar-color', colors.bar);
+  elements.ganttChart.style.setProperty('--project-summary-color', colors.summary);
+  elements.ganttChart.style.setProperty('--project-progress-color', colors.progress);
+  elements.ganttChart.style.setProperty('--project-selected-color', colors.selected);
+  elements.ganttChart.style.setProperty('--project-grid-color', colors.grid);
+  elements.ganttChart.style.setProperty('--project-text-color', colors.text);
+  elements.ganttChart.style.setProperty('--project-muted-color', colors.muted);
+  return gantt;
+}
+
+function renderGantt() {
+  const gantt = configureGantt();
+  if (!gantt) return;
+  const scroll = typeof gantt.getScrollState === 'function' ? gantt.getScrollState() : null;
+  const rows = visibleTasks();
+  const data = toDhtmlxData(rows);
+  gantt.config.scales = ganttScaleConfig().scales;
+  gantt.config.min_column_width = state.scale === 'month' ? 90 : 70;
+  gantt.clearAll();
+  gantt.parse(data);
+  gantt.render();
+  if (state.selectedId) {
+    const selectedId = ganttTaskId({uid: state.selectedId});
+    if (gantt.isTaskExists(selectedId)) gantt.selectTask(selectedId);
+  }
+  if (scroll && typeof gantt.scrollTo === 'function') {
+    requestAnimationFrame(() => gantt.scrollTo(scroll.x, scroll.y));
+  }
 }
 
 function selectTask(id) {
+  const previousId = state.selectedId;
   state.selectedId = String(id);
   const task = state.taskById.get(state.selectedId);
-  elements.selectionStatus.textContent = task ? `${task.name} · ${formatPercent(task.percentComplete)}` : 'No task selected';
-  renderGantt();
-}
-
-function setView(view) {
-  const gantt = view === 'gantt';
-  elements.ganttPanel.classList.toggle('hidden', !gantt);
-  elements.wbsPanel.classList.toggle('hidden', gantt);
-  document.querySelectorAll('.gantt-only').forEach((element) => element.classList.toggle('hidden', !gantt));
-  document.querySelectorAll('.wbs-only').forEach((element) => element.classList.toggle('hidden', gantt));
-  if (gantt) { renderGantt(); state.gantt?.resize(); } else { renderWbs(); state.wbs?.resize(); }
+  elements.selectionStatus.textContent = task ? `${task.name} - ${formatPercent(task.percentComplete)}` : 'No task selected';
+  const gantt = state.gantt;
+  if (!gantt || !state.ganttReady || state.query) {
+    renderGantt();
+    return;
+  }
+  const taskId = ganttTaskId({uid: state.selectedId});
+  if (typeof gantt.unselectTask === 'function' && previousId !== state.selectedId) gantt.unselectTask();
+  if (gantt.isTaskExists(taskId)) {
+    gantt.selectTask(taskId);
+  }
 }
 
 function fitGantt() {
-  if (state.gantt) state.gantt.dispatchAction({type: 'restore'});
-}
-
-function collapseAll() {
-  state.collapsed = new Set(state.tasks.filter((task) => task.summary || childrenOf(task.uid).length > 0).map((task) => task.uid));
-  renderWbs();
+  if (!state.gantt) return;
+  const minDate = state.gantt.getState().min_date;
+  if (minDate) state.gantt.showDate(minDate);
 }
 
 async function loadProject() {
@@ -303,7 +337,6 @@ async function loadProject() {
       elements.taskStatus.textContent = `${state.tasks.length.toLocaleString()} tasks`;
       elements.loading.classList.add('hidden');
       renderGantt();
-      renderWbs();
       return;
     } catch (error) {
       elements.loading.classList.add('hidden');
@@ -315,22 +348,20 @@ async function loadProject() {
   }
 }
 
-elements.view.addEventListener('change', () => setView(elements.view.value));
 elements.scale.addEventListener('change', () => { state.scale = elements.scale.value; renderGantt(); });
 elements.fit.addEventListener('click', fitGantt);
-elements.collapse.addEventListener('click', collapseAll);
 elements.search.addEventListener('input', () => {
   state.query = elements.search.value.trim().toLowerCase();
   renderGantt();
-  renderWbs();
 });
-window.addEventListener('resize', () => { state.gantt?.resize(); state.wbs?.resize(); });
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { renderGantt(); renderWbs(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { syncTheme(); renderGantt(); });
 
-if (!window.echarts) {
+const ganttAvailable = Boolean(window.dhtmlxgantt?.gantt || window.gantt);
+if (!ganttAvailable) {
   elements.loading.classList.add('hidden');
   elements.errorPanel.classList.remove('hidden');
-  elements.errorMessage.textContent = 'ECharts assets are missing from the plugin package.';
+  elements.errorMessage.textContent = 'dhtmlxGantt assets are missing from the plugin package.';
 } else {
+  syncTheme();
   loadProject();
 }

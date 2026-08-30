@@ -5,9 +5,9 @@ Copyright (c) Jon Iles and MPXJ contributors
 License: LGPL-2.1-or-later
 Source: https://www.mpxj.org/
 
-Apache ECharts 6.0.0
-Copyright (c) Apache Software Foundation and ECharts contributors
-License: Apache-2.0
-Source: https://echarts.apache.org/
+dhtmlxGantt Community Edition 10.0.2
+Copyright (c) XB Software Ltd.
+License: MIT
+Source: https://github.com/DHTMLX/gantt
 
 Third-party components are loaded only by the isolated project-view plugin process.

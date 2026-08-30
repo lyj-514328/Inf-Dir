@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Project View</title>
+  <link rel="stylesheet" href="./dhtmlxgantt.css">
   <link rel="stylesheet" href="./app.css">
 </head>
 <body>
@@ -18,13 +19,6 @@
     </div>
     <div class="toolbar-actions">
       <label class="select-control">
-        <span>View</span>
-        <select id="view-select" aria-label="View">
-          <option value="gantt">Gantt</option>
-          <option value="wbs">WBS</option>
-        </select>
-      </label>
-      <label class="select-control gantt-only">
         <span>Scale</span>
         <select id="scale-select" aria-label="Time scale">
           <option value="day">Day</option>
@@ -32,8 +26,7 @@
           <option value="month">Month</option>
         </select>
       </label>
-      <button id="fit-button" class="command-button gantt-only" type="button">Fit</button>
-      <button id="collapse-button" class="command-button wbs-only" type="button">Collapse all</button>
+      <button id="fit-button" class="command-button" type="button">Fit</button>
       <label class="search-control">
         <span class="search-icon" aria-hidden="true">/</span>
         <input id="search-input" type="search" placeholder="Filter tasks" aria-label="Filter tasks">
@@ -44,9 +37,6 @@
   <main class="content">
     <section id="gantt-panel" class="view-panel" aria-label="Gantt chart">
       <div id="gantt-chart" class="chart"></div>
-    </section>
-    <section id="wbs-panel" class="view-panel hidden" aria-label="WBS chart">
-      <div id="wbs-chart" class="chart"></div>
     </section>
     <section id="error-panel" class="empty-panel hidden" aria-live="polite">
       <strong id="error-title">Unable to open project</strong>
@@ -63,7 +53,7 @@
     <span id="selection-status">No task selected</span>
   </footer>
 
-  <script src="./echarts.min.js"></script>
+  <script src="./dhtmlxgantt.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

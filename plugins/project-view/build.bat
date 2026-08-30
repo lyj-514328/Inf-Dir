@@ -68,11 +68,11 @@ cargo build --release --manifest-path "%HOST_DIR%\Cargo.toml"
 if errorlevel 1 ( echo [ERROR] Rust host build failed. & exit /b 1 )
 
 where npm >nul 2>&1
-if errorlevel 1 ( echo [ERROR] npm is required to package ECharts. & exit /b 1 )
-if not exist "%WEB_DIR%\node_modules\echarts\dist\echarts.min.js" (
+if errorlevel 1 ( echo [ERROR] npm is required to package dhtmlxGantt. & exit /b 1 )
+if not exist "%WEB_DIR%\node_modules\dhtmlx-gantt\codebase\dhtmlxgantt.js" (
   pushd "%WEB_DIR%"
-  call npm install --ignore-scripts --no-package-lock --no-save echarts@6.0.0
-  if errorlevel 1 ( popd & echo [ERROR] ECharts install failed. & exit /b 1 )
+  call npm install --ignore-scripts --no-package-lock --no-save dhtmlx-gantt@10.0.2
+  if errorlevel 1 ( popd & echo [ERROR] dhtmlxGantt install failed. & exit /b 1 )
   popd
 )
 if exist "%WEB_OUTPUT%" rmdir /s /q "%WEB_OUTPUT%"
@@ -80,7 +80,8 @@ mkdir "%WEB_OUTPUT%"
 copy /Y "%WEB_DIR%\index.html" "%WEB_OUTPUT%\" >nul
 copy /Y "%WEB_DIR%\app.js" "%WEB_OUTPUT%\" >nul
 copy /Y "%WEB_DIR%\app.css" "%WEB_OUTPUT%\" >nul
-copy /Y "%WEB_DIR%\node_modules\echarts\dist\echarts.min.js" "%WEB_OUTPUT%\" >nul
+copy /Y "%WEB_DIR%\node_modules\dhtmlx-gantt\codebase\dhtmlxgantt.js" "%WEB_OUTPUT%\" >nul
+copy /Y "%WEB_DIR%\node_modules\dhtmlx-gantt\codebase\dhtmlxgantt.css" "%WEB_OUTPUT%\" >nul
 
 echo [project-view] Packaging Java parser runtime...
 if exist "%PARSER_IMAGE%" rmdir /s /q "%PARSER_IMAGE%"

@@ -3,6 +3,6 @@
   "private": true,
   "version": "0.2.0",
   "dependencies": {
-    "echarts": "6.0.0"
+    "dhtmlx-gantt": "10.0.2"
   }
 }
