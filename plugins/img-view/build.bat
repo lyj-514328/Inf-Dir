@@ -17,10 +17,10 @@ set "LIBRAW_SHA=ac64fa12bb00a7581332d4c6ab918c0533fb3f119d6b668d47a6875410dca948
 set "LIBRAW_BUILD_DIR=%TEMP_DIR%\libraw-build"
 set "WIC_DIR=%SCRIPT_DIR%wic-decoder"
 set "WIC_BUILD_DIR=%TEMP_DIR%\wic-build"
-set "RUNTIME_MARKER=%RUNTIME_DIR%\inf-dir-image-runtime-fix-jng-sfw.txt"
-set "ARCHIVE=%CACHE_DIR%\ImageMagick-LibRaw-fix-jng-sfw.zip"
-set "URL=https://github.com/lyj-514328/ImageMagick/releases/download/fix-jng-sfw/ImageMagick-LibRaw-x64-fix-jng-sfw-20260829.zip"
-set "SHA=4817381933078d5586aa41ae75147890ea551c968ac772de253fa037ed939bda"
+set "RUNTIME_MARKER=%RUNTIME_DIR%\inf-dir-image-runtime-fix-pix.txt"
+set "ARCHIVE=%CACHE_DIR%\ImageMagick-LibRaw-fix-pix.zip"
+set "URL=https://github.com/lyj-514328/ImageMagick/releases/download/fix-pix/ImageMagick-LibRaw-x64-20260831.zip"
+set "SHA=26C7E32C5D717596E2AA126A4C332968902B49E30B120A8134EDA393781B6CE0"
 
 if not exist "%CACHE_DIR%" mkdir "%CACHE_DIR%"
 if not exist "%RUNTIME_MARKER%" (
@@ -68,7 +68,7 @@ if exist "%RUNTIME_DIR%" rmdir /s /q "%RUNTIME_DIR%"
 mkdir "%RUNTIME_DIR%"
 robocopy "%TEMP_DIR%\Artifacts\bin" "%RUNTIME_DIR%" /E /XF *.pdb /NFL /NDL /NJH /NJS /NP >nul
 if errorlevel 8 exit /b 1
->"%RUNTIME_MARKER%" echo fix-jng-sfw
+>"%RUNTIME_MARKER%" echo fix-pix
 rmdir /s /q "%TEMP_DIR%"
 exit /b 0
 

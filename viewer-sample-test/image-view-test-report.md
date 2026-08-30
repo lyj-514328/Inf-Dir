@@ -122,6 +122,21 @@ about 11 seconds after making LibRaw the first RAW decoder, so the current
 image-view result is 117 responsive jobs out of 121, with only DPX, non-RAW ERF,
 malformed PIX, and Delphine video `.cin` unresolved.
 
+## Sample-set replacement and fix-pix recovery (2026-08-30)
+
+The three problematic samples were replaced with real, valid files:
+
+- `image\dpx\Digital_LAD_2048x1556.dpx` (replaced the truncated `sample_rawcooked.dpx`)
+- `image\erf\RAW_EPSON_RD1.ERF` (replaced the non-RAW synthetic `sample1.erf`)
+- `image\pix\abydos.pix` and `image\pix\example.pix` (replaced the malformed `sample_web.pix`)
+
+The image-view runtime was rebuilt from the `fix-pix` ImageMagick release
+(`plugins/img-view/build.bat`, SHA-256 `26C7E32C5D717596E2AA126A4C332968902B49E30B120A8134EDA393781B6CE0`).
+All four replacement files now open in a responsive viewer window with a
+12-second timeout. Together with the previously added Cineon samples, no
+image-view sample remains unresolved except the intentional `.cin` Delphine
+video, which is correctly left to a video viewer rather than image-view.
+
 The same full scan found 491 responsive windows overall. The remaining
 onlyoffice-view failures are concentrated in legacy Visio/WPS formats that
 Document Builder returns as open-file errors; these are converter capability

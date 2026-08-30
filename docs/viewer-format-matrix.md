@@ -325,7 +325,7 @@
 | Video | .cam | MSN Messenger 摄像头录屏（厂商：Microsoft）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .cdg | CD Graphics Format | ✅ video（扩展名规则） |
 | Video | .cdxl | Commodore CDXL Video | ✅ video（扩展名规则） |
-| Video | .cin | Delphine Software CIN Video | ⚠️ 默认 .cin 规则为 Cineon 位图（image）；Delphine CIN 视频可由 FFmpeg（cine）解码，待实测/嗅探 |
+| Video | .cin | Delphine Software CIN Video | ⚠️ 默认 .cin 规则为 Cineon 位图（image）；Delphine CIN 视频可由 FFmpeg（cine）解码，image-view 已实测可启动，需视频 viewer 关联或内容嗅探（2026-08-30 确认 image-view 不处理该语义，保持 ⚠️） |
 | Video | .cmv | Electronic Arts CMV 视频（厂商：EA，游戏）| ❌ 现行 FFmpeg 无对应 demuxer|
 | Video | .dat | VCD Video File | ✅ email（扩展名规则） |
 | Video | .dct | Electronic Arts DCT 视频（厂商：EA，游戏）| ❌ 现行 FFmpeg 无对应 demuxer|
