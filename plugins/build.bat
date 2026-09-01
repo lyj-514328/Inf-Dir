@@ -660,8 +660,10 @@ if exist "%DIST_DIR%\inf-dir.mupdf-view\publish" rmdir /s /q "%DIST_DIR%\inf-dir
 xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\bin\Release\net10.0-windows\win-x64\publish" "%DIST_DIR%\inf-dir.mupdf-view" >nul
 if exist "%DIST_DIR%\inf-dir.mupdf-view\djvulibre" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\djvulibre"
 if exist "%DIST_DIR%\inf-dir.mupdf-view\libredwg" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\libredwg"
+if exist "%DIST_DIR%\inf-dir.mupdf-view\libreoffice" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\libreoffice"
 xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\djvulibre" "%DIST_DIR%\inf-dir.mupdf-view\djvulibre" >nul
 xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\libredwg" "%DIST_DIR%\inf-dir.mupdf-view\libredwg" >nul
+xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\libreoffice" "%DIST_DIR%\inf-dir.mupdf-view\libreoffice" >nul
 copy /Y "%SCRIPT_DIR%mupdf-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
 
 copy /Y "%SCRIPT_DIR%font-view\plugin.json" "%DIST_DIR%\inf-dir.font-view\" >nul

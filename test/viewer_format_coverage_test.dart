@@ -14,14 +14,14 @@ void main() {
       '.xps', '.oxps', '.dwg', '.dxf',
       '.djvu', '.djv',
       '.epub', '.mobi', '.fb2', '.fbz', '.fb2z', '.tcr', '.cbr',
+      '.vsd', '.vsdx', '.vst', '.vss', '.vdx', '.vdw', '.vsx', '.vtx',
+      '.vstx', '.vssx', '.vstm', '.vsdm', '.wps',
     },
     'inf-dir.onlyoffice-view': {
       '.doc', '.docm', '.docx', '.dot', '.dotm', '.dotx',
       '.odt', '.ott', '.fodt', '.rtf', '.ppt', '.pptm', '.pptx', '.pot', '.potm',
       '.potx', '.pps', '.ppsm', '.ppsx', '.odp', '.otp', '.fodp',
       '.xls', '.xlsb', '.xlsx', '.xlsm', '.xlt', '.xltm', '.xltx',
-      '.vsd', '.vsdm', '.vsdx', '.vss', '.vssm', '.vssx', '.vst', '.vstm',
-      '.vstx', '.vdx', '.vdw', '.vsx', '.vtx',
     },
     'inf-dir.project-view': {'.mpp', '.mpt', '.mpx'},
     'inf-dir.font-view': {'.ttf', '.otf', '.woff', '.woff2', '.ttc', '.dfont'},
@@ -63,18 +63,17 @@ void main() {
     );
   });
 
-  test('mupdf-view does not claim Office conversion formats', () {
+  test('onlyoffice-view does not claim Visio formats', () {
     final manifests = _loadPluginManifests();
-    final extensions = manifests['inf-dir.mupdf-view']!;
+    final extensions = manifests['inf-dir.onlyoffice-view']!;
     expect(
       extensions,
       isNot(anyOf(
-        contains('.doc'),
-        contains('.dot'),
-        contains('.xls'),
-        contains('.ppt'),
-        contains('.odt'),
+        contains('.vsd'),
         contains('.vsdx'),
+        contains('.vss'),
+        contains('.vst'),
+        contains('.wps'),
       )),
     );
   });

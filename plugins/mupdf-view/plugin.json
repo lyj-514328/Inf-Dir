@@ -10,12 +10,16 @@
         ".xps", ".oxps",
         ".epub", ".mobi", ".fb2", ".fbz", ".fb2z", ".tcr",
         ".cbz", ".cbr", ".djvu", ".djv",
-        ".dxf", ".dwg"
+        ".dxf", ".dwg",
+        ".vsd", ".vsdm", ".vsdx", ".vss", ".vssm", ".vssx",
+        ".vst", ".vstm", ".vstx", ".vdx", ".vdw", ".vsx", ".vtx",
+        ".wps"
       ],
       "mimeTypes": [
         "application/vnd.ms-xpsdocument",
         "application/epub+zip",
-        "application/vnd.comicbook+zip"
+        "application/vnd.comicbook+zip",
+        "application/vnd.visio"
       ]
     }
   }

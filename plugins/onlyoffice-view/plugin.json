@@ -8,12 +8,10 @@
     "quickView": {
       "extensions": [
         ".doc", ".docm", ".docx", ".dot", ".dotm", ".dotx",
-        ".odt", ".ott", ".fodt", ".rtf", ".wps", ".wbk", ".mht",
+        ".odt", ".ott", ".fodt", ".rtf", ".wbk", ".mht",
         ".ppt", ".pptm", ".pptx", ".pot", ".potm", ".potx",
         ".pps", ".ppsm", ".ppsx", ".odp", ".otp", ".fodp",
-        ".xls", ".xlsb", ".xlsx", ".xlsm", ".xlt", ".xltm", ".xltx",
-        ".vsd", ".vsdm", ".vsdx", ".vss", ".vssm", ".vssx",
-        ".vst", ".vstm", ".vstx", ".vdx", ".vdw", ".vsx", ".vtx"
+        ".xls", ".xlsb", ".xlsx", ".xlsm", ".xlt", ".xltm", ".xltx"
       ],
       "mimeTypes": [
         "application/msword",
@@ -28,8 +26,7 @@
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
         "application/vnd.oasis.opendocument.text",
-        "application/vnd.oasis.opendocument.presentation",
-        "application/vnd.visio"
+        "application/vnd.oasis.opendocument.presentation"
       ]
     }
   }

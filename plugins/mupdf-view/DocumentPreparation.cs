@@ -103,6 +103,11 @@ internal static class DocumentPreparation
             return ConvertDjvu(source);
         }
 
+        if (s_visioExtensions.Contains(extension))
+        {
+            return ConvertVisio(source);
+        }
+
         if (extension.Equals(".dwg", StringComparison.OrdinalIgnoreCase) ||
             extension.Equals(".dxf", StringComparison.OrdinalIgnoreCase))
         {
@@ -125,6 +130,91 @@ internal static class DocumentPreparation
             return ConvertCbr(source);
         }
         return PreparedDocument.Direct(source);
+    }
+
+    private static readonly HashSet<string> s_visioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".vsd", ".vsdm", ".vsdx", ".vss", ".vssm", ".vssx",
+        ".vst", ".vstm", ".vstx", ".vdx", ".vdw", ".vsx", ".vtx",
+        ".wps",
+    };
+
+    private static PreparedDocument ConvertVisio(string source)
+    {
+        string executable = FindLibreOffice()
+            ?? throw new InvalidOperationException(
+                "Visio 预览需要 LibreOffice 转换运行时；请重新运行 plugins\\build.bat，或设置 INF_DIR_LIBREOFFICE_PATH。");
+        string temp = CreateTempDirectory("libreoffice");
+        try
+        {
+            string profile = Path.Combine(temp, "profile");
+            string outputDirectory = Path.Combine(temp, "output");
+            Directory.CreateDirectory(profile);
+            Directory.CreateDirectory(outputDirectory);
+
+            string profileUri = new Uri(profile + Path.DirectorySeparatorChar).AbsoluteUri;
+            ProcessResult result = RunTool(
+                executable,
+                new[]
+                {
+                    "--headless", "--nologo", "--nodefault", "--nofirststartwizard", "--norestore",
+                    "--nolockcheck", $"-env:UserInstallation={profileUri}",
+                    "--convert-to", "pdf", "--outdir", outputDirectory, source,
+                },
+                temp,
+                timeoutMilliseconds: 120_000);
+            string output = Path.Combine(outputDirectory, Path.GetFileNameWithoutExtension(source) + ".pdf");
+            if (!result.Success || !File.Exists(output))
+            {
+                string detail = FirstNonEmpty(result.StandardError, result.StandardOutput, "LibreOffice 没有生成 PDF。");
+                throw new InvalidOperationException($"Visio 转 PDF 失败：{detail}");
+            }
+            return PreparedDocument.Temporary(output, Path.GetFileName(source), temp);
+        }
+        catch
+        {
+            CleanupTemporaryDirectory(temp);
+            throw;
+        }
+    }
+
+    private static string? FindLibreOffice()
+    {
+        string? configured = Environment.GetEnvironmentVariable("INF_DIR_LIBREOFFICE_PATH");
+        IEnumerable<string> candidates = new[]
+        {
+            configured,
+            Path.Combine(AppContext.BaseDirectory, "libreoffice", "program", "soffice.exe"),
+            Environment.GetEnvironmentVariable("ProgramFiles") is { Length: > 0 } programFiles
+                ? Path.Combine(programFiles, "LibreOffice", "program", "soffice.exe")
+                : null,
+            Environment.GetEnvironmentVariable("ProgramFiles(x86)") is { Length: > 0 } programFilesX86
+                ? Path.Combine(programFilesX86, "LibreOffice", "program", "soffice.exe")
+                : null,
+        }.Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => path!);
+
+        foreach (string candidate in candidates)
+        {
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+            if (Directory.Exists(candidate))
+            {
+                string direct = Path.Combine(candidate, "soffice.exe");
+                string nested = Path.Combine(candidate, "program", "soffice.exe");
+                if (File.Exists(direct))
+                {
+                    return direct;
+                }
+                if (File.Exists(nested))
+                {
+                    return nested;
+                }
+            }
+        }
+
+        return FindOnPath("soffice.exe") ?? FindOnPath("soffice.com");
     }
 
     private static PreparedDocument ConvertDjvu(string source)
