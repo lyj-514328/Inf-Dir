@@ -6,7 +6,10 @@ fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let la = manifest_dir.join("libarchive");
 
-    println!("cargo:rustc-link-search=native={}", la.join("lib").display());
+    println!(
+        "cargo:rustc-link-search=native={}",
+        la.join("lib").display()
+    );
     println!("cargo:rustc-link-lib=dylib=libarchive");
     println!("cargo:rerun-if-changed=libarchive/lib/libarchive.lib");
 

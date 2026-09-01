@@ -43,6 +43,152 @@ struct ArchiveEntry {
     is_dir: bool,
 }
 
+fn sevenzip_executable() -> Result<std::path::PathBuf, String> {
+    let path = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join("7z.exe")))
+        .ok_or_else(|| "archive-view executable has no parent directory".to_owned())?;
+    if !path.is_file() {
+        return Err(format!("bundled 7z.exe not found: {}", path.display()));
+    }
+    Ok(path)
+}
+
+fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = if m > 2 { m - 3 } else { m + 9 } as i64;
+    let doy = (153 * mp + 2) / 5 + d as i64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
+fn parse_sevenzip_timestamp(raw: &str) -> Option<SystemTime> {
+    let raw = raw.trim();
+    let timestamp = raw.split('.').next()?.trim();
+    let mut parts = timestamp.split_whitespace();
+    let date = parts.next()?;
+    let time = parts.next().unwrap_or("00:00:00");
+    let mut date_parts = date.split('-');
+    let y: i64 = date_parts.next()?.parse().ok()?;
+    let m: u32 = date_parts.next()?.parse().ok()?;
+    let d: u32 = date_parts.next()?.parse().ok()?;
+    let mut time_parts = time.split(':');
+    let h: i64 = time_parts.next().unwrap_or("0").parse().unwrap_or(0);
+    let min: i64 = time_parts.next().unwrap_or("0").parse().unwrap_or(0);
+    let s: i64 = time_parts.next().unwrap_or("0").parse().unwrap_or(0);
+    let secs = days_from_civil(y, m, d) * 86_400 + h * 3_600 + min * 60 + s;
+    SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(secs as u64))
+}
+
+fn parse_sevenzip_mode(mode: &str, is_dir: bool) -> u32 {
+    let mode = mode.trim();
+    if mode.len() == 10 && mode.starts_with(['d', '-']) {
+        let mut value = 0u32;
+        let permission_bytes = mode.as_bytes();
+        for (shift, triple) in permission_bytes[1..].chunks(3).enumerate() {
+            let mut bits = 0u32;
+            if !triple.is_empty() && triple[0] == b'r' {
+                bits |= 0o4;
+            }
+            if triple.len() > 1 && triple[1] == b'w' {
+                bits |= 0o2;
+            }
+            if triple.len() > 2 && (triple[2] == b'x' || triple[2] == b't' || triple[2] == b's') {
+                bits |= 0o1;
+            }
+            value |= bits << (6 - 3 * shift);
+        }
+        return value | if is_dir { AE_IFDIR } else { 0 };
+    }
+    if is_dir {
+        AE_IFDIR
+    } else {
+        0
+    }
+}
+
+fn parse_sevenzip_listing(output: &str) -> Vec<ArchiveEntry> {
+    let mut entries = Vec::new();
+    let normalized = output.replace("\r\n", "\n");
+    for block in normalized.split("\n\n") {
+        let mut pathname: Option<String> = None;
+        let mut size: i64 = 0;
+        let mut mode: u32 = 0;
+        let mut mtime: Option<SystemTime> = None;
+        let mut is_dir = false;
+        let mut has_path = false;
+
+        for line in block.lines() {
+            let Some((key, value)) = line.split_once(" = ") else {
+                continue;
+            };
+            let value = value.trim();
+            match key.trim() {
+                "Path" => {
+                    has_path = true;
+                    pathname = Some(value.to_string());
+                }
+                "Folder" => is_dir = value == "+",
+                "Attributes" => is_dir = is_dir || value.starts_with('D'),
+                "Size" => size = value.parse().unwrap_or(0),
+                "Mode" => mode = parse_sevenzip_mode(value, is_dir),
+                "Modified" => mtime = parse_sevenzip_timestamp(value),
+                _ => {}
+            }
+        }
+
+        if !has_path {
+            continue;
+        }
+        if let Some(path) = pathname {
+            if path.is_empty() {
+                continue;
+            }
+            entries.push(ArchiveEntry {
+                pathname: path,
+                size,
+                mode,
+                mtime,
+                is_dir,
+            });
+        }
+    }
+
+    entries.sort_by_key(|entry| entry.pathname.to_lowercase());
+    entries
+}
+
+fn read_archive_sevenzip(path: &str) -> Result<Vec<ArchiveEntry>, String> {
+    let executable = sevenzip_executable()?;
+    let output = std::process::Command::new(&executable)
+        .arg("l")
+        .arg("-slt")
+        .arg("-ba")
+        .arg("-sccUTF-8")
+        .arg("--")
+        .arg(path)
+        .output()
+        .map_err(|error| format!("failed to start {}: {error}", executable.display()))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "7z exited with {}: {}",
+            output.status.code().unwrap_or(-1),
+            stderr.trim()
+        ));
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout).into_owned();
+    let entries = parse_sevenzip_listing(&text);
+    if entries.is_empty() {
+        return Err("7z listed no entries".into());
+    }
+    Ok(entries)
+}
+
 fn read_archive(path: &str) -> Result<Vec<ArchiveEntry>, String> {
     unsafe {
         let a = archive_read_new();
@@ -1149,6 +1295,68 @@ mod tests {
         let error = parse_args(&args).unwrap_err();
         assert_eq!(error, format!("missing JSON value after {ARGUMENT}"));
     }
+
+    #[test]
+    fn sevenzip_listing_parses_windows_style_entries() {
+        let listing = "Path = file\r\nFolder = -\r\nSize = 2\r\n\
+Modified = 2013-09-17 04:50:08.4607281\r\nAttributes = A\r\n\r\n\
+Path = docs\r\nFolder = +\r\nSize = \r\nAttributes = D\r\n\r\n";
+
+        let entries = parse_sevenzip_listing(listing);
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].pathname, "docs");
+        assert!(entries[0].is_dir);
+        assert_eq!(entries[1].pathname, "file");
+        assert_eq!(entries[1].size, 2);
+        assert!(!entries[1].is_dir);
+        assert_eq!(format_mtime(entries[1].mtime), "2013-09-17 04:50:08");
+    }
+
+    #[test]
+    fn sevenzip_listing_parses_posix_mode_entries() {
+        let listing = "Path = hid-inspector\\.journal\nFolder = -\nSize = 524288\n\
+Mode = ----------\nModified = 2026-06-23 21:55:57\n\n\
+Path = hid-inspector\nFolder = +\nMode = drwxr-xr-x\nModified = 2026-06-23 21:55:57\n";
+
+        let entries = parse_sevenzip_listing(listing);
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].pathname, "hid-inspector");
+        assert_eq!(entries[0].mode, AE_IFDIR | 0o755);
+        assert!(entries[0].is_dir);
+        assert_eq!(format_mtime(entries[0].mtime), "2026-06-23 21:55:57");
+        assert_eq!(entries[1].pathname, "hid-inspector\\.journal");
+        assert_eq!(entries[1].mode, 0);
+    }
+
+    #[test]
+    fn sevenzip_listing_skips_blocks_without_path() {
+        let listing = "Type = Dmg\nPhysical Size = 325225\n\nPath = file\nFolder = -\nSize = 2\n";
+
+        let entries = parse_sevenzip_listing(listing);
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].pathname, "file");
+    }
+
+    #[test]
+    fn sevenzip_mode_and_timestamp_parsing() {
+        assert_eq!(parse_sevenzip_mode("drwxr-xr-x", true), AE_IFDIR | 0o755);
+        assert_eq!(parse_sevenzip_mode("-rw-r--r--", false), 0o644);
+        assert_eq!(parse_sevenzip_mode("", false), 0);
+        assert_eq!(parse_sevenzip_mode("", true), AE_IFDIR);
+
+        let t = parse_sevenzip_timestamp("2013-09-17 04:50:08.4607281").unwrap();
+        assert_eq!(format_mtime(Some(t)), "2013-09-17 04:50:08");
+        assert!(parse_sevenzip_timestamp("garbage").is_none());
+        // Round-trip with the existing civil-from-days decoder.
+        let t = parse_sevenzip_timestamp("1970-01-02 00:00:00").unwrap();
+        assert_eq!(
+            t.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
+            86_400
+        );
+    }
 }
 
 fn parse_args(args: &[String]) -> Result<(String, Option<WindowPlacement>), String> {
@@ -1221,7 +1429,11 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     }
 
-    let entries = match read_archive(&path) {
+    let entries = match read_archive(&path).or_else(|libarchive_error| {
+        read_archive_sevenzip(&path).map_err(|sevenzip_error| {
+            format!("{libarchive_error}; 7-Zip fallback failed: {sevenzip_error}")
+        })
+    }) {
         Ok(e) => e,
         Err(err) => {
             eprintln!("error: {err}");

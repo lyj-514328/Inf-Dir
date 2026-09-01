@@ -593,6 +593,21 @@ copy /Y "%SCRIPT_DIR%archive-view\plugin.json" "%DIST_DIR%\inf-dir.archive-view\
 copy /Y "%SCRIPT_DIR%archive-view\target\release\archive-view.exe" "%DIST_DIR%\inf-dir.archive-view\" >nul
 copy /Y "%LIBARCHIVE_DEPS%\bin\archive.dll" "%DIST_DIR%\inf-dir.archive-view\" >nul
 
+REM Bundle 7-Zip for formats libarchive cannot open (.arj/.dmg/.wim fallback).
+set "SEVENZ_EXE="
+for /f "usebackq delims=" %%I in (`where 7z.exe 2^>nul`) do if not defined SEVENZ_EXE set "SEVENZ_EXE=%%I"
+REM Resolve scoop-style shims (7z.exe next to a 7z.shim pointing at the real binary).
+if exist "%SEVENZ_EXE%" for /f "usebackq tokens=2 delims== " %%I in (`type "%SEVENZ_EXE%\..\7z.shim" 2^>nul ^| findstr /b /c:"path ="`) do set "SEVENZ_EXE=%%~I"
+if not exist "%SEVENZ_EXE%" (
+    echo [ERROR] 7z.exe not found on PATH; archive-view 7-Zip fallback cannot be bundled.
+    exit /b 1
+)
+for %%D in ("%SEVENZ_EXE%") do set "SEVENZ_SRC=%%~dpD"
+copy /Y "%SEVENZ_SRC%7z.exe" "%DIST_DIR%\inf-dir.archive-view\" >nul
+copy /Y "%SEVENZ_SRC%7z.dll" "%DIST_DIR%\inf-dir.archive-view\" >nul
+if exist "%SEVENZ_SRC%Codecs" xcopy /E /I /Y /Q "%SEVENZ_SRC%Codecs" "%DIST_DIR%\inf-dir.archive-view\Codecs" >nul
+if exist "%SEVENZ_SRC%Formats" xcopy /E /I /Y /Q "%SEVENZ_SRC%Formats" "%DIST_DIR%\inf-dir.archive-view\Formats" >nul
+
 copy /Y "%SCRIPT_DIR%office-view\plugin.json" "%DIST_DIR%\inf-dir.office-view\" >nul
 copy /Y "%SCRIPT_DIR%office-view\target\release\office-view.exe" "%DIST_DIR%\inf-dir.office-view\" >nul
 if exist "%DIST_DIR%\inf-dir.office-view\office-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.office-view\office-view-web"
