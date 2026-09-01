@@ -86,7 +86,10 @@ copy /Y "%WEB_DIR%\node_modules\dhtmlx-gantt\codebase\dhtmlxgantt.css" "%WEB_OUT
 echo [project-view] Packaging Java parser runtime...
 if exist "%PARSER_IMAGE%" rmdir /s /q "%PARSER_IMAGE%"
 mkdir "%PARSER_IMAGE%"
-"%JPACKAGE_CMD%" --type app-image --name project-parser --input "%BACKEND_DIR%\target" --main-jar project-parser-0.1.0.jar --main-class infdir.projectview.ProjectParser --dest "%PARSER_IMAGE%" --app-version 0.1.0 --vendor Inf-Dir --java-options "-Dfile.encoding=UTF-8"
+REM MPXJ resolves legacy encodings (for example MacRoman) by name at runtime.
+REM jpackage's module analysis cannot see that dynamic lookup, so include the
+REM charset provider explicitly in the bundled JRE.
+"%JPACKAGE_CMD%" --type app-image --name project-parser --input "%BACKEND_DIR%\target" --main-jar project-parser-0.1.0.jar --main-class infdir.projectview.ProjectParser --dest "%PARSER_IMAGE%" --app-version 0.1.0 --vendor Inf-Dir --add-modules jdk.charsets --java-options "-Dfile.encoding=UTF-8"
 if errorlevel 1 ( echo [ERROR] Java parser packaging failed. & exit /b 1 )
 
 if exist "%PUBLISH_DIR%" rmdir /s /q "%PUBLISH_DIR%"
