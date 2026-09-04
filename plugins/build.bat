@@ -29,9 +29,6 @@ set "EMAIL_WEB=%SCRIPT_DIR%email-view-web"
 set "EMAIL_PUBLISH=%SCRIPT_DIR%email-view\publish"
 set "FONT_PUBLISH=%SCRIPT_DIR%font-view\bin\Release\net8.0-windows\win-x64\publish"
 set "PROJECT_PUBLISH=%SCRIPT_DIR%project-view\bin\Release\project-view"
-set "ONLYOFFICE_RUNTIME_URL=https://github.com/ONLYOFFICE/DocumentBuilder/releases/download/v9.4.0/onlyoffice-documentbuilder-windows-x64.zip"
-set "ONLYOFFICE_RUNTIME_ZIP=%SCRIPT_DIR%onlyoffice-view\_documentbuilder-v9.4.0-windows-x64.zip"
-set "ONLYOFFICE_RUNTIME_DIR=%SCRIPT_DIR%onlyoffice-view\_documentbuilder-runtime-v9.4.0"
 
 REM Prefer the Scoop SDK because a machine-wide dotnet host may have no SDK.
 if exist "%USERPROFILE%\scoop\apps\dotnet-sdk\current\dotnet.exe" (
@@ -71,42 +68,6 @@ if exist "C:\msys64\ucrt64\bin" (
     set "PATH=C:\msys64\ucrt64\bin;%PATH%"
 ) else (
     echo [WARN] C:\msys64\ucrt64\bin not found, video-view ^(GNU target^) may fail.
-)
-
-REM ============================================================
-REM  0. Prepare the official ONLYOFFICE Document Builder runtime
-REM ============================================================
-if not exist "%ONLYOFFICE_RUNTIME_DIR%\docbuilder.exe" (
-    echo [0/19] Downloading the official ONLYOFFICE Document Builder runtime v9.4.0...
-    if not exist "%ONLYOFFICE_RUNTIME_ZIP%" (
-        curl -L --fail -o "%ONLYOFFICE_RUNTIME_ZIP%" "%ONLYOFFICE_RUNTIME_URL%"
-        if errorlevel 1 (
-            echo [ERROR] Failed to download the ONLYOFFICE Document Builder runtime.
-            exit /b 1
-        )
-    )
-    if exist "%ONLYOFFICE_RUNTIME_DIR%" rmdir /s /q "%ONLYOFFICE_RUNTIME_DIR%"
-    mkdir "%ONLYOFFICE_RUNTIME_DIR%"
-    7z x "%ONLYOFFICE_RUNTIME_ZIP%" -o"%ONLYOFFICE_RUNTIME_DIR%" -y >nul
-    if errorlevel 1 (
-        echo [ERROR] Failed to extract the ONLYOFFICE Document Builder runtime.
-        exit /b 1
-    )
-    if not exist "%ONLYOFFICE_RUNTIME_DIR%\docbuilder.exe" (
-        echo [ERROR] The downloaded runtime does not contain docbuilder.exe.
-        exit /b 1
-    )
-    del "%ONLYOFFICE_RUNTIME_ZIP%" 2>nul
-) else (
-    echo [0/19] ONLYOFFICE runtime v9.4.0 already present, skipping download.
-)
-if not exist "%ONLYOFFICE_RUNTIME_DIR%\docbuilder.exe" (
-    echo [ERROR] The ONLYOFFICE runtime does not contain docbuilder.exe.
-    exit /b 1
-)
-if not exist "%ONLYOFFICE_RUNTIME_DIR%\x2t.exe" (
-    echo [ERROR] The ONLYOFFICE runtime does not contain x2t.exe.
-    exit /b 1
 )
 
 REM --- Ensure rustup target ---
@@ -458,36 +419,27 @@ if errorlevel 1 ( echo [ERROR] pdfjs-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  16. Build onlyoffice-view (MSVC + WebView2 + ONLYOFFICE Document Builder)
+REM  16. Build mupdf-view (.NET self-contained + MuPDF.NET)
 REM ============================================================
-echo [16/19] Building onlyoffice-view...
-pushd "%SCRIPT_DIR%onlyoffice-view"
-call build.bat
-if errorlevel 1 ( echo [ERROR] onlyoffice-view build failed. & popd & exit /b 1 )
-popd
-
-REM ============================================================
-REM  17. Build mupdf-view (.NET self-contained + MuPDF.NET)
-REM ============================================================
-echo [17/19] Building mupdf-view...
+echo [16/19] Building mupdf-view...
 pushd "%SCRIPT_DIR%mupdf-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] mupdf-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  18. Build font-view (.NET self-contained + WebView2)
+REM  17. Build font-view (.NET self-contained + WebView2)
 REM ============================================================
-echo [18/19] Building font-view...
+echo [17/19] Building font-view...
 pushd "%SCRIPT_DIR%font-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] font-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  19. Build project-view (Rust/WebView2 + Java MPXJ)
+REM  18. Build project-view (Rust/WebView2 + Java MPXJ)
 REM ============================================================
-echo [19/19] Building project-view...
+echo [18/19] Building project-view...
 pushd "%SCRIPT_DIR%project-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] project-view build failed. & popd & exit /b 1 )
@@ -519,7 +471,6 @@ for %%D in (
     inf-dir.video-view
     inf-dir.pdf-view
     inf-dir.pdfjs-view
-    inf-dir.onlyoffice-view
     inf-dir.mupdf-view
     inf-dir.chm-view
     inf-dir.font-view
@@ -643,17 +594,6 @@ copy /Y "%SCRIPT_DIR%pdfjs-view\target\release\pdfjs-view.exe" "%DIST_DIR%\inf-d
 if exist "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view.exe.WebView2" rmdir /s /q "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view.exe.WebView2"
 if exist "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web"
 xcopy /E /I /Y /Q "%SCRIPT_DIR%pdfjs-view-web" "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web" >nul
-
-copy /Y "%SCRIPT_DIR%onlyoffice-view\plugin.json" "%DIST_DIR%\inf-dir.onlyoffice-view\" >nul
-copy /Y "%SCRIPT_DIR%onlyoffice-view\target\release\onlyoffice-view.exe" "%DIST_DIR%\inf-dir.onlyoffice-view\" >nul
-if exist "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice-view-web"
-xcopy /E /I /Y /Q "%SCRIPT_DIR%onlyoffice-view-web" "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice-view-web" >nul
-if exist "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice" rmdir /s /q "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice"
-xcopy /E /I /Y /Q "%ONLYOFFICE_RUNTIME_DIR%" "%DIST_DIR%\inf-dir.onlyoffice-view\onlyoffice" >nul
-if errorlevel 1 (
-    echo [ERROR] Failed to package the ONLYOFFICE runtime.
-    exit /b 1
-)
 
 copy /Y "%SCRIPT_DIR%mupdf-view\plugin.json" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
 if exist "%DIST_DIR%\inf-dir.mupdf-view\publish" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\publish"

@@ -64,17 +64,17 @@
 | 类别 | 后缀名 | 格式说明 | 是否支持，如何支持 |
 | --- | --- | --- | --- |
 | Documents | .chm | Compiled HTML Help File / Microsoft HTML Help | ✅ chm（扩展名规则） |
-| Documents | .doc | Microsoft Word Document (Legacy) / Microsoft Word | ✅ onlyoffice（扩展名规则） |
-| Documents | .docm | Microsoft Word Macro-Enabled Document / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Documents | .docx | Microsoft Word Document / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Documents | .dot | Microsoft Word Document Template / Microsoft Word | ✅ onlyoffice（扩展名规则） |
-| Documents | .dotm | Microsoft Word Macro-Enabled Document Template / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Documents | .dotx | Microsoft Word Document Template / Microsoft Word 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Documents | .odt | OpenDocument Text Document | ✅ onlyoffice（扩展名规则） |
-| Documents | .ott | OpenDocument Document Template | ✅ onlyoffice（扩展名规则） |
-| Documents | .rtf | Rich Text Format File / Rich Text Format | ✅ onlyoffice（扩展名规则） |
-| Documents | .wbk | Microsoft Word backup | ✅ onlyoffice（扩展名规则） |
-| Documents | .wps | Microsoft Works Word Processor Document | ✅ onlyoffice（扩展名规则） |
+| Documents | .doc | Microsoft Word Document (Legacy) / Microsoft Word | ✅ mupdf-view（LibreOffice 转换） |
+| Documents | .docm | Microsoft Word Macro-Enabled Document / Microsoft Word 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
+| Documents | .docx | Microsoft Word Document / Microsoft Word 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
+| Documents | .dot | Microsoft Word Document Template / Microsoft Word | ✅ mupdf-view（LibreOffice 转换） |
+| Documents | .dotm | Microsoft Word Macro-Enabled Document Template / Microsoft Word 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
+| Documents | .dotx | Microsoft Word Document Template / Microsoft Word 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
+| Documents | .odt | OpenDocument Text Document | ✅ mupdf-view（LibreOffice 转换） |
+| Documents | .ott | OpenDocument Document Template | ✅ mupdf-view（LibreOffice 转换） |
+| Documents | .rtf | Rich Text Format File / Rich Text Format | ✅ mupdf-view（LibreOffice 转换） |
+| Documents | .wbk | Microsoft Word backup | ✅ mupdf-view（LibreOffice 转换） |
+| Documents | .wps | Microsoft Works Word Processor Document | ✅ mupdf-view（LibreOffice 转换） |
 | eBooks | .epub | EPUB eBook | ✅ mupdf（扩展名规则） |
 | eBooks | .fb2 | FictionBook e-book | ✅ mupdf（扩展名规则） |
 | eBooks | .fb2z | FictionBook e-book | ✅ mupdf（扩展名规则） |
@@ -88,33 +88,33 @@
 | Page Documents | .djv | DejaVu document | ✅ mupdf（扩展名规则） |
 | Spreadsheet | .csv | Comma Separated Values File | ✅ code（扩展名规则） |
 | Spreadsheet | .tsv | Tab Separated Values File | ✅ code（扩展名规则） |
-| Spreadsheet | .xls | Excel Spreadsheet (Legacy) / Microsoft Excel | ✅ onlyoffice（扩展名规则） |
-| Spreadsheet | .xlsm | Excel Macro-Enabled Spreadsheet | ✅ office、onlyoffice（扩展名规则） |
-| Spreadsheet | .xlsx | Excel Spreadsheet / Microsoft Excel 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Spreadsheet | .xlt | Excel Spreadsheet Template / Microsoft Excel | ✅ onlyoffice（扩展名规则） |
-| Spreadsheet | .xltm | Excel Macro-Enabled Spreadsheet Template | ✅ office、onlyoffice（扩展名规则） |
-| Spreadsheet | .xltx | Excel Spreadsheet Template / Microsoft Excel 2007/2010 | ✅ office、onlyoffice（扩展名规则） |
-| Presentation | .odp | OpenDocument Presentation | ✅ onlyoffice（扩展名规则） |
-| Presentation | .pot | PowerPoint Template | ✅ onlyoffice（扩展名规则） |
-| Presentation | .potm | PowerPoint Macro-Enabled Presentation Template | ✅ office、onlyoffice（扩展名规则） |
-| Presentation | .potx | PowerPoint Template | ✅ office、onlyoffice（扩展名规则） |
-| Presentation | .pps | PowerPoint Slide Show | ✅ onlyoffice（扩展名规则） |
-| Presentation | .ppsx | PowerPoint Slide Show | ✅ office、onlyoffice（扩展名规则） |
-| Presentation | .ppt | PowerPoint Presentation (Legacy) | ✅ onlyoffice（扩展名规则） |
-| Presentation | .pptm | PowerPoint Macro-Enabled Presentation | ✅ office、onlyoffice（扩展名规则） |
-| Presentation | .pptx | PowerPoint Presentation | ✅ office、onlyoffice（扩展名规则） |
-| Visio | .vdw | Visio Web Drawing | ✅ onlyoffice（扩展名规则） |
-| Visio | .vdx | Visio Drawing XML File | ✅ onlyoffice（扩展名规则） |
-| Visio | .vsd | Visio Drawing | ✅ onlyoffice（扩展名规则） |
-| Visio | .vsdm | Visio Macro-Enabled Drawing | ✅ onlyoffice（扩展名规则） |
-| Visio | .vsdx | Visio Drawing | ✅ onlyoffice（扩展名规则） |
-| Visio | .vss | Visio Stencils File | ✅ onlyoffice（扩展名规则） |
-| Visio | .vssx | Visio Stencils File | ✅ onlyoffice（扩展名规则） |
-| Visio | .vst | Visio Drawing Template | ✅ onlyoffice（扩展名规则） |
-| Visio | .vstm | Visio Macro-Enabled Drawing Template | ✅ onlyoffice（扩展名规则） |
-| Visio | .vstx | Visio Drawing Template | ✅ onlyoffice（扩展名规则） |
-| Visio | .vsx | Visio Stencil XML File | ✅ onlyoffice（扩展名规则） |
-| Visio | .vtx | Visio Template XML File | ✅ onlyoffice（扩展名规则） |
+| Spreadsheet | .xls | Excel Spreadsheet (Legacy) / Microsoft Excel | ✅ mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xlsm | Excel Macro-Enabled Spreadsheet | ✅ office、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xlsx | Excel Spreadsheet / Microsoft Excel 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xlt | Excel Spreadsheet Template / Microsoft Excel | ✅ mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xltm | Excel Macro-Enabled Spreadsheet Template | ✅ office、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xltx | Excel Spreadsheet Template / Microsoft Excel 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
+| Presentation | .odp | OpenDocument Presentation | ✅ mupdf-view（LibreOffice 转换） |
+| Presentation | .pot | PowerPoint Template | ✅ mupdf-view（LibreOffice 转换） |
+| Presentation | .potm | PowerPoint Macro-Enabled Presentation Template | ✅ office、mupdf-view（LibreOffice 转换） |
+| Presentation | .potx | PowerPoint Template | ✅ office、mupdf-view（LibreOffice 转换） |
+| Presentation | .pps | PowerPoint Slide Show | ✅ mupdf-view（LibreOffice 转换） |
+| Presentation | .ppsx | PowerPoint Slide Show | ✅ office、mupdf-view（LibreOffice 转换） |
+| Presentation | .ppt | PowerPoint Presentation (Legacy) | ✅ mupdf-view（LibreOffice 转换） |
+| Presentation | .pptm | PowerPoint Macro-Enabled Presentation | ✅ office、mupdf-view（LibreOffice 转换） |
+| Presentation | .pptx | PowerPoint Presentation | ✅ office、mupdf-view（LibreOffice 转换） |
+| Visio | .vdw | Visio Web Drawing | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vdx | Visio Drawing XML File | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vsd | Visio Drawing | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vsdm | Visio Macro-Enabled Drawing | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vsdx | Visio Drawing | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vss | Visio Stencils File | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vssx | Visio Stencils File | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vst | Visio Drawing Template | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vstm | Visio Macro-Enabled Drawing Template | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vstx | Visio Drawing Template | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vsx | Visio Stencil XML File | ✅ mupdf-view（LibreOffice 转换） |
+| Visio | .vtx | Visio Template XML File | ✅ mupdf-view（LibreOffice 转换） |
 | Project | .mpp | Microsoft Project File | ✅ project（扩展名规则） |
 | Project | .mpt | Microsoft Project Template | ✅ project（扩展名规则） |
 | Project | .mpx | Microsoft Project Exchange File | ✅ project（扩展名规则） |
@@ -196,7 +196,7 @@
 | Image | .ttf | TrueType Font | ✅ font（扩展名规则） |
 | Image | .txd | Renderware Texture Dictionary / Renderware TeXture Dictionary | ❌ ImageMagick 无对应 decoder |
 | Image | .vda | Truevision image | ✅ image（扩展名规则；ImageMagick `VDA`，TGA 变体） |
-| Image | .vst | Truevision image | 🔮 默认 .vst 规则为 Visio 模板（onlyoffice）；Truevision 图像属 MIME/内容嗅探子类，待嗅探器 |
+| Image | .vst | Truevision image | 🔮 默认 .vst 规则为 Visio 模板（mupdf-view）；Truevision 图像属 MIME/内容嗅探子类，待嗅探器 |
 | Image | .wbmp | Wireless Bitmap Image File | ✅ image（扩展名规则） |
 | Image | .webp | WebP Image | ✅ image（扩展名规则） |
 | Image | .win | Truevision image | ❌ ImageMagick 无对应 decoder |
@@ -537,7 +537,7 @@
 | Source Code | .yml | YAML Document | ✅ code（扩展名规则） |
 | Web | .htm | HTML page | ✅ web、code（扩展名规则） |
 | Web | .html | Hypertext Markup Language File / HTML page | ✅ web、code（扩展名规则） |
-| Web | .mht | MHTML Web Archive / Microsoft HTML archive | ✅ web、onlyoffice（扩展名规则） |
+| Web | .mht | MHTML Web Archive / Microsoft HTML archive | ✅ web、mupdf-view（LibreOffice 转换） |
 | Web | .shtm | HTML page | ✅ web、code（扩展名规则） |
 | Web | .shtml | HTML page | ✅ web、code（扩展名规则） |
 | Web | .stm | HTML page | ✅ code（扩展名规则） |

@@ -16,8 +16,6 @@ void main() {
       '.epub', '.mobi', '.fb2', '.fbz', '.fb2z', '.tcr', '.cbr',
       '.vsd', '.vsdx', '.vst', '.vss', '.vdx', '.vdw', '.vsx', '.vtx',
       '.vstx', '.vssx', '.vstm', '.vsdm', '.wps',
-    },
-    'inf-dir.onlyoffice-view': {
       '.doc', '.docm', '.docx', '.dot', '.dotm', '.dotx',
       '.odt', '.ott', '.fodt', '.rtf', '.ppt', '.pptm', '.pptx', '.pot', '.potm',
       '.potx', '.pps', '.ppsm', '.ppsx', '.odp', '.otp', '.fodp',
@@ -54,28 +52,21 @@ void main() {
     }
   });
 
-  test('onlyoffice-view declares Excel formats for x2t conversion', () {
+  test('mupdf-view declares Office conversion formats for LibreOffice', () {
     final manifests = _loadPluginManifests();
-    final extensions = manifests['inf-dir.onlyoffice-view']!;
+    final extensions = manifests['inf-dir.mupdf-view']!;
     expect(
       extensions,
-      containsAll(<String>['.xls', '.xlsb', '.xlsx', '.xlsm', '.xlt', '.xltm', '.xltx']),
+      containsAll(<String>[
+        '.doc', '.xls', '.ppt', '.dot', '.xlt', '.pot', '.pps', '.xlsb',
+        '.odt', '.ods', '.odp', '.rtf', '.wps', '.wbk',
+      ]),
     );
   });
 
-  test('onlyoffice-view does not claim Visio formats', () {
+  test('no plugin manifest references a removed viewer', () {
     final manifests = _loadPluginManifests();
-    final extensions = manifests['inf-dir.onlyoffice-view']!;
-    expect(
-      extensions,
-      isNot(anyOf(
-        contains('.vsd'),
-        contains('.vsdx'),
-        contains('.vss'),
-        contains('.vst'),
-        contains('.wps'),
-      )),
-    );
+    expect(manifests, isNot(contains('inf-dir.onlyoffice-view')));
   });
 }
 

@@ -103,9 +103,9 @@ internal static class DocumentPreparation
             return ConvertDjvu(source);
         }
 
-        if (s_visioExtensions.Contains(extension))
+        if (s_libreOfficeExtensions.Contains(extension))
         {
-            return ConvertVisio(source);
+            return ConvertWithLibreOffice(source);
         }
 
         if (extension.Equals(".dwg", StringComparison.OrdinalIgnoreCase) ||
@@ -132,18 +132,23 @@ internal static class DocumentPreparation
         return PreparedDocument.Direct(source);
     }
 
-    private static readonly HashSet<string> s_visioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> s_libreOfficeExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
+        ".doc", ".docm", ".docx", ".dot", ".dotm", ".dotx",
+        ".odt", ".ott", ".fodt", ".rtf", ".wps", ".wbk", ".mht", ".mhtml",
+        ".ppt", ".pptm", ".pptx", ".pot", ".potm", ".potx",
+        ".pps", ".ppsm", ".ppsx", ".odp", ".otp", ".fodp",
+        ".xls", ".xlsb", ".xlsx", ".xlsm", ".xlt", ".xltm", ".xltx",
+        ".ods", ".ots",
         ".vsd", ".vsdm", ".vsdx", ".vss", ".vssm", ".vssx",
         ".vst", ".vstm", ".vstx", ".vdx", ".vdw", ".vsx", ".vtx",
-        ".wps",
     };
 
-    private static PreparedDocument ConvertVisio(string source)
+    private static PreparedDocument ConvertWithLibreOffice(string source)
     {
         string executable = FindLibreOffice()
             ?? throw new InvalidOperationException(
-                "Visio 预览需要 LibreOffice 转换运行时；请重新运行 plugins\\build.bat，或设置 INF_DIR_LIBREOFFICE_PATH。");
+                "该格式需要 LibreOffice 转换运行时；请重新运行 plugins\\build.bat，或设置 INF_DIR_LIBREOFFICE_PATH。");
         string temp = CreateTempDirectory("libreoffice");
         try
         {
@@ -167,7 +172,7 @@ internal static class DocumentPreparation
             if (!result.Success || !File.Exists(output))
             {
                 string detail = FirstNonEmpty(result.StandardError, result.StandardOutput, "LibreOffice 没有生成 PDF。");
-                throw new InvalidOperationException($"Visio 转 PDF 失败：{detail}");
+                throw new InvalidOperationException($"LibreOffice 转 PDF 失败：{detail}");
             }
             return PreparedDocument.Temporary(output, Path.GetFileName(source), temp);
         }
