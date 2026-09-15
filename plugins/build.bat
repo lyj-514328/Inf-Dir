@@ -610,27 +610,15 @@ copy /Y "%SCRIPT_DIR%ebook-view\plugin.json" "%DIST_DIR%\inf-dir.ebook-view\" >n
 copy /Y "%SCRIPT_DIR%ebook-view\target\release\ebook-view.exe" "%DIST_DIR%\inf-dir.ebook-view\" >nul
 if exist "%DIST_DIR%\inf-dir.ebook-view\ebook-view.exe.WebView2" rmdir /s /q "%DIST_DIR%\inf-dir.ebook-view\ebook-view.exe.WebView2"
 if exist "%DIST_DIR%\inf-dir.ebook-view\ebook-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.ebook-view\ebook-view-web"
-if exist "%DIST_DIR%\inf-dir.ebook-view\ebook-view-reader" rmdir /s /q "%DIST_DIR%\inf-dir.ebook-view\ebook-view-reader"
 if not exist "%EBOOK_WEB%\reader.html" (
     echo [ERROR] foliate-js assets are missing from "%EBOOK_WEB%".
     echo         Run: git submodule update --init plugins/ebook-view-web
-    exit /b 1
-)
-if not exist "%EBOOK_READER%\text.html" (
-    echo [ERROR] Inf-Dir reader pages are missing from "%EBOOK_READER%".
     exit /b 1
 )
 REM Ship the foliate-js library only; debug source maps and tooling are dropped.
 robocopy "%EBOOK_WEB%" "%DIST_DIR%\inf-dir.ebook-view\ebook-view-web" /E /XD .github node_modules tests rollup /XF *.map .git /NFL /NDL /NJH /NJS /NP >nul
 if errorlevel 8 (
     echo [ERROR] Failed to install foliate-js assets for ebook-view.
-    exit /b 1
-)
-REM Inf-Dir's own pages are looked up before the library, so they travel next to
-REM the checkout rather than inside it.
-robocopy "%EBOOK_READER%" "%DIST_DIR%\inf-dir.ebook-view\ebook-view-reader" /E /XF *.map /NFL /NDL /NJH /NJS /NP >nul
-if errorlevel 8 (
-    echo [ERROR] Failed to install Inf-Dir reader pages for ebook-view.
     exit /b 1
 )
 

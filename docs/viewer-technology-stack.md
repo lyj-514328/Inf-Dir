@@ -61,7 +61,7 @@
 | `inf-dir.email-view` | .NET 8 Windows Forms + WebView2 | MimeKit 4.17.0、MSGReader 6.0.7 | WebView2；本地 HTML/CSS/JS；DOMPurify | EML/EMLX/MSG/OFT/TNEF |
 | `inf-dir.font-view` | .NET 8 Windows Forms + WebView2 | 自研 DFONT 提取器 | WebView2；self-contained .NET 运行时 | 字体预览 |
 | `inf-dir.project-view` | Rust + winit/wry/WebView2；Java tool | MPXJ Java 16.7.0；dhtmlxGantt Community 10.0.2 | jpackage self-contained Java parser；WebView2 Runtime | Microsoft Project |
-| `inf-dir.ebook-view` | Rust + winit/wry/WebView2 | foliate-js | WebView2；随包发布的 `ebook-view-web/`（foliate-js checkout）与 `ebook-view-reader/`（本仓库阅读页） | EPUB、MOBI、AZW/AZW3、FB2/FBZ、CBZ、DjVu、TCR、CBR |
+| `inf-dir.ebook-view` | Rust + winit/wry/WebView2 | foliate-js fork（新增 HTML book 适配） | WebView2；随包发布的 `ebook-view-web/` 静态资源（submodule = fork） | EPUB、MOBI、AZW/AZW3、FB2/FBZ、CBZ、DjVu、TCR、CBR |
 | `inf-dir.chm-view` | Rust + winit/wry/WebView2 | CHMate ES modules | WebView2；随包发布的 `chm-view-web/` 静态资源 | CHM |
 | `inf-dir.web-view` | Rust + viewer-web-shell/wry/WebView2 | 浏览器原生 HTML/SVG；内置 MHTML 解析器 | WebView2；随包发布的 `web-view-web/` 静态资源 | SVG、HTML、XHTML、MHTML |
 
@@ -141,15 +141,15 @@ CBR 解包只提取常见漫画图片扩展名，拒绝绝对路径和 `..` 路�
 - `CHM` 已接入 `chm-view` 首版；剩余工作是用更多真实 CHM 样本做兼容性回归，并评估旧式 ActiveX/脚本/特殊 frameset 的降级表现。
 - `ebook-view (foliate-js)` 的扩展格式已接入，转换全部在 Rust 启动层完成：
   - **DjVu**：调用 `ddjvu.exe` 将 `.djvu` 临时转换为 PDF，再交给 foliate-js 自带的 `pdf.js`；
-  - **.tcr**：在 Rust 启动层做 8-bit 字典解压并包装为 HTML 临时流。foliate-js 没有 HTML
-    解析器，因此该文档走本仓库自己的 `ebook-view-reader/text.html`，用库里的 paginator 排版，
-    并按元素边界切分成长度受限的 section；
   - **.cbr（RAR 漫画）**：优先调用相邻的 `archive-view.exe --extract-comic`，否则回退
-    `7za.exe`，把图片按文件名自然排序后重组为临时 `.cbz`，无缝交给 `comic-book.js` 渲染，
-    无需前端 unrar 库。
-  - Web 资源分两层：`ebook-view-reader/`（本仓库维护，优先解析）与 `ebook-view-web/`
-    （foliate-js submodule，只读）。foliate-js 能解析的格式仍使用其自带的 `reader.html`，
-    自有目录只补充库没有覆盖的 HTML 页面。
+    `7za.exe`，把图片按文件名自然排序后重组为临时 `.cbz`，交给 `comic-book.js` 渲染，
+    无需前端 unrar 库；
+  - **.tcr**：在 Rust 启动层做 8-bit 字典解压并包装为 HTML 临时流。foliate-js 本身没有
+    HTML 解析器，fork 内新增 `html-book.js` 并通过 `view.js` 的 `makeBook` 接入，因此
+    HTML 文档同样由 foliate-js 自带的 `reader.html` 阅读界面排版。
+  - 该适配器按元素边界把文档切成 ≤64 KiB 的分节（超大块按行切开并保留外壳元素）、剥离
+    脚本与事件属性（分节在同源 iframe 中渲染）、用 blob URL 惰性加载与释放，并按分节大小
+    加权阅读进度。
 - PDF 同时存在 PDFium 和 pdf.js 两个 Viewer，默认 Viewer 由用户关联配置决定。
 - 旧 Office 依赖 LibreOffice headless 转 PDF，启动和转换体积、耗时明显高于 OOXML Web 渲染。
 - `plugins/dist/` 是生成目录。修改源码或 manifest 后必须重新运行 `plugins/build.bat` 才能更新可运行的发布产物。

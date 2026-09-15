@@ -191,20 +191,22 @@ fn create_webview_window(
 并在每次父窗口 resize 时同步更新；不得依赖 wry 默认的 `200x200` child bounds。页面自身还应
 保证 `html`、`body` 高宽为 `100%`、边距为 `0`，避免 Web 内容内部产生未覆盖区域。
 
-#### 3.3.1 静态资源来源与 submodule 依赖
+#### 3.3.1 第三方 Web 库与 submodule
 
-WebView2 viewer 的静态资源可以来自多个目录，但必须遵循以下规则：
+WebView2 viewer 的第三方 Web 库以 submodule 固定，例如 `plugins/ebook-view-web` 固定
+foliate-js 的 fork。集成改动（页面、解析适配器）提交在该 fork 内，规则如下：
 
-- **第三方 Web 库以 submodule 固定，且只读。** 例如 `plugins/ebook-view-web` 固定 foliate-js。
-  仓库不得写入或提交 submodule 内容，父仓库记录的 submodule commit 必须是远端已存在的
-  commit（可被 `git submodule update --init` 直接取到），否则全新克隆会直接失败。
-- **本仓库自己的页面与胶水代码留在插件目录内**（如 `plugins/ebook-view/web/`），由
-  `plugins/build.bat` 复制到发布目录，不作为 submodule 提交。
-- **宿主按“自有目录优先、第三方目录兜底”解析请求路径**：`ebook-view` 依次查找
-  `ebook-view-reader/`（本仓库维护）与 `ebook-view-web/`（submodule 只读）。因此自有页面
-  可以 `import '/view.js'` 直接复用库里的模块，而库文件不需要被改写。
-- 开发期用目录 junction 把这两个目录挂到 `target/release/` 旁，发布期用 robocopy 复制，
+- 父仓库记录的 submodule commit **必须已经存在于远端**。顺序是「在 submodule 提交 →
+  推送到 fork → 再把父仓库 gitlink 指到该 commit 并提交」；顺序颠倒会让全新克隆在
+  `git submodule update --init` 时报 `upload-pack: not our ref`。
+- 宿主目录只放宿主代码（Rust/C#）与 `plugin.json`。页面与解析适配器放在 fork 内
+  （如 foliate-js fork 的 `html-book.js`）；只能从上游下载、无法 fork 的资源则放插件
+  目录并由构建脚本复制（如 `code-view/web/`、`markdown-view/web/`）。
+- `plugins/build.bat` 用 robocopy 把整个 Web 库复制到
+  `plugins/dist/<plugin-id>/<lib>-web/`（排除 `.github/`、`tests/`、`rollup/`、
+  `node_modules/`、`*.map`、`.git`）；开发期用目录 junction 指向 submodule 工作区，
   两种布局保持一致。
+- 升级上游时在 fork 上 merge/rebase，保留本地集成提交。
 
 ### 3.4 搜索提供器
 

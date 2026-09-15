@@ -18,20 +18,9 @@ use wry::{WebContext, WebViewBuilder};
 
 const SCHEME: &str = "http";
 const HOST: &str = "ebook-view.local";
-/// foliate-js checkout (a git submodule): the parsers plus the reader UI it
-/// ships for them. Inf-Dir never writes into it, so it stays an unmodified
-/// dependency that any checkout of the recorded commit can reproduce.
 const WEB_DIR_NAME: &str = "ebook-view-web";
-/// Inf-Dir's own reader pages, resolved before [`WEB_DIR_NAME`].
-///
-/// foliate-js picks a parser from the book itself and has none for the HTML a
-/// `.tcr` file decompresses to, so that document needs a page of our own.
-const READER_DIR_NAME: &str = "ebook-view-reader";
 /// foliate-js ships its own reader UI; we only have to point it at the book.
 const READER_PAGE: &str = "reader.html";
-/// Page for documents foliate-js cannot parse itself, served from
-/// [`READER_DIR_NAME`].
-const HTML_READER_PAGE: &str = "text.html";
 /// Route serving the single book handed to us on the command line.
 const FILE_ROUTE: &str = "/file/";
 
@@ -105,6 +94,19 @@ fn parse_args_from(args: impl IntoIterator<Item = String>) -> Result<Args, Strin
     })
 }
 
+fn resolve_web_root() -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(directory) = exe.parent() {
+            candidates.push(directory.join(WEB_DIR_NAME));
+        }
+    }
+    candidates.push(PathBuf::from(WEB_DIR_NAME));
+    candidates
+        .into_iter()
+        .find(|directory| directory.join(READER_PAGE).is_file())
+}
+
 fn webview_data_directory() -> PathBuf {
     std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
@@ -162,30 +164,18 @@ fn book_route(file: &Path) -> String {
     )
 }
 
-/// Start URL handed to WebView2. Both reader pages read `?url=` and pass it to
+/// Start URL handed to WebView2. `reader.js` reads `?url=` and passes it to
 /// `fetch`, which is why the route is encoded a second time for the query.
-fn reader_url(page: &str, route: &str) -> String {
+fn reader_url(route: &str) -> String {
     let value = percent_encode(route.as_bytes(), QUERY_VALUE_SET);
-    format!("{SCHEME}://{HOST}/{page}?url={value}")
+    format!("{SCHEME}://{HOST}/{READER_PAGE}?url={value}")
 }
 
-/// Reader page that can open `prepared`. foliate-js parses every format we
-/// hand it except the HTML produced for `.tcr`.
-fn reader_page(prepared: &PreparedDocument) -> &'static str {
-    if prepared.mime_type.starts_with("text/html") {
-        HTML_READER_PAGE
-    } else {
-        READER_PAGE
-    }
-}
-
-/// A request path as a root-relative path, or `None` when it is not valid
-/// UTF-8 or tries to escape the web roots.
-fn request_path(path: &str) -> Option<PathBuf> {
-    let decoded = percent_decode_str(path.trim_start_matches('/'))
+fn safe_join(root: &Path, relative: &str) -> Option<PathBuf> {
+    let decoded = percent_decode_str(relative.trim_start_matches('/'))
         .decode_utf8()
         .ok()?;
-    let mut relative = PathBuf::new();
+    let mut result = root.to_path_buf();
     for segment in decoded.split('/') {
         if segment.is_empty() || segment == "." {
             continue;
@@ -193,66 +183,14 @@ fn request_path(path: &str) -> Option<PathBuf> {
         if segment == ".." || segment.contains(['\\', ':']) {
             return None;
         }
-        relative.push(segment);
+        result.push(segment);
     }
-    Some(relative)
-}
-
-/// Static assets of a running viewer.
-///
-/// A page of ours takes precedence over the foliate-js library, so Inf-Dir's
-/// own pages can sit beside the checkout and still import the modules in it.
-#[derive(Clone)]
-struct WebRoots {
-    reader: Option<PathBuf>,
-    library: Option<PathBuf>,
-}
-
-impl WebRoots {
-    /// Directory holding `marker`, either beside the executable or, for the
-    /// development layout, relative to the working directory.
-    fn locate(name: &str, marker: &str) -> Option<PathBuf> {
-        let mut candidates = Vec::new();
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(directory) = exe.parent() {
-                candidates.push(directory.join(name));
-            }
-        }
-        candidates.push(PathBuf::from(name));
-        candidates
-            .into_iter()
-            .find(|directory| directory.join(marker).is_file())
-    }
-
-    fn discover() -> Self {
-        Self {
-            reader: Self::locate(READER_DIR_NAME, HTML_READER_PAGE),
-            library: Self::locate(WEB_DIR_NAME, READER_PAGE),
-        }
-    }
-
-    /// Existing file a request resolves to, preferring Inf-Dir's own pages.
-    fn find(&self, request: &str) -> Option<PathBuf> {
-        let relative = request_path(request)?;
-        [self.reader.as_deref(), self.library.as_deref()]
-            .into_iter()
-            .flatten()
-            .map(|root| root.join(&relative))
-            .find(|target| target.is_file())
-    }
-}
-
-fn not_found(relative: &str) -> Response<Cow<'static, [u8]>> {
-    response(
-        StatusCode::NOT_FOUND,
-        "text/plain; charset=utf-8",
-        format!("404: {relative}").into_bytes(),
-    )
+    Some(result)
 }
 
 fn handle_request(
     request: Request<Vec<u8>>,
-    roots: &WebRoots,
+    web_root: &Path,
     prepared: &PreparedDocument,
 ) -> Response<Cow<'static, [u8]>> {
     let path = request.uri().path();
@@ -272,19 +210,27 @@ fn handle_request(
     } else {
         path
     };
-    match roots.find(relative) {
+    match safe_join(web_root, relative) {
         Some(target) => match std::fs::read(&target) {
             Ok(bytes) => response(StatusCode::OK, mime_for(&target), bytes),
-            Err(_) => not_found(relative),
+            Err(_) => response(
+                StatusCode::NOT_FOUND,
+                "text/plain; charset=utf-8",
+                format!("404: {relative}").into_bytes(),
+            ),
         },
-        None => not_found(relative),
+        None => response(
+            StatusCode::BAD_REQUEST,
+            "text/plain; charset=utf-8",
+            b"bad request".to_vec(),
+        ),
     }
 }
 
 struct App {
     args: Args,
     prepared: Option<PreparedDocument>,
-    roots: WebRoots,
+    web_root: PathBuf,
     window: Option<Window>,
     webview: Option<wry::WebView>,
     web_context: WebContext,
@@ -304,13 +250,6 @@ impl ApplicationHandler for App {
                 return;
             }
         };
-
-        let page = reader_page(&prepared);
-        if page == HTML_READER_PAGE && self.roots.reader.is_none() {
-            eprintln!("[ebook-view] could not find {READER_DIR_NAME} beside the executable");
-            event_loop.exit();
-            return;
-        }
 
         let title_name = &prepared.display_name;
         let mut attributes = Window::default_attributes()
@@ -340,8 +279,8 @@ impl ApplicationHandler for App {
             }
         };
 
-        let roots = self.roots.clone();
-        let start_url = reader_url(page, &book_route(&prepared.file_path));
+        let web_root = self.web_root.clone();
+        let start_url = reader_url(&book_route(&prepared.file_path));
         let served_path = prepared.file_path.clone();
         let served_mime = prepared.mime_type;
 
@@ -353,7 +292,7 @@ impl ApplicationHandler for App {
                     served_mime,
                     PathBuf::new(),
                 );
-                handle_request(request, &roots, &dummy)
+                handle_request(request, &web_root, &dummy)
             })
             .with_navigation_handler(|url| url.contains(HOST))
             .with_url(&start_url)
@@ -408,11 +347,13 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let roots = WebRoots::discover();
-    if roots.library.is_none() {
-        eprintln!("[ebook-view] could not find {WEB_DIR_NAME} beside the executable");
-        std::process::exit(1);
-    }
+    let web_root = match resolve_web_root() {
+        Some(root) => root,
+        None => {
+            eprintln!("[ebook-view] could not find {WEB_DIR_NAME} beside the executable");
+            std::process::exit(1);
+        }
+    };
     let event_loop = match EventLoop::new() {
         Ok(event_loop) => event_loop,
         Err(error) => {
@@ -423,7 +364,7 @@ fn main() {
     let mut app = App {
         args,
         prepared: None,
-        roots,
+        web_root,
         web_context: WebContext::new(Some(webview_data_directory())),
         window: None,
         webview: None,
@@ -436,57 +377,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn request_path_accepts_nested_static_assets() {
+    fn safe_join_accepts_nested_static_assets() {
+        let root = Path::new(r"C:\viewer\web");
+
         assert_eq!(
-            request_path("/vendor/pdfjs/pdf.worker.mjs"),
-            Some(PathBuf::from("vendor").join("pdfjs").join("pdf.worker.mjs"))
+            safe_join(root, "/vendor/pdfjs/pdf.worker.mjs"),
+            Some(root.join("vendor").join("pdfjs").join("pdf.worker.mjs"))
         );
         assert_eq!(
-            request_path("/ui/tree.js"),
-            Some(PathBuf::from("ui").join("tree.js"))
-        );
-        assert_eq!(
-            request_path("/reader.html"),
-            Some(PathBuf::from("reader.html"))
+            safe_join(root, "/ui/tree.js"),
+            Some(root.join("ui").join("tree.js"))
         );
     }
 
     #[test]
-    fn request_path_decodes_percent_escapes() {
-        assert_eq!(
-            request_path("/file/My%20Book.epub"),
-            Some(PathBuf::from("file").join("My Book.epub"))
-        );
-    }
+    fn safe_join_rejects_parent_and_windows_path_segments() {
+        let root = Path::new(r"C:\viewer\web");
 
-    #[test]
-    fn request_path_rejects_parent_and_windows_path_segments() {
-        assert_eq!(request_path("/../secret.txt"), None);
-        assert_eq!(request_path("/C:/secret.txt"), None);
-        assert_eq!(request_path("/folder\\secret.txt"), None);
-    }
-
-    #[test]
-    fn reader_pages_take_precedence_over_the_library() {
-        let base = std::env::temp_dir().join(format!("ebook-view-roots-{}", std::process::id()));
-        let reader = base.join("ebook-view-reader");
-        let library = base.join("ebook-view-web");
-        std::fs::create_dir_all(&reader).unwrap();
-        std::fs::create_dir_all(&library).unwrap();
-        std::fs::write(reader.join("text.html"), b"reader").unwrap();
-        std::fs::write(library.join("reader.html"), b"library").unwrap();
-        std::fs::write(library.join("text.html"), b"library").unwrap();
-
-        let roots = WebRoots {
-            reader: Some(reader.clone()),
-            library: Some(library.clone()),
-        };
-        assert_eq!(roots.find("/text.html"), Some(reader.join("text.html")));
-        assert_eq!(roots.find("/reader.html"), Some(library.join("reader.html")));
-        assert_eq!(roots.find("/vendor/zip.js"), None);
-        assert_eq!(roots.find("/../secret.txt"), None);
-
-        let _ = std::fs::remove_dir_all(&base);
+        assert_eq!(safe_join(root, "/../secret.txt"), None);
+        assert_eq!(safe_join(root, "/C:/secret.txt"), None);
+        assert_eq!(safe_join(root, "/folder\\secret.txt"), None);
     }
 
     #[test]
@@ -521,28 +431,6 @@ mod tests {
     }
 
     #[test]
-    fn foliate_formats_use_the_shipped_reader_page() {
-        for name in [
-            "a.epub", "a.mobi", "a.azw3", "a.fb2", "a.fbz", "a.cbz", "a.pdf",
-        ] {
-            let prepared = PreparedDocument::direct(PathBuf::from(name));
-            assert_eq!(reader_page(&prepared), READER_PAGE, "{name}");
-        }
-    }
-
-    #[test]
-    fn decompressed_tcr_uses_the_inf_dir_reader_page() {
-        let prepared = PreparedDocument::temporary(
-            PathBuf::from("novel.html"),
-            "novel.tcr".to_string(),
-            "text/html; charset=utf-8",
-            PathBuf::new(),
-        );
-
-        assert_eq!(reader_page(&prepared), HTML_READER_PAGE);
-    }
-
-    #[test]
     fn book_route_keeps_the_extension_detectable_by_foliate() {
         assert_eq!(book_route(Path::new(r"C:\books\comic.cbz")), "/file/comic.cbz");
         assert_eq!(
@@ -554,7 +442,7 @@ mod tests {
     #[test]
     fn reader_url_survives_the_query_decode() {
         let route = book_route(Path::new(r"C:\books\My Comic #1.cbz"));
-        let url = reader_url(READER_PAGE, &route);
+        let url = reader_url(&route);
         assert_eq!(
             url,
             "http://ebook-view.local/reader.html?url=/file/My%2520Comic%2520%25231.cbz"
