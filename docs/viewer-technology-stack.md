@@ -61,6 +61,7 @@
 | `inf-dir.email-view` | .NET 8 Windows Forms + WebView2 | MimeKit 4.17.0、MSGReader 6.0.7 | WebView2；本地 HTML/CSS/JS；DOMPurify | EML/EMLX/MSG/OFT/TNEF |
 | `inf-dir.font-view` | .NET 8 Windows Forms + WebView2 | 自研 DFONT 提取器 | WebView2；self-contained .NET 运行时 | 字体预览 |
 | `inf-dir.project-view` | Rust + winit/wry/WebView2；Java tool | MPXJ Java 16.7.0；dhtmlxGantt Community 10.0.2 | jpackage self-contained Java parser；WebView2 Runtime | Microsoft Project |
+| `inf-dir.ebook-view` | Rust + winit/wry/WebView2 | foliate-js | WebView2；随包发布的 `ebook-view-web/` 静态资源 | EPUB、MOBI、AZW/AZW3、FB2/FBZ、CBZ（TODO: 支持 DjVu、.tcr 解码及 .cbr 漫画解压接入） |
 | `inf-dir.chm-view` | Rust + winit/wry/WebView2 | CHMate ES modules | WebView2；随包发布的 `chm-view-web/` 静态资源 | CHM |
 | `inf-dir.web-view` | Rust + viewer-web-shell/wry/WebView2 | 浏览器原生 HTML/SVG；内置 MHTML 解析器 | WebView2；随包发布的 `web-view-web/` 静态资源 | SVG、HTML、XHTML、MHTML |
 
@@ -138,6 +139,18 @@ CBR 解包只提取常见漫画图片扩展名，拒绝绝对路径和 `..` 路�
 ## 6. 当前明确缺口
 
 - `CHM` 已接入 `chm-view` 首版；剩余工作是用更多真实 CHM 样本做兼容性回归，并评估旧式 ActiveX/脚本/特殊 frameset 的降级表现。
+- `ebook-view (foliate-js)` 扩展格式规划（TODO）：
+  - **DjVu 支持**：
+    1. **Rust 预处理/临时转换（推荐）**：在 Rust 启动层调用 `ddjvu.exe` 将 `.djvu` 临时转换为 PDF 流，再通过 `ebook-view-web` 的 `pdf.js` 模块载入；
+    2. **WASM 解析器方案**：集成 DjVuLibre WASM 或 JS 解码器以提供原生 Web 内核阅读体验。
+  - **.tcr 支持**：
+    1. **Rust 预解压**：在 Rust 启动层进行 8-bit 字典解压，包装为 HTML 临时流交给 Web 读者层；
+    2. **纯前端解析器**：在 `ebook-view-web` 内实现轻量 `tcr.js`（约数十行 JS 代码）。
+  - **.cbr 支持（RAR 漫画）**：
+    - 前端 `foliate-js` 原生已包含完整的 `comic-book.js` 图片阅读器和 `CBZ (ZIP)` 加载逻辑；
+    - 针对 `.cbr`（RAR 归档），最佳实践为**在 Rust 宿主侧复用现有解压基础设施**：
+      - 通过 `archive.dll` (libarchive) 或调用相邻的 `archive-view.exe --extract-comic` / `7za.exe` 将图片解包；
+      - 重新组装为内存/临时 `.cbz`（ZIP），无缝喂给现有的 `comic-book.js` 渲染，无需引入前端繁重的 JS unrar 库。
 - PDF 同时存在 PDFium 和 pdf.js 两个 Viewer，默认 Viewer 由用户关联配置决定。
 - 旧 Office 依赖 LibreOffice headless 转 PDF，启动和转换体积、耗时明显高于 OOXML Web 渲染。
 - `plugins/dist/` 是生成目录。修改源码或 manifest 后必须重新运行 `plugins/build.bat` 才能更新可运行的发布产物。

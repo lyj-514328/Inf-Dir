@@ -1,6 +1,10 @@
+mod conversion;
+mod tcr;
+
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
+use conversion::{prepare_document, PreparedDocument};
 use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use http::{header, Request, Response, StatusCode};
 use percent_encoding::{percent_decode_str, percent_encode, AsciiSet, NON_ALPHANUMERIC};
@@ -128,22 +132,6 @@ fn extension(path: &Path) -> Option<String> {
         .map(|extension| extension.to_ascii_lowercase())
 }
 
-/// Content type reported for the book itself. foliate-js sniffs EPUB/MOBI/PDF
-/// from magic bytes, but CBZ/FB2/FBZ detection also looks at the file name, so
-/// this only has to describe the payload honestly.
-fn book_mime(file: &Path) -> &'static str {
-    match extension(file).as_deref() {
-        Some("epub") => "application/epub+zip",
-        Some("mobi") => "application/x-mobipocket-ebook",
-        Some("azw") | Some("azw3") => "application/vnd.amazon.ebook",
-        Some("fb2") => "application/x-fictionbook+xml",
-        Some("fbz") => "application/x-zip-compressed-fb2",
-        Some("cbz") => "application/vnd.comicbook+zip",
-        Some("pdf") => "application/pdf",
-        _ => "application/octet-stream",
-    }
-}
-
 fn mime_for(path: &Path) -> &'static str {
     match extension(path).as_deref() {
         Some("html") => "text/html; charset=utf-8",
@@ -203,16 +191,16 @@ fn safe_join(root: &Path, relative: &str) -> Option<PathBuf> {
 fn handle_request(
     request: Request<Vec<u8>>,
     web_root: &Path,
-    target_file: &Path,
+    prepared: &PreparedDocument,
 ) -> Response<Cow<'static, [u8]>> {
     let path = request.uri().path();
     if path.starts_with(FILE_ROUTE) {
-        return match std::fs::read(target_file) {
-            Ok(bytes) => response(StatusCode::OK, book_mime(target_file), bytes),
+        return match std::fs::read(&prepared.file_path) {
+            Ok(bytes) => response(StatusCode::OK, prepared.mime_type, bytes),
             Err(error) => response(
                 StatusCode::NOT_FOUND,
                 "text/plain; charset=utf-8",
-                format!("Could not read {}\n{error}", target_file.display()).into_bytes(),
+                format!("Could not read {}\n{error}", prepared.file_path.display()).into_bytes(),
             ),
         };
     }
@@ -241,6 +229,7 @@ fn handle_request(
 
 struct App {
     args: Args,
+    prepared: Option<PreparedDocument>,
     web_root: PathBuf,
     window: Option<Window>,
     webview: Option<wry::WebView>,
@@ -253,14 +242,18 @@ impl ApplicationHandler for App {
             return;
         }
 
-        let file_name = self
-            .args
-            .file
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| self.args.file.display().to_string());
+        let prepared = match prepare_document(&self.args.file) {
+            Ok(p) => p,
+            Err(error) => {
+                eprintln!("[ebook-view] document preparation failed: {error}");
+                event_loop.exit();
+                return;
+            }
+        };
+
+        let title_name = &prepared.display_name;
         let mut attributes = Window::default_attributes()
-            .with_title(format!("{file_name} - Ebook Viewer"))
+            .with_title(format!("{title_name} - Ebook Viewer"))
             .with_min_inner_size(LogicalSize::new(520u32, 360u32))
             .with_visible(false);
         let start_maximized = self
@@ -287,11 +280,19 @@ impl ApplicationHandler for App {
         };
 
         let web_root = self.web_root.clone();
-        let target_file = self.args.file.clone();
-        let start_url = reader_url(&book_route(&self.args.file));
+        let start_url = reader_url(&book_route(&prepared.file_path));
+        let served_path = prepared.file_path.clone();
+        let served_mime = prepared.mime_type;
+
         let webview = match WebViewBuilder::new_with_web_context(&mut self.web_context)
             .with_custom_protocol(SCHEME.into(), move |_id, request| {
-                handle_request(request, &web_root, &target_file)
+                let dummy = PreparedDocument::temporary(
+                    served_path.clone(),
+                    String::new(),
+                    served_mime,
+                    PathBuf::new(),
+                );
+                handle_request(request, &web_root, &dummy)
             })
             .with_navigation_handler(|url| url.contains(HOST))
             .with_url(&start_url)
@@ -313,6 +314,7 @@ impl ApplicationHandler for App {
 
         self.window = Some(window);
         self.webview = Some(webview);
+        self.prepared = Some(prepared);
     }
 
     fn window_event(
@@ -361,6 +363,7 @@ fn main() {
     };
     let mut app = App {
         args,
+        prepared: None,
         web_root,
         web_context: WebContext::new(Some(webview_data_directory())),
         window: None,
@@ -408,26 +411,27 @@ mod tests {
     }
 
     #[test]
-    fn book_mime_follows_the_book_extension() {
-        assert_eq!(book_mime(Path::new("a.EPUB")), "application/epub+zip");
+    fn direct_prepared_document_mime() {
         assert_eq!(
-            book_mime(Path::new("a.azw3")),
+            PreparedDocument::direct(PathBuf::from("a.EPUB")).mime_type,
+            "application/epub+zip"
+        );
+        assert_eq!(
+            PreparedDocument::direct(PathBuf::from("a.azw3")).mime_type,
             "application/vnd.amazon.ebook"
         );
         assert_eq!(
-            book_mime(Path::new("a.cbz")),
+            PreparedDocument::direct(PathBuf::from("a.cbz")).mime_type,
             "application/vnd.comicbook+zip"
         );
         assert_eq!(
-            book_mime(Path::new("a.unknown")),
+            PreparedDocument::direct(PathBuf::from("a.unknown")).mime_type,
             "application/octet-stream"
         );
     }
 
     #[test]
     fn book_route_keeps_the_extension_detectable_by_foliate() {
-        // `name.endsWith(".cbz")` and the comic book fallback title both depend
-        // on the real file name surviving in the path.
         assert_eq!(book_route(Path::new(r"C:\books\comic.cbz")), "/file/comic.cbz");
         assert_eq!(
             book_route(Path::new(r"C:\books\My Comic #1.cbz")),
@@ -444,11 +448,9 @@ mod tests {
             "http://ebook-view.local/reader.html?url=/file/My%2520Comic%2520%25231.cbz"
         );
 
-        // `new URLSearchParams(location.search).get('url')` decodes once...
         let value = url.split("?url=").nth(1).unwrap();
         let decoded = percent_decode_str(value).decode_utf8().unwrap();
         assert_eq!(decoded, route);
-        // ...and the following request still ends with the book extension.
         assert!(decoded.ends_with(".cbz"));
     }
 

@@ -6,13 +6,29 @@
   "entrypoint": "ebook-view.exe",
   "capabilities": {
     "quickView": {
-      "extensions": [".epub", ".mobi", ".azw", ".azw3", ".fb2", ".fbz", ".cbz"],
+      "extensions": [
+        ".epub",
+        ".mobi",
+        ".azw",
+        ".azw3",
+        ".fb2",
+        ".fbz",
+        ".cbz",
+        ".cbr",
+        ".tcr",
+        ".djvu",
+        ".djv"
+      ],
       "mimeTypes": [
         "application/epub+zip",
         "application/x-mobipocket-ebook",
         "application/vnd.amazon.ebook",
         "application/x-fictionbook+xml",
-        "application/vnd.comicbook+zip"
+        "application/vnd.comicbook+zip",
+        "application/vnd.comicbook-rar",
+        "application/x-cbr",
+        "application/x-tcr",
+        "image/vnd.djvu"
       ]
     }
   }

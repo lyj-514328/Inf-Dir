@@ -408,6 +408,10 @@
       "rules": [],
       "viewers": [
         {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
+        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         },
@@ -878,6 +882,10 @@
       "value": ".djvu",
       "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -2505,6 +2513,10 @@
       "value": ".djv",
       "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -4610,6 +4622,10 @@
       "value": ".tcr",
       "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true

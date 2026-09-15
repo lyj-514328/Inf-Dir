@@ -22,6 +22,10 @@ void main() {
       '.xls', '.xlsb', '.xlsx', '.xlsm', '.xlt', '.xltm', '.xltx',
     },
     'inf-dir.project-view': {'.mpp', '.mpt', '.mpx'},
+    'inf-dir.ebook-view': {
+      '.epub', '.mobi', '.azw', '.azw3', '.fb2', '.fbz', '.cbz',
+      '.cbr', '.tcr', '.djvu', '.djv',
+    },
     'inf-dir.font-view': {'.ttf', '.otf', '.woff', '.woff2', '.ttc', '.dfont'},
     'inf-dir.chm-view': {'.chm'},
     'inf-dir.web-view': {

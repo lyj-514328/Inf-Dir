@@ -80,12 +80,12 @@
 | eBooks | .fb2z | FictionBook e-book | ✅ mupdf（扩展名规则） |
 | eBooks | .fbz | FictionBook e-book | ✅ mupdf（扩展名规则） |
 | eBooks | .mobi | Mobipocket e-book | ✅ mupdf（扩展名规则） |
-| eBooks | .tcr | TCR e-book | ✅ mupdf（扩展名规则） |
+| eBooks | .tcr | TCR e-book | ✅ ebook、mupdf（扩展名规则） |
 | Page Documents | .oxps | Open XML Paper Specification File | ✅ mupdf（扩展名规则） |
 | Page Documents | .pdf | Portable Document Format File / Adobe Portable Document Format | ✅ pdf、pdfjs（扩展名规则） |
 | Page Documents | .xps | XML Paper Specification File / Microsoft XML Paper Specification | ✅ mupdf（扩展名规则） |
-| Page Documents | .djvu | DejaVu document | ✅ mupdf（扩展名规则） |
-| Page Documents | .djv | DejaVu document | ✅ mupdf（扩展名规则） |
+| Page Documents | .djvu | DejaVu document | ✅ ebook、mupdf（扩展名规则） |
+| Page Documents | .djv | DejaVu document | ✅ ebook、mupdf（扩展名规则） |
 | Spreadsheet | .csv | Comma Separated Values File | ✅ code（扩展名规则） |
 | Spreadsheet | .tsv | Tab Separated Values File | ✅ code（扩展名规则） |
 | Spreadsheet | .xls | Excel Spreadsheet (Legacy) / Microsoft Excel | ✅ mupdf-view（LibreOffice 转换） |
@@ -426,8 +426,8 @@
 | Archive | .arj | ARJ Compressed Archive | ✅ archive（扩展名规则） |
 | Archive | .bz2 | Bzip2 Compressed Archive | ✅ archive（扩展名规则） |
 | Archive | .cab | Windows Cabinet File | ✅ archive（扩展名规则） |
-| Archive | .cbr | Comic Book RAR Archive / Comic Book archive | ✅ mupdf、archive（扩展名规则） |
-| Archive | .cbz | Comic Book Zip Archive / Comic Book archive | ✅ mupdf、archive（扩展名规则） |
+| Archive | .cbr | Comic Book RAR Archive / Comic Book archive | ✅ ebook、mupdf、archive（扩展名规则） |
+| Archive | .cbz | Comic Book Zip Archive / Comic Book archive | ✅ ebook、mupdf、archive（扩展名规则） |
 | Archive | .cpio | Unix CPIO Archive | ✅ archive（扩展名规则） |
 | Archive | .dd | Disk Doubler Archive | ❌ 非压缩包（原始磁盘镜像），libarchive 不处理 |
 | Archive | .deb | Debian Software Package | ✅ archive（扩展名规则） |
