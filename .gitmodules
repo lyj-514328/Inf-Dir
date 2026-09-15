@@ -28,3 +28,9 @@
 [submodule "ai_refs/CHMate"]
 	path = ai_refs/CHMate
 	url = https://github.com/Alpaq92/CHMate.git
+[submodule "ai_refs/sumatrapdf"]
+	path = ai_refs/sumatrapdf
+	url = https://github.com/sumatrapdfreader/sumatrapdf.git
+[submodule "plugins/ebook-view-web"]
+	path = plugins/ebook-view-web
+	url = https://github.com/lyj-514328/foliate-js.git
