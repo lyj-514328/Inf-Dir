@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "id": "inf-dir.ebook-view",
+  "name": "电子书查看器 (foliate-js)",
+  "version": "0.1.0",
+  "entrypoint": "ebook-view.exe",
+  "capabilities": {
+    "quickView": {
+      "extensions": [".epub", ".mobi", ".azw", ".azw3", ".fb2", ".fbz", ".cbz"],
+      "mimeTypes": [
+        "application/epub+zip",
+        "application/x-mobipocket-ebook",
+        "application/vnd.amazon.ebook",
+        "application/x-fictionbook+xml",
+        "application/vnd.comicbook+zip"
+      ]
+    }
+  }
+}

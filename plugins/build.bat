@@ -29,6 +29,7 @@ set "EMAIL_WEB=%SCRIPT_DIR%email-view-web"
 set "EMAIL_PUBLISH=%SCRIPT_DIR%email-view\publish"
 set "FONT_PUBLISH=%SCRIPT_DIR%font-view\bin\Release\net8.0-windows\win-x64\publish"
 set "PROJECT_PUBLISH=%SCRIPT_DIR%project-view\bin\Release\project-view"
+set "EBOOK_WEB=%SCRIPT_DIR%ebook-view-web"
 
 REM Prefer the Scoop SDK because a machine-wide dotnet host may have no SDK.
 if exist "%USERPROFILE%\scoop\apps\dotnet-sdk\current\dotnet.exe" (
@@ -419,6 +420,15 @@ if errorlevel 1 ( echo [ERROR] pdfjs-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
+REM  15a. Build ebook-view (MSVC + WebView2 + foliate-js)
+REM ============================================================
+echo [15a/20] Building ebook-view...
+pushd "%SCRIPT_DIR%ebook-view"
+call build.bat
+if errorlevel 1 ( echo [ERROR] ebook-view build failed. & popd & exit /b 1 )
+popd
+
+REM ============================================================
 REM  16. Build mupdf-view (.NET self-contained + MuPDF.NET)
 REM ============================================================
 echo [16/19] Building mupdf-view...
@@ -471,6 +481,7 @@ for %%D in (
     inf-dir.video-view
     inf-dir.pdf-view
     inf-dir.pdfjs-view
+    inf-dir.ebook-view
     inf-dir.mupdf-view
     inf-dir.chm-view
     inf-dir.font-view
@@ -594,6 +605,22 @@ copy /Y "%SCRIPT_DIR%pdfjs-view\target\release\pdfjs-view.exe" "%DIST_DIR%\inf-d
 if exist "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view.exe.WebView2" rmdir /s /q "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view.exe.WebView2"
 if exist "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web"
 xcopy /E /I /Y /Q "%SCRIPT_DIR%pdfjs-view-web" "%DIST_DIR%\inf-dir.pdfjs-view\pdfjs-view-web" >nul
+
+copy /Y "%SCRIPT_DIR%ebook-view\plugin.json" "%DIST_DIR%\inf-dir.ebook-view\" >nul
+copy /Y "%SCRIPT_DIR%ebook-view\target\release\ebook-view.exe" "%DIST_DIR%\inf-dir.ebook-view\" >nul
+if exist "%DIST_DIR%\inf-dir.ebook-view\ebook-view.exe.WebView2" rmdir /s /q "%DIST_DIR%\inf-dir.ebook-view\ebook-view.exe.WebView2"
+if exist "%DIST_DIR%\inf-dir.ebook-view\ebook-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.ebook-view\ebook-view-web"
+if not exist "%EBOOK_WEB%\reader.html" (
+    echo [ERROR] foliate-js assets are missing from "%EBOOK_WEB%".
+    echo         Run: git submodule update --init plugins/ebook-view-web
+    exit /b 1
+)
+REM Ship the foliate-js library only; debug source maps and tooling are dropped.
+robocopy "%EBOOK_WEB%" "%DIST_DIR%\inf-dir.ebook-view\ebook-view-web" /E /XD .github node_modules tests rollup /XF *.map .git /NFL /NDL /NJH /NJS /NP >nul
+if errorlevel 8 (
+    echo [ERROR] Failed to install foliate-js assets for ebook-view.
+    exit /b 1
+)
 
 copy /Y "%SCRIPT_DIR%mupdf-view\plugin.json" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
 if exist "%DIST_DIR%\inf-dir.mupdf-view\publish" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\publish"

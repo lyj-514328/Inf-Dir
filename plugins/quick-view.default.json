@@ -387,6 +387,10 @@
       "rules": [],
       "viewers": [
         {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
+        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         },
@@ -969,6 +973,10 @@
       "rules": [],
       "viewers": [
         {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
+        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -1245,6 +1253,10 @@
       "value": ".mobi",
       "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -2007,6 +2019,40 @@
       ]
     },
     {
+      "id": "ext-azw",
+      "enabled": true,
+      "type": "extension",
+      "value": ".azw",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
+        {
+          "id": "inf-dir.mupdf-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-azw3",
+      "enabled": true,
+      "type": "extension",
+      "value": ".azw3",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
+        {
+          "id": "inf-dir.mupdf-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
       "id": "ext-bas",
       "enabled": true,
       "type": "extension",
@@ -2694,6 +2740,10 @@
       "rules": [],
       "viewers": [
         {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
+        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -2706,6 +2756,10 @@
       "value": ".fbz",
       "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -6957,6 +7011,10 @@
       "rules": [],
       "viewers": [
         {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
+        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -6969,6 +7027,10 @@
       "value": "application/epub+zip",
       "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.ebook-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
