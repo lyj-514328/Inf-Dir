@@ -542,8 +542,10 @@ public sealed class ViewerForm : Form
             }
             int ox = Math.Max(0, (Width - _bitmap.Width) / 2);
             int oy = Math.Max(0, (Height - _bitmap.Height) / 2);
+            // Scrolling repaints the page frequently; bicubic interpolation makes
+            // every repaint unnecessarily expensive for large rendered pages.
             e.Graphics.InterpolationMode =
-                System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                System.Drawing.Drawing2D.InterpolationMode.Bilinear;
             e.Graphics.DrawImage(_bitmap, ox, oy);
 
             RectangleF sel = SelectionRect();
