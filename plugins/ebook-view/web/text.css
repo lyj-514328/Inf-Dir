@@ -1,0 +1,120 @@
+/* Chrome for the reader page that foliate-js does not cover itself. The book
+   content lives in an iframe the paginator owns, so everything here only
+   styles the toolbar and the progress bar around it. */
+
+:root {
+    color-scheme: light dark;
+    --background: #ffffff;
+    --foreground: #1a1a1a;
+    --muted: #6b6b6b;
+    --border: rgba(0, 0, 0, .12);
+    --hover: rgba(0, 0, 0, .06);
+    --accent: #0b62c4;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background: #1c1c1e;
+        --foreground: #ececec;
+        --muted: #9a9a9a;
+        --border: rgba(255, 255, 255, .14);
+        --hover: rgba(255, 255, 255, .08);
+        --accent: #6cb6ff;
+    }
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--background);
+    color: var(--foreground);
+    font: 13px/1.4 system-ui, sans-serif;
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.title {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.spacer {
+    flex: 1;
+}
+
+.location {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+button {
+    min-width: 28px;
+    height: 24px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+button:hover {
+    background: var(--hover);
+}
+
+button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.progress {
+    padding: 0 12px;
+}
+
+#progress {
+    display: block;
+    width: 100%;
+    margin: 6px 0;
+    accent-color: var(--accent);
+}
+
+foliate-view {
+    display: block;
+    flex: 1;
+    min-height: 0;
+}
+
+foliate-view[hidden] {
+    display: none;
+}
+
+.message {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 24px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.message[hidden] {
+    display: none;
+}

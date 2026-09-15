@@ -191,6 +191,21 @@ fn create_webview_window(
 并在每次父窗口 resize 时同步更新；不得依赖 wry 默认的 `200x200` child bounds。页面自身还应
 保证 `html`、`body` 高宽为 `100%`、边距为 `0`，避免 Web 内容内部产生未覆盖区域。
 
+#### 3.3.1 静态资源来源与 submodule 依赖
+
+WebView2 viewer 的静态资源可以来自多个目录，但必须遵循以下规则：
+
+- **第三方 Web 库以 submodule 固定，且只读。** 例如 `plugins/ebook-view-web` 固定 foliate-js。
+  仓库不得写入或提交 submodule 内容，父仓库记录的 submodule commit 必须是远端已存在的
+  commit（可被 `git submodule update --init` 直接取到），否则全新克隆会直接失败。
+- **本仓库自己的页面与胶水代码留在插件目录内**（如 `plugins/ebook-view/web/`），由
+  `plugins/build.bat` 复制到发布目录，不作为 submodule 提交。
+- **宿主按“自有目录优先、第三方目录兜底”解析请求路径**：`ebook-view` 依次查找
+  `ebook-view-reader/`（本仓库维护）与 `ebook-view-web/`（submodule 只读）。因此自有页面
+  可以 `import '/view.js'` 直接复用库里的模块，而库文件不需要被改写。
+- 开发期用目录 junction 把这两个目录挂到 `target/release/` 旁，发布期用 robocopy 复制，
+  两种布局保持一致。
+
 ### 3.4 搜索提供器
 
 搜索插件通过 `capabilities.search` 声明后端类型和主程序支持的输出协议：

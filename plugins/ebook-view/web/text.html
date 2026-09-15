@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' blob: data:; font-src 'self' blob: data:; connect-src 'self' blob: data:; frame-src blob: data:; object-src 'none'; form-action 'none';">
+<title>Text Reader</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/text.css">
+</head>
+<body>
+<header class="toolbar">
+    <span id="title" class="title"></span>
+    <span class="spacer"></span>
+    <span id="location" class="location"></span>
+    <button id="previous" type="button" title="Previous page" aria-label="Previous page">&#x2039;</button>
+    <button id="next" type="button" title="Next page" aria-label="Next page">&#x203a;</button>
+</header>
+<div class="progress">
+    <input id="progress" type="range" min="0" max="1" step="0.001" value="0"
+        aria-label="Reading progress">
+</div>
+<foliate-view id="view"></foliate-view>
+<p id="message" class="message" hidden></p>
+<script type="module" src="/text.js"></script>
+</body>
+</html>
