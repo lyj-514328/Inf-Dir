@@ -13,7 +13,7 @@
         ".z", ".lha", ".lzip", ".tgz", ".tbz", ".tbz2", ".txz",
         ".tlz", ".tar.gz", ".tar.bz2", ".tar.xz", ".ar", ".zipx",
         ".pk3", ".pk4", ".pkz", ".jar", ".war", ".apk", ".dmg", ".hfs",
-        ".cbr", ".deskthemepack", ".tar.lzma", ".taz"
+        ".cbr", ".cbz", ".deskthemepack", ".tar.lzma", ".taz"
       ],
       "mimeTypes": [
         "application/zip", "application/x-7z-compressed",

@@ -22,6 +22,10 @@ void main() {
       '.xls', '.xlsb', '.xlsx', '.xlsm', '.xlt', '.xltm', '.xltx',
     },
     'inf-dir.project-view': {'.mpp', '.mpt', '.mpx'},
+    // Fallback candidates that the bundled quick-view.default.json relies on:
+    // the archive viewer lists CBZ contents and code-view shows Markdown or
+    // XHTML as source, so both have to declare what the default rules assume.
+    'inf-dir.archive-view': {'.cbz'},
     'inf-dir.ebook-view': {
       '.epub', '.mobi', '.azw', '.azw3', '.fb2', '.fbz', '.cbz',
       '.cbr', '.tcr', '.djvu', '.djv', '.xps', '.oxps',
@@ -33,6 +37,7 @@ void main() {
       '.mht', '.mhtml', '.shtml', '.shtm',
       '.xml', '.xsl', '.xslt',
     },
+    'inf-dir.code-view': {'.markdown', '.md', '.mdown', '.mkd', '.xhtml'},
   };
 
   test('P2 roadmap formats are assigned to working viewer manifests', () {

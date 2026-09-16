@@ -17,7 +17,8 @@
         ".h", ".haml", ".hh", ".hlsl", ".hpp", ".hs", ".htm",
         ".html", ".hxx", ".inc", ".inf", ".ini", ".iss", ".iwb",
         ".java", ".js", ".json", ".jsonc", ".jsx", ".kix", ".kt",
-        ".kts", ".less", ".lhs", ".log", ".lua", ".mjs", ".ml",
+        ".kts", ".less", ".lhs", ".log", ".lua",
+        ".markdown", ".md", ".mdown", ".mkd", ".mjs", ".ml",
         ".nfo", ".nsh", ".nsi", ".ob2", ".pas", ".php", ".pl",
         ".pm", ".pod", ".prg", ".properties", ".proto", ".ps1", ".py",
         ".r", ".rb", ".rc", ".rs", ".sas", ".sass", ".scala",
@@ -25,7 +26,7 @@
         ".st", ".stm", ".sty", ".svelte", ".swift", ".tcl", ".tex",
         ".toml", ".ts", ".tsv", ".tsx", ".v", ".vb", ".vhd",
         ".txt", ".vue",
-        ".xml", ".xsd", ".xsl", ".xslt", ".yaml", ".yml", ".zsh"
+        ".xhtml", ".xml", ".xsd", ".xsl", ".xslt", ".yaml", ".yml", ".zsh"
       ],
       "fileNames": [
         ".editorconfig", ".env", ".gitattributes", ".gitignore",
@@ -33,7 +34,7 @@
       ],
       "mimeTypes": [
         "application/javascript", "application/json", "application/xml", "image/svg+xml",
-        "text/css", "text/html", "text/javascript"
+        "text/*", "text/css", "text/html", "text/javascript", "text/xml"
       ]
     }
   }
