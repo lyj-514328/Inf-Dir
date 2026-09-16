@@ -7,7 +7,6 @@
   "capabilities": {
     "quickView": {
       "extensions": [
-        ".xps", ".oxps",
         ".epub", ".mobi", ".fb2", ".fbz", ".fb2z", ".tcr",
         ".cbz", ".cbr", ".djvu", ".djv",
         ".dxf", ".dwg",
@@ -21,7 +20,6 @@
         ".ods", ".ots"
       ],
       "mimeTypes": [
-        "application/vnd.ms-xpsdocument",
         "application/epub+zip",
         "application/vnd.comicbook+zip",
         "application/vnd.visio",

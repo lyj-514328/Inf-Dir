@@ -122,68 +122,117 @@ fn find_on_path(executable: &str) -> Option<PathBuf> {
     None
 }
 
-fn find_bundled_tool(dir_name: &str, executable: &str) -> Option<PathBuf> {
-    if let Ok(current_exe) = std::env::current_exe() {
-        if let Some(parent) = current_exe.parent() {
-            let candidate = parent.join(dir_name).join(executable);
-            if candidate.is_file() {
-                return Some(candidate);
-            }
-            // Check adjacent sibling directory in dist / development layout
-            let candidate_sibling = parent
-                .parent()
-                .map(|p| p.join(format!("inf-dir.{dir_name}")).join(executable));
-            if let Some(p) = candidate_sibling {
-                if p.is_file() {
-                    return Some(p);
-                }
-            }
-            let candidate_sibling2 = parent
-                .parent()
-                .map(|p| p.join(dir_name).join(executable));
-            if let Some(p) = candidate_sibling2 {
-                if p.is_file() {
-                    return Some(p);
-                }
-            }
-        }
+/// Directory of this viewer's own source tree, searched while developing so the
+/// viewer can be launched from `target\release` without staging the runtime.
+const VIEWER_DIR_NAME: &str = "ebook-view";
+
+/// Package that carries runtimes shared by more than one viewer, installed
+/// beside the viewer packages in `plugins\dist\`.
+const SHARED_RUNTIME_PACKAGE: &str = "inf-dir.runtime";
+
+/// Plain `runtime\` directory holding the same shared runtimes. The source
+/// tree uses this layout before `plugins\build.bat` installs the package.
+const SHARED_RUNTIME_DIR: &str = "runtime";
+
+/// How many parent directories are inspected when looking for a runtime.
+const RUNTIME_SEARCH_DEPTH: usize = 8;
+
+fn push_unique(roots: &mut Vec<PathBuf>, root: PathBuf) {
+    if !roots.contains(&root) {
+        roots.push(root);
     }
-    None
+}
+
+/// Directories that may contain a runtime, ordered from the most specific (a
+/// copy shipped inside this package) to the most general (a shared runtime
+/// prepared in the source tree).
+///
+/// The shared package is looked up both beside this package
+/// (`plugins\dist\inf-dir.runtime\`) and at every ancestor level, which covers
+/// the development layout where the executable sits several directories below
+/// the repository's `plugins\` directory.
+fn runtime_search_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    let Ok(current_exe) = std::env::current_exe() else {
+        return roots;
+    };
+    let Some(exe_dir) = current_exe.parent() else {
+        return roots;
+    };
+
+    push_unique(&mut roots, exe_dir.to_path_buf());
+    let mut ancestor = Some(exe_dir);
+    for _ in 0..RUNTIME_SEARCH_DEPTH {
+        let Some(directory) = ancestor else { break };
+        push_unique(&mut roots, directory.join(SHARED_RUNTIME_PACKAGE));
+        push_unique(&mut roots, directory.join(SHARED_RUNTIME_DIR));
+        push_unique(&mut roots, directory.join(VIEWER_DIR_NAME));
+        ancestor = directory.parent();
+    }
+    roots
+}
+
+/// Locate `<directory>\<executable>` under one of [`runtime_search_roots`].
+fn find_runtime_tool(directory: &str, executable: &str) -> Option<PathBuf> {
+    runtime_search_roots()
+        .into_iter()
+        .map(|root| root.join(directory).join(executable))
+        .find(|candidate| candidate.is_file())
+}
+
+/// DjVuLibre used to ship inside the `mupdf-view` package. Keep resolving that
+/// location so an already installed `plugins\dist\` tree keeps working without
+/// a rebuild; drop this once the shared runtime package is the only layout in
+/// the wild.
+fn find_legacy_mupdf_djvulibre() -> Option<PathBuf> {
+    let current_exe = std::env::current_exe().ok()?;
+    let packages_dir = current_exe.parent()?.parent()?;
+    ["inf-dir.mupdf-view", "mupdf-view"]
+        .into_iter()
+        .map(|name| {
+            packages_dir
+                .join(name)
+                .join("djvulibre")
+                .join("ddjvu.exe")
+        })
+        .find(|candidate| candidate.is_file())
 }
 
 fn find_djvulibre() -> Option<PathBuf> {
     if let Ok(path) = std::env::var("INF_DIR_DJVULIBRE_PATH") {
-        let p = PathBuf::from(path);
-        if p.is_file() {
-            return Some(p);
+        let configured = PathBuf::from(path);
+        if configured.is_file() {
+            return Some(configured);
+        }
+        if configured.is_dir() {
+            let nested = configured.join("ddjvu.exe");
+            if nested.is_file() {
+                return Some(nested);
+            }
         }
     }
-    find_bundled_tool("djvulibre", "ddjvu.exe")
-        .or_else(|| {
-            // Check mupdf-view's bundled djvulibre
-            if let Ok(current_exe) = std::env::current_exe() {
-                if let Some(parent) = current_exe.parent() {
-                    let candidate = parent
-                        .parent()
-                        .map(|p| p.join("inf-dir.mupdf-view").join("djvulibre").join("ddjvu.exe"));
-                    if let Some(p) = candidate {
-                        if p.is_file() {
-                            return Some(p);
-                        }
-                    }
-                    let candidate2 = parent
-                        .parent()
-                        .map(|p| p.join("mupdf-view").join("djvulibre").join("ddjvu.exe"));
-                    if let Some(p) = candidate2 {
-                        if p.is_file() {
-                            return Some(p);
-                        }
-                    }
-                }
-            }
-            None
-        })
+    find_runtime_tool("djvulibre", "ddjvu.exe")
+        .or_else(find_legacy_mupdf_djvulibre)
         .or_else(|| find_on_path("ddjvu.exe"))
+}
+
+/// `gxpswin64.exe` turns XPS/OpenXPS into PDF. It lives in the shared runtime
+/// package because XPS is the one page-document format that neither foliate-js
+/// nor the PDF viewers can read natively.
+fn find_gxps() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("INF_DIR_GXPS_PATH") {
+        let configured = PathBuf::from(path);
+        if configured.is_file() {
+            return Some(configured);
+        }
+        if configured.is_dir() {
+            let nested = configured.join("gxpswin64.exe");
+            if nested.is_file() {
+                return Some(nested);
+            }
+        }
+    }
+    find_runtime_tool("gxps", "gxpswin64.exe").or_else(|| find_on_path("gxpswin64.exe"))
 }
 
 fn find_comic_extractor() -> Option<PathBuf> {
@@ -256,15 +305,68 @@ pub fn prepare_document(source: &Path) -> Result<PreparedDocument, String> {
 
     match ext.as_str() {
         "djvu" | "djv" => convert_djvu(source, display_name),
+        "xps" | "oxps" => convert_xps(source, display_name),
         "tcr" => convert_tcr(source, display_name),
         "cbr" => convert_cbr(source, display_name),
         _ => Ok(PreparedDocument::direct(source.to_path_buf())),
     }
 }
 
+/// XPS and OpenXPS are converted to PDF with the shared GhostXPS interpreter;
+/// the resulting PDF keeps the vector content, and is rendered by foliate-js'
+/// bundled pdf.js like every other PDF in this viewer.
+fn convert_xps(source: &Path, display_name: String) -> Result<PreparedDocument, String> {
+    let gxps = find_gxps().ok_or_else(|| {
+        "XPS viewing requires the shared GhostXPS runtime. Run plugins\\build.bat to install the shared runtime package, or set INF_DIR_GXPS_PATH."
+            .to_string()
+    })?;
+
+    let temp_dir = create_temp_directory("xps")
+        .map_err(|e| format!("Failed to create temporary directory for XPS: {e}"))?;
+    let stem = source.file_stem().and_then(|s| s.to_str()).unwrap_or("document");
+    let output_pdf = temp_dir.join(format!("{stem}.pdf"));
+
+    let source_str = source.to_string_lossy();
+    let output_arg = format!("-o{}", output_pdf.to_string_lossy());
+    let result = run_tool(
+        &gxps,
+        &[
+            "-q",
+            "-dNOPAUSE",
+            "-dBATCH",
+            "-sDEVICE=pdfwrite",
+            output_arg.as_str(),
+            source_str.as_ref(),
+        ],
+    );
+
+    let output = match result {
+        Ok(output) => output,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&temp_dir);
+            return Err(format!("Failed to execute gxps: {error}"));
+        }
+    };
+
+    if !output.status.success() || !output_pdf.is_file() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let detail = if stderr.trim().is_empty() { stdout } else { stderr };
+        let _ = fs::remove_dir_all(&temp_dir);
+        return Err(format!("XPS to PDF conversion failed: {}", detail.trim()));
+    }
+
+    Ok(PreparedDocument::temporary(
+        output_pdf,
+        display_name,
+        "application/pdf",
+        temp_dir,
+    ))
+}
+
 fn convert_djvu(source: &Path, display_name: String) -> Result<PreparedDocument, String> {
     let ddjvu = find_djvulibre().ok_or_else(|| {
-        "DjVu viewing requires bundled DjVuLibre (ddjvu.exe). Please run plugins\\build.bat."
+        "DjVu viewing requires DjVuLibre (ddjvu.exe). Run plugins\\build.bat to install the shared runtime package, or set INF_DIR_DJVULIBRE_PATH."
             .to_string()
     })?;
 
@@ -491,5 +593,31 @@ mod tests {
     fn direct_document_mime() {
         let doc = PreparedDocument::direct(PathBuf::from("my_book.epub"));
         assert_eq!(doc.mime_type, "application/epub+zip");
+    }
+
+    #[test]
+    fn runtime_roots_start_at_the_executable_and_offer_the_shared_layouts() {
+        let roots = runtime_search_roots();
+        let exe_dir = std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+
+        // A runtime copied next to the executable wins over every shared copy.
+        assert_eq!(roots.first(), Some(&exe_dir));
+        // Both shared layouts are reachable: the installed package and the
+        // source tree directory.
+        assert!(roots.iter().any(|root| root.ends_with(SHARED_RUNTIME_PACKAGE)));
+        assert!(roots.iter().any(|root| root.ends_with(SHARED_RUNTIME_DIR)));
+        // The viewer's own source directory is searched too.
+        assert!(roots.iter().any(|root| root.ends_with(VIEWER_DIR_NAME)));
+    }
+
+    #[test]
+    fn runtime_search_roots_are_unique() {
+        let roots = runtime_search_roots();
+        let unique: std::collections::HashSet<_> = roots.iter().collect();
+        assert_eq!(roots.len(), unique.len());
     }
 }

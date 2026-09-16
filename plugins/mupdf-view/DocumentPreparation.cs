@@ -186,19 +186,28 @@ internal static class DocumentPreparation
     private static string? FindLibreOffice()
     {
         string? configured = Environment.GetEnvironmentVariable("INF_DIR_LIBREOFFICE_PATH");
-        IEnumerable<string> candidates = new[]
+        var candidates = new List<string?>();
+        if (!string.IsNullOrWhiteSpace(configured))
         {
-            configured,
-            Path.Combine(AppContext.BaseDirectory, "libreoffice", "program", "soffice.exe"),
+            candidates.Add(configured);
+        }
+        // The runtime is shared with other viewers, so it is resolved from the
+        // shared runtime package first (which also covers a copy inside this
+        // package and the source tree layout while developing).
+        foreach (string root in RuntimeSearchRoots())
+        {
+            candidates.Add(Path.Combine(root, "libreoffice", "program", "soffice.exe"));
+        }
+        candidates.Add(
             Environment.GetEnvironmentVariable("ProgramFiles") is { Length: > 0 } programFiles
                 ? Path.Combine(programFiles, "LibreOffice", "program", "soffice.exe")
-                : null,
+                : null);
+        candidates.Add(
             Environment.GetEnvironmentVariable("ProgramFiles(x86)") is { Length: > 0 } programFilesX86
                 ? Path.Combine(programFilesX86, "LibreOffice", "program", "soffice.exe")
-                : null,
-        }.Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => path!);
+                : null);
 
-        foreach (string candidate in candidates)
+        foreach (string candidate in candidates.Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => path!))
         {
             if (File.Exists(candidate))
             {
@@ -224,9 +233,9 @@ internal static class DocumentPreparation
 
     private static PreparedDocument ConvertDjvu(string source)
     {
-        string executable = FindBundledTool("djvulibre", "ddjvu.exe")
+        string executable = FindDjvulibre()
             ?? throw new InvalidOperationException(
-                "DjVu 查看需要内置的 DjVuLibre 运行时；请重新运行 plugins\\build.bat。");
+                "DjVu 查看需要 DjVuLibre 运行时（ddjvu.exe）；请重新运行 plugins\\build.bat 安装共享运行时包，或设置 INF_DIR_DJVULIBRE_PATH。");
         string temp = CreateTempDirectory("djvu");
         string output = Path.Combine(temp, Path.GetFileNameWithoutExtension(source) + ".pdf");
         RunTool(executable, new[] { "-format=pdf", source, output }, temp);
@@ -236,14 +245,14 @@ internal static class DocumentPreparation
 
     private static PreparedDocument ConvertCad(string source)
     {
-        string svgExecutable = FindBundledTool("libredwg", "dwg2SVG.exe")
+        string svgExecutable = FindRuntimeTool("libredwg", "dwg2SVG.exe")
             ?? throw new InvalidOperationException(
-                "CAD 预览需要内置的 LibreDWG 运行时；请重新运行 plugins\\build.bat。");
+                "CAD 预览需要 LibreDWG 运行时（dwg2SVG.exe）；请重新运行 plugins\\build.bat。");
         string temp = CreateTempDirectory("dwg");
         string input = source;
         if (Path.GetExtension(source).Equals(".dxf", StringComparison.OrdinalIgnoreCase))
         {
-            string dxfExecutable = FindBundledTool("libredwg", "dxf2dwg.exe")
+            string dxfExecutable = FindRuntimeTool("libredwg", "dxf2dwg.exe")
                 ?? throw new InvalidOperationException("DXF 预览需要 LibreDWG 的 dxf2dwg.exe。");
             input = Path.Combine(temp, Path.GetFileNameWithoutExtension(source) + ".dwg");
             ProcessResult conversion = RunTool(
@@ -474,12 +483,96 @@ internal static class DocumentPreparation
                trimmed.StartsWith("<head", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? FindBundledTool(string directory, string executable)
+    /// <summary>
+    /// Package installed beside the viewer packages that carries runtimes shared
+    /// by more than one viewer (currently DjVuLibre, also used by ebook-view).
+    /// </summary>
+    private const string SharedRuntimePackage = "inf-dir.runtime";
+
+    /// <summary>
+    /// Plain <c>runtime\</c> directory holding the same shared runtimes. The
+    /// source tree uses this layout before plugins\build.bat installs the
+    /// package.
+    /// </summary>
+    private const string SharedRuntimeDirectory = "runtime";
+
+    /// <summary>
+    /// Directory of this viewer's own source tree, searched while developing so
+    /// the viewer can run from its publish directory without staging runtimes.
+    /// </summary>
+    private const string ViewerDirectory = "mupdf-view";
+
+    /// <summary>How many parent directories are inspected when looking for a runtime.</summary>
+    private const int RuntimeSearchDepth = 8;
+
+    /// <summary>
+    /// Locates a runtime tool: a copy inside this package wins so a
+    /// self-contained package keeps working, then the runtimes shared with
+    /// other viewers, then this viewer's own source directory.
+    /// </summary>
+    private static string? FindRuntimeTool(string directory, string executable)
     {
-        string path = Path.Combine(AppContext.BaseDirectory, directory, executable);
-        return File.Exists(path) ? path : null;
+        foreach (string root in RuntimeSearchRoots())
+        {
+            string candidate = Path.Combine(root, directory, executable);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+        return null;
     }
 
+    /// <summary>
+    /// Candidate directories for a runtime, ordered from the executable's own
+    /// directory (and each ancestor up to <see cref="RuntimeSearchDepth"/>
+    /// levels) so both the installed layout and the development layout resolve.
+    /// </summary>
+    private static List<string> RuntimeSearchRoots()
+    {
+        var roots = new List<string>();
+        string? ancestor = AppContext.BaseDirectory.TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        for (int level = 0; level < RuntimeSearchDepth && !string.IsNullOrEmpty(ancestor); level++)
+        {
+            AddUniqueRoot(roots, ancestor!);
+            AddUniqueRoot(roots, Path.Combine(ancestor!, SharedRuntimePackage));
+            AddUniqueRoot(roots, Path.Combine(ancestor!, SharedRuntimeDirectory));
+            AddUniqueRoot(roots, Path.Combine(ancestor!, ViewerDirectory));
+            ancestor = Path.GetDirectoryName(ancestor!);
+        }
+        return roots;
+    }
+
+    private static void AddUniqueRoot(List<string> roots, string root)
+    {
+        if (!roots.Contains(root, StringComparer.OrdinalIgnoreCase))
+        {
+            roots.Add(root);
+        }
+    }
+
+    /// <summary>
+    /// DjVuLibre lives in the shared runtime package rather than in this
+    /// package, because ebook-view converts DjVu through the same tool.
+    /// </summary>
+    private static string? FindDjvulibre()
+    {
+        string? configured = Environment.GetEnvironmentVariable("INF_DIR_DJVULIBRE_PATH");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            if (File.Exists(configured))
+            {
+                return configured;
+            }
+            string nested = Path.Combine(configured, "ddjvu.exe");
+            if (File.Exists(nested))
+            {
+                return nested;
+            }
+        }
+        return FindRuntimeTool("djvulibre", "ddjvu.exe");
+    }
     private static string? FindSevenZip()
     {
         string? configured = Environment.GetEnvironmentVariable("INF_DIR_7Z_PATH");

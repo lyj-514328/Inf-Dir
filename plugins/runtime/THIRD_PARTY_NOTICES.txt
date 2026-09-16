@@ -1,0 +1,21 @@
+Inf-Dir shared viewer runtimes
+==============================
+
+This package (plugins\dist\inf-dir.runtime\) carries the external tools that more
+than one viewer uses. It has no plugin.json and is not a plugin itself.
+
+DjVuLibre 3.5.29  (djvulibre\)
+------------------------------
+Used by mupdf-view and ebook-view to convert DjVu pages to PDF (ddjvu.exe).
+DjVuLibre is distributed under the GNU General Public License v2 or later.
+The isolated runtime contains its COPYING file.
+Source: https://djvu.sourceforge.net/
+
+GhostXPS 10.08.0  (gxps\)
+-------------------------
+GhostXPS is Artifex' interpreter for Microsoft XPS and OpenXPS. ebook-view runs
+`gxpswin64.exe -sDEVICE=pdfwrite -o <out>.pdf <in>` to turn XPS/OpenXPS into PDF.
+GhostXPS is Copyright Artifex Software, Inc. and is distributed under the GNU
+General Public License v3 (or a commercial license; see COPYING and LICENSE in
+the runtime directory). Source and binaries:
+https://ghostscript.com/  https://github.com/ArtifexSoftware/ghostpdl-downloads

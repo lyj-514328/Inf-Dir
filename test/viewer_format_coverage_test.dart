@@ -11,7 +11,7 @@ void main() {
       '.sgi', '.rgb', '.xpm', '.xbm', '.xface', '.dds', '.exr',
     },
     'inf-dir.mupdf-view': {
-      '.xps', '.oxps', '.dwg', '.dxf',
+      '.dwg', '.dxf',
       '.djvu', '.djv',
       '.epub', '.mobi', '.fb2', '.fbz', '.fb2z', '.tcr', '.cbr',
       '.vsd', '.vsdx', '.vst', '.vss', '.vdx', '.vdw', '.vsx', '.vtx',
@@ -24,7 +24,7 @@ void main() {
     'inf-dir.project-view': {'.mpp', '.mpt', '.mpx'},
     'inf-dir.ebook-view': {
       '.epub', '.mobi', '.azw', '.azw3', '.fb2', '.fbz', '.cbz',
-      '.cbr', '.tcr', '.djvu', '.djv',
+      '.cbr', '.tcr', '.djvu', '.djv', '.xps', '.oxps',
     },
     'inf-dir.font-view': {'.ttf', '.otf', '.woff', '.woff2', '.ttc', '.dfont'},
     'inf-dir.chm-view': {'.chm'},

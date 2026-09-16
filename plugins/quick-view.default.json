@@ -1305,7 +1305,7 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.mupdf-view",
+          "id": "inf-dir.ebook-view",
           "enabled": true
         }
       ]
@@ -2036,10 +2036,6 @@
         {
           "id": "inf-dir.ebook-view",
           "enabled": true
-        },
-        {
-          "id": "inf-dir.mupdf-view",
-          "enabled": true
         }
       ]
     },
@@ -2052,10 +2048,6 @@
       "viewers": [
         {
           "id": "inf-dir.ebook-view",
-          "enabled": true
-        },
-        {
-          "id": "inf-dir.mupdf-view",
           "enabled": true
         }
       ]
@@ -5238,7 +5230,7 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.mupdf-view",
+          "id": "inf-dir.ebook-view",
           "enabled": true
         }
       ]
@@ -7061,7 +7053,7 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.mupdf-view",
+          "id": "inf-dir.ebook-view",
           "enabled": true
         }
       ]

@@ -50,9 +50,12 @@ plugins/img-view/_cache/
 plugins/img-view/magick/
 plugins/mupdf-view/_cache/
 plugins/mupdf-view/_runtime_tmp/
-plugins/mupdf-view/djvulibre/
+plugins/runtime/_cache/
+plugins/runtime/_runtime_tmp/
+plugins/runtime/djvulibre/
+plugins/runtime/gxps/
+plugins/runtime/libreoffice/
 plugins/mupdf-view/libredwg/
-plugins/mupdf-view/libreoffice/
 plugins/font-view/bin/
 plugins/font-view/obj/
 plugins/project-view/bin/

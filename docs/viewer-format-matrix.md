@@ -14,6 +14,11 @@
 > 最终以本表的后端实测（LibRaw 支持表 / FFmpeg demuxer 名单 / ImageMagick
 > `-list format`）为准。
 >
+> **参考清单之外的例外**：`eBooks` 组的 `.azw`/`.azw3` 不见于上述两份参考清单
+> （FVP 与 UV 均未收录 Kindle 格式），由 `ebook-view`（foliate-js）的实际解析
+> 能力补入，同一事实的另一处记录点是 `docs/viewer-technology-stack.md` 的插件
+> 描述表。
+>
 > 状态列图例：
 > - `✅` 已支持（同时给出 viewer 与命中方式：扩展名/文件名规则或 MIME 子类）；
 > - `🔮` 依赖更强的内容/MIME 嗅探器（规则体系已就绪，嗅探器上线后自动命中）；
@@ -47,7 +52,7 @@
 > 类别按使用语义整理：**Text**（纯文本，已并入 Source Code，由 code-view 统一处理）、
 > **Documents**（编辑型/字处理文档）、
 > **Page Documents**（页面式文档：PDF/XPS/DjVu，固定排版或扫描件）、
-> **eBooks**（可重排电子书：EPUB/MOBI/FB2 系）。
+> **eBooks**（可重排电子书：EPUB/MOBI/Kindle/FB2 系）。
 >
 > 同名不同义/双语义的后缀（按参考清单分多行列出）：
 - `.vst`：Visio（Visio Drawing Template）；Image（Truevision image）
@@ -75,15 +80,17 @@
 | Documents | .rtf | Rich Text Format File / Rich Text Format | ✅ mupdf-view（LibreOffice 转换） |
 | Documents | .wbk | Microsoft Word backup | ✅ mupdf-view（LibreOffice 转换） |
 | Documents | .wps | Microsoft Works Word Processor Document | ✅ mupdf-view（LibreOffice 转换） |
-| eBooks | .epub | EPUB eBook | ✅ mupdf（扩展名规则） |
-| eBooks | .fb2 | FictionBook e-book | ✅ mupdf（扩展名规则） |
+| eBooks | .azw | Amazon Kindle eBook | ✅ ebook（扩展名规则；内容按 MOBI 头嗅探） |
+| eBooks | .azw3 | Amazon Kindle eBook (KF8) | ✅ ebook（扩展名规则；内容按 MOBI/KF8 头嗅探） |
+| eBooks | .epub | EPUB eBook | ✅ ebook、mupdf（扩展名规则） |
+| eBooks | .fb2 | FictionBook e-book | ✅ ebook、mupdf（扩展名规则） |
 | eBooks | .fb2z | FictionBook e-book | ✅ mupdf（扩展名规则） |
-| eBooks | .fbz | FictionBook e-book | ✅ mupdf（扩展名规则） |
-| eBooks | .mobi | Mobipocket e-book | ✅ mupdf（扩展名规则） |
+| eBooks | .fbz | FictionBook e-book | ✅ ebook、mupdf（扩展名规则） |
+| eBooks | .mobi | Mobipocket e-book | ✅ ebook、mupdf（扩展名规则） |
 | eBooks | .tcr | TCR e-book | ✅ ebook、mupdf（扩展名规则） |
-| Page Documents | .oxps | Open XML Paper Specification File | ✅ mupdf（扩展名规则） |
+| Page Documents | .oxps | Open XML Paper Specification File | ✅ ebook（共享 GhostXPS 转 PDF 后由 foliate-js 渲染） |
 | Page Documents | .pdf | Portable Document Format File / Adobe Portable Document Format | ✅ pdf、pdfjs（扩展名规则） |
-| Page Documents | .xps | XML Paper Specification File / Microsoft XML Paper Specification | ✅ mupdf（扩展名规则） |
+| Page Documents | .xps | XML Paper Specification File / Microsoft XML Paper Specification | ✅ ebook（共享 GhostXPS 转 PDF 后由 foliate-js 渲染） |
 | Page Documents | .djvu | DejaVu document | ✅ ebook、mupdf（扩展名规则） |
 | Page Documents | .djv | DejaVu document | ✅ ebook、mupdf（扩展名规则） |
 | Spreadsheet | .csv | Comma Separated Values File | ✅ code（扩展名规则） |

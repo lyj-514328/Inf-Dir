@@ -58,6 +58,11 @@ if errorlevel 1 (
     echo [ERROR] ImageMagick runtime preparation failed.
     exit /b 1
 )
+call "%SCRIPT_DIR%runtime\build.bat"
+if errorlevel 1 (
+    echo [ERROR] Shared runtime preparation failed.
+    exit /b 1
+)
 call "%SCRIPT_DIR%mupdf-view\build-runtime.bat"
 if errorlevel 1 (
     echo [ERROR] Document conversion runtime preparation failed.
@@ -490,6 +495,33 @@ for %%D in (
     inf-dir.windows-terminal
 ) do if not exist "%DIST_DIR%\%%D" mkdir "%DIST_DIR%\%%D"
 
+REM ============================================================
+REM  Shared runtimes used by more than one viewer
+REM ============================================================
+REM Converters shared between viewers are installed once as their own package
+REM instead of being copied into a viewer package: DjVuLibre (mupdf-view and
+REM ebook-view), GhostXPS (ebook-view, for XPS/OpenXPS) and LibreOffice
+REM (mupdf-view, for Office/ODF/Visio). The package carries no plugin.json, so
+REM plugin discovery in the Flutter app skips it.
+if exist "%DIST_DIR%\inf-dir.runtime" rmdir /s /q "%DIST_DIR%\inf-dir.runtime"
+mkdir "%DIST_DIR%\inf-dir.runtime"
+xcopy /E /I /Y /Q "%SCRIPT_DIR%runtime\djvulibre" "%DIST_DIR%\inf-dir.runtime\djvulibre" >nul
+xcopy /E /I /Y /Q "%SCRIPT_DIR%runtime\gxps" "%DIST_DIR%\inf-dir.runtime\gxps" >nul
+xcopy /E /I /Y /Q "%SCRIPT_DIR%runtime\libreoffice" "%DIST_DIR%\inf-dir.runtime\libreoffice" >nul
+copy /Y "%SCRIPT_DIR%runtime\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.runtime\" >nul
+if not exist "%DIST_DIR%\inf-dir.runtime\djvulibre\ddjvu.exe" (
+    echo [ERROR] The shared DjVuLibre runtime was not installed to inf-dir.runtime.
+    exit /b 1
+)
+if not exist "%DIST_DIR%\inf-dir.runtime\gxps\gxpswin64.exe" (
+    echo [ERROR] The shared GhostXPS runtime was not installed to inf-dir.runtime.
+    exit /b 1
+)
+if not exist "%DIST_DIR%\inf-dir.runtime\libreoffice\program\soffice.exe" (
+    echo [ERROR] The shared LibreOffice runtime was not installed to inf-dir.runtime.
+    exit /b 1
+)
+
 copy /Y "%SCRIPT_DIR%img-view\plugin.json" "%DIST_DIR%\inf-dir.image-view\" >nul
 copy /Y "%SCRIPT_DIR%img-view\target\release\img-view.exe" "%DIST_DIR%\inf-dir.image-view\" >nul
 copy /Y "%SCRIPT_DIR%img-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.image-view\" >nul
@@ -625,12 +657,13 @@ if errorlevel 8 (
 copy /Y "%SCRIPT_DIR%mupdf-view\plugin.json" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
 if exist "%DIST_DIR%\inf-dir.mupdf-view\publish" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\publish"
 xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\bin\Release\net10.0-windows\win-x64\publish" "%DIST_DIR%\inf-dir.mupdf-view" >nul
+REM Purge the DjVuLibre and LibreOffice copies left inside the package by builds
+REM predating the shared runtime package; the viewer resolves both from
+REM inf-dir.runtime now.
 if exist "%DIST_DIR%\inf-dir.mupdf-view\djvulibre" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\djvulibre"
 if exist "%DIST_DIR%\inf-dir.mupdf-view\libredwg" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\libredwg"
 if exist "%DIST_DIR%\inf-dir.mupdf-view\libreoffice" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\libreoffice"
-xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\djvulibre" "%DIST_DIR%\inf-dir.mupdf-view\djvulibre" >nul
 xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\libredwg" "%DIST_DIR%\inf-dir.mupdf-view\libredwg" >nul
-xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\libreoffice" "%DIST_DIR%\inf-dir.mupdf-view\libreoffice" >nul
 copy /Y "%SCRIPT_DIR%mupdf-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
 
 copy /Y "%SCRIPT_DIR%font-view\plugin.json" "%DIST_DIR%\inf-dir.font-view\" >nul

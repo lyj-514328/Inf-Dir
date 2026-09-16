@@ -17,7 +17,9 @@
         ".cbr",
         ".tcr",
         ".djvu",
-        ".djv"
+        ".djv",
+        ".xps",
+        ".oxps"
       ],
       "mimeTypes": [
         "application/epub+zip",
@@ -28,7 +30,8 @@
         "application/vnd.comicbook-rar",
         "application/x-cbr",
         "application/x-tcr",
-        "image/vnd.djvu"
+        "image/vnd.djvu",
+        "application/vnd.ms-xpsdocument"
       ]
     }
   }
