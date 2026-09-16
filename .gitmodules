@@ -34,3 +34,6 @@
 [submodule "plugins/ebook-view-web"]
 	path = plugins/ebook-view-web
 	url = https://github.com/lyj-514328/foliate-js.git
+[submodule "ai_refs/univer"]
+	path = ai_refs/univer
+	url = https://github.com/dream-num/univer
