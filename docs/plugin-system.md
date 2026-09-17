@@ -45,7 +45,7 @@ Inf-Dir/
 `plugins/dist/inf-dir.runtime/` 是**共享运行时包**，存放被多个 Viewer 共用的外部工具
 （DjVuLibre：`mupdf-view` 与 `ebook-view` 都把 DjVu 转成 PDF；GhostXPS：
 `ebook-view` 把 XPS/OpenXPS 转成 PDF；LibreOffice：`mupdf-view` 把
-Office/ODF/Visio 转成 PDF）。它没有 `plugin.json`，
+Office/ODF/Visio 转成 PDF，`excel-view` 把 `xls/xlt/xlsb/ods/ots` 转成 xlsx）。它没有 `plugin.json`，
 因此插件发现会跳过它，不会被当成 Viewer；详见 `docs/viewer-technology-stack.md` 第 4.4 节。
 
 ## 3. Manifest

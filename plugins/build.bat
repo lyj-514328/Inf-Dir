@@ -16,8 +16,8 @@ set "LIBARCHIVE_ZIP=%SCRIPT_DIR%archive-view\libarchive.zip"
 set "LIBARCHIVE_DEPS=%SCRIPT_DIR%archive-view\libarchive"
 set "OOXML_VERSION=0.75.4"
 set "OOXML_URL=https://registry.npmjs.org/@silurus/ooxml/-/ooxml-%OOXML_VERSION%.tgz"
-set "OOXML_TGZ=%SCRIPT_DIR%office-view\_ooxml.tgz"
-set "OOXML_WEB=%SCRIPT_DIR%office-view-web"
+set "OOXML_TGZ=%SCRIPT_DIR%excel-view\_ooxml.tgz"
+set "OOXML_WEB=%SCRIPT_DIR%excel-view-web"
 set "MDIT_VERSION=14.1.0"
 set "KATEX_VERSION=0.16.11"
 set "HLJS_VERSION=11.10.0"
@@ -137,9 +137,9 @@ if not exist "%LIBARCHIVE_DEPS%\lib\libarchive.lib" (
 )
 
 REM ============================================================
-REM  3. Prepare @silurus/ooxml web assets for office-view
+REM  3. Prepare @silurus/ooxml web assets for excel-view
 REM ============================================================
-if not exist "%OOXML_WEB%\docx.mjs" (
+if not exist "%OOXML_WEB%\xlsx.mjs" (
     echo [3/14] Downloading @silurus/ooxml %OOXML_VERSION%...
     if not exist "%OOXML_TGZ%" (
         curl -L -o "%OOXML_TGZ%" "%OOXML_URL%"
@@ -149,7 +149,7 @@ if not exist "%OOXML_WEB%\docx.mjs" (
         )
     )
     echo [3/14] Extracting @silurus/ooxml...
-    set "OOXML_TMP=%SCRIPT_DIR%office-view\_ooxml_tmp"
+    set "OOXML_TMP=%SCRIPT_DIR%excel-view\_ooxml_tmp"
     if exist "!OOXML_TMP!" rmdir /s /q "!OOXML_TMP!"
     mkdir "!OOXML_TMP!"
     7z x "%OOXML_TGZ%" -o"!OOXML_TMP!" -y >nul
@@ -165,7 +165,7 @@ if not exist "%OOXML_WEB%\docx.mjs" (
     )
     if not exist "%OOXML_WEB%" mkdir "%OOXML_WEB%"
     xcopy /E /I /Y /Q "!OOXML_TMP!\pkg\package\dist" "%OOXML_WEB%" >nul
-    copy /Y "%SCRIPT_DIR%office-view\web\index.html" "%OOXML_WEB%\" >nul
+    copy /Y "%SCRIPT_DIR%excel-view\web\index.html" "%OOXML_WEB%\" >nul
     copy /Y "!OOXML_TMP!\pkg\package\LICENSE" "%OOXML_WEB%\" >nul
     copy /Y "!OOXML_TMP!\pkg\package\THIRD_PARTY_NOTICES.md" "%OOXML_WEB%\" >nul
     rmdir /s /q "!OOXML_TMP!" 2>nul
@@ -363,12 +363,12 @@ if errorlevel 1 ( echo [ERROR] web-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  10. Build office-view (MSVC + WebView2)
+REM  10. Build excel-view (MSVC + WebView2)
 REM ============================================================
-echo [10/14] Building office-view...
-pushd "%SCRIPT_DIR%office-view"
+echo [10/14] Building excel-view...
+pushd "%SCRIPT_DIR%excel-view"
 cargo build --release
-if errorlevel 1 ( echo [ERROR] office-view build failed. & popd & exit /b 1 )
+if errorlevel 1 ( echo [ERROR] excel-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
@@ -480,7 +480,7 @@ for %%D in (
     inf-dir.code-view
     inf-dir.archive-view
     inf-dir.web-view
-    inf-dir.office-view
+    inf-dir.excel-view
     inf-dir.markdown-view
     inf-dir.email-view
     inf-dir.video-view
@@ -602,10 +602,25 @@ copy /Y "%SEVENZ_SRC%7z.dll" "%DIST_DIR%\inf-dir.archive-view\" >nul
 if exist "%SEVENZ_SRC%Codecs" xcopy /E /I /Y /Q "%SEVENZ_SRC%Codecs" "%DIST_DIR%\inf-dir.archive-view\Codecs" >nul
 if exist "%SEVENZ_SRC%Formats" xcopy /E /I /Y /Q "%SEVENZ_SRC%Formats" "%DIST_DIR%\inf-dir.archive-view\Formats" >nul
 
-copy /Y "%SCRIPT_DIR%office-view\plugin.json" "%DIST_DIR%\inf-dir.office-view\" >nul
-copy /Y "%SCRIPT_DIR%office-view\target\release\office-view.exe" "%DIST_DIR%\inf-dir.office-view\" >nul
-if exist "%DIST_DIR%\inf-dir.office-view\office-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.office-view\office-view-web"
-xcopy /E /I /Y /Q "%OOXML_WEB%" "%DIST_DIR%\inf-dir.office-view\office-view-web" >nul
+REM The package this viewer replaces may still be installed in an existing dist
+REM tree; plugin discovery would keep offering its (now missing) executable.
+if exist "%DIST_DIR%\inf-dir.office-view" rmdir /s /q "%DIST_DIR%\inf-dir.office-view"
+copy /Y "%SCRIPT_DIR%excel-view\plugin.json" "%DIST_DIR%\inf-dir.excel-view\" >nul
+copy /Y "%SCRIPT_DIR%excel-view\target\release\excel-view.exe" "%DIST_DIR%\inf-dir.excel-view\" >nul
+if exist "%DIST_DIR%\inf-dir.excel-view\excel-view-web" rmdir /s /q "%DIST_DIR%\inf-dir.excel-view\excel-view-web"
+xcopy /E /I /Y /Q "%OOXML_WEB%" "%DIST_DIR%\inf-dir.excel-view\excel-view-web" >nul
+REM The whole @silurus/ooxml dist is installed as-is: the renderers share
+REM content-hashed chunks (xlsx.mjs even imports a mathjax helper statically),
+REM so deleting the Word/PowerPoint files by name would only save a couple of MB
+REM and would break on any library upgrade that renames a chunk.
+if not exist "%DIST_DIR%\inf-dir.excel-view\excel-view-web\xlsx.mjs" (
+    echo [ERROR] The @silurus/ooxml spreadsheet renderer was not installed for excel-view.
+    exit /b 1
+)
+if not exist "%DIST_DIR%\inf-dir.excel-view\excel-view-web\xlsx_parser_bg.wasm" (
+    echo [ERROR] The @silurus/ooxml spreadsheet WASM was not installed for excel-view.
+    exit /b 1
+)
 
 copy /Y "%SCRIPT_DIR%markdown-view\plugin.json" "%DIST_DIR%\inf-dir.markdown-view\" >nul
 copy /Y "%SCRIPT_DIR%markdown-view\target\release\markdown-view.exe" "%DIST_DIR%\inf-dir.markdown-view\" >nul

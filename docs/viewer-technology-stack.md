@@ -36,8 +36,10 @@
 | SVG / SVGZ | `img-view`、`web-view`（`.svg` 还有 `code-view`） | 已接入，多候选 | image-view/resvg 静态渲染，或 WebView2 浏览器语义渲染，或 CodeMirror 源码查看 | `resvg`；WebView2 |
 | HTML / XHTML / SHTML | `web-view`、`code-view` | 已接入，两个候选 | WebView2 受限本地资源渲染，或 CodeMirror 源码查看 | WebView2；本地协议路由 |
 | MHTML / MHT | `web-view`、`mupdf-view` | 已接入（转换） | 页面层解析 multipart/related，将 HTML、图片、CSS 和字体转换为 Blob 后渲染；`mupdf-view` 用 LibreOffice 转换兜底 | WebView2；内置 MHTML 解析器；LibreOffice |
-| 旧 Office：DOC/XLS/PPT 等 | `mupdf-view` | 已接入（转换） | 调用共享运行时里的 `soffice --headless` 转 PDF，再交给 MuPDF.NET | 共享 LibreOffice 运行时（`inf-dir.runtime/`） |
-| OOXML：DOCX/XLSX/PPTX | `office-view` | 已接入 | WebView2 加载本地 OOXML Web 渲染器 | WebView2；`@silurus/ooxml` 静态资源 |
+| 旧 Office：DOC/PPT 等 | `mupdf-view` | 已接入（转换） | 调用共享运行时里的 `soffice --headless` 转 PDF，再交给 MuPDF.NET | 共享 LibreOffice 运行时（`inf-dir.runtime/`） |
+| 旧表格：XLS/XLT/XLSB/ODS/OTS | `excel-view`、`mupdf-view` | 已接入（转换） | `excel-view` 先用 `soffice --convert-to xlsx` 归一成 OOXML 再走 Web 渲染器；失败时由 `mupdf-view` 转 PDF 兜底 | WebView2；`@silurus/ooxml`；共享 LibreOffice 运行时 |
+| OOXML 表格：XLSX/XLSM/XLTX/XLTM | `excel-view` | 已接入 | WebView2 加载本地 OOXML 表格渲染器 | WebView2；`@silurus/ooxml` 静态资源 |
+| OOXML 文档/演示：DOCX/PPTX 等 | `mupdf-view` | 已接入（转换） | LibreOffice 转 PDF 后由 MuPDF.NET 渲染 | 共享 LibreOffice 运行时（`inf-dir.runtime/`） |
 | 图片与 RAW | `img-view` | 已接入 | Rust 原生解码；SVG 用 resvg；V.Flash PTX 由内置 BGR555 解码；RAW 先按内容识别，再走 ImageMagick 的 LibRaw-backed RAW coder，必要时强制 `dng:` 入口，最后读取嵌入 JPEG 预览；manifest 扩展名清单已覆盖现代 RAW 与常见图片别名（`.icon` `.jfif` `.dib` 等） | `image`、`resvg`；ImageMagick（含 LibRaw RAW delegate）、Compface |
 | 音频/视频 | `video-view` | 已接入 | libmpv2 渲染和播放 | `libmpv2`；发布时附带 `libmpv-2.dll` |
 | 压缩包 | `archive-view` | 已接入 | libarchive 枚举并显示归档内容 | `archive.dll`（libarchive） |
@@ -54,7 +56,7 @@
 | `inf-dir.image-view` | Rust + egui/eframe | image、resvg | ImageMagick（含 LibRaw RAW delegate）、Compface | 常用位图、SVG、相机 RAW、专业图像格式（HEIF/AVIF、JPEG XL、WebP 由后端能力覆盖） |
 | `inf-dir.pdf-view` | Rust + egui/eframe | pdfium-render | `pdfium.dll`，默认构建 PDFium 7881 x64 | PDF |
 | `inf-dir.pdfjs-view` | Rust + winit/wry/WebView2 | Mozilla pdf.js 6.2.108 | WebView2；pdf.js `web/` 和 `build/` 资源 | PDF |
-| `inf-dir.office-view` | Rust + winit/wry/WebView2 | `@silurus/ooxml` WASM/Web 渲染器 | WebView2；`office-view-web/` | DOCX/XLSX/PPTX 及 OOXML 模板 |
+| `inf-dir.excel-view` | Rust + winit/wry/WebView2 | `@silurus/ooxml` WASM/Web 渲染器 | WebView2；`excel-view-web/`；`xls/xlt/xlsb/ods/ots` 取自共享 LibreOffice 运行时 | XLSX/XLSM/XLTX/XLTM，以及经转换的 XLS/XLT/XLSB/ODS/OTS |
 | `inf-dir.mupdf-view` | .NET Windows Forms | MuPDF.NET 3.28.1.6 | MuPDF 原生资产；LibreDWG 0.14（包内）；LibreOffice 26.2.5、DjVuLibre 3.5.29 取自共享运行时包；CBR 时依赖相邻 archive-view | PDF 衍生文档、电子书、漫画、DjVu、旧 Office、Visio、CAD |
 | `inf-dir.archive-view` | Rust + egui/eframe | libarchive、egui_ltreeview | `archive.dll` | ZIP/7z/RAR/TAR/ISO 等归档内容 |
 | `inf-dir.video-view` | Rust + egui/eframe | libmpv2 | `libmpv-2.dll`；mpv/FFmpeg 能力由 DLL 提供 | 音频、视频、动图 |
@@ -82,7 +84,7 @@ Rust 原生 Viewer 的第三方 DLL 只在对应插件进程内加载，不进�
 
 - `code-view`
 - `markdown-view`
-- `office-view`
+- `excel-view`
 - `pdfjs-view`
 - `chm-view`
 - `email-view`
@@ -115,7 +117,8 @@ Windows 11 通常自带，Windows 10 依赖 Edge/WebView2 Runtime 安装状态�
 - 被多个 Viewer 共用的运行时作为**共享运行时包**发布，不复制进各 Viewer 包。判定标准是
   "是否被多于一个 Viewer 使用"：DjVuLibre（`mupdf-view`、`ebook-view` 都把 DjVu 转 PDF）、
   GhostXPS（`ebook-view` 把 XPS/OpenXPS 转 PDF）、LibreOffice（`mupdf-view` 把
-  Office/ODF/Visio 转 PDF；收进共享包是为了将来宿主变化时不必再搬 472 MB）：
+  Office/ODF/Visio 转 PDF，`excel-view` 把 `xls/xlt/xlsb/ods/ots` 转 xlsx；收进共享包是为了
+  将来宿主变化时不必再搬 472 MB）：
 
   ```text
   plugins/

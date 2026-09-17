@@ -569,6 +569,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "excel-view"
+version = "0.1.0"
+dependencies = [
+ "dpi",
+ "http",
+ "percent-encoding",
+ "viewer-window-placement",
+ "winit",
+ "wry",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1697,18 +1709,6 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "objc2-core-foundation",
  "objc2-foundation 0.3.2",
-]
-
-[[package]]
-name = "office-view"
-version = "0.1.0"
-dependencies = [
- "dpi",
- "http",
- "percent-encoding",
- "viewer-window-placement",
- "winit",
- "wry",
 ]
 
 [[package]]

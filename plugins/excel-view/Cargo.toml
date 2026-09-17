@@ -1,8 +1,8 @@
 [package]
-name = "office-view"
+name = "excel-view"
 version = "0.1.0"
 edition = "2021"
-description = "Office document viewer (docx/xlsx/pptx) for Inf-Dir Quick View (WebView2 + @silurus/ooxml)"
+description = "Excel spreadsheet viewer (xlsx/xls/xlsb/ods) for Inf-Dir Quick View (WebView2 + @silurus/ooxml + LibreOffice conversion)"
 
 [dependencies]
 dpi = "0.1"

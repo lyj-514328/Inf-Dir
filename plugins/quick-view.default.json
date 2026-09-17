@@ -900,10 +900,6 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
-        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -916,10 +912,6 @@
       "value": ".docx",
       "rules": [],
       "viewers": [
-        {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -934,10 +926,6 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
-        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -950,10 +938,6 @@
       "value": ".dotx",
       "rules": [],
       "viewers": [
-        {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -1318,10 +1302,6 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
-        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -1334,10 +1314,6 @@
       "value": ".potx",
       "rules": [],
       "viewers": [
-        {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -1352,10 +1328,6 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
-        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -1368,10 +1340,6 @@
       "value": ".ppsx",
       "rules": [],
       "viewers": [
-        {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -1386,10 +1354,6 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
-        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -1402,10 +1366,6 @@
       "value": ".pptx",
       "rules": [],
       "viewers": [
-        {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -1615,6 +1575,10 @@
       "rules": [],
       "viewers": [
         {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
+        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -1628,7 +1592,7 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
+          "id": "inf-dir.excel-view",
           "enabled": true
         },
         {
@@ -1645,7 +1609,7 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
+          "id": "inf-dir.excel-view",
           "enabled": true
         },
         {
@@ -1662,7 +1626,7 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
+          "id": "inf-dir.excel-view",
           "enabled": true
         },
         {
@@ -1679,7 +1643,7 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
+          "id": "inf-dir.excel-view",
           "enabled": true
         },
         {
@@ -5178,6 +5142,10 @@
       "rules": [],
       "viewers": [
         {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
+        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -5190,6 +5158,44 @@
       "value": ".xlt",
       "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
+        {
+          "id": "inf-dir.mupdf-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-ods",
+      "enabled": true,
+      "type": "extension",
+      "value": ".ods",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
+        {
+          "id": "inf-dir.mupdf-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "ext-ots",
+      "enabled": true,
+      "type": "extension",
+      "value": ".ots",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -7165,10 +7171,6 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
-        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -7182,7 +7184,7 @@
       "rules": [],
       "viewers": [
         {
-          "id": "inf-dir.office-view",
+          "id": "inf-dir.excel-view",
           "enabled": true
         },
         {
@@ -7198,10 +7200,6 @@
       "value": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       "rules": [],
       "viewers": [
-        {
-          "id": "inf-dir.office-view",
-          "enabled": true
-        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -7268,6 +7266,10 @@
       "rules": [],
       "viewers": [
         {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
+        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -7280,6 +7282,10 @@
       "value": "application/vnd.ms-excel.sheet.binary.macroenabled.12",
       "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true
@@ -7294,6 +7300,10 @@
       "rules": [],
       "viewers": [
         {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
+        {
           "id": "inf-dir.mupdf-view",
           "enabled": true
         }
@@ -7306,6 +7316,44 @@
       "value": "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
       "rules": [],
       "viewers": [
+        {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
+        {
+          "id": "inf-dir.mupdf-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "mime-application-vnd-oasis-opendocument-spreadsheet",
+      "enabled": true,
+      "type": "mimeType",
+      "value": "application/vnd.oasis.opendocument.spreadsheet",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
+        {
+          "id": "inf-dir.mupdf-view",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "mime-application-vnd-oasis-opendocument-spreadsheet-template",
+      "enabled": true,
+      "type": "mimeType",
+      "value": "application/vnd.oasis.opendocument.spreadsheet-template",
+      "rules": [],
+      "viewers": [
+        {
+          "id": "inf-dir.excel-view",
+          "enabled": true
+        },
         {
           "id": "inf-dir.mupdf-view",
           "enabled": true

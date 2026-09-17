@@ -70,11 +70,11 @@
 | --- | --- | --- | --- |
 | Documents | .chm | Compiled HTML Help File / Microsoft HTML Help | ✅ chm（扩展名规则） |
 | Documents | .doc | Microsoft Word Document (Legacy) / Microsoft Word | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .docm | Microsoft Word Macro-Enabled Document / Microsoft Word 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
-| Documents | .docx | Microsoft Word Document / Microsoft Word 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
+| Documents | .docm | Microsoft Word Macro-Enabled Document / Microsoft Word 2007/2010 | ✅ mupdf-view（LibreOffice 转换） |
+| Documents | .docx | Microsoft Word Document / Microsoft Word 2007/2010 | ✅ mupdf-view（LibreOffice 转换） |
 | Documents | .dot | Microsoft Word Document Template / Microsoft Word | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .dotm | Microsoft Word Macro-Enabled Document Template / Microsoft Word 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
-| Documents | .dotx | Microsoft Word Document Template / Microsoft Word 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
+| Documents | .dotm | Microsoft Word Macro-Enabled Document Template / Microsoft Word 2007/2010 | ✅ mupdf-view（LibreOffice 转换） |
+| Documents | .dotx | Microsoft Word Document Template / Microsoft Word 2007/2010 | ✅ mupdf-view（LibreOffice 转换） |
 | Documents | .odt | OpenDocument Text Document | ✅ mupdf-view（LibreOffice 转换） |
 | Documents | .ott | OpenDocument Document Template | ✅ mupdf-view（LibreOffice 转换） |
 | Documents | .rtf | Rich Text Format File / Rich Text Format | ✅ mupdf-view（LibreOffice 转换） |
@@ -95,21 +95,25 @@
 | Page Documents | .djv | DejaVu document | ✅ ebook、mupdf（扩展名规则） |
 | Spreadsheet | .csv | Comma Separated Values File | ✅ code（扩展名规则） |
 | Spreadsheet | .tsv | Tab Separated Values File | ✅ code（扩展名规则） |
-| Spreadsheet | .xls | Excel Spreadsheet (Legacy) / Microsoft Excel | ✅ mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xlsm | Excel Macro-Enabled Spreadsheet | ✅ office、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xlsx | Excel Spreadsheet / Microsoft Excel 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xlt | Excel Spreadsheet Template / Microsoft Excel | ✅ mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xltm | Excel Macro-Enabled Spreadsheet Template | ✅ office、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xltx | Excel Spreadsheet Template / Microsoft Excel 2007/2010 | ✅ office、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .ods | OpenDocument Spreadsheet | ✅ excel-view（LibreOffice 转 xlsx）、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .ots | OpenDocument Spreadsheet Template | ✅ excel-view（LibreOffice 转 xlsx）、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xls | Excel Spreadsheet (Legacy) / Microsoft Excel | ✅ excel-view（LibreOffice 转 xlsx）、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xlsb | Excel Binary Workbook | ✅ excel-view（LibreOffice 转 xlsx）、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xlsm | Excel Macro-Enabled Spreadsheet | ✅ excel-view、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xlsx | Excel Spreadsheet / Microsoft Excel 2007/2010 | ✅ excel-view、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xlt | Excel Spreadsheet Template / Microsoft Excel | ✅ excel-view（LibreOffice 转 xlsx）、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xltm | Excel Macro-Enabled Spreadsheet Template | ✅ excel-view、mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .xltx | Excel Spreadsheet Template / Microsoft Excel 2007/2010 | ✅ excel-view、mupdf-view（LibreOffice 转换） |
 | Presentation | .odp | OpenDocument Presentation | ✅ mupdf-view（LibreOffice 转换） |
 | Presentation | .pot | PowerPoint Template | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .potm | PowerPoint Macro-Enabled Presentation Template | ✅ office、mupdf-view（LibreOffice 转换） |
-| Presentation | .potx | PowerPoint Template | ✅ office、mupdf-view（LibreOffice 转换） |
+| Presentation | .potm | PowerPoint Macro-Enabled Presentation Template | ✅ mupdf-view（LibreOffice 转换） |
+| Presentation | .potx | PowerPoint Template | ✅ mupdf-view（LibreOffice 转换） |
 | Presentation | .pps | PowerPoint Slide Show | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .ppsx | PowerPoint Slide Show | ✅ office、mupdf-view（LibreOffice 转换） |
+| Presentation | .ppsm | PowerPoint Macro-Enabled Slide Show | ✅ mupdf-view（LibreOffice 转换） |
+| Presentation | .ppsx | PowerPoint Slide Show | ✅ mupdf-view（LibreOffice 转换） |
 | Presentation | .ppt | PowerPoint Presentation (Legacy) | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .pptm | PowerPoint Macro-Enabled Presentation | ✅ office、mupdf-view（LibreOffice 转换） |
-| Presentation | .pptx | PowerPoint Presentation | ✅ office、mupdf-view（LibreOffice 转换） |
+| Presentation | .pptm | PowerPoint Macro-Enabled Presentation | ✅ mupdf-view（LibreOffice 转换） |
+| Presentation | .pptx | PowerPoint Presentation | ✅ mupdf-view（LibreOffice 转换） |
 | Visio | .vdw | Visio Web Drawing | ✅ mupdf-view（LibreOffice 转换） |
 | Visio | .vdx | Visio Drawing XML File | ✅ mupdf-view（LibreOffice 转换） |
 | Visio | .vsd | Visio Drawing | ✅ mupdf-view（LibreOffice 转换） |

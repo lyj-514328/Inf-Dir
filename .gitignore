@@ -29,10 +29,10 @@ plugins/*.dll
 plugins/dist/
 plugins/video-view/mpv-dev/
 plugins/archive-view/libarchive/
-plugins/office-view-web/
 plugins/excel-view-web/
 plugins/excel-view/node_modules/
-plugins/office-view/_ooxml.tgz
+plugins/excel-view/_ooxml.tgz
+plugins/excel-view/_ooxml_tmp/
 plugins/markdown-view-web/
 plugins/chm-view/chm-view-web/
 plugins/markdown-view/_web_tmp/
@@ -72,7 +72,7 @@ plugins/img-view/libraw-decoder/libraw.dll
 plugins/img-view/wic-decoder/wic-decoder.exe
 plugins/img-view/_wic-*
 plugins/mupdf-view/mupdf-view.csproj.user
-plugins/office-view.exe.WebView2/
+plugins/excel-view.exe.WebView2/
 plugins/*.log
 plugins/search/_cache/
 plugins/search/_tmp/

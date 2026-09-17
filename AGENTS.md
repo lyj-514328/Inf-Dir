@@ -20,7 +20,7 @@
 - 地址栏导航、面包屑路径
 - 标签页支持（每个面板可多标签）
 - 右键菜单、拖放、剪贴板操作
-- 快速查看（Quick View）：manifest 驱动的 viewer 插件关联（text/pdf/img/video/archive/office）
+- 快速查看（Quick View）：manifest 驱动的 viewer 插件关联（text/pdf/img/video/archive/excel）
 - 侧边栏驱动器树与云盘状态列（CfAPI：SyncRootManager 检测 + StorageProviderState 状态）
 - 设置中心：主题、显示、默认视图、新标签位置、删除确认与 Viewer 关联统一持久化
 
