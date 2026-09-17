@@ -63,11 +63,6 @@ if errorlevel 1 (
     echo [ERROR] Shared runtime preparation failed.
     exit /b 1
 )
-call "%SCRIPT_DIR%mupdf-view\build-runtime.bat"
-if errorlevel 1 (
-    echo [ERROR] Document conversion runtime preparation failed.
-    exit /b 1
-)
 
 REM --- Add MinGW-w64 (ucrt64) to PATH for GNU target ---
 if exist "C:\msys64\ucrt64\bin" (
@@ -434,36 +429,27 @@ if errorlevel 1 ( echo [ERROR] ebook-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  16. Build mupdf-view (.NET self-contained + MuPDF.NET)
+REM  16. Build font-view (.NET self-contained + WebView2)
 REM ============================================================
-echo [16/19] Building mupdf-view...
-pushd "%SCRIPT_DIR%mupdf-view"
-call build.bat
-if errorlevel 1 ( echo [ERROR] mupdf-view build failed. & popd & exit /b 1 )
-popd
-
-REM ============================================================
-REM  17. Build font-view (.NET self-contained + WebView2)
-REM ============================================================
-echo [17/19] Building font-view...
+echo [16/18] Building font-view...
 pushd "%SCRIPT_DIR%font-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] font-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  18. Build project-view (Rust/WebView2 + Java MPXJ)
+REM  17. Build project-view (Rust/WebView2 + Java MPXJ)
 REM ============================================================
-echo [18/19] Building project-view...
+echo [17/18] Building project-view...
 pushd "%SCRIPT_DIR%project-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] project-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  19. Build chm-view (MSVC + WebView2 + CHMate)
+REM  18. Build chm-view (MSVC + WebView2 + CHMate)
 REM ============================================================
-echo [19/19] Building chm-view...
+echo [18/18] Building chm-view...
 pushd "%SCRIPT_DIR%chm-view"
 call build.bat
 if errorlevel 1 ( echo [ERROR] chm-view build failed. & popd & exit /b 1 )
@@ -487,7 +473,6 @@ for %%D in (
     inf-dir.pdf-view
     inf-dir.pdfjs-view
     inf-dir.ebook-view
-    inf-dir.mupdf-view
     inf-dir.chm-view
     inf-dir.font-view
     inf-dir.project-view
@@ -499,10 +484,11 @@ REM ============================================================
 REM  Shared runtimes used by more than one viewer
 REM ============================================================
 REM Converters shared between viewers are installed once as their own package
-REM instead of being copied into a viewer package: DjVuLibre (mupdf-view and
-REM ebook-view), GhostXPS (ebook-view, for XPS/OpenXPS) and LibreOffice
-REM (mupdf-view, for Office/ODF/Visio). The package carries no plugin.json, so
-REM plugin discovery in the Flutter app skips it.
+REM instead of being copied into a viewer package: DjVuLibre (ebook-view),
+REM GhostXPS (pdfjs-view, for XPS/OpenXPS) and LibreOffice (pdfjs-view, for
+REM Office/ODF/CAD; excel-view and web-view for spreadsheets and Visio). The
+REM package carries no plugin.json, so plugin discovery in the Flutter app
+REM skips it.
 if exist "%DIST_DIR%\inf-dir.runtime" rmdir /s /q "%DIST_DIR%\inf-dir.runtime"
 mkdir "%DIST_DIR%\inf-dir.runtime"
 xcopy /E /I /Y /Q "%SCRIPT_DIR%runtime\djvulibre" "%DIST_DIR%\inf-dir.runtime\djvulibre" >nul
@@ -668,18 +654,6 @@ if errorlevel 8 (
     echo [ERROR] Failed to install foliate-js assets for ebook-view.
     exit /b 1
 )
-
-copy /Y "%SCRIPT_DIR%mupdf-view\plugin.json" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
-if exist "%DIST_DIR%\inf-dir.mupdf-view\publish" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\publish"
-xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\bin\Release\net10.0-windows\win-x64\publish" "%DIST_DIR%\inf-dir.mupdf-view" >nul
-REM Purge the DjVuLibre and LibreOffice copies left inside the package by builds
-REM predating the shared runtime package; the viewer resolves both from
-REM inf-dir.runtime now.
-if exist "%DIST_DIR%\inf-dir.mupdf-view\djvulibre" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\djvulibre"
-if exist "%DIST_DIR%\inf-dir.mupdf-view\libredwg" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\libredwg"
-if exist "%DIST_DIR%\inf-dir.mupdf-view\libreoffice" rmdir /s /q "%DIST_DIR%\inf-dir.mupdf-view\libreoffice"
-xcopy /E /I /Y /Q "%SCRIPT_DIR%mupdf-view\libredwg" "%DIST_DIR%\inf-dir.mupdf-view\libredwg" >nul
-copy /Y "%SCRIPT_DIR%mupdf-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.mupdf-view\" >nul
 
 copy /Y "%SCRIPT_DIR%font-view\plugin.json" "%DIST_DIR%\inf-dir.font-view\" >nul
 xcopy /E /I /Y /Q "%FONT_PUBLISH%\*" "%DIST_DIR%\inf-dir.font-view\" >nul

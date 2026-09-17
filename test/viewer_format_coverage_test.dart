@@ -10,12 +10,10 @@ void main() {
       '.psd', '.jp2', '.j2k', '.jxl', '.jxr', '.dcm', '.dpx', '.cin',
       '.sgi', '.rgb', '.xpm', '.xbm', '.xface', '.dds', '.exr',
     },
-    'inf-dir.mupdf-view': {
+    'inf-dir.pdfjs-view': {
       '.dwg', '.dxf',
-      '.djvu', '.djv',
-      '.epub', '.mobi', '.fb2', '.fbz', '.fb2z', '.tcr', '.cbr',
-      '.vsd', '.vsdx', '.vst', '.vss', '.vdx', '.vdw', '.vsx', '.vtx',
-      '.vstx', '.vssx', '.vstm', '.vsdm', '.wps',
+      '.xps', '.oxps',
+      '.wps',
       '.doc', '.docm', '.docx', '.dot', '.dotm', '.dotx',
       '.odt', '.ott', '.fodt', '.rtf', '.ppt', '.pptm', '.pptx', '.pot', '.potm',
       '.potx', '.pps', '.ppsm', '.ppsx', '.odp', '.otp', '.fodp',
@@ -33,8 +31,8 @@ void main() {
     // XHTML as source, so both have to declare what the default rules assume.
     'inf-dir.archive-view': {'.cbz'},
     'inf-dir.ebook-view': {
-      '.epub', '.mobi', '.azw', '.azw3', '.fb2', '.fbz', '.cbz',
-      '.cbr', '.tcr', '.djvu', '.djv', '.xps', '.oxps',
+      '.epub', '.mobi', '.azw', '.azw3', '.fb2', '.fbz', '.fb2z', '.cbz',
+      '.cbr', '.tcr', '.djvu', '.djv',
     },
     'inf-dir.font-view': {'.ttf', '.otf', '.woff', '.woff2', '.ttc', '.dfont'},
     'inf-dir.chm-view': {'.chm'},
@@ -42,6 +40,8 @@ void main() {
       '.svg', '.svgz', '.html', '.htm', '.xhtml',
       '.mht', '.mhtml', '.shtml', '.shtm',
       '.xml', '.xsl', '.xslt',
+      '.vsd', '.vsdm', '.vsdx', '.vss', '.vssm', '.vssx',
+      '.vst', '.vstm', '.vstx', '.vdx', '.vdw', '.vsx', '.vtx',
     },
     'inf-dir.code-view': {'.markdown', '.md', '.mdown', '.mkd', '.xhtml'},
   };
@@ -67,9 +67,9 @@ void main() {
     }
   });
 
-  test('mupdf-view declares Office conversion formats for LibreOffice', () {
+  test('pdfjs-view declares Office conversion formats for LibreOffice', () {
     final manifests = _loadPluginManifests();
-    final extensions = manifests['inf-dir.mupdf-view']!;
+    final extensions = manifests['inf-dir.pdfjs-view']!;
     expect(
       extensions,
       containsAll(<String>[
@@ -83,6 +83,7 @@ void main() {
     final manifests = _loadPluginManifests();
     expect(manifests, isNot(contains('inf-dir.onlyoffice-view')));
     expect(manifests, isNot(contains('inf-dir.office-view')));
+    expect(manifests, isNot(contains('inf-dir.mupdf-view')));
   });
 
   test('preset rule tree routes only to plugins that exist', () {
@@ -113,8 +114,26 @@ void main() {
     for (final extension in ['.doc', '.docx', '.ppt', '.pptx', '.ppsm', '.odp']) {
       expect(
         _viewerIdsFor(_extensionRule(rules, extension)),
-        ['inf-dir.mupdf-view'],
+        ['inf-dir.pdfjs-view'],
         reason: '$extension is out of scope for the spreadsheet viewer',
+      );
+    }
+  });
+
+  test('visio rules route to web-view and XPS rules route to pdfjs-view', () {
+    final rules = _flattenRules(_readDefaultRuleTree());
+    for (final extension in ['.vsd', '.vsdx', '.vstx']) {
+      expect(
+        _viewerIdsFor(_extensionRule(rules, extension)),
+        ['inf-dir.web-view'],
+        reason: '$extension is rendered as converted SVG by web-view',
+      );
+    }
+    for (final extension in ['.xps', '.oxps']) {
+      expect(
+        _viewerIdsFor(_extensionRule(rules, extension)),
+        ['inf-dir.pdfjs-view'],
+        reason: '$extension is converted to PDF by pdfjs-view',
       );
     }
   });

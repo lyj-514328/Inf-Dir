@@ -180,24 +180,8 @@ fn find_runtime_tool(directory: &str, executable: &str) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-/// DjVuLibre used to ship inside the `mupdf-view` package. Keep resolving that
-/// location so an already installed `plugins\dist\` tree keeps working without
-/// a rebuild; drop this once the shared runtime package is the only layout in
-/// the wild.
-fn find_legacy_mupdf_djvulibre() -> Option<PathBuf> {
-    let current_exe = std::env::current_exe().ok()?;
-    let packages_dir = current_exe.parent()?.parent()?;
-    ["inf-dir.mupdf-view", "mupdf-view"]
-        .into_iter()
-        .map(|name| {
-            packages_dir
-                .join(name)
-                .join("djvulibre")
-                .join("ddjvu.exe")
-        })
-        .find(|candidate| candidate.is_file())
-}
-
+/// DjVuLibre lives in the shared runtime package installed by
+/// `plugins\build.bat`.
 fn find_djvulibre() -> Option<PathBuf> {
     if let Ok(path) = std::env::var("INF_DIR_DJVULIBRE_PATH") {
         let configured = PathBuf::from(path);
@@ -211,28 +195,7 @@ fn find_djvulibre() -> Option<PathBuf> {
             }
         }
     }
-    find_runtime_tool("djvulibre", "ddjvu.exe")
-        .or_else(find_legacy_mupdf_djvulibre)
-        .or_else(|| find_on_path("ddjvu.exe"))
-}
-
-/// `gxpswin64.exe` turns XPS/OpenXPS into PDF. It lives in the shared runtime
-/// package because XPS is the one page-document format that neither foliate-js
-/// nor the PDF viewers can read natively.
-fn find_gxps() -> Option<PathBuf> {
-    if let Ok(path) = std::env::var("INF_DIR_GXPS_PATH") {
-        let configured = PathBuf::from(path);
-        if configured.is_file() {
-            return Some(configured);
-        }
-        if configured.is_dir() {
-            let nested = configured.join("gxpswin64.exe");
-            if nested.is_file() {
-                return Some(nested);
-            }
-        }
-    }
-    find_runtime_tool("gxps", "gxpswin64.exe").or_else(|| find_on_path("gxpswin64.exe"))
+    find_runtime_tool("djvulibre", "ddjvu.exe").or_else(|| find_on_path("ddjvu.exe"))
 }
 
 fn find_comic_extractor() -> Option<PathBuf> {
@@ -305,61 +268,57 @@ pub fn prepare_document(source: &Path) -> Result<PreparedDocument, String> {
 
     match ext.as_str() {
         "djvu" | "djv" => convert_djvu(source, display_name),
-        "xps" | "oxps" => convert_xps(source, display_name),
+        "fb2z" => extract_fb2z(source, display_name),
         "tcr" => convert_tcr(source, display_name),
         "cbr" => convert_cbr(source, display_name),
         _ => Ok(PreparedDocument::direct(source.to_path_buf())),
     }
 }
 
-/// XPS and OpenXPS are converted to PDF with the shared GhostXPS interpreter;
-/// the resulting PDF keeps the vector content, and is rendered by foliate-js'
-/// bundled pdf.js like every other PDF in this viewer.
-fn convert_xps(source: &Path, display_name: String) -> Result<PreparedDocument, String> {
-    let gxps = find_gxps().ok_or_else(|| {
-        "XPS viewing requires the shared GhostXPS runtime. Run plugins\\build.bat to install the shared runtime package, or set INF_DIR_GXPS_PATH."
-            .to_string()
-    })?;
+/// `.fb2z` is a plain ZIP wrapper around a single FB2 document (the path
+/// `mupdf-view` used to take). foliate-js reads the uncompressed FB2 stream,
+/// so extract the first `.fb2` entry and hand it over as an ordinary FB2.
+fn extract_fb2z(source: &Path, display_name: String) -> Result<PreparedDocument, String> {
+    let archive_file = File::open(source).map_err(|e| format!("Failed to open FB2Z: {e}"))?;
+    let mut archive =
+        zip::ZipArchive::new(archive_file).map_err(|e| format!("Invalid FB2Z archive: {e}"))?;
 
-    let temp_dir = create_temp_directory("xps")
-        .map_err(|e| format!("Failed to create temporary directory for XPS: {e}"))?;
-    let stem = source.file_stem().and_then(|s| s.to_str()).unwrap_or("document");
-    let output_pdf = temp_dir.join(format!("{stem}.pdf"));
+    let entry_index = (0..archive.len()).find(|&index| {
+        archive
+            .by_index(index)
+            .ok()
+            .filter(|entry| !entry.is_dir())
+            .is_some_and(|entry| {
+                Path::new(entry.name())
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("fb2"))
+            })
+    });
 
-    let source_str = source.to_string_lossy();
-    let output_arg = format!("-o{}", output_pdf.to_string_lossy());
-    let result = run_tool(
-        &gxps,
-        &[
-            "-q",
-            "-dNOPAUSE",
-            "-dBATCH",
-            "-sDEVICE=pdfwrite",
-            output_arg.as_str(),
-            source_str.as_ref(),
-        ],
-    );
-
-    let output = match result {
-        Ok(output) => output,
-        Err(error) => {
-            let _ = fs::remove_dir_all(&temp_dir);
-            return Err(format!("Failed to execute gxps: {error}"));
-        }
+    let Some(index) = entry_index else {
+        return Err("FB2Z archive contains no FB2 document".to_string());
     };
 
-    if !output.status.success() || !output_pdf.is_file() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let detail = if stderr.trim().is_empty() { stdout } else { stderr };
-        let _ = fs::remove_dir_all(&temp_dir);
-        return Err(format!("XPS to PDF conversion failed: {}", detail.trim()));
-    }
+    let temp_dir = create_temp_directory("fb2z")
+        .map_err(|e| format!("Failed to create temporary directory for FB2Z: {e}"))?;
+    let mut entry = archive
+        .by_index(index)
+        .map_err(|e| format!("Failed to read FB2Z entry: {e}"))?;
+    let output_fb2 = temp_dir.join(
+        Path::new(entry.name())
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("document.fb2")),
+    );
+    let mut written = File::create(&output_fb2)
+        .map_err(|e| format!("Failed to write extracted FB2: {e}"))?;
+    io::copy(&mut entry, &mut written)
+        .map_err(|e| format!("Failed to extract FB2 from FB2Z: {e}"))?;
 
     Ok(PreparedDocument::temporary(
-        output_pdf,
+        output_fb2,
         display_name,
-        "application/pdf",
+        "application/x-fictionbook+xml",
         temp_dir,
     ))
 }

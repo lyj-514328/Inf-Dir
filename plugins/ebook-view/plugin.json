@@ -13,25 +13,24 @@
         ".azw3",
         ".fb2",
         ".fbz",
+        ".fb2z",
         ".cbz",
         ".cbr",
         ".tcr",
         ".djvu",
-        ".djv",
-        ".xps",
-        ".oxps"
+        ".djv"
       ],
       "mimeTypes": [
         "application/epub+zip",
         "application/x-mobipocket-ebook",
         "application/vnd.amazon.ebook",
         "application/x-fictionbook+xml",
+        "application/x-zip-compressed-fb2",
         "application/vnd.comicbook+zip",
         "application/vnd.comicbook-rar",
         "application/x-cbr",
         "application/x-tcr",
-        "image/vnd.djvu",
-        "application/vnd.ms-xpsdocument"
+        "image/vnd.djvu"
       ]
     }
   }

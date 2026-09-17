@@ -54,6 +54,17 @@
 > **Page Documents**（页面式文档：PDF/XPS/DjVu，固定排版或扫描件）、
 > **eBooks**（可重排电子书：EPUB/MOBI/Kindle/FB2 系）。
 >
+> **原 `mupdf-view` 下线后的格式归属**：其承担的格式已按语义重分配——Word / PPT / ODF /
+> RTF / WPS 与模板家族、旧表格兜底（XLS/XLT/XLSB/ODS/OTS）、OOXML 文档/演示、CAD
+> （DXF/DWG，不再经 LibreDWG）、MHT/MHTML 兜底与 XPS/OpenXPS 统一归
+> `inf-dir.pdfjs-view`：打开前在 viewer 内转换，Office/CAD/MHT 走共享 LibreOffice 运行时
+> `soffice --headless --convert-to pdf`，XPS/OpenXPS 走共享 GhostXPS 运行时
+> `gxpswin64.exe -sDEVICE=pdfwrite`，产物交 pdf.js（WebView2）渲染；Visio 全系归
+> `inf-dir.web-view`，由 `soffice --headless --convert-to svg` 转 SVG 后交 WebView2
+> 渲染；电子书/漫画/DjVu（EPUB/MOBI/AZW/AZW3/FB2/FBZ/FB2Z/TCR/CBZ/CBR/DJVU/DJV）由
+> `inf-dir.ebook-view`（foliate-js）单独承担，`.fb2z` 改由 Rust 侧解 ZIP 取出 `.fb2`
+> 再交给 foliate-js。
+>
 > 同名不同义/双语义的后缀（按参考清单分多行列出）：
 - `.vst`：Visio（Visio Drawing Template）；Image（Truevision image）
 - `.dat`：Email（Winmail.dat File）；Video（VCD Video File）
@@ -69,68 +80,68 @@
 | 类别 | 后缀名 | 格式说明 | 是否支持，如何支持 |
 | --- | --- | --- | --- |
 | Documents | .chm | Compiled HTML Help File / Microsoft HTML Help | ✅ chm（扩展名规则） |
-| Documents | .doc | Microsoft Word Document (Legacy) / Microsoft Word | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .docm | Microsoft Word Macro-Enabled Document / Microsoft Word 2007/2010 | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .docx | Microsoft Word Document / Microsoft Word 2007/2010 | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .dot | Microsoft Word Document Template / Microsoft Word | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .dotm | Microsoft Word Macro-Enabled Document Template / Microsoft Word 2007/2010 | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .dotx | Microsoft Word Document Template / Microsoft Word 2007/2010 | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .odt | OpenDocument Text Document | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .ott | OpenDocument Document Template | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .rtf | Rich Text Format File / Rich Text Format | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .wbk | Microsoft Word backup | ✅ mupdf-view（LibreOffice 转换） |
-| Documents | .wps | Microsoft Works Word Processor Document | ✅ mupdf-view（LibreOffice 转换） |
+| Documents | .doc | Microsoft Word Document (Legacy) / Microsoft Word | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Documents | .docm | Microsoft Word Macro-Enabled Document / Microsoft Word 2007/2010 | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Documents | .docx | Microsoft Word Document / Microsoft Word 2007/2010 | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Documents | .dot | Microsoft Word Document Template / Microsoft Word | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Documents | .dotm | Microsoft Word Macro-Enabled Document Template / Microsoft Word 2007/2010 | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Documents | .dotx | Microsoft Word Document Template / Microsoft Word 2007/2010 | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Documents | .odt | OpenDocument Text Document | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Documents | .ott | OpenDocument Document Template | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Documents | .rtf | Rich Text Format File / Rich Text Format | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Documents | .wbk | Microsoft Word backup | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Documents | .wps | Microsoft Works Word Processor Document | ✅ pdfjs-view（LibreOffice 转 PDF） |
 | eBooks | .azw | Amazon Kindle eBook | ✅ ebook（扩展名规则；内容按 MOBI 头嗅探） |
 | eBooks | .azw3 | Amazon Kindle eBook (KF8) | ✅ ebook（扩展名规则；内容按 MOBI/KF8 头嗅探） |
-| eBooks | .epub | EPUB eBook | ✅ ebook、mupdf（扩展名规则） |
-| eBooks | .fb2 | FictionBook e-book | ✅ ebook、mupdf（扩展名规则） |
-| eBooks | .fb2z | FictionBook e-book | ✅ mupdf（扩展名规则） |
-| eBooks | .fbz | FictionBook e-book | ✅ ebook、mupdf（扩展名规则） |
-| eBooks | .mobi | Mobipocket e-book | ✅ ebook、mupdf（扩展名规则） |
-| eBooks | .tcr | TCR e-book | ✅ ebook、mupdf（扩展名规则） |
-| Page Documents | .oxps | Open XML Paper Specification File | ✅ ebook（共享 GhostXPS 转 PDF 后由 foliate-js 渲染） |
+| eBooks | .epub | EPUB eBook | ✅ ebook（扩展名规则） |
+| eBooks | .fb2 | FictionBook e-book | ✅ ebook（扩展名规则） |
+| eBooks | .fb2z | FictionBook e-book | ✅ ebook（扩展名规则；Rust 侧解 ZIP 取出 `.fb2` 后交给 foliate-js） |
+| eBooks | .fbz | FictionBook e-book | ✅ ebook（扩展名规则） |
+| eBooks | .mobi | Mobipocket e-book | ✅ ebook（扩展名规则） |
+| eBooks | .tcr | TCR e-book | ✅ ebook（扩展名规则） |
+| Page Documents | .oxps | Open XML Paper Specification File | ✅ pdfjs-view（共享 GhostXPS 转 PDF 后由 pdf.js 渲染） |
 | Page Documents | .pdf | Portable Document Format File / Adobe Portable Document Format | ✅ pdf、pdfjs（扩展名规则） |
-| Page Documents | .xps | XML Paper Specification File / Microsoft XML Paper Specification | ✅ ebook（共享 GhostXPS 转 PDF 后由 foliate-js 渲染） |
-| Page Documents | .djvu | DejaVu document | ✅ ebook、mupdf（扩展名规则） |
-| Page Documents | .djv | DejaVu document | ✅ ebook、mupdf（扩展名规则） |
+| Page Documents | .xps | XML Paper Specification File / Microsoft XML Paper Specification | ✅ pdfjs-view（共享 GhostXPS 转 PDF 后由 pdf.js 渲染） |
+| Page Documents | .djvu | DejaVu document | ✅ ebook（扩展名规则） |
+| Page Documents | .djv | DejaVu document | ✅ ebook（扩展名规则） |
 | Spreadsheet | .csv | Comma Separated Values File | ✅ code（扩展名规则） |
 | Spreadsheet | .tsv | Tab Separated Values File | ✅ code（扩展名规则） |
-| Spreadsheet | .ods | OpenDocument Spreadsheet | ✅ excel-view（LibreOffice 转 xlsx）、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .ots | OpenDocument Spreadsheet Template | ✅ excel-view（LibreOffice 转 xlsx）、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xls | Excel Spreadsheet (Legacy) / Microsoft Excel | ✅ excel-view（LibreOffice 转 xlsx）、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xlsb | Excel Binary Workbook | ✅ excel-view（LibreOffice 转 xlsx）、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xlsm | Excel Macro-Enabled Spreadsheet | ✅ excel-view、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xlsx | Excel Spreadsheet / Microsoft Excel 2007/2010 | ✅ excel-view、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xlt | Excel Spreadsheet Template / Microsoft Excel | ✅ excel-view（LibreOffice 转 xlsx）、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xltm | Excel Macro-Enabled Spreadsheet Template | ✅ excel-view、mupdf-view（LibreOffice 转换） |
-| Spreadsheet | .xltx | Excel Spreadsheet Template / Microsoft Excel 2007/2010 | ✅ excel-view、mupdf-view（LibreOffice 转换） |
-| Presentation | .odp | OpenDocument Presentation | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .pot | PowerPoint Template | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .potm | PowerPoint Macro-Enabled Presentation Template | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .potx | PowerPoint Template | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .pps | PowerPoint Slide Show | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .ppsm | PowerPoint Macro-Enabled Slide Show | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .ppsx | PowerPoint Slide Show | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .ppt | PowerPoint Presentation (Legacy) | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .pptm | PowerPoint Macro-Enabled Presentation | ✅ mupdf-view（LibreOffice 转换） |
-| Presentation | .pptx | PowerPoint Presentation | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vdw | Visio Web Drawing | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vdx | Visio Drawing XML File | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vsd | Visio Drawing | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vsdm | Visio Macro-Enabled Drawing | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vsdx | Visio Drawing | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vss | Visio Stencils File | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vssx | Visio Stencils File | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vst | Visio Drawing Template | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vstm | Visio Macro-Enabled Drawing Template | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vstx | Visio Drawing Template | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vsx | Visio Stencil XML File | ✅ mupdf-view（LibreOffice 转换） |
-| Visio | .vtx | Visio Template XML File | ✅ mupdf-view（LibreOffice 转换） |
+| Spreadsheet | .ods | OpenDocument Spreadsheet | ✅ excel-view（LibreOffice 转 xlsx）、pdfjs-view（LibreOffice 转 PDF 兜底） |
+| Spreadsheet | .ots | OpenDocument Spreadsheet Template | ✅ excel-view（LibreOffice 转 xlsx）、pdfjs-view（LibreOffice 转 PDF 兜底） |
+| Spreadsheet | .xls | Excel Spreadsheet (Legacy) / Microsoft Excel | ✅ excel-view（LibreOffice 转 xlsx）、pdfjs-view（LibreOffice 转 PDF 兜底） |
+| Spreadsheet | .xlsb | Excel Binary Workbook | ✅ excel-view（LibreOffice 转 xlsx）、pdfjs-view（LibreOffice 转 PDF 兜底） |
+| Spreadsheet | .xlsm | Excel Macro-Enabled Spreadsheet | ✅ excel-view、pdfjs-view（LibreOffice 转 PDF 兜底） |
+| Spreadsheet | .xlsx | Excel Spreadsheet / Microsoft Excel 2007/2010 | ✅ excel-view、pdfjs-view（LibreOffice 转 PDF 兜底） |
+| Spreadsheet | .xlt | Excel Spreadsheet Template / Microsoft Excel | ✅ excel-view（LibreOffice 转 xlsx）、pdfjs-view（LibreOffice 转 PDF 兜底） |
+| Spreadsheet | .xltm | Excel Macro-Enabled Spreadsheet Template | ✅ excel-view、pdfjs-view（LibreOffice 转 PDF 兜底） |
+| Spreadsheet | .xltx | Excel Spreadsheet Template / Microsoft Excel 2007/2010 | ✅ excel-view、pdfjs-view（LibreOffice 转 PDF 兜底） |
+| Presentation | .odp | OpenDocument Presentation | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Presentation | .pot | PowerPoint Template | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Presentation | .potm | PowerPoint Macro-Enabled Presentation Template | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Presentation | .potx | PowerPoint Template | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Presentation | .pps | PowerPoint Slide Show | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Presentation | .ppsm | PowerPoint Macro-Enabled Slide Show | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Presentation | .ppsx | PowerPoint Slide Show | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Presentation | .ppt | PowerPoint Presentation (Legacy) | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Presentation | .pptm | PowerPoint Macro-Enabled Presentation | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Presentation | .pptx | PowerPoint Presentation | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| Visio | .vdw | Visio Web Drawing | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vdx | Visio Drawing XML File | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vsd | Visio Drawing | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vsdm | Visio Macro-Enabled Drawing | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vsdx | Visio Drawing | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vss | Visio Stencils File | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vssx | Visio Stencils File | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vst | Visio Drawing Template | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vstm | Visio Macro-Enabled Drawing Template | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vstx | Visio Drawing Template | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vsx | Visio Stencil XML File | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
+| Visio | .vtx | Visio Template XML File | ✅ web-view（LibreOffice 转 SVG 后由 WebView2 渲染） |
 | Project | .mpp | Microsoft Project File | ✅ project（扩展名规则） |
 | Project | .mpt | Microsoft Project Template | ✅ project（扩展名规则） |
 | Project | .mpx | Microsoft Project Exchange File | ✅ project（扩展名规则） |
-| CAD | .dwg | AutoCAD Drawing | ✅ mupdf（扩展名规则） |
-| CAD | .dxf | Drawing Exchange Format File | ✅ mupdf（扩展名规则） |
+| CAD | .dwg | AutoCAD Drawing | ✅ pdfjs-view（LibreOffice 转 PDF） |
+| CAD | .dxf | Drawing Exchange Format File | ✅ pdfjs-view（LibreOffice 转 PDF） |
 | Email | .dat | Winmail.dat File | ✅ email（扩展名规则） |
 | Email | .eml | Apple Mail Message | ✅ email（扩展名规则） |
 | Email | .emlx | Apple Mail Message | ✅ email（扩展名规则） |
@@ -207,7 +218,7 @@
 | Image | .ttf | TrueType Font | ✅ font（扩展名规则） |
 | Image | .txd | Renderware Texture Dictionary / Renderware TeXture Dictionary | ❌ ImageMagick 无对应 decoder |
 | Image | .vda | Truevision image | ✅ image（扩展名规则；ImageMagick `VDA`，TGA 变体） |
-| Image | .vst | Truevision image | 🔮 默认 .vst 规则为 Visio 模板（mupdf-view）；Truevision 图像属 MIME/内容嗅探子类，待嗅探器 |
+| Image | .vst | Truevision image | 🔮 默认 .vst 规则为 Visio 模板（web-view）；Truevision 图像属 MIME/内容嗅探子类，待嗅探器 |
 | Image | .wbmp | Wireless Bitmap Image File | ✅ image（扩展名规则） |
 | Image | .webp | WebP Image | ✅ image（扩展名规则） |
 | Image | .win | Truevision image | ❌ ImageMagick 无对应 decoder |
@@ -437,8 +448,8 @@
 | Archive | .arj | ARJ Compressed Archive | ✅ archive（扩展名规则） |
 | Archive | .bz2 | Bzip2 Compressed Archive | ✅ archive（扩展名规则） |
 | Archive | .cab | Windows Cabinet File | ✅ archive（扩展名规则） |
-| Archive | .cbr | Comic Book RAR Archive / Comic Book archive | ✅ ebook、mupdf、archive（扩展名规则） |
-| Archive | .cbz | Comic Book Zip Archive / Comic Book archive | ✅ ebook、mupdf、archive（扩展名规则） |
+| Archive | .cbr | Comic Book RAR Archive / Comic Book archive | ✅ ebook、archive（扩展名规则） |
+| Archive | .cbz | Comic Book Zip Archive / Comic Book archive | ✅ ebook、archive（扩展名规则） |
 | Archive | .cpio | Unix CPIO Archive | ✅ archive（扩展名规则） |
 | Archive | .dd | Disk Doubler Archive | ❌ 非压缩包（原始磁盘镜像），libarchive 不处理 |
 | Archive | .deb | Debian Software Package | ✅ archive（扩展名规则） |
@@ -548,7 +559,7 @@
 | Source Code | .yml | YAML Document | ✅ code（扩展名规则） |
 | Web | .htm | HTML page | ✅ web、code（扩展名规则） |
 | Web | .html | Hypertext Markup Language File / HTML page | ✅ web、code（扩展名规则） |
-| Web | .mht | MHTML Web Archive / Microsoft HTML archive | ✅ web、mupdf-view（LibreOffice 转换） |
+| Web | .mht | MHTML Web Archive / Microsoft HTML archive | ✅ web、pdfjs-view（LibreOffice 转 PDF 兜底） |
 | Web | .shtm | HTML page | ✅ web、code（扩展名规则） |
 | Web | .shtml | HTML page | ✅ web、code（扩展名规则） |
 | Web | .stm | HTML page | ✅ code（扩展名规则） |

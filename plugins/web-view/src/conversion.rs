@@ -9,48 +9,41 @@ use std::time::{Duration, Instant};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// LibreOffice headless conversion is dominated by JVM-free Calc work but still
-/// needs a warm-up on the first run; keep the same ceiling as the other
-/// converting viewers.
+/// LibreOffice headless conversion needs a warm-up on the first run; keep the
+/// same ceiling the other converting viewers use.
 const CONVERT_TIMEOUT: Duration = Duration::from_secs(120);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 static TEMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-/// Extension of this viewer's own source tree, searched while developing so the
-/// viewer can run from `target\release` without staging the runtime.
-const VIEWER_DIR_NAME: &str = "excel-view";
+/// Extension of this viewer's own source tree, searched while developing so
+/// the viewer can run from `target\release` without staging the runtime.
+const VIEWER_DIR_NAME: &str = "web-view";
 
 /// Package that carries runtimes shared by more than one viewer, installed
 /// beside the viewer packages in `plugins\dist\`.
 const SHARED_RUNTIME_PACKAGE: &str = "inf-dir.runtime";
 
-/// Plain `runtime\` directory holding the same shared runtimes. The source tree
-/// uses this layout before `plugins\build.bat` installs the package.
+/// Plain `runtime\` directory holding the same shared runtimes. The source
+/// tree uses this layout before `plugins\build.bat` installs the package.
 const SHARED_RUNTIME_DIR: &str = "runtime";
 
 /// How many parent directories are inspected when looking for a runtime.
 const RUNTIME_SEARCH_DEPTH: usize = 8;
 
-/// Formats `@silurus/ooxml` reads directly.
-pub const NATIVE_EXTENSIONS: [&str; 4] = ["xlsx", "xlsm", "xltx", "xltm"];
+/// Filter passed to `soffice --convert-to`: Visio drawings are exported as
+/// SVG and rendered by the existing WebView2 SVG path.
+const CONVERSION_FILTER: &str = "svg";
 
-/// Filter passed to `soffice --convert-to`, i.e. the OOXML format every legacy
-/// source below is normalised to.
-const CONVERSION_FILTER: &str = "xlsx";
+/// Visio drawing formats LibreOffice Draw can import.
+const VISIO_EXTENSIONS: [&str; 13] = [
+    "vsd", "vsdm", "vsdx", "vss", "vssm", "vssx", "vst", "vstm", "vstx", "vdx", "vdw", "vsx",
+    "vtx",
+];
 
-/// Legacy and ODF spreadsheet formats that need conversion before rendering.
-const LEGACY_EXTENSIONS: [&str; 5] = ["xls", "xlt", "xlsb", "ods", "ots"];
-
-/// Whether a source format has to go through LibreOffice before rendering.
-fn needs_conversion(ext: &str) -> bool {
-    LEGACY_EXTENSIONS.contains(&ext)
-}
-
-/// Whether this viewer can render the extension at all, native or converted.
-pub fn is_supported(ext: &str) -> bool {
-    let ext = ext.to_ascii_lowercase();
-    NATIVE_EXTENSIONS.contains(&ext.as_str()) || needs_conversion(&ext)
+/// Whether this viewer has to convert the extension before rendering.
+pub fn needs_conversion(ext: &str) -> bool {
+    VISIO_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str())
 }
 
 pub struct PreparedDocument {
@@ -60,14 +53,6 @@ pub struct PreparedDocument {
 }
 
 impl PreparedDocument {
-    fn direct(file_path: &Path) -> Self {
-        Self {
-            file_path: file_path.to_path_buf(),
-            display_name: file_name(file_path),
-            temp_dir: None,
-        }
-    }
-
     fn temporary(file_path: PathBuf, display_name: String, temp_dir: PathBuf) -> Self {
         Self {
             file_path,
@@ -89,13 +74,6 @@ fn file_name(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.display().to_string())
-}
-
-fn normalized_extension(path: &Path) -> String {
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| ext.to_ascii_lowercase())
-        .unwrap_or_default()
 }
 
 fn create_temp_directory(purpose: &str) -> io::Result<PathBuf> {
@@ -146,8 +124,8 @@ fn find_on_path(executable: &str) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-/// Resolve `soffice.exe`: an explicit override, then the
-/// shared runtime package, then a machine-wide LibreOffice install, then PATH.
+/// Resolve `soffice.exe`: an explicit override, then the shared runtime
+/// package, then a machine-wide LibreOffice install, then PATH.
 fn find_libreoffice() -> Option<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(configured) = std::env::var("INF_DIR_LIBREOFFICE_PATH") {
@@ -186,26 +164,15 @@ fn find_libreoffice() -> Option<PathBuf> {
     find_on_path("soffice.exe").or_else(|| find_on_path("soffice.com"))
 }
 
+/// Convert a Visio drawing into a temporary SVG via LibreOffice Draw.
 pub fn prepare_document(source: &Path) -> Result<PreparedDocument, String> {
-    if !needs_conversion(&normalized_extension(source)) {
-        return Ok(PreparedDocument::direct(source));
-    }
-    convert_to_ooxml(source).map(|(path, temp_dir)| {
-        PreparedDocument::temporary(path, file_name(source), temp_dir)
-    })
-}
-
-/// `soffice.exe` stays resident while the converted document is written, but it
-/// drives the real worker as a child process, so a timeout has to take the
-/// whole tree down.
-fn convert_to_ooxml(source: &Path) -> Result<(PathBuf, PathBuf), String> {
     let soffice = find_libreoffice().ok_or_else(|| {
-        "该格式需要 LibreOffice 转换运行时。请运行 plugins\\build.bat 安装共享运行时包，或设置 INF_DIR_LIBREOFFICE_PATH。"
+        "Visio 预览需要 LibreOffice 转换运行时。请运行 plugins\\build.bat 安装共享运行时包，或设置 INF_DIR_LIBREOFFICE_PATH。"
             .to_string()
     })?;
 
-    let temp_dir = create_temp_directory("libreoffice")
-        .map_err(|e| format!("无法创建 LibreOffice 转换临时目录: {e}"))?;
+    let temp_dir = create_temp_directory("visio")
+        .map_err(|e| format!("无法创建 Visio 转换临时目录: {e}"))?;
     let profile = temp_dir.join("profile");
     let output_dir = temp_dir.join("output");
     if let Err(e) = fs::create_dir_all(&profile).and_then(|_| fs::create_dir_all(&output_dir)) {
@@ -252,10 +219,9 @@ fn convert_to_ooxml(source: &Path) -> Result<(PathBuf, PathBuf), String> {
         Ok(status) => {
             let (stdout, stderr) = capture(&mut child);
             let _ = fs::remove_dir_all(&temp_dir);
-            let detail = first_non_empty(&stderr, &stdout).unwrap_or_else(|| {
-                format!("LibreOffice 以退出码 {status} 结束")
-            });
-            return Err(format!("转换为 {CONVERSION_FILTER} 失败: {detail}"));
+            let detail = first_non_empty(&stderr, &stdout)
+                .unwrap_or_else(|| format!("LibreOffice 以退出码 {status} 结束"));
+            return Err(format!("转换为 SVG 失败: {detail}"));
         }
         Err(e) => {
             let _ = fs::remove_dir_all(&temp_dir);
@@ -270,12 +236,19 @@ fn convert_to_ooxml(source: &Path) -> Result<(PathBuf, PathBuf), String> {
         let _ = fs::remove_dir_all(&temp_dir);
         let detail =
             first_non_empty(&stderr, &stdout).unwrap_or_else(|| "没有生成输出文件".to_string());
-        return Err(format!("转换为 {CONVERSION_FILTER} 失败: {detail}"));
+        return Err(format!("转换为 SVG 失败: {detail}"));
     }
 
-    Ok((converted, temp_dir))
+    Ok(PreparedDocument::temporary(
+        converted,
+        file_name(source),
+        temp_dir,
+    ))
 }
 
+/// `soffice.exe` stays resident while the converted document is written, but
+/// it drives the real worker as a child process, so a timeout has to take the
+/// whole tree down.
 fn wait_with_timeout(child: &mut Child, timeout: Duration) -> io::Result<ExitStatus> {
     let deadline = Instant::now() + timeout;
     loop {
@@ -370,35 +343,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_formats_are_rendered_without_conversion() {
-        for ext in NATIVE_EXTENSIONS {
-            assert!(!needs_conversion(ext), "{ext} must not convert");
-            assert!(is_supported(ext), "{ext} must be supported");
-        }
-    }
-
-    #[test]
-    fn legacy_formats_convert_before_rendering() {
-        for ext in LEGACY_EXTENSIONS {
+    fn visio_formats_convert_before_rendering() {
+        for ext in VISIO_EXTENSIONS {
             assert!(needs_conversion(ext), "{ext} must convert");
-            assert!(is_supported(ext), "{ext} must be supported");
+            assert!(needs_conversion(&ext.to_ascii_uppercase()));
         }
     }
 
     #[test]
-    fn unrelated_formats_are_not_claimed() {
-        for ext in ["doc", "docx", "odt", "odp", "csv", "pdf", ""] {
-            assert!(!is_supported(ext), "{ext} is out of scope");
+    fn native_web_formats_are_not_converted() {
+        for ext in ["svg", "svgz", "html", "htm", "xhtml", "mht", "mhtml", "xml"] {
+            assert!(!needs_conversion(ext), "{ext} must render directly");
         }
-    }
-
-    #[test]
-    fn extension_is_case_insensitive() {
-        assert!(Path::new("C:\\tmp\\BOOK.XLSB")
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some());
-        assert_eq!(normalized_extension(Path::new("C:\\tmp\\BOOK.XLSB")), "xlsb");
     }
 
     #[test]
@@ -408,7 +364,6 @@ mod tests {
         assert_eq!(roots.first(), Some(&exe_dir));
         assert!(roots.iter().any(|root| root.ends_with(SHARED_RUNTIME_PACKAGE)));
         assert!(roots.iter().any(|root| root.ends_with(SHARED_RUNTIME_DIR)));
-        assert!(roots.iter().any(|root| root.ends_with(VIEWER_DIR_NAME)));
     }
 
     #[test]
@@ -425,11 +380,5 @@ mod tests {
             uri,
             "file:///C:/Users/me/AppData/Local/Temp/Inf-Dir/profile/"
         );
-    }
-
-    #[test]
-    fn profile_uri_keeps_a_unc_authority() {
-        let uri = file_uri(Path::new("\\\\share\\books\\profile"));
-        assert_eq!(uri, "file://share/books/profile/");
     }
 }

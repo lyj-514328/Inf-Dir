@@ -1,7 +1,7 @@
 # excel-view
 
 Inf-Dir QuickView 的 Excel 表格查看器，支持 **xlsx / xls / xlsb / ods**
-（含 xlsm / xltx / xltm / xlt / ots）。Word 与 PowerPoint 由 mupdf-view 负责。
+（含 xlsm / xltx / xltm / xlt / ots）。Word 与 PowerPoint 由 pdfjs-view 负责。
 
 ## 架构
 

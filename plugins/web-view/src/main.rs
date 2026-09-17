@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+mod conversion;
+
 use http::{header, Request, Response, StatusCode};
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use viewer_web_shell::{mime_for, response, safe_join, WebViewConfig};
@@ -175,7 +177,31 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let source_file = match canonical_root(&args.file) {
+    // Visio drawings are exported to SVG by the shared LibreOffice runtime
+    // before rendering; the converted file lives in a temporary directory
+    // that is removed when `prepared` drops at the end of `main`.
+    let extension = args
+        .file
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
+        .unwrap_or_default();
+    let prepared = if conversion::needs_conversion(&extension) {
+        match conversion::prepare_document(&args.file) {
+            Ok(prepared) => Some(prepared),
+            Err(error) => {
+                eprintln!("[web-view] {error}");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        None
+    };
+    let converted_file = prepared
+        .as_ref()
+        .map(|prepared| prepared.file_path.clone())
+        .unwrap_or(args.file.clone());
+    let source_file = match canonical_root(&converted_file) {
         Ok(path) => path,
         Err(error) => {
             eprintln!("[web-view] {error}");
@@ -186,6 +212,17 @@ fn main() {
         .parent()
         .and_then(|path| path.canonicalize().ok())
         .unwrap_or_else(|| PathBuf::from("."));
+    // The window keeps the original file name; the document route serves the
+    // converted SVG file for Visio sources.
+    let title_name = prepared
+        .as_ref()
+        .map(|prepared| prepared.display_name.clone())
+        .unwrap_or_else(|| {
+            args.file
+                .file_name()
+                .map(|value| value.to_string_lossy().into_owned())
+                .unwrap_or_else(|| args.file.display().to_string())
+        });
     let name = source_file
         .file_name()
         .map(|value| value.to_string_lossy().into_owned())
@@ -199,7 +236,7 @@ fn main() {
     let router =
         Arc::new(move |request| handle_request(request, &web_root, &document_root, &source_file));
     let config = WebViewConfig {
-        title: format!("{name} - 网页查看器"),
+        title: format!("{title_name} - 网页查看器"),
         host: HOST.to_owned(),
         scheme: SCHEME.to_owned(),
         start_url,
@@ -221,6 +258,7 @@ mod tests {
     fn accepts_web_document_extensions() {
         for extension in ["svg", "svgz", "html", "htm", "xhtml", "mht", "mhtml"] {
             assert!(!mime_for(Path::new(&format!("file.{extension}"))).is_empty());
+            assert!(!conversion::needs_conversion(extension));
         }
     }
 

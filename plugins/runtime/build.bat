@@ -8,9 +8,11 @@ REM  Prepares the tools used by more than one viewer. The root plugins\build.bat
 REM  installs this directory as plugins\dist\inf-dir.runtime\, and each viewer
 REM  resolves the tools from there (see docs\viewer-technology-stack.md 4.4).
 REM
-REM    djvulibre\ddjvu.exe            DjVu -> PDF                (mupdf-view, ebook-view)
-REM    gxps\gxpswin64.exe             XPS/OXPS -> PDF            (ebook-view)
-REM    libreoffice\program\soffice.exe Office/ODF/Visio -> PDF   (mupdf-view)
+REM    djvulibre\ddjvu.exe            DjVu -> PDF                (ebook-view)
+REM    gxps\gxpswin64.exe             XPS/OXPS -> PDF            (pdfjs-view)
+REM    libreoffice\program\soffice.exe Office/ODF/CAD -> PDF,     (pdfjs-view)
+REM                                   legacy spreadsheets -> xlsx (excel-view),
+REM                                   Visio -> SVG                (web-view)
 REM ============================================================
 
 set "SCRIPT_DIR=%~dp0"

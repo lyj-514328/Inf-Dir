@@ -9,11 +9,14 @@
       "extensions": [
         ".svg", ".svgz", ".html", ".htm", ".xhtml",
         ".mht", ".mhtml", ".shtml", ".shtm",
-        ".xml", ".xsl", ".xslt"
+        ".xml", ".xsl", ".xslt",
+        ".vsd", ".vsdm", ".vsdx", ".vss", ".vssm", ".vssx",
+        ".vst", ".vstm", ".vstx", ".vdx", ".vdw", ".vsx", ".vtx"
       ],
       "mimeTypes": [
         "image/svg+xml", "text/html", "application/xhtml+xml",
-        "multipart/related", "application/xml", "text/xml"
+        "multipart/related", "application/xml", "text/xml",
+        "application/vnd.visio"
       ]
     }
   }

@@ -1,6 +1,9 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
+mod conversion;
+
+use conversion::{prepare_document, PreparedDocument};
 use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use http::{header, Request, Response, StatusCode};
 use percent_encoding::{percent_decode_str, percent_encode, NON_ALPHANUMERIC};
@@ -180,6 +183,12 @@ fn handle_request(
 struct App {
     args: Args,
     web_root: PathBuf,
+    /// PDF actually rendered: the source file itself or the temporary PDF a
+    /// document format was converted to before the window opened.
+    target_file: PathBuf,
+    /// Keeps the conversion temporary directory alive for the window's
+    /// lifetime; dropping it removes the temporary PDF.
+    _prepared: PreparedDocument,
     window: Option<Window>,
     webview: Option<wry::WebView>,
     web_context: WebContext,
@@ -191,12 +200,7 @@ impl ApplicationHandler for App {
             return;
         }
 
-        let file_name = self
-            .args
-            .file
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_else(|| self.args.file.display().to_string());
+        let file_name = self._prepared.display_name.clone();
         let mut attributes = Window::default_attributes()
             .with_title(format!("{file_name} - PDF 查看器"))
             .with_min_inner_size(LogicalSize::new(520u32, 360u32))
@@ -225,7 +229,7 @@ impl ApplicationHandler for App {
         };
 
         let web_root = self.web_root.clone();
-        let target_file = self.args.file.clone();
+        let target_file = self.target_file.clone();
         let start_url =
             format!("{SCHEME}://{HOST}/web/viewer.html?file=../file");
         let webview = match WebViewBuilder::new_with_web_context(&mut self.web_context)
@@ -298,9 +302,32 @@ fn main() {
             std::process::exit(1);
         }
     };
+
+    // Conversion happens before the window exists so the user never sees a
+    // blank viewer while LibreOffice or GhostXPS is still working.
+    let extension = args
+        .file
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !conversion::is_supported(&extension) {
+        eprintln!("[pdfjs-view] unsupported file type: {}", args.file.display());
+        std::process::exit(1);
+    }
+    let prepared = match prepare_document(&args.file) {
+        Ok(prepared) => prepared,
+        Err(error) => {
+            eprintln!("[pdfjs-view] {error}");
+            std::process::exit(1);
+        }
+    };
+    let target_file = prepared.file_path.clone();
     let mut app = App {
         args,
         web_root,
+        target_file,
+        _prepared: prepared,
         web_context: WebContext::new(Some(webview_data_directory())),
         window: None,
         webview: None,

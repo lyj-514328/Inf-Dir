@@ -9,48 +9,60 @@ use std::time::{Duration, Instant};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-/// LibreOffice headless conversion is dominated by JVM-free Calc work but still
-/// needs a warm-up on the first run; keep the same ceiling as the other
-/// converting viewers.
+/// LibreOffice headless conversion needs a warm-up on the first run; keep the
+/// same ceiling the retired MuPDF viewer used.
 const CONVERT_TIMEOUT: Duration = Duration::from_secs(120);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 static TEMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-/// Extension of this viewer's own source tree, searched while developing so the
-/// viewer can run from `target\release` without staging the runtime.
-const VIEWER_DIR_NAME: &str = "excel-view";
+/// Extension of this viewer's own source tree, searched while developing so
+/// the viewer can run from `target\release` without staging the runtime.
+const VIEWER_DIR_NAME: &str = "pdfjs-view";
 
 /// Package that carries runtimes shared by more than one viewer, installed
 /// beside the viewer packages in `plugins\dist\`.
 const SHARED_RUNTIME_PACKAGE: &str = "inf-dir.runtime";
 
-/// Plain `runtime\` directory holding the same shared runtimes. The source tree
-/// uses this layout before `plugins\build.bat` installs the package.
+/// Plain `runtime\` directory holding the same shared runtimes. The source
+/// tree uses this layout before `plugins\build.bat` installs the package.
 const SHARED_RUNTIME_DIR: &str = "runtime";
 
 /// How many parent directories are inspected when looking for a runtime.
 const RUNTIME_SEARCH_DEPTH: usize = 8;
 
-/// Formats `@silurus/ooxml` reads directly.
-pub const NATIVE_EXTENSIONS: [&str; 4] = ["xlsx", "xlsm", "xltx", "xltm"];
+/// Formats pdf.js renders directly.
+pub const NATIVE_EXTENSIONS: [&str; 1] = ["pdf"];
 
-/// Filter passed to `soffice --convert-to`, i.e. the OOXML format every legacy
-/// source below is normalised to.
-const CONVERSION_FILTER: &str = "xlsx";
+/// Filter passed to `soffice --convert-to`, i.e. the intermediate format every
+/// document below is converted to before rendering.
+const CONVERSION_FILTER: &str = "pdf";
 
-/// Legacy and ODF spreadsheet formats that need conversion before rendering.
-const LEGACY_EXTENSIONS: [&str; 5] = ["xls", "xlt", "xlsb", "ods", "ots"];
+/// Word-processing, presentation, spreadsheet (fallback), CAD and web-archive
+/// formats that need LibreOffice before pdf.js can display them.
+const SOFFICE_EXTENSIONS: [&str; 37] = [
+    "doc", "docm", "docx", "dot", "dotm", "dotx", "odt", "ott", "fodt", "rtf", "wps", "wbk",
+    "mht", "mhtml", "ppt", "pptm", "pptx", "pot", "potm", "potx", "pps", "ppsm", "ppsx", "odp",
+    "otp", "fodp", "xls", "xlsb", "xlsx", "xlsm", "xlt", "xltm", "xltx", "ods", "ots", "dxf",
+    "dwg",
+];
 
-/// Whether a source format has to go through LibreOffice before rendering.
-fn needs_conversion(ext: &str) -> bool {
-    LEGACY_EXTENSIONS.contains(&ext)
+/// XPS/OpenXPS go through the shared GhostXPS interpreter instead of
+/// LibreOffice; they are page documents neither backend reads natively.
+const GXPS_EXTENSIONS: [&str; 2] = ["xps", "oxps"];
+
+fn needs_soffice(ext: &str) -> bool {
+    SOFFICE_EXTENSIONS.contains(&ext)
+}
+
+fn needs_gxps(ext: &str) -> bool {
+    GXPS_EXTENSIONS.contains(&ext)
 }
 
 /// Whether this viewer can render the extension at all, native or converted.
 pub fn is_supported(ext: &str) -> bool {
     let ext = ext.to_ascii_lowercase();
-    NATIVE_EXTENSIONS.contains(&ext.as_str()) || needs_conversion(&ext)
+    NATIVE_EXTENSIONS.contains(&ext.as_str()) || needs_soffice(&ext) || needs_gxps(&ext)
 }
 
 pub struct PreparedDocument {
@@ -146,8 +158,16 @@ fn find_on_path(executable: &str) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-/// Resolve `soffice.exe`: an explicit override, then the
-/// shared runtime package, then a machine-wide LibreOffice install, then PATH.
+/// Locate `<directory>\<executable>` under one of [`runtime_search_roots`].
+fn find_runtime_tool(directory: &str, executable: &str) -> Option<PathBuf> {
+    runtime_search_roots()
+        .into_iter()
+        .map(|root| root.join(directory).join(executable))
+        .find(|candidate| candidate.is_file())
+}
+
+/// Resolve `soffice.exe`: an explicit override, then the shared runtime
+/// package, then a machine-wide LibreOffice install, then PATH.
 fn find_libreoffice() -> Option<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(configured) = std::env::var("INF_DIR_LIBREOFFICE_PATH") {
@@ -186,19 +206,42 @@ fn find_libreoffice() -> Option<PathBuf> {
     find_on_path("soffice.exe").or_else(|| find_on_path("soffice.com"))
 }
 
-pub fn prepare_document(source: &Path) -> Result<PreparedDocument, String> {
-    if !needs_conversion(&normalized_extension(source)) {
-        return Ok(PreparedDocument::direct(source));
+/// `gxpswin64.exe` from the shared GhostXPS runtime turns XPS/OpenXPS into PDF.
+fn find_gxps() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("INF_DIR_GXPS_PATH") {
+        let configured = PathBuf::from(path);
+        if configured.is_file() {
+            return Some(configured);
+        }
+        if configured.is_dir() {
+            let nested = configured.join("gxpswin64.exe");
+            if nested.is_file() {
+                return Some(nested);
+            }
+        }
     }
-    convert_to_ooxml(source).map(|(path, temp_dir)| {
-        PreparedDocument::temporary(path, file_name(source), temp_dir)
-    })
+    find_runtime_tool("gxps", "gxpswin64.exe").or_else(|| find_on_path("gxpswin64.exe"))
 }
 
-/// `soffice.exe` stays resident while the converted document is written, but it
-/// drives the real worker as a child process, so a timeout has to take the
+pub fn prepare_document(source: &Path) -> Result<PreparedDocument, String> {
+    let ext = normalized_extension(source);
+    if ext == "pdf" {
+        return Ok(PreparedDocument::direct(source));
+    }
+    let display_name = file_name(source);
+    if needs_gxps(&ext) {
+        return convert_xps(source, display_name);
+    }
+    if needs_soffice(&ext) {
+        return convert_to_pdf(source, display_name);
+    }
+    Err(format!("unsupported file type: .{ext}"))
+}
+
+/// `soffice.exe` stays resident while the converted document is written, but
+/// it drives the real worker as a child process, so a timeout has to take the
 /// whole tree down.
-fn convert_to_ooxml(source: &Path) -> Result<(PathBuf, PathBuf), String> {
+fn convert_to_pdf(source: &Path, display_name: String) -> Result<PreparedDocument, String> {
     let soffice = find_libreoffice().ok_or_else(|| {
         "该格式需要 LibreOffice 转换运行时。请运行 plugins\\build.bat 安装共享运行时包，或设置 INF_DIR_LIBREOFFICE_PATH。"
             .to_string()
@@ -252,10 +295,9 @@ fn convert_to_ooxml(source: &Path) -> Result<(PathBuf, PathBuf), String> {
         Ok(status) => {
             let (stdout, stderr) = capture(&mut child);
             let _ = fs::remove_dir_all(&temp_dir);
-            let detail = first_non_empty(&stderr, &stdout).unwrap_or_else(|| {
-                format!("LibreOffice 以退出码 {status} 结束")
-            });
-            return Err(format!("转换为 {CONVERSION_FILTER} 失败: {detail}"));
+            let detail = first_non_empty(&stderr, &stdout)
+                .unwrap_or_else(|| format!("LibreOffice 以退出码 {status} 结束"));
+            return Err(format!("转换为 PDF 失败: {detail}"));
         }
         Err(e) => {
             let _ = fs::remove_dir_all(&temp_dir);
@@ -270,10 +312,60 @@ fn convert_to_ooxml(source: &Path) -> Result<(PathBuf, PathBuf), String> {
         let _ = fs::remove_dir_all(&temp_dir);
         let detail =
             first_non_empty(&stderr, &stdout).unwrap_or_else(|| "没有生成输出文件".to_string());
-        return Err(format!("转换为 {CONVERSION_FILTER} 失败: {detail}"));
+        return Err(format!("转换为 PDF 失败: {detail}"));
     }
 
-    Ok((converted, temp_dir))
+    Ok(PreparedDocument::temporary(converted, display_name, temp_dir))
+}
+
+/// XPS and OpenXPS are converted with the shared GhostXPS interpreter; the
+/// resulting PDF keeps the vector content.
+fn convert_xps(source: &Path, display_name: String) -> Result<PreparedDocument, String> {
+    let gxps = find_gxps().ok_or_else(|| {
+        "XPS 查看需要共享 GhostXPS 运行时。请运行 plugins\\build.bat 安装共享运行时包，或设置 INF_DIR_GXPS_PATH。"
+            .to_string()
+    })?;
+
+    let temp_dir = create_temp_directory("xps")
+        .map_err(|e| format!("Failed to create temporary directory for XPS: {e}"))?;
+    let stem = source
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("document");
+    let output_pdf = temp_dir.join(format!("{stem}.pdf"));
+
+    let source_str = source.to_string_lossy();
+    let output_arg = format!("-o{}", output_pdf.to_string_lossy());
+    let result = Command::new(&gxps)
+        .args([
+            "-q",
+            "-dNOPAUSE",
+            "-dBATCH",
+            "-sDEVICE=pdfwrite",
+            output_arg.as_str(),
+            source_str.as_ref(),
+        ])
+        .stdin(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+
+    let output = match result {
+        Ok(output) => output,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&temp_dir);
+            return Err(format!("Failed to execute gxps: {error}"));
+        }
+    };
+
+    if !output.status.success() || !output_pdf.is_file() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let detail = if stderr.trim().is_empty() { stdout } else { stderr };
+        let _ = fs::remove_dir_all(&temp_dir);
+        return Err(format!("XPS to PDF conversion failed: {}", detail.trim()));
+    }
+
+    Ok(PreparedDocument::temporary(output_pdf, display_name, temp_dir))
 }
 
 fn wait_with_timeout(child: &mut Child, timeout: Duration) -> io::Result<ExitStatus> {
@@ -370,35 +462,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_formats_are_rendered_without_conversion() {
-        for ext in NATIVE_EXTENSIONS {
-            assert!(!needs_conversion(ext), "{ext} must not convert");
+    fn pdf_renders_without_conversion() {
+        assert!(is_supported("pdf"));
+        assert!(!needs_soffice("pdf"));
+        assert!(!needs_gxps("pdf"));
+    }
+
+    #[test]
+    fn office_cad_and_web_archive_formats_convert_via_soffice() {
+        for ext in [
+            "doc", "docx", "odt", "rtf", "wps", "ppt", "pptx", " odp", "xls", "xlsx", "ods",
+            "mhtml", "dxf", "dwg",
+        ] {
+            assert!(needs_soffice(ext.trim()), "{ext} must convert");
+            assert!(is_supported(ext.trim()), "{ext} must be supported");
+        }
+    }
+
+    #[test]
+    fn xps_formats_convert_via_ghostxps() {
+        for ext in ["xps", "oxps"] {
+            assert!(needs_gxps(ext), "{ext} must convert");
             assert!(is_supported(ext), "{ext} must be supported");
         }
     }
 
     #[test]
-    fn legacy_formats_convert_before_rendering() {
-        for ext in LEGACY_EXTENSIONS {
-            assert!(needs_conversion(ext), "{ext} must convert");
-            assert!(is_supported(ext), "{ext} must be supported");
-        }
-    }
-
-    #[test]
-    fn unrelated_formats_are_not_claimed() {
-        for ext in ["doc", "docx", "odt", "odp", "csv", "pdf", ""] {
+    fn unsupported_formats_are_rejected_before_conversion() {
+        for ext in ["epub", "cbz", "vsd", "vsdx", "djvu", "zip", "txt", ""] {
             assert!(!is_supported(ext), "{ext} is out of scope");
         }
-    }
-
-    #[test]
-    fn extension_is_case_insensitive() {
-        assert!(Path::new("C:\\tmp\\BOOK.XLSB")
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some());
-        assert_eq!(normalized_extension(Path::new("C:\\tmp\\BOOK.XLSB")), "xlsb");
+        assert!(prepare_document(Path::new("C:\\tmp\\book.epub")).is_err());
     }
 
     #[test]
@@ -429,7 +523,7 @@ mod tests {
 
     #[test]
     fn profile_uri_keeps_a_unc_authority() {
-        let uri = file_uri(Path::new("\\\\share\\books\\profile"));
-        assert_eq!(uri, "file://share/books/profile/");
+        let uri = file_uri(Path::new("\\\\share\\docs\\profile"));
+        assert_eq!(uri, "file://share/docs/profile/");
     }
 }
