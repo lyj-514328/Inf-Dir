@@ -1,12 +1,25 @@
-Inf-Dir email-view includes the following third-party software:
+Inf-Dir email-view third-party notices
+
+The UI shell is written in Rust on top of the shared viewer-web-shell; the
+email parser (email-parse.exe) is a Native AOT .NET console tool.
+
+wry (and the WebView2 bindings it uses: webview2-com, windows-rs)
+Copyright (c) 2020-2024 The wry developers; Copyright (c) Microsoft Corporation
+License: BSD-3-Clause / MIT
+Source: https://crates.io/crates/wry
+
+Microsoft Edge WebView2 Runtime
+Copyright (c) Microsoft Corporation
+License: proprietary runtime, distributed with Windows / Edge
+Source: https://developer.microsoft.com/en-us/microsoft-edge/webview2/
 
 - MimeKit 4.17.0, Copyright (C) Jeffrey Stedfast, MIT License.
   https://github.com/jstedfast/MimeKit
 - MSGReader 6.0.7, Copyright (C) Kees van Spelde, MIT License.
   https://github.com/Sicos1977/MSGReader
-- Microsoft.Web.WebView2 1.0.4129.50, distributed under the license
-  included with the Microsoft.Web.WebView2 NuGet package.
-  https://www.nuget.org/packages/Microsoft.Web.WebView2
+- System.Text.Encoding.CodePages 8.0.0, Copyright (c) .NET Foundation,
+  MIT License (legacy mail code pages: Big5, GB2312, Windows-1252, ...).
+  https://github.com/dotnet/runtime
 - DOMPurify 3.4.13, Copyright (C) Mario Heiderich and contributors,
   Mozilla Public License 2.0 or Apache License 2.0.
   https://github.com/cure53/DOMPurify

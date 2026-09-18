@@ -50,15 +50,22 @@ elements.detailsButton.addEventListener('click', () => {
   elements.details.hidden = !expanded;
 });
 
-window.chrome.webview.addEventListener('message', event => {
-  if (event.data?.type === 'attachmentSaved') {
-    markAttachmentSaved(event.data.id);
-    return;
+function ipc(message) {
+  try {
+    window.ipc?.postMessage(JSON.stringify(message));
+  } catch (error) {
+    console.error('[email-view] ipc failed:', error);
   }
-  renderEmail(event.data);
-});
+}
 
-window.chrome.webview.postMessage({type: 'ready'});
+fetch('./report.json', {cache: 'no-store'})
+  .then(response => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`)))
+  .then(renderEmail)
+  .catch(() => {
+    elements.loading.hidden = true;
+    elements.errorMessage.textContent = '无法读取邮件解析结果。';
+    elements.error.hidden = false;
+  });
 
 function renderEmail(data) {
   email = data;
@@ -133,7 +140,7 @@ function prepareHtml(raw, attachments) {
       const contentId = decodeCid(source.slice(4));
       const id = cidMap.get(contentId);
       if (id !== undefined) {
-        image.setAttribute('src', `https://email-view.local/inline/${encodeURIComponent(id)}`);
+        image.setAttribute('src', `${location.origin}/inline/${encodeURIComponent(id)}`);
       } else {
         image.remove();
       }
@@ -179,7 +186,7 @@ function bindFrameLinks() {
     const link = event.target.closest?.('a[href]');
     if (!link) return;
     event.preventDefault();
-    window.chrome.webview.postMessage({type: 'openLink', url: link.href});
+    ipc({type: 'openLink', url: link.href});
   });
 }
 
@@ -213,13 +220,35 @@ function renderAttachments(attachments) {
     save.setAttribute('aria-label', `保存 ${attachment.name}`);
     save.innerHTML = '<i data-lucide="download" aria-hidden="true"></i>';
     save.addEventListener('click', () => {
-      window.chrome.webview.postMessage({type: 'saveAttachment', id: attachment.id});
+      waitForSaved(attachment.id);
+      ipc({type: 'saveAttachment', id: attachment.id});
     });
 
     row.append(icon, copy, save);
     elements.attachmentList.append(row);
   }
   createIcons({icons: {Download, FileText}});
+}
+
+async function waitForSaved(id) {
+  const previousStamp = (await readSaveState())?.stamp ?? 0;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const state = await readSaveState();
+    if (state && state.id === id && state.stamp > previousStamp) {
+      markAttachmentSaved(id);
+      return;
+    }
+  }
+}
+
+async function readSaveState() {
+  try {
+    const response = await fetch(`./save-state.json?t=${Date.now()}`, {cache: 'no-store'});
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null;
+  }
 }
 
 function markAttachmentSaved(id) {

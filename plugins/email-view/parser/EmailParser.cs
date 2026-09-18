@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using MimeKit;
 using MimeKit.Tnef;
 using MsgReader.Outlook;
@@ -6,7 +8,7 @@ using OutlookMessage = MsgReader.Outlook.Storage.Message;
 using OutlookRecipient = MsgReader.Outlook.Storage.Recipient;
 using OutlookSender = MsgReader.Outlook.Storage.Sender;
 
-namespace InfDir.EmailView;
+namespace InfDir.EmailParse;
 
 internal static class EmailParser
 {
@@ -61,7 +63,7 @@ internal static class EmailParser
             headerLength--;
         }
 
-        var header = System.Text.Encoding.ASCII.GetString(data, 0, headerLength).Trim();
+        var header = Encoding.ASCII.GetString(data, 0, headerLength).Trim();
         if (!long.TryParse(header, out var messageLength) ||
             messageLength <= 0 ||
             messageLength > data.LongLength - newline - 1 ||
@@ -204,10 +206,10 @@ internal static class EmailParser
     private static ParsedEmail Complete(
         string path,
         string? subject,
-        IReadOnlyList<EmailAddress> from,
-        IReadOnlyList<EmailAddress> to,
-        IReadOnlyList<EmailAddress> cc,
-        IReadOnlyList<EmailAddress> bcc,
+        EmailAddress[] from,
+        EmailAddress[] to,
+        EmailAddress[] cc,
+        EmailAddress[] bcc,
         string? date,
         string? htmlBody,
         string? textBody,
@@ -241,7 +243,7 @@ internal static class EmailParser
         bool inline,
         string? contentId)
     {
-        var id = attachments.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var id = attachments.Count.ToString(CultureInfo.InvariantCulture);
         var fallbackName = $"attachment-{attachments.Count + 1}";
         var safeName = SanitizeFileName(name, fallbackName);
         var normalizedContentId = contentId?.Trim().Trim('<', '>');
@@ -282,7 +284,7 @@ internal static class EmailParser
         return candidate;
     }
 
-    private static IReadOnlyList<EmailAddress> MapAddresses(IEnumerable<MailboxAddress> addresses)
+    private static EmailAddress[] MapAddresses(IEnumerable<MailboxAddress> addresses)
     {
         return addresses.Select(address => new EmailAddress
         {
@@ -291,7 +293,7 @@ internal static class EmailParser
         }).ToArray();
     }
 
-    private static IReadOnlyList<EmailAddress> MapSender(OutlookSender? sender)
+    private static EmailAddress[] MapSender(OutlookSender? sender)
     {
         if (sender is null)
         {
@@ -301,7 +303,7 @@ internal static class EmailParser
         return [new EmailAddress { Name = sender.DisplayName ?? "", Address = sender.Email ?? "" }];
     }
 
-    private static IReadOnlyList<EmailAddress> MapRecipients(
+    private static EmailAddress[] MapRecipients(
         IEnumerable<OutlookRecipient> recipients,
         RecipientType type)
     {

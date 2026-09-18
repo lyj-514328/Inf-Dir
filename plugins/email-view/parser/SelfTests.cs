@@ -1,22 +1,24 @@
 using System.Text;
 
-namespace InfDir.EmailView;
+namespace InfDir.EmailParse;
 
 internal static class SelfTests
 {
     public static int Run()
     {
-        var root = Path.Combine(Path.GetTempPath(), $"inf-dir-email-view-{Guid.NewGuid():N}");
+        var root = Path.Combine(Path.GetTempPath(), $"inf-dir-email-parse-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
         try
         {
             ParserReadsEml(root);
             ParserReadsEmlx(root);
-            PlacementRequiresProtocolV2();
+            ParserReadsLegacyCodePageEml(root);
+            ReportContainsAttachmentsAndFiles(root);
             return 0;
         }
-        catch
+        catch (Exception exception)
         {
+            Console.Error.WriteLine($"email-parse self-test failed: {exception.Message}");
             return 1;
         }
         finally
@@ -51,24 +53,47 @@ internal static class SelfTests
         Assert(parsed.Attachments.Count == 1, "EMLX attachment count");
     }
 
-    private static void PlacementRequiresProtocolV2()
+    private static void ParserReadsLegacyCodePageEml(string root)
     {
-        var valid = new[]
-        {
-            "sample.eml",
-            CommandLine.PlacementArgument,
-            "{\"version\":2,\"x\":10,\"y\":20,\"clientWidth\":800,\"clientHeight\":600,\"maximized\":false}",
-        };
-        Assert(CommandLine.TryParse(valid, out _, out var placement, out _), "valid placement");
-        Assert(placement?.ClientWidth == 800, "placement width");
+        // Regression guard: legacy code pages (Big5 = CP950) require the
+        // CodePagesEncodingProvider that Program.Main registers.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var big5 = Encoding.GetEncoding("big5");
+        var body = big5.GetBytes("中文測試正文");
+        var path = Path.Combine(root, "big5.eml");
+        File.WriteAllBytes(path, [
+            .. Encoding.ASCII.GetBytes(
+                "From: legacy@example.com\r\n" +
+                "Subject: =?big5?B?" + Convert.ToBase64String(big5.GetBytes("中文主旨")) + "?=\r\n" +
+                "MIME-Version: 1.0\r\n" +
+                "Content-Type: text/plain; charset=big5\r\n" +
+                "Content-Transfer-Encoding: 8BIT\r\n\r\n"),
+            .. body,
+        ]);
 
-        var unknownField = new[]
-        {
-            "sample.eml",
-            CommandLine.PlacementArgument,
-            "{\"version\":2,\"x\":10,\"y\":20,\"clientWidth\":800,\"clientHeight\":600,\"extra\":true}",
-        };
-        Assert(!CommandLine.TryParse(unknownField, out _, out _, out _), "unknown placement field");
+        var parsed = EmailParser.Parse(path);
+        Assert(parsed.Document.Subject == "中文主旨", "Big5 subject");
+        Assert(parsed.Document.TextBody?.Contains("中文測試正文") == true, "Big5 body");
+    }
+
+    private static void ReportContainsAttachmentsAndFiles(string root)
+    {
+        var emlPath = Path.Combine(root, "report-sample.eml");
+        File.WriteAllText(emlPath, SampleEml, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        var staging = Path.Combine(root, "staging");
+        Directory.CreateDirectory(staging);
+
+        ReportWriter.Write(EmailParser.Parse(emlPath), staging);
+
+        var report = File.ReadAllText(Path.Combine(staging, ReportWriter.ReportFileName));
+        Assert(report.Contains("\"sourceFileName\":\"report-sample.eml\""), "report camelCase fields");
+        Assert(report.Contains("\"attachments\":["), "report attachment list");
+        Assert(!report.Contains("\"htmlBody\"", StringComparison.Ordinal), "null fields omitted");
+        var attachmentBytes = File.ReadAllBytes(Path.Combine(
+            staging,
+            ReportWriter.AttachmentsDirectoryName,
+            "0"));
+        Assert(Encoding.UTF8.GetString(attachmentBytes) == "attachment", "attachment file bytes");
     }
 
     private static void Assert(bool condition, string name)

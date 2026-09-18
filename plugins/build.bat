@@ -26,7 +26,7 @@ set "MERMAID_VERSION=11.4.1"
 set "MD_WEB=%SCRIPT_DIR%markdown-view-web"
 set "CODE_WEB=%SCRIPT_DIR%code-view-web"
 set "EMAIL_WEB=%SCRIPT_DIR%email-view-web"
-set "EMAIL_PUBLISH=%SCRIPT_DIR%email-view\publish"
+set "EMAIL_PUBLISH=%SCRIPT_DIR%email-view\parser\bin\Release\net8.0\win-x64\publish"
 set "PROJECT_PUBLISH=%SCRIPT_DIR%project-view\bin\Release\project-view"
 set "EBOOK_WEB=%SCRIPT_DIR%ebook-view-web"
 
@@ -375,20 +375,24 @@ if errorlevel 1 ( echo [ERROR] markdown-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  12. Build email-view (.NET 8 self-contained + WebView2)
+REM  12. Build email-view (Rust shell + Native AOT .NET parser)
 REM ============================================================
 echo [12/14] Building email-view...
 "%DOTNET_EXE%" --list-sdks | findstr /r "." >nul
 if errorlevel 1 (
-    echo [ERROR] A .NET SDK is required to build email-view.
+    echo [ERROR] A .NET SDK is required to build the email-view parser.
     exit /b 1
 )
 if exist "%EMAIL_PUBLISH%" rmdir /s /q "%EMAIL_PUBLISH%"
+pushd "%SCRIPT_DIR%email-view\parser"
+"%DOTNET_EXE%" publish EmailParse.csproj -c Release
+if errorlevel 1 ( echo [ERROR] email-parse publish failed. & popd & exit /b 1 )
+start "" /wait "%EMAIL_PUBLISH%\email-parse.exe" --self-test
+if errorlevel 1 ( echo [ERROR] email-parse self-test failed. & popd & exit /b 1 )
+popd
 pushd "%SCRIPT_DIR%email-view"
-"%DOTNET_EXE%" publish EmailView.csproj -c Release -r win-x64 --self-contained true -o "%EMAIL_PUBLISH%"
-if errorlevel 1 ( echo [ERROR] email-view publish failed. & popd & exit /b 1 )
-start "" /wait "%EMAIL_PUBLISH%\email-view.exe" --self-test
-if errorlevel 1 ( echo [ERROR] email-view self-test failed. & popd & exit /b 1 )
+cargo build --release
+if errorlevel 1 ( echo [ERROR] email-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
@@ -620,8 +624,10 @@ xcopy /E /I /Y /Q "%SCRIPT_DIR%chm-view\chm-view-web" "%DIST_DIR%\inf-dir.chm-vi
 
 if exist "%DIST_DIR%\inf-dir.email-view" rmdir /s /q "%DIST_DIR%\inf-dir.email-view"
 mkdir "%DIST_DIR%\inf-dir.email-view"
-xcopy /E /I /Y /Q "%EMAIL_PUBLISH%\*" "%DIST_DIR%\inf-dir.email-view\" >nul
 copy /Y "%SCRIPT_DIR%email-view\plugin.json" "%DIST_DIR%\inf-dir.email-view\" >nul
+copy /Y "%SCRIPT_DIR%email-view\target\release\email-view.exe" "%DIST_DIR%\inf-dir.email-view\" >nul
+copy /Y "%EMAIL_PUBLISH%\email-parse.exe" "%DIST_DIR%\inf-dir.email-view\" >nul
+copy /Y "%SCRIPT_DIR%email-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.email-view\" >nul
 xcopy /E /I /Y /Q "%EMAIL_WEB%" "%DIST_DIR%\inf-dir.email-view\email-view-web" >nul
 
 copy /Y "%SCRIPT_DIR%video-view\plugin.json" "%DIST_DIR%\inf-dir.video-view\" >nul
