@@ -1,6 +1,13 @@
 Inf-Dir font-view third-party notices
 
-Microsoft WebView2 SDK
+This viewer is written in Rust on top of the shared viewer-web-shell.
+
+wry (and the WebView2 bindings it uses: webview2-com, windows-rs)
+Copyright (c) 2020-2024 The wry developers; Copyright (c) Microsoft Corporation
+License: BSD-3-Clause / MIT
+Source: https://crates.io/crates/wry
+
+Microsoft Edge WebView2 Runtime
 Copyright (c) Microsoft Corporation
-License: BSD-3-Clause
-Source: https://www.nuget.org/packages/Microsoft.Web.WebView2/
+License: proprietary runtime, distributed with Windows / Edge
+Source: https://developer.microsoft.com/en-us/microsoft-edge/webview2/

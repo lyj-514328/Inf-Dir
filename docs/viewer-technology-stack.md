@@ -46,7 +46,7 @@
 | 音频/视频 | `video-view` | 已接入 | libmpv2 渲染和播放 | `libmpv2`；发布时附带 `libmpv-2.dll` |
 | 压缩包 | `archive-view` | 已接入 | libarchive 枚举并显示归档内容 | `archive.dll`（libarchive） |
 | 邮件：EML/EMLX/MSG/OFT/TNEF | `email-view` | 已接入 | .NET 解析邮件，WebView2 渲染正文 | MimeKit；MSGReader；WebView2；DOMPurify |
-| 字体：TTF/OTF/WOFF/WOFF2/TTC/DFONT | `font-view` | 已接入 | .NET 处理 DFONT，WebView2 显示字体预览 | .NET 8；WebView2；Windows 字体能力 |
+| 字体：TTF/OTF/WOFF/WOFF2/TTC/DFONT | `font-view` | 已接入 | Rust 剥出 DFONT 内的 sfnt 流，WebView2 用 `@font-face` 显示字体预览 | WebView2（DirectWrite 渲染） |
 | Project：MPP/MPT/MPX | `project-view` | 已接入 | Java MPXJ 读取任务、时间、层级和前置关系；Rust/WebView2 + dhtmlxGantt 渲染 | Java 17 私有运行时；MPXJ；dhtmlxGantt Community 10.0.2 |
 
 ## 3. Viewer 工程技术栈
@@ -62,7 +62,7 @@
 | `inf-dir.archive-view` | Rust + egui/eframe | libarchive、egui_ltreeview | `archive.dll` | ZIP/7z/RAR/TAR/ISO 等归档内容 |
 | `inf-dir.video-view` | Rust + egui/eframe | libmpv2 | `libmpv-2.dll`；mpv/FFmpeg 能力由 DLL 提供 | 音频、视频、动图 |
 | `inf-dir.email-view` | .NET 8 Windows Forms + WebView2 | MimeKit 4.17.0、MSGReader 6.0.7 | WebView2；本地 HTML/CSS/JS；DOMPurify | EML/EMLX/MSG/OFT/TNEF |
-| `inf-dir.font-view` | .NET 8 Windows Forms + WebView2 | 自研 DFONT 提取器 | WebView2；self-contained .NET 运行时 | 字体预览 |
+| `inf-dir.font-view` | Rust + viewer-web-shell/wry/WebView2 | 自研 DFONT 剥壳（`src/dfont.rs`） | WebView2 | 字体预览 |
 | `inf-dir.project-view` | Rust + winit/wry/WebView2；Java tool | MPXJ Java 16.7.0；dhtmlxGantt Community 10.0.2 | jpackage self-contained Java parser；WebView2 Runtime | Microsoft Project |
 | `inf-dir.ebook-view` | Rust + winit/wry/WebView2 | foliate-js fork（新增 HTML book 适配） | WebView2；随包发布的 `ebook-view-web/` 静态资源（submodule = fork）；DjVu 转换用共享的 DjVuLibre 运行时 | EPUB、MOBI、AZW/AZW3、FB2/FBZ/FB2Z、CBZ、DjVu、TCR、CBR |
 | `inf-dir.chm-view` | Rust + winit/wry/WebView2 | CHMate ES modules | WebView2；随包发布的 `chm-view-web/` 静态资源 | CHM |
@@ -111,7 +111,7 @@ Windows 11 通常自带，Windows 10 依赖 Edge/WebView2 Runtime 安装状态�
 
 ### 4.4 运行时与发布
 
-- `email-view` 和 `font-view` 使用 .NET 8、Windows Forms、win-x64 self-contained 发布。
+- `email-view` 使用 .NET 8、Windows Forms、win-x64 self-contained 发布（最后一个 .NET Viewer）。
 - `project-view` 使用 Rust/WebView2 外壳和 Java 17 MPXJ parser tool，正式发布按构建脚本发布 self-contained 产物。
 - .NET Viewer 的第三方包只在独立 Viewer 进程中加载，不由 Flutter 直接引用。
 - 被多个 Viewer 共用的运行时作为**共享运行时包**发布，不复制进各 Viewer 包。判定标准是

@@ -51,8 +51,6 @@ plugins/runtime/_runtime_tmp/
 plugins/runtime/djvulibre/
 plugins/runtime/gxps/
 plugins/runtime/libreoffice/
-plugins/font-view/bin/
-plugins/font-view/obj/
 plugins/project-view/bin/
 plugins/project-view/obj/
 plugins/project-view/backend/target/

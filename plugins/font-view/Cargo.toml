@@ -1,0 +1,15 @@
+[package]
+name = "font-view"
+version = "0.1.0"
+edition = "2021"
+description = "Font preview viewer for Inf-Dir Quick View (WebView2 + @font-face)"
+
+[dependencies]
+http = "1"
+viewer-web-shell = { path = "../viewer-web-shell" }
+viewer-window-placement = { path = "../viewer-window-placement" }
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+strip = true

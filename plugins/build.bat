@@ -27,7 +27,6 @@ set "MD_WEB=%SCRIPT_DIR%markdown-view-web"
 set "CODE_WEB=%SCRIPT_DIR%code-view-web"
 set "EMAIL_WEB=%SCRIPT_DIR%email-view-web"
 set "EMAIL_PUBLISH=%SCRIPT_DIR%email-view\publish"
-set "FONT_PUBLISH=%SCRIPT_DIR%font-view\bin\Release\net8.0-windows\win-x64\publish"
 set "PROJECT_PUBLISH=%SCRIPT_DIR%project-view\bin\Release\project-view"
 set "EBOOK_WEB=%SCRIPT_DIR%ebook-view-web"
 
@@ -429,7 +428,7 @@ if errorlevel 1 ( echo [ERROR] ebook-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  16. Build font-view (.NET self-contained + WebView2)
+REM  16. Build font-view (Rust + viewer-web-shell)
 REM ============================================================
 echo [16/18] Building font-view...
 pushd "%SCRIPT_DIR%font-view"
@@ -656,7 +655,7 @@ if errorlevel 8 (
 )
 
 copy /Y "%SCRIPT_DIR%font-view\plugin.json" "%DIST_DIR%\inf-dir.font-view\" >nul
-xcopy /E /I /Y /Q "%FONT_PUBLISH%\*" "%DIST_DIR%\inf-dir.font-view\" >nul
+copy /Y "%SCRIPT_DIR%font-view\target\release\font-view.exe" "%DIST_DIR%\inf-dir.font-view\" >nul
 copy /Y "%SCRIPT_DIR%font-view\THIRD_PARTY_NOTICES.txt" "%DIST_DIR%\inf-dir.font-view\" >nul
 
 copy /Y "%SCRIPT_DIR%project-view\plugin.json" "%DIST_DIR%\inf-dir.project-view\" >nul
