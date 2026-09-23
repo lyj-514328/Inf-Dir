@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "inf-dir.project-view",
   "name": "Project Viewer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "entrypoint": "project-view.exe",
   "capabilities": {
     "quickView": {

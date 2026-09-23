@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 REM ============================================================
 REM  Inf-Dir plugins one-click build script
-REM  Prerequisites: rustup, cargo, Node.js/npm, .NET SDK, curl, PowerShell, 7z, JDK 17+ (project-view)
+REM  Prerequisites: rustup, cargo (Rust 1.85+), Node.js/npm, .NET SDK, curl, PowerShell, 7z
 REM ============================================================
 
 set "SCRIPT_DIR=%~dp0"
@@ -441,7 +441,7 @@ if errorlevel 1 ( echo [ERROR] font-view build failed. & popd & exit /b 1 )
 popd
 
 REM ============================================================
-REM  17. Build project-view (Rust/WebView2 + Java MPXJ)
+REM  17. Build project-view (Rust/WebView2 + mpxj-rs)
 REM ============================================================
 echo [17/18] Building project-view...
 pushd "%SCRIPT_DIR%project-view"

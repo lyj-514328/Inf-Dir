@@ -1,9 +1,10 @@
 Inf-Dir project-view third-party notices
 
-MPXJ 16.7.0
-Copyright (c) Jon Iles and MPXJ contributors
+mpxj-rs 0.1.1 (an unofficial Rust port of MPXJ reader functionality)
+Copyright (c) mpxj-rs contributors, Jon Iles, and MPXJ contributors
 License: LGPL-2.1-or-later
-Source: https://www.mpxj.org/
+Source: https://github.com/lyj-514328/rust-mpxj
+Upstream: https://www.mpxj.org/
 
 dhtmlxGantt Community Edition 10.0.2
 Copyright (c) XB Software Ltd.

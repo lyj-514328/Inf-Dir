@@ -47,7 +47,7 @@
 | 压缩包 | `archive-view` | 已接入 | libarchive 枚举并显示归档内容 | `archive.dll`（libarchive） |
 | 邮件：EML/EMLX/MSG/OFT/TNEF | `email-view` | 已接入 | Rust 壳调用 .NET AOT 无头解析器，WebView2 渲染正文 | MimeKit；MSGReader；WebView2；DOMPurify |
 | 字体：TTF/OTF/WOFF/WOFF2/TTC/DFONT | `font-view` | 已接入 | Rust 剥出 DFONT 内的 sfnt 流，WebView2 用 `@font-face` 显示字体预览 | WebView2（DirectWrite 渲染） |
-| Project：MPP/MPT/MPX | `project-view` | 已接入 | Java MPXJ 读取任务、时间、层级和前置关系；Rust/WebView2 + dhtmlxGantt 渲染 | Java 17 私有运行时；MPXJ；dhtmlxGantt Community 10.0.2 |
+| Project：MPP/MPT/MPX | `project-view` | 已接入 | mpxj-rs 读取任务、时间、层级和前置关系；Rust/WebView2 + dhtmlxGantt 渲染 | mpxj-rs 0.1.1；dhtmlxGantt Community 10.0.2 |
 
 ## 3. Viewer 工程技术栈
 
@@ -63,7 +63,7 @@
 | `inf-dir.video-view` | Rust + egui/eframe | libmpv2 | `libmpv-2.dll`；mpv/FFmpeg 能力由 DLL 提供 | 音频、视频、动图 |
 | `inf-dir.email-view` | Rust + viewer-web-shell/wry/WebView2 | 解析子进程 `email-parse.exe`（Native AOT .NET 8）：MimeKit 4.17.0、MSGReader 6.0.7 | WebView2；本地 HTML/CSS/JS；DOMPurify | EML/EMLX/MSG/OFT/TNEF |
 | `inf-dir.font-view` | Rust + viewer-web-shell/wry/WebView2 | 自研 DFONT 剥壳（`src/dfont.rs`） | WebView2 | 字体预览 |
-| `inf-dir.project-view` | Rust + winit/wry/WebView2；Java tool | MPXJ Java 16.7.0；dhtmlxGantt Community 10.0.2 | jpackage self-contained Java parser；WebView2 Runtime | Microsoft Project |
+| `inf-dir.project-view` | Rust + winit/wry/WebView2 | mpxj-rs 0.1.1；dhtmlxGantt Community 10.0.2 | 单一原生 EXE；WebView2 Runtime | Microsoft Project |
 | `inf-dir.ebook-view` | Rust + winit/wry/WebView2 | foliate-js fork（新增 HTML book 适配） | WebView2；随包发布的 `ebook-view-web/` 静态资源（submodule = fork）；DjVu 转换用共享的 DjVuLibre 运行时 | EPUB、MOBI、AZW/AZW3、FB2/FBZ/FB2Z、CBZ、DjVu、TCR、CBR |
 | `inf-dir.chm-view` | Rust + winit/wry/WebView2 | CHMate ES modules | WebView2；随包发布的 `chm-view-web/` 静态资源 | CHM |
 | `inf-dir.web-view` | Rust + viewer-web-shell/wry/WebView2 | 浏览器原生 HTML/SVG；内置 MHTML 解析器 | WebView2；随包发布的 `web-view-web/` 静态资源；Visio 转换取自共享 LibreOffice 运行时 | SVG、HTML、XHTML、MHTML、Visio（转 SVG） |
@@ -112,7 +112,7 @@ Windows 11 通常自带，Windows 10 依赖 Edge/WebView2 Runtime 安装状态�
 ### 4.4 运行时与发布
 
 - `email-view` 外壳是 Rust（viewer-web-shell）；随包的 `email-parse.exe` 是 Native AOT 的 .NET 8 无头解析器（最后一个 .NET 组件，只作子进程、不含 UI），win-x64 自包含单文件，无需用户安装运行时。
-- `project-view` 使用 Rust/WebView2 外壳和 Java 17 MPXJ parser tool，正式发布按构建脚本发布 self-contained 产物。
+- `project-view` 在 Rust/WebView2 进程内直接使用 mpxj-rs，正式发布不再携带 Java 运行时或独立 parser tool。
 - .NET Viewer 的第三方包只在独立 Viewer 进程中加载，不由 Flutter 直接引用。
 - 被多个 Viewer 共用的运行时作为**共享运行时包**发布，不复制进各 Viewer 包。判定标准是
   "是否被多于一个 Viewer 使用"：DjVuLibre（`ebook-view` 把 DjVu 转 PDF）、

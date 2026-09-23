@@ -1,10 +1,8 @@
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::{Arc, RwLock};
 
 use dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use http::{Request, StatusCode};
-use serde_json::Value;
 use viewer_web_shell::{response, safe_join};
 use viewer_window_placement::{WindowPlacement, ARGUMENT as WINDOW_PLACEMENT_ARGUMENT};
 use winit::application::ApplicationHandler;
@@ -17,6 +15,8 @@ use wry::{WebContext, WebViewBuilder};
 const SCHEME: &str = "project-view";
 const HOST: &str = "localhost";
 const WEB_DIR_NAME: &str = "project-view-web";
+
+mod project_parser;
 
 #[derive(Debug)]
 struct Args {
@@ -32,12 +32,6 @@ enum LoadState {
 }
 
 type SharedLoadState = Arc<RwLock<LoadState>>;
-
-#[derive(Clone, Debug)]
-struct ParserCommand {
-    program: PathBuf,
-    prefix_args: Vec<String>,
-}
 
 fn parse_args() -> Result<Args, String> {
     parse_args_from(std::env::args().skip(1))
@@ -118,94 +112,29 @@ fn webview_data_directory() -> PathBuf {
         .join("project-view")
 }
 
-fn resolve_parser_command() -> Result<ParserCommand, String> {
-    let mut roots = Vec::new();
-    if let Ok(executable) = std::env::current_exe() {
-        if let Some(directory) = executable.parent() {
-            roots.push(directory.to_path_buf());
-        }
-    }
-    roots.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."));
-    roots.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../backend"));
-
-    for root in &roots {
-        let executable = root.join("project-parser").join("project-parser.exe");
-        if executable.is_file() {
-            return Ok(ParserCommand {
-                program: executable,
-                prefix_args: Vec::new(),
-            });
-        }
-        let jar = root
-            .join("backend")
-            .join("target")
-            .join("project-parser-0.1.0.jar");
-        if jar.is_file() {
-            return Ok(ParserCommand {
-                program: java_executable(),
-                prefix_args: vec!["-jar".to_owned(), jar.to_string_lossy().into_owned()],
-            });
-        }
-        let jar = root.join("target").join("project-parser-0.1.0.jar");
-        if jar.is_file() {
-            return Ok(ParserCommand {
-                program: java_executable(),
-                prefix_args: vec!["-jar".to_owned(), jar.to_string_lossy().into_owned()],
-            });
-        }
-    }
-    Err("project-parser executable was not found beside project-view.exe".to_owned())
-}
-
-fn java_executable() -> PathBuf {
-    if let Some(java_home) = std::env::var_os("JAVA_HOME") {
-        let candidate = PathBuf::from(java_home).join("bin").join("java.exe");
-        if candidate.is_file() {
-            return candidate;
-        }
-    }
-    PathBuf::from("java")
-}
-
 fn start_parser(file: PathBuf, state: SharedLoadState) {
     std::thread::spawn(move || {
-        let command = match resolve_parser_command() {
-            Ok(command) => command,
-            Err(error) => {
+        let project = match std::panic::catch_unwind(|| project_parser::read_project(&file)) {
+            Ok(Ok(project)) => project,
+            Ok(Err(error)) => {
                 set_state(&state, LoadState::Error(error));
                 return;
             }
-        };
-        let mut process = Command::new(&command.program);
-        process.args(&command.prefix_args).arg("--input").arg(&file);
-        let output = match process.output() {
-            Ok(output) => output,
-            Err(error) => {
+            Err(_) => {
                 set_state(
                     &state,
-                    LoadState::Error(format!("failed to start project parser: {error}")),
+                    LoadState::Error("project parser failed unexpectedly".to_owned()),
                 );
                 return;
             }
         };
-        if !output.status.success() {
-            let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-            let message = if detail.is_empty() {
-                format!("project parser exited with {}", output.status)
-            } else {
-                detail
-            };
-            set_state(&state, LoadState::Error(message));
-            return;
-        }
-        if serde_json::from_slice::<Value>(&output.stdout).is_err() {
-            set_state(
+        match serde_json::to_vec(&project) {
+            Ok(json) => set_state(&state, LoadState::Ready(json)),
+            Err(error) => set_state(
                 &state,
-                LoadState::Error("project parser returned invalid JSON".to_owned()),
-            );
-            return;
+                LoadState::Error(format!("failed to encode project data: {error}")),
+            ),
         }
-        set_state(&state, LoadState::Ready(output.stdout));
     });
 }
 
